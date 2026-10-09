@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>挖地</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
+.hud{display:flex;gap:12px;align-items:center;font-size:14px}
+.hud b{color:#D7CCC8;font-size:20px}
+.lives{font-size:15px}
+.iconbtn{background:#1f1f1f;border:1px solid #333;color:#fff;font-size:17px;width:40px;height:40px;border-radius:10px;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+#cv{background:#1a0f08;border-radius:12px;touch-action:none;width:100%;max-width:440px;height:auto;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.controls{display:flex;gap:18px;align-items:center;justify-content:center;width:100%}
+.dpad{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px);gap:4px}
+.dbtn{background:#1f1f1f;border:1px solid #444;color:#fff;font-size:20px;border-radius:12px;cursor:pointer;transition:transform .08s;touch-action:none}
+.dbtn:active{transform:scale(.9);background:#333}
+.pumpbtn{width:92px;height:92px;border-radius:50%;background:linear-gradient(135deg,#8D6E47,#4E342E);border:none;font-size:38px;cursor:pointer;transition:transform .08s;box-shadow:0 4px 18px rgba(141,110,71,.4);touch-action:none}
+.pumpbtn:active{transform:scale(.9)}
+.tip{font-size:12px;color:#888;text-align:center}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.87);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.hidden{display:none!important}
+.overlay h1{font-size:32px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9;max-width:380px}
+.btn{background:linear-gradient(135deg,#A1887F,#5D4037);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;transition:transform .08s;box-shadow:0 4px 16px rgba(161,136,127,.35)}
+.btn:active{transform:scale(.94)}
+.big{font-size:44px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="hud">得分 <b id="score">0</b> <span class="lives" id="lives">❤❤❤</span> <span id="level">第1关</span></div>
+    <div>
+      <button class="iconbtn" id="pauseBtn">⏸</button>
+      <button class="iconbtn" id="sndBtn">🔊</button>
+    </div>
+  </div>
+  <canvas id="cv" width="420" height="360"></canvas>
+  <div class="controls">
+    <div class="dpad">
+      <div></div><button class="dbtn" data-d="up">▲</button><div></div>
+      <button class="dbtn" data-d="left">◀</button><div></div><button class="dbtn" data-d="right">▶</button>
+      <div></div><button class="dbtn" data-d="down">▼</button><div></div>
+    </div>
+    <button class="pumpbtn" id="pumpBtn">🎈</button>
+  </div>
+  <div class="tip">方向键挖隧道 · 按住🎈对准怪物打气，胀爆它！<br>从石头下方挖空，石头落下可砸怪（也会砸到你）</div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="big">⛏</div>
+  <h1>挖地</h1>
+  <p>在泥土中挖隧道前行。<br>按住 🎈 打气泵，对准怪物打气——<br>连打 4 下把它胀爆！松手会慢慢泄气。<br>从石头下方挖空可让石头砸落压怪，<br>小心别被自己的石头砸到。3 条命。</p>
+  <button class="btn" id="startBtn">开始游戏</button>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <h1>⏸ 已暂停</h1>
+  <button class="btn" id="resumeBtn">继续</button>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="big" id="endEmoji">⛏</div>
+  <h1 id="endTitle">游戏结束</h1>
+  <p id="endScore"></p>
+  <p style="color:#888;font-size:13px" id="endHs"></p>
+  <button class="btn" id="againBtn">重新开始</button>
+</div>
+
+<script>
+'use strict';
+// ============ 音效 ============
+let AC=null, soundOn=true;
+function tone(f,d,type,v,slide){ if(!soundOn)return; try{
+  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.type=type||'square'; o.frequency.value=f;
+  if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),AC.currentTime+d);
+  g.gain.setValueAtTime(v||0.05,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+d);
+  o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d);
+}catch(e){} }
+const sfx={
+  click(){tone(650,0.06);},
+  dig(){tone(220,0.05,'triangle',0.04);},
+  pump(){tone(300,0.12,'sine',0.07,500);},
+  pop(){tone(700,0.25,'square',0.09,-400);},
+  rock(){tone(120,0.3,'sawtooth',0.1,-50);},
+  crush(){tone(90,0.4,'sawtooth',0.12,-40);},
+  hit(){tone(140,0.3,'sawtooth',0.1,-60);},
+  win(){[523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,0.2,'triangle',0.08),i*120));},
+  lose(){[400,300,200,150].forEach((f,i)=>setTimeout(()=>tone(f,0.25,'sawtooth',0.08,-40),i*160));}
+};
+const HSKEY='g100_digdug_hs';
+function getHS(){try{return +(localStorage.getItem(HSKEY)||0);}catch(e){return 0;}}
+function setHS(v){try{localStorage.setItem(HSKEY,v);}catch(e){}}
+// ============ 常量 ============
+const COLS=14,ROWS=12,T=30; // 420x360
+const DIRS={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+function newLevel(lv,rng){
+  rng=rng||Math.random;
+  // dirt[r][c]=true 表示有土
+  const dirt=[];
+  for(let r=0;r<ROWS;r++){dirt.push([]);for(let c=0;c<COLS;c++)dirt[r].push(r>0);}
+  const rocks=[];
+  const rockSpots=[];
+  for(let r=2;r<ROWS-2;r++)for(let c=1;c<COLS-1;c++)rockSpots.push([r,c]);
+  for(let i=0;i<2&&rockSpots.length;i++){
+    const [r,c]=rockSpots.splice((rng()*rockSpots.length)|0,1)[0];
+    rocks.push({c,r,state:'idle',fallV:0});
+  }
+  const monsters=[];
+  const n=Math.min(2+lv,5);
+  for(let i=0;i<n;i++){
+    monsters.push({
+      c:2+((rng()*(COLS-4))|0), r:3+((rng()*(ROWS-5))|0),
+      dir:['up','down','left','right'][(rng()*4)|0],
+      air:0, alive:true, moveT:0, ghost:false
+    });
+  }
+  return {dirt,rocks,monsters};
+}
+// ============ 游戏状态 ============
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let started=false,over=false,paused=false;
+let dirt,rocks,monsters,player,pumping=false;
+let score=0,lives=3,level=1,keys={};
+let particles=[],floaters=[],invuln=0,pumpT=0;
+
+function startGame(){
+  score=0;lives=3;level=1;
+  document.getElementById('startOv').classList.add('hidden');
+  document.getElementById('endOv').classList.add('hidden');
+  document.getElementById('pauseOv').classList.add('hidden');
+  started=true;over=false;paused=false;
+  loadLevel(1);updateHUD();sfx.click();
+}
+function loadLevel(lv){
+  const L=newLevel(lv);
+  dirt=L.dirt;rocks=L.rocks;monsters=L.monsters;
+  player={c:0,r:0,face:'right',alive:true,moveT:0};
+  // 出生点挖空
+  dirt[0][0]=false;
+  particles=[];floaters=[];invuln=0;pumping=false;
+  document.getElementById('level').textContent='第'+lv+'关';
+}
+function updateHUD(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('lives').textContent='❤'.repeat(Math.max(0,lives))+'🖤'.repeat(Math.max(0,3-lives));
+}
+function inB(c,r){return c>=0&&r>=0&&c<COLS&&r<ROWS;}
+function addScore(n,x,y){score+=n;if(x!==undefined)floaters.push({x,y,txt:'+'+n,life:1});updateHUD();}
+function hitPlayer(){
+  if(invuln>0||!player.alive||over)return;
+  lives--;updateHUD();sfx.hit();player.alive=false;
+  for(let i=0;i<14;i++)particles.push({x:player.c*T+T/2,y:player.r*T+T/2,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4-2,life:1,color:'#FFD54F'});
+  if(lives<=0){gameOver(false);return;}
+  setTimeout(()=>{if(over)return;player.c=0;player.r=0;player.alive=true;invuln=2;dirt[0][0]=false;},1100);
+}
+function gameOver(win){
+  over=true;
+  if(score>getHS())setHS(score);
+  if(win)sfx.win();else sfx.lose();
+  setTimeout(()=>{
+    document.getElementById('endEmoji').textContent=win?'🏆':'⛏';
+    document.getElementById('endTitle').textContent=win?'全部通关！':'游戏结束';
+    document.getElementById('endScore').textContent='得分 '+score+' · 到达第 '+level+' 关';
+    document.getElementById('endHs').textContent='历史最高分：'+getHS();
+    document.getElementById('endOv').classList.remove('hidden');
+  },600);
+}
+// ============ 更新 ============
+function step(){
+  // 玩家移动（格子步进）
+  if(player.alive){
+    player.moveT--;
+    let dx=0,dy=0,face=player.face;
+    if(keys.up){dy=-1;face='up';}else if(keys.down){dy=1;face='down';}
+    else if(keys.left){dx=-1;face='left';}else if(keys.right){dx=1;face='right';}
+    player.face=face;
+    if((dx||dy)&&player.moveT<=0){
+      const nc=player.c+dx,nr=player.r+dy;
+      if(inB(nc,nr)){
+        player.c=nc;player.r=nr;player.moveT=5;
+        if(dirt[nr][nc]){dirt[nr][nc]=false;sfx.dig();}
+      }
+    }
+    if(invuln>0)invuln-=1/60;
+  }
+  // 打气
+  pumpT-=1/60;
+  if(pumping&&player.alive){
+    const [dx,dy]=DIRS[player.face];
+    // 找到面朝方向最近的怪物（直线3格内）
+    let target=null,best=99;
+    for(const m of monsters){
+      if(!m.alive)continue;
+      const mcx=m.c-player.c,mcy=m.r-player.r;
+      let along=-1;
+      if(dx===1&&mcy===0&&mcx>0)along=mcx;
+      else if(dx===-1&&mcy===0&&mcx<0)along=-mcx;
+      else if(dy===1&&mcx===0&&mcy>0)along=mcy;
+      else if(dy===-1&&mcx===0&&mcy<0)along=-mcy;
+      if(along>0&&along<=3&&along<best){best=along;target=m;}
+    }
+    if(target){
+      if(pumpT<=0){pumpT=0.22;target.air++;sfx.pump();
+        for(let i=0;i<4;i++)particles.push({x:target.c*T+T/2,y:target.r*T+T/2,vx:(Math.random()-0.5)*2,vy:-1-Math.random(),life:0.6,color:'#B3E5FC'});
+        if(target.air>=4){
+          target.alive=false;addScore(200,target.c*T+T/2,target.r*T);
+          sfx.pop();
+          for(let i=0;i<16;i++)particles.push({x:target.c*T+T/2,y:target.r*T+T/2,vx:(Math.random()-0.5)*5,vy:(Math.random()-0.5)*5-2,life:1,color:'#FF8A65'});
+        }
+      }
+    }
+  }
+  // 怪物泄气
+  for(const m of monsters)if(m.alive&&m.air>0&&!(pumping))m.air=Math.max(0,m.air-1/120);
+  // 怪物移动（简单追踪+随机）
+  for(const m of monsters){
+    if(!m.alive)continue;
+    m.moveT--;
+    if(m.moveT>0)continue;
+    m.moveT=14;
+    // 方向：60%朝玩家贪心，40%随机（可战胜）
+    let nd=m.dir;
+    if(Math.random()<0.6){
+      const opts=[];
+      const dc=Math.sign(player.c-m.c),dr=Math.sign(player.r-m.r);
+      if(dc>0)opts.push('right');else if(dc<0)opts.push('left');
+      if(dr>0)opts.push('down');else if(dr<0)opts.push('up');
+      if(opts.length)nd=opts[(Math.random()*opts.length)|0];
+    }else nd=['up','down','left','right'][(Math.random()*4)|0];
+    const [dx,dy]=DIRS[nd];
+    const nc=m.c+dx,nr=m.r+dy;
+    if(inB(nc,nr)){m.c=nc;m.r=nr;m.dir=nd;}
+    else m.dir=['up','down','left','right'][(Math.random()*4)|0];
+    // 碰到玩家
+    if(player.alive&&invuln<=0&&m.c===player.c&&m.r===player.r)hitPlayer();
+  }
+  // 石头：下方被挖空则下落
+  for(const rk of rocks){
+    if(rk.state==='idle'){
+      if(rk.r+1<ROWS&&!dirt[rk.r+1][rk.c]){rk.state='falling';rk.fallV=0;sfx.rock();}
+    }else if(rk.state==='falling'){
+      rk.fallV+=0.5;
+      rk.r+=rk.fallV/10;
+      const gr=Math.floor(rk.r);
+      // 压怪/压玩家判定
+      for(const m of monsters){
+        if(m.alive&&m.c===rk.c&&m.r>=gr&&m.r<=gr+1){
+          m.alive=false;addScore(300,m.c*T+T/2,m.r*T);sfx.crush();
+          floaters.push({x:m.c*T+T/2,y:m.r*T-8,txt:'压扁 +300',life:1.2});
+        }
+      }
+      if(player.alive&&invuln<=0&&player.c===rk.c&&player.r>=gr&&player.r<=gr+1){hitPlayer();}
+      if(gr+1>=ROWS||dirt[gr+1][rk.c]){rk.r=Math.min(gr,ROWS-1);rk.state='idle';rk.fallV=0;sfx.crush();}
+    }
+  }
+  // 过关判定
+  if(monsters.every(m=>!m.alive)&&!over){
+    score+=400;updateHUD();sfx.win();
+    level++;
+    floaters.push({x:210,y:150,txt:'过关 +400',life:2});
+    player.alive=false;
+    setTimeout(()=>{if(!over)loadLevel(level);},1000);
+  }
+  // 粒子
+  for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.vy+=0.08;p.life-=0.03;}
+  particles=particles.filter(p=>p.life>0);
+  for(const f of floaters){f.y-=0.6;f.life-=0.02;}
+  floaters=floaters.filter(f=>f.life>0);
+  if(score>getHS())setHS(score);
+}
+// ============ 绘制 ============
+function draw(){
+  if(!dirt)return;
+  ctx.clearRect(0,0,420,360);
+  // 泥土
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const x=c*T,y=r*T;
+    if(dirt[r][c]){
+      const g=ctx.createLinearGradient(x,y,x,y+T);
+      g.addColorStop(0,'#5D4037');g.addColorStop(1,'#3E2723');
+      ctx.fillStyle=g;ctx.fillRect(x,y,T,T);
+      ctx.fillStyle='rgba(0,0,0,.25)';
+      ctx.fillRect(x+6,y+6,4,4);ctx.fillRect(x+18,y+16,4,4);
+    }else{ctx.fillStyle='#140d08';ctx.fillRect(x,y,T,T);}
+  }
+  // 石头
+  for(const rk of rocks){
+    const x=rk.c*T,y=rk.r*T;
+    ctx.fillStyle='#78909C';ctx.beginPath();ctx.arc(x+T/2,y+T/2,T/2-2,0,7);ctx.fill();
+    ctx.fillStyle='#546E7A';ctx.beginPath();ctx.arc(x+T/2-4,y+T/2-4,T/4,0,7);ctx.fill();
+    if(rk.state==='falling'){ctx.fillStyle='rgba(255,255,255,.4)';ctx.fillRect(x,y-6,T,4);}
+  }
+  // 怪物
+  for(const m of monsters){
+    if(!m.alive)continue;
+    const x=m.c*T+T/2,y=m.r*T+T/2;
+    const s=1+m.air*0.28; // 打气膨胀
+    ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+    ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(m.air>0?'🎈':'👹',0,0);
+    ctx.restore();
+    if(m.air>0){
+      ctx.fillStyle='#B3E5FC';ctx.font='11px sans-serif';ctx.textAlign='center';
+      ctx.fillText('💨'.repeat(Math.min(4,m.air)),x,y-16);
+    }
+  }
+  // 打气管线
+  if(pumping&&player.alive){
+    const [dx,dy]=DIRS[player.face];
+    ctx.strokeStyle='#B3E5FC';ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(player.c*T+T/2,player.r*T+T/2);
+    ctx.lineTo((player.c+dx*3.2)*T+T/2,(player.r+dy*3.2)*T+T/2);
+    ctx.stroke();
+  }
+  // 玩家
+  if(player.alive){
+    if(!(invuln>0&&((Date.now()/150)|0)%2===0)){
+      const x=player.c*T+T/2,y=player.r*T+T/2;
+      ctx.font='24px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('⛏',x,y);
+    }
+  }
+  // 粒子
+  for(const p of particles){
+    ctx.globalAlpha=Math.max(0,Math.min(1,p.life));ctx.fillStyle=p.color;
+    ctx.fillRect(p.x-2,p.y-2,4,4);
+  }
+  ctx.globalAlpha=1;
+  // 飘字
+  ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  for(const f of floaters){
+    ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle='#FFD54F';
+    ctx.fillText(f.txt,f.x,f.y);
+  }
+  ctx.globalAlpha=1;
+}
+function loop(){
+  if(started&&!paused&&!over)step();
+  draw();
+  requestAnimationFrame(loop);
+}
+// ============ 输入 ============
+function bindHold(el,down,up){
+  const on=e=>{if(e.cancelable)e.preventDefault();down();};
+  const off=e=>{if(e.cancelable)e.preventDefault();if(up)up();};
+  el.addEventListener('touchstart',on,{passive:false});
+  el.addEventListener('touchend',off,{passive:false});
+  el.addEventListener('touchcancel',off,{passive:false});
+  el.addEventListener('mousedown',on);
+  el.addEventListener('mouseup',off);
+  el.addEventListener('mouseleave',off);
+}
+document.querySelectorAll('.dbtn').forEach(b=>{
+  const d=b.dataset.d;
+  bindHold(b,()=>{keys[d]=true;},()=>{keys[d]=false;});
+});
+bindHold(document.getElementById('pumpBtn'),()=>{pumping=true;pumpT=0;},()=>{pumping=false;});
+document.addEventListener('keydown',e=>{
+  const m={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right'};
+  if(m[e.key])keys[m[e.key]]=true;
+  if(e.key===' ')pumping=true;
+});
+document.addEventListener('keyup',e=>{
+  const m={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right'};
+  if(m[e.key])keys[m[e.key]]=false;
+  if(e.key===' ')pumping=false;
+});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('againBtn').addEventListener('click',startGame);
+document.getElementById('pauseBtn').addEventListener('click',()=>{
+  if(!started||over)return;paused=true;
+  document.getElementById('pauseOv').classList.remove('hidden');sfx.click();
+});
+document.getElementById('resumeBtn').addEventListener('click',()=>{
+  paused=false;document.getElementById('pauseOv').classList.add('hidden');sfx.click();
+});
+document.getElementById('sndBtn').addEventListener('click',function(){
+  soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)sfx.click();
+});
+draw();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

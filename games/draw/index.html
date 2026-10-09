@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>画线救援</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.topbar b{color:#BA68C8;font-size:22px}
+.iconbtn{background:#1e1e1e;border:1px solid #333;color:#fff;font-size:18px;min-width:40px;height:40px;border-radius:10px;cursor:pointer}
+.iconbtn:active{transform:scale(.92)}
+canvas{background:linear-gradient(180deg,#181423 0%,#121212 70%);border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px;border:1px solid #222}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9}
+.btn{background:linear-gradient(135deg,#BA68C8,#6A1B9A);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;box-shadow:0 4px 14px rgba(186,104,200,.35)}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;box-shadow:none}
+.inkbar{width:100%;height:8px;background:#2a2a2a;border-radius:4px;overflow:hidden}
+.inkbar i{display:block;height:100%;background:#BA68C8;width:100%}
+.hint{color:#888;font-size:13px;text-align:center;line-height:1.7}
+.rowbtns{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>✏️ 画线救援</span><span>第 <b id="level">1</b>/6 关</span><span><button class="iconbtn" id="pauseBtn">⏸</button> <button class="iconbtn" id="soundBtn">🔊</button></span></div>
+<div class="inkbar"><i id="inkfill"></i></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<p class="hint" id="hint">手指画一条线，画完点「开始防御」<br>挡住掉落的尖刺，保护小球 10 秒过关</p>
+</div>
+<div class="overlay" id="startScr"><h1>✏️ 画线救援</h1><p>😊 小球在底部，尖刺从天而降<br>👆 手指在屏幕上画一条线<br>画完点击「开始防御」<br>线会挡住尖刺，保护小球坚持 10 秒<br>⚠️ 墨水有限，线越长耗墨越多<br>⚠️ 每人只有一次画线机会<br>共 6 关，越往后越难</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle"></h1><p id="overText"></p><div class="rowbtns"><button class="btn" id="restartBtn">重试本关</button><button class="btn ghost" id="nextBtn">下一关</button></div></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d'),W=400,H=560;
+let AC=null,soundOn=true;try{soundOn=localStorage.getItem('g100_sound')!=='0';}catch(e){}
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,d,type,vol,when){if(!soundOn)return;const a=ac();if(!a)return;type=type||'sine';vol=vol||0.13;when=when||0;const t=a.currentTime+when;const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}
+function sBlock(){tone(600,0.08,'triangle',0.1);}
+function sHit(){tone(180,0.4,'sawtooth',0.15);tone(120,0.5,'sawtooth',0.12,0.1);}
+function sWin(){[523,659,784,1047].forEach((f,i)=>tone(f,0.18,'triangle',0.13,i*0.09));}
+const BALL={x:200,y:498,r:16};
+const GROUNDY=530;
+const LEVELS=[{ink:560,rate:55,spd:2.2},{ink:480,rate:46,spd:2.6},{ink:420,rate:40,spd:3.0},{ink:360,rate:34,spd:3.4},{ink:310,rate:30,spd:3.8},{ink:270,rate:26,spd:4.2}];
+const MAXLV=6;
+let level,phase,linePts,inkMax,inkUsed,obs,timer,spawnT,parts,raf,state,paused,drawing;
+
+function resetLevel(){const L=LEVELS[level-1];inkMax=L.ink;inkUsed=0;linePts=[];obs=[];timer=600;spawnT=30;parts=[];drawing=false;phase='draw';paused=false;$('level').textContent=level;$('inkfill').style.width='100%';$('hint').innerHTML='手指画一条线，画完点「开始防御」<br>挡住掉落的尖刺，保护小球 10 秒过关';}
+function startGame(){level=1;resetLevel();state='play';hide('startScr');hide('overScr');hide('pauseScr');}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function burst(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=1+Math.random()*3;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:26+Math.random()*16,color});}}
+function lineLen(){let L=0;for(let i=1;i<linePts.length;i++)L+=Math.hypot(linePts[i].x-linePts[i-1].x,linePts[i].y-linePts[i-1].y);return L;}
+function segDist(px,py,ax,ay,bx,by){const dx=bx-ax,dy=by-ay;const l2=dx*dx+dy*dy;let t=l2?((px-ax)*dx+(py-ay)*dy)/l2:0;t=Math.max(0,Math.min(1,t));const cx=ax+dx*t,cy=ay+dy*t;return Math.hypot(px-cx,py-cy);}
+function lineHit(x,y,rad){for(let i=1;i<linePts.length;i++)if(segDist(x,y,linePts[i-1].x,linePts[i-1].y,linePts[i].x,linePts[i].y)<rad+5)return true;return false;}
+function levelWin(){state='over';sWin();burst(BALL.x,BALL.y,'#ffd740',20);
+$('overTitle').textContent=level>=MAXLV?'🏆 全部通关！':'✅ 第 '+level+' 关通过！';
+$('overText').innerHTML=level>=MAXLV?'你成功保护小球通过了全部 6 关！':'小球安然无恙，尖刺全被挡下！';
+$('restartBtn').textContent='重玩本关';$('nextBtn').style.display=level>=MAXLV?'none':'';$('nextBtn').textContent='下一关';show('overScr');}
+function levelFail(){state='over';sHit();$('overTitle').textContent='💥 小球被砸中！';$('overText').innerHTML='第 '+level+' 关挑战失败，再想想线的画法';$('restartBtn').textContent='重试本关';$('nextBtn').style.display='none';show('overScr');}
+function ppos(e){const r=cv.getBoundingClientRect();const p=e.touches&&e.touches[0]?e.touches[0]:e;return{x:(p.clientX-r.left)/r.width*W,y:(p.clientY-r.top)/r.height*H};}
+function inBtn(p,b){return p.x>b.x&&p.x<b.x+b.w&&p.y>b.y&&p.y<b.y+b.h;}
+const BTN_GO={x:60,y:486,w:130,h:52},BTN_CLR={x:210,y:486,w:130,h:52};
+function onDown(e){if(state!=='play'||paused)return;const p=ppos(e);
+if(phase==='ready'){if(inBtn(p,BTN_GO)){ac();phase='run';$('hint').innerHTML='防御中！坚持 <b>10</b> 秒';tone(660,0.15,'triangle',0.12);return;}if(inBtn(p,BTN_CLR)){linePts=[];inkUsed=0;phase='draw';$('inkfill').style.width='100%';$('hint').innerHTML='手指画一条线，画完点「开始防御」<br>挡住掉落的尖刺，保护小球 10 秒过关';return;}}
+if(phase==='draw'){ac();drawing=true;linePts=[p];if(e.cancelable)e.preventDefault();}}
+function onMove(e){if(state!=='play'||paused||!drawing||phase!=='draw')return;const p=ppos(e);const last=linePts[linePts.length-1];
+if(Math.hypot(p.x-last.x,p.y-last.y)<7)return;const add=Math.hypot(p.x-last.x,p.y-last.y);
+if(inkUsed+add>inkMax){drawing=false;phase='ready';$('hint').innerHTML='墨水用完！点「开始防御」或「重画」';return;}
+inkUsed+=add;linePts.push(p);$('inkfill').style.width=((inkMax-inkUsed)/inkMax*100)+'%';if(e.cancelable)e.preventDefault();}
+function onUp(e){if(drawing){drawing=false;if(linePts.length>4){phase='ready';$('hint').innerHTML='画好了！点「开始防御」迎接尖刺，或「重画」';}else{linePts=[];inkUsed=0;phase='draw';$('inkfill').style.width='100%';}}if(e.cancelable)e.preventDefault();}
+cv.addEventListener('touchstart',onDown,{passive:false});
+cv.addEventListener('touchmove',onMove,{passive:false});
+cv.addEventListener('touchend',onUp,{passive:false});
+cv.addEventListener('mousedown',onDown);
+cv.addEventListener('mousemove',onMove);
+window.addEventListener('mouseup',onUp);
+
+function spawnObs(){const L=LEVELS[level-1];const bx=BALL.x+(Math.random()-0.5)*260;obs.push({x:Math.max(20,Math.min(W-20,bx)),y:-24,r:13+Math.random()*8,vy:L.spd*(0.85+Math.random()*0.4),vx:(Math.random()-0.5)*0.8,rot:Math.random()*6});}
+function drawSpike(o){ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.rot);ctx.fillStyle='#ef5350';ctx.beginPath();for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const rr=i%2?o.r*0.55:o.r;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}ctx.closePath();ctx.fill();ctx.fillStyle='#b71c1c';ctx.beginPath();ctx.arc(0,0,o.r*0.35,0,7);ctx.fill();ctx.restore();}
+function draw(){ctx.clearRect(0,0,W,H);
+ctx.fillStyle='#262030';ctx.fillRect(0,GROUNDY,W,H-GROUNDY);
+ctx.fillStyle='rgba(186,104,200,.12)';for(let i=0;i<5;i++){ctx.beginPath();ctx.arc(50+i*80,100,26,0,7);ctx.fill();}
+if(linePts.length>1){ctx.strokeStyle='#ce93d8';ctx.lineWidth=9;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(linePts[0].x,linePts[0].y);for(const p of linePts)ctx.lineTo(p.x,p.y);ctx.stroke();ctx.lineCap='butt';}
+for(const o of obs)drawSpike(o);
+const g=ctx.createRadialGradient(BALL.x-5,BALL.y-6,2,BALL.x,BALL.y,BALL.r);g.addColorStop(0,'#fff9c4');g.addColorStop(0.4,'#ffee58');g.addColorStop(1,'#f9a825');ctx.fillStyle=g;ctx.beginPath();ctx.arc(BALL.x,BALL.y,BALL.r,0,7);ctx.fill();
+ctx.fillStyle='#212121';ctx.beginPath();ctx.arc(BALL.x-5,BALL.y-2,2.6,0,7);ctx.arc(BALL.x+5,BALL.y-2,2.6,0,7);ctx.fill();
+ctx.strokeStyle='#212121';ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(BALL.x,BALL.y+3,6,0.4,Math.PI-0.4);ctx.stroke();
+for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/42);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+if(phase==='run'){const t=Math.ceil(timer/60);ctx.fillStyle=t<=3?'#ef5350':'#fff';ctx.font='bold 30px sans-serif';ctx.textAlign='center';ctx.fillText(t,W/2,60);ctx.textAlign='left';
+ctx.fillStyle='#2a2a2a';ctx.fillRect(60,72,W-120,8);ctx.fillStyle='#BA68C8';ctx.fillRect(60,72,(W-120)*timer/600,8);}
+if(phase==='draw'){ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('👆 在此区域画一条线',W/2,120);ctx.textAlign='left';}
+if(phase==='ready'){ctx.fillStyle='#BA68C8';ctx.beginPath();ctx.roundRect(BTN_GO.x,BTN_GO.y,BTN_GO.w,BTN_GO.h,12);ctx.fill();
+ctx.fillStyle='#3a3a3a';ctx.beginPath();ctx.roundRect(BTN_CLR.x,BTN_CLR.y,BTN_CLR.w,BTN_CLR.h,12);ctx.fill();
+ctx.fillStyle='#fff';ctx.font='bold 17px sans-serif';ctx.textAlign='center';ctx.fillText('开始防御',BTN_GO.x+65,BTN_GO.y+33);ctx.fillText('重画',BTN_CLR.x+65,BTN_CLR.y+33);ctx.textAlign='left';}
+ctx.fillStyle='#888';ctx.font='12px sans-serif';ctx.fillText('墨水 '+Math.round(inkMax-inkUsed),10,20);
+}
+function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){
+if(phase==='run'){timer--;spawnT--;if(spawnT<=0){spawnObs();spawnT=LEVELS[level-1].rate;}
+for(let i=obs.length-1;i>=0;i--){const o=obs[i];o.y+=o.vy;o.x+=o.vx;o.rot+=0.05;
+if(lineHit(o.x,o.y,o.r)){obs.splice(i,1);burst(o.x,o.y,'#ce93d8',8);sBlock();continue;}
+if(Math.hypot(o.x-BALL.x,o.y-BALL.y)<o.r+BALL.r-3){levelFail();break;}
+if(o.y>H+30)obs.splice(i,1);}
+if(timer<=0){levelWin();}}
+for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life--;}parts=parts.filter(p=>p.life>0);}
+draw();}
+$('startBtn').onclick=()=>{ac();startGame();};
+$('restartBtn').onclick=()=>{ac();state='play';hide('overScr');resetLevel();};
+$('nextBtn').onclick=()=>{ac();if(level<MAXLV){level++;state='play';hide('overScr');resetLevel();}};
+$('restartBtn2').onclick=()=>{ac();startGame();};
+$('resumeBtn').onclick=()=>{paused=false;hide('pauseScr');};
+$('pauseBtn').onclick=()=>{if(state!=='play')return;paused=!paused;if(paused)show('pauseScr');else hide('pauseScr');};
+$('soundBtn').onclick=function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}this.textContent=soundOn?'🔊':'🔇';};
+$('soundBtn').textContent=soundOn?'🔊':'🔇';
+level=1;state='start';resetLevel();loop();
+</script>
+</body>
+</html>

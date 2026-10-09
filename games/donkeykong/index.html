@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>金刚</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
+.hud{display:flex;gap:12px;align-items:center;font-size:14px}
+.hud b{color:#A1887F;font-size:20px}
+.lives{font-size:15px}
+.iconbtn{background:#1f1f1f;border:1px solid #333;color:#fff;font-size:17px;width:40px;height:40px;border-radius:10px;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+#cv{background:#0a0f1e;border-radius:12px;touch-action:none;width:100%;max-width:440px;height:auto;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.controls{display:flex;gap:14px;align-items:center;justify-content:center;width:100%}
+.cbtn{width:70px;height:70px;border-radius:16px;background:#1f1f1f;border:1px solid #444;color:#fff;font-size:26px;cursor:pointer;transition:transform .08s;touch-action:none}
+.cbtn:active{transform:scale(.9);background:#333}
+.jumpbtn{width:92px;height:92px;border-radius:50%;background:linear-gradient(135deg,#8D6E63,#4E342E);border:none;font-size:34px;cursor:pointer;transition:transform .08s;box-shadow:0 4px 18px rgba(141,110,99,.4);touch-action:none}
+.jumpbtn:active{transform:scale(.9)}
+.tip{font-size:12px;color:#888;text-align:center}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.87);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.hidden{display:none!important}
+.overlay h1{font-size:32px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9;max-width:380px}
+.btn{background:linear-gradient(135deg,#A1887F,#5D4037);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;transition:transform .08s;box-shadow:0 4px 16px rgba(161,136,127,.35)}
+.btn:active{transform:scale(.94)}
+.big{font-size:44px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="hud">得分 <b id="score">0</b> <span class="lives" id="lives">❤❤❤</span> <span id="level">第1关</span></div>
+    <div>
+      <button class="iconbtn" id="pauseBtn">⏸</button>
+      <button class="iconbtn" id="sndBtn">🔊</button>
+    </div>
+  </div>
+  <canvas id="cv" width="400" height="440"></canvas>
+  <div class="controls">
+    <button class="cbtn" id="leftBtn">◀</button>
+    <button class="cbtn" id="rightBtn">▶</button>
+    <button class="jumpbtn" id="jumpBtn">⤴</button>
+  </div>
+  <div class="tip">◀ ▶ 移动 · 在画布上上滑/下滑爬梯子 · ⤴ 跳过木桶 +100 分</div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="big">🦍</div>
+  <h1>金刚</h1>
+  <p>大猩猩抓走了公主，快去楼顶救人！<br>◀ ▶ 移动，在画布上上滑/下滑爬梯子，<br>⤴ 跳跃躲避滚落的木桶（跳过 +100）。<br>木桶会沿平台滚，也会从梯子掉下来。<br>到达顶层公主身边即过关，3 条命。</p>
+  <button class="btn" id="startBtn">开始营救</button>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <h1>⏸ 已暂停</h1>
+  <button class="btn" id="resumeBtn">继续</button>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="big" id="endEmoji">🦍</div>
+  <h1 id="endTitle">游戏结束</h1>
+  <p id="endScore"></p>
+  <p style="color:#888;font-size:13px" id="endHs"></p>
+  <button class="btn" id="againBtn">重新开始</button>
+</div>
+
+<script>
+'use strict';
+// ============ 音效 ============
+let AC=null, soundOn=true;
+function tone(f,d,type,v,slide){ if(!soundOn)return; try{
+  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.type=type||'square'; o.frequency.value=f;
+  if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),AC.currentTime+d);
+  g.gain.setValueAtTime(v||0.05,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+d);
+  o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d);
+}catch(e){} }
+const sfx={
+  click(){tone(650,0.06);},
+  jump(){tone(280,0.14,'square',0.06,420);},
+  barrel(){tone(180,0.1,'triangle',0.05);},
+  hit(){tone(140,0.35,'sawtooth',0.1,-70);},
+  climb(){tone(500,0.05,'sine',0.04);},
+  rescue(){[523,659,784,1046,1318].forEach((f,i)=>setTimeout(()=>tone(f,0.22,'triangle',0.09),i*130));},
+  win(){[523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,0.2,'triangle',0.08),i*120));},
+  lose(){[400,300,200,150].forEach((f,i)=>setTimeout(()=>tone(f,0.25,'sawtooth',0.08,-40),i*160));}
+};
+const HSKEY='g100_donkeykong_hs';
+function getHS(){try{return +(localStorage.getItem(HSKEY)||0);}catch(e){return 0;}}
+function setHS(v){try{localStorage.setItem(HSKEY,v);}catch(e){}}
+// ============ 关卡结构 ============
+const W=400,H=440;
+// 平台：y 从上到下 6 层；dir 为木桶滚动方向
+function buildLevel(lv){
+  const plats=[
+    {y:60, x0:60, x1:340, dir:1},
+    {y:130,x0:40, x1:320, dir:-1},
+    {y:200,x0:80, x1:360, dir:1},
+    {y:270,x0:40, x1:320, dir:-1},
+    {y:340,x0:80, x1:360, dir:1},
+    {y:410,x0:20, x1:380, dir:0}
+  ];
+  // 梯子连接相邻平台
+  const ladders=[
+    {x:300,y0:60,y1:130},{x:90,y0:130,y1:200},{x:320,y0:200,y1:270},
+    {x:80,y0:270,y1:340},{x:300,y0:340,y1:410},{x:150,y0:340,y1:410}
+  ];
+  return {plats,ladders,barrelT:0,barrelGap:Math.max(1.2,2.6-lv*0.3),speed:1.4+lv*0.25};
+}
+// ============ 游戏状态 ============
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let started=false,over=false,paused=false;
+let L,player,barrels,keys={};
+let score=0,lives=3,level=1;
+let particles=[],floaters=[],invuln=0,climbT=0;
+
+function startGame(){
+  score=0;lives=3;level=1;
+  document.getElementById('startOv').classList.add('hidden');
+  document.getElementById('endOv').classList.add('hidden');
+  document.getElementById('pauseOv').classList.add('hidden');
+  started=true;over=false;paused=false;
+  loadLevel(1);updateHUD();sfx.click();
+}
+function loadLevel(lv){
+  L=buildLevel(lv);
+  player={x:60,y:410-14,vx:0,vy:0,plat:5,grounded:true,climbing:false,face:1,alive:true,jumpedBarrels:new Set()};
+  barrels=[];particles=[];floaters=[];invuln=0;
+  document.getElementById('level').textContent='第'+lv+'关';
+}
+function updateHUD(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('lives').textContent='❤'.repeat(Math.max(0,lives))+'🖤'.repeat(Math.max(0,3-lives));
+}
+function addScore(n,x,y){score+=n;floaters.push({x,y,txt:'+'+n,life:1});updateHUD();}
+function ladderAt(x,y){
+  for(const l of L.ladders)if(Math.abs(x-l.x)<12&&y>l.y0-6&&y<l.y1+6)return l;
+  return null;
+}
+function platAt(idx){return L.plats[idx];}
+function hitPlayer(){
+  if(invuln>0||!player.alive||over)return;
+  lives--;updateHUD();sfx.hit();player.alive=false;
+  for(let i=0;i<14;i++)particles.push({x:player.x,y:player.y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4-2,life:1,color:'#FF8A65'});
+  if(lives<=0){gameOver(false);return;}
+  setTimeout(()=>{if(over)return;
+    player={x:60,y:410-14,vx:0,vy:0,plat:5,grounded:true,climbing:false,face:1,alive:true,jumpedBarrels:new Set()};
+    barrels=[];invuln=2;
+  },1100);
+}
+function gameOver(win){
+  over=true;
+  if(score>getHS())setHS(score);
+  if(win)sfx.win();else sfx.lose();
+  setTimeout(()=>{
+    document.getElementById('endEmoji').textContent=win?'🏆':'🦍';
+    document.getElementById('endTitle').textContent=win?'全部通关！':'游戏结束';
+    document.getElementById('endScore').textContent='得分 '+score+' · 到达第 '+level+' 关';
+    document.getElementById('endHs').textContent='历史最高分：'+getHS();
+    document.getElementById('endOv').classList.remove('hidden');
+  },600);
+}
+function rescue(){
+  score+=1000;updateHUD();sfx.rescue();
+  level++;
+  floaters.push({x:200,y:120,txt:'救出公主 +1000',life:2});
+  player.alive=false;
+  setTimeout(()=>{if(!over)loadLevel(level);},1400);
+}
+// ============ 更新 ============
+function step(){
+  const dt=1;
+  // --- 玩家 ---
+  if(player.alive){
+    const lad=ladderAt(player.x,player.y);
+    // 爬梯
+    if(player.climbing){
+      if(keys.up){player.y-=2.2*dt;climbT-=dt;if(climbT<=0){climbT=6;sfx.climb();}}
+      else if(keys.down){player.y+=2.2*dt;climbT-=dt;if(climbT<=0){climbT=6;sfx.climb();}}
+      player.x=player.climbX;
+      // 到达上下平台
+      const l=player.climbL;
+      if(player.y<=l.y0-10){
+        // 找到y0对应的平台
+        const pi=L.plats.findIndex(p=>Math.abs(p.y-l.y0)<2);
+        player.plat=pi;player.y=L.plats[pi].y-14;player.climbing=false;player.grounded=true;
+        addScore(50,player.x,player.y-20);
+      }else if(player.y>=l.y1-10){
+        const pi=L.plats.findIndex(p=>Math.abs(p.y-l.y1)<2);
+        player.plat=pi;player.y=L.plats[pi].y-14;player.climbing=false;player.grounded=true;
+        addScore(50,player.x,player.y-20);
+      }
+      if(keys.left||keys.right){/* 爬梯时忽略左右 */}
+    }else{
+      // 地面/空中
+      if(keys.left){player.x-=2.4*dt;player.face=-1;}
+      if(keys.right){player.x+=2.4*dt;player.face=1;}
+      player.x=Math.max(14,Math.min(W-14,player.x));
+      const plat=platAt(player.plat);
+      // 尝试上梯
+      if(keys.up&&lad&&player.grounded){
+        player.climbing=true;player.climbL=lad;player.climbX=lad.x;player.x=lad.x;climbT=0;sfx.climb();
+      }
+      // 尝试下梯（站在梯子顶端按↓）
+      if(keys.down&&lad&&player.grounded){
+        // 只有梯子从本层向下
+        if(Math.abs(lad.y0-plat.y)<8){
+          player.climbing=true;player.climbL=lad;player.climbX=lad.x;player.x=lad.x;player.y+=4;climbT=0;sfx.climb();
+        }
+      }
+      // 跳跃
+      if(keys.jump&&player.grounded){
+        player.vy=-8.2;player.grounded=false;sfx.jump();keys.jump=false;
+      }
+      // 重力
+      if(!player.grounded){
+        player.vy+=0.45*dt;player.y+=player.vy*dt;
+        const pl=platAt(player.plat);
+        if(player.vy>=0&&player.y>=pl.y-14&&player.y<=pl.y+6){
+          player.y=pl.y-14;player.vy=0;player.grounded=true;
+        }
+        if(player.y>H+20)hitPlayer(); // 掉出画面（不应发生）
+      }else{
+        // 平台边缘检查：走出平台则掉到下一层？简化：限制在平台范围内
+        player.x=Math.max(plat.x0+6,Math.min(plat.x1-6,player.x));
+        player.y=plat.y-14;
+      }
+      // 救公主：到达顶层右端
+      if(player.plat===0&&player.x>300){
+        rescue();return;
+      }
+    }
+    if(invuln>0)invuln-=dt/60;
+  }
+  // --- 木桶生成（金刚在左上） ---
+  L.barrelT-=dt/60;
+  if(L.barrelT<=0&&player.alive){
+    L.barrelT=L.barrelGap*(0.7+Math.random()*0.6);
+    barrels.push({x:70,y:60-14,vx:L.speed*1,vy:0,plat:0,falling:false,id:Math.random()});
+    if(Math.random()<0.8)sfx.barrel();
+  }
+  // --- 木桶更新 ---
+  for(const b of barrels){
+    const plat=platAt(b.plat);
+    if(b.falling){
+      b.vy+=0.5*dt;b.y+=b.vy*dt;
+      // 落到下一层平台
+      const np=platAt(b.plat+1);
+      if(np&&b.y>=np.y-10){
+        b.y=np.y-10;b.vy=0;b.falling=false;b.plat++;
+      }else if(!np&&b.y>H+20){b.dead=true;}
+    }else{
+      b.x+=b.vx*dt;
+      b.y=plat.y-10;
+      // 梯子口随机掉落
+      if(Math.random()<0.006){
+        for(const l of L.ladders){
+          if(Math.abs(l.y0-plat.y)<8&&Math.abs(b.x-l.x)<10&&b.plat+1<L.plats.length){
+            b.falling=true;b.vy=1;b.x=l.x;break;
+          }
+        }
+      }
+      // 到平台末端
+      if(b.vx>0&&b.x>=plat.x1-8){
+        if(b.plat+1<L.plats.length){ // 从边缘掉到下一层
+          b.falling=true;b.vy=1;
+        }else b.dead=true;
+      }else if(b.vx<0&&b.x<=plat.x0+8){
+        if(b.plat+1<L.plats.length){b.falling=true;b.vy=1;}
+        else b.dead=true;
+      }
+    }
+    // 方向按平台dir
+    if(!b.falling)b.vx=Math.abs(b.vx)*(plat.dir||1);
+    // 碰玩家
+    if(player.alive&&invuln<=0&&Math.hypot(b.x-player.x,b.y-player.y)<20)hitPlayer();
+    // 跳过加分
+    if(player.alive&&!player.grounded&&!b.counted&&Math.abs(b.x-player.x)<22&&player.y<b.y-14){
+      b.counted=true;addScore(100,player.x,player.y-24);sfx.click();
+    }
+  }
+  barrels=barrels.filter(b=>!b.dead);
+  // 粒子
+  for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.vy+=0.08;p.life-=0.03;}
+  particles=particles.filter(p=>p.life>0);
+  for(const f of floaters){f.y-=0.6;f.life-=0.02;}
+  floaters=floaters.filter(f=>f.life>0);
+  if(score>getHS())setHS(score);
+}
+// ============ 绘制 ============
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 背景星空
+  ctx.fillStyle='rgba(255,255,255,.25)';
+  for(let i=0;i<30;i++){const sx=(i*137)%W,sy=(i*89)%H;ctx.fillRect(sx,sy,2,2);}
+  // 平台
+  for(const p of L?L.plats:[]){
+    const g=ctx.createLinearGradient(0,p.y-8,0,p.y+4);
+    g.addColorStop(0,'#8D6E63');g.addColorStop(1,'#5D4037');
+    ctx.fillStyle=g;ctx.fillRect(p.x0,p.y-8,p.x1-p.x0,12);
+    ctx.fillStyle='rgba(0,0,0,.3)';
+    for(let x=p.x0+8;x<p.x1;x+=24)ctx.fillRect(x,p.y-4,10,4);
+  }
+  // 梯子
+  ctx.strokeStyle='#D7CCC8';ctx.lineWidth=3;
+  for(const l of L?L.ladders:[]){
+    ctx.beginPath();
+    ctx.moveTo(l.x-7,l.y0);ctx.lineTo(l.x-7,l.y1);
+    ctx.moveTo(l.x+7,l.y0);ctx.lineTo(l.x+7,l.y1);
+    for(let y=l.y0;y<l.y1;y+=12){ctx.moveTo(l.x-7,y);ctx.lineTo(l.x+7,y);}
+    ctx.stroke();
+  }
+  if(!L)return;
+  // 金刚 & 公主
+  ctx.font='34px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🦍',50,38);
+  ctx.font='26px sans-serif';ctx.fillText('👸',345,40);
+  // 木桶
+  for(const b of barrels){
+    ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.x/14);
+    ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🛢',0,0);ctx.restore();
+  }
+  // 玩家
+  if(player.alive){
+    if(!(invuln>0&&((Date.now()/150)|0)%2===0)){
+      ctx.font='26px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(player.climbing?'🧗':'🏃',player.x,player.y);
+    }
+  }
+  // 粒子
+  for(const p of particles){
+    ctx.globalAlpha=Math.max(0,Math.min(1,p.life));ctx.fillStyle=p.color;
+    ctx.fillRect(p.x-2,p.y-2,4,4);
+  }
+  ctx.globalAlpha=1;
+  // 飘字
+  ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  for(const f of floaters){
+    ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle='#FFD54F';
+    ctx.fillText(f.txt,f.x,f.y);
+  }
+  ctx.globalAlpha=1;
+}
+function loop(){
+  if(started&&!paused&&!over)step();
+  draw();
+  requestAnimationFrame(loop);
+}
+// ============ 输入 ============
+function bindHold(el,down,up){
+  const on=e=>{if(e.cancelable)e.preventDefault();down();};
+  const off=e=>{if(e.cancelable)e.preventDefault();if(up)up();};
+  el.addEventListener('touchstart',on,{passive:false});
+  el.addEventListener('touchend',off,{passive:false});
+  el.addEventListener('touchcancel',off,{passive:false});
+  el.addEventListener('mousedown',on);
+  el.addEventListener('mouseup',off);
+  el.addEventListener('mouseleave',off);
+}
+bindHold(document.getElementById('leftBtn'),()=>{keys.left=true;},()=>{keys.left=false;});
+bindHold(document.getElementById('rightBtn'),()=>{keys.right=true;},()=>{keys.right=false;});
+bindHold(document.getElementById('jumpBtn'),()=>{keys.jump=true;},()=>{keys.jump=false;});
+// 方向键上滑区域：在画布上滑=爬梯
+let swY=null;
+cv.addEventListener('touchstart',e=>{swY=e.touches[0].clientY;},{passive:true});
+cv.addEventListener('touchmove',e=>{
+  if(e.cancelable)e.preventDefault();
+  const dy=e.touches[0].clientY-swY;
+  if(dy<-24){keys.up=true;keys.down=false;}
+  else if(dy>24){keys.down=true;keys.up=false;}
+},{passive:false});
+cv.addEventListener('touchend',()=>{keys.up=false;keys.down=false;swY=null;});
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;
+  if(e.key==='ArrowRight'||e.key==='d')keys.right=true;
+  if(e.key==='ArrowUp'||e.key==='w')keys.up=true;
+  if(e.key==='ArrowDown'||e.key==='s')keys.down=true;
+  if(e.key===' '){e.preventDefault();keys.jump=true;}
+});
+document.addEventListener('keyup',e=>{
+  if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;
+  if(e.key==='ArrowRight'||e.key==='d')keys.right=false;
+  if(e.key==='ArrowUp'||e.key==='w')keys.up=false;
+  if(e.key==='ArrowDown'||e.key==='s')keys.down=false;
+  if(e.key===' ')keys.jump=false;
+});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('againBtn').addEventListener('click',startGame);
+document.getElementById('pauseBtn').addEventListener('click',()=>{
+  if(!started||over)return;paused=true;
+  document.getElementById('pauseOv').classList.remove('hidden');sfx.click();
+});
+document.getElementById('resumeBtn').addEventListener('click',()=>{
+  paused=false;document.getElementById('pauseOv').classList.add('hidden');sfx.click();
+});
+document.getElementById('sndBtn').addEventListener('click',function(){
+  soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)sfx.click();
+});
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

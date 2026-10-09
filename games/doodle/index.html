@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>涂鸦跳</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.topbar b{color:#FFCA28;font-size:22px}
+.iconbtn{background:#1e1e1e;border:1px solid #333;color:#fff;font-size:18px;min-width:40px;height:40px;border-radius:10px;cursor:pointer}
+.iconbtn:active{transform:scale(.92)}
+canvas{background:#151312;border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px;border:1px solid #222}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9}
+.btn{background:linear-gradient(135deg,#FFCA28,#EF6C00);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;box-shadow:0 4px 14px rgba(255,202,40,.35)}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;box-shadow:none}
+.hint{color:#888;font-size:13px;text-align:center;line-height:1.7}
+.rowbtns{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>👾 涂鸦跳</span><span>高度 <b id="score">0</b></span><span><button class="iconbtn" id="pauseBtn">⏸</button> <button class="iconbtn" id="soundBtn">🔊</button></span></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<p class="hint">小怪会自动弹跳，左右拖动手指控制落点<br>踩中弹簧板一飞冲天，掉出屏幕结束</p>
+</div>
+<div class="overlay" id="startScr"><h1>👾 涂鸦跳</h1><p>小怪不停地自动弹跳<br>👉 左右拖动手指，控制小怪落点<br>🟩 踩木板继续上升<br>🌀 弹簧板让你一飞冲天<br>⬅️➡️ 左右穿过屏幕边缘会绕回<br>掉出屏幕底部则游戏结束<br>爬得越高越好！</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">掉下去了！</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d'),W=400,H=560;
+let AC=null,soundOn=true;try{soundOn=localStorage.getItem('g100_sound')!=='0';}catch(e){}
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,d,type,vol,when){if(!soundOn)return;const a=ac();if(!a)return;type=type||'sine';vol=vol||0.12;when=when||0;const t=a.currentTime+when;const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}
+function sBounce(){tone(440+Math.random()*80,0.08,'sine',0.1);}
+function sSpring(){tone(300,0.25,'sine',0.14);tone(700,0.3,'sine',0.12,0.08);}
+function sFall(){tone(400,0.5,'sawtooth',0.1);tone(180,0.6,'sawtooth',0.1,0.12);}
+function getBest(k){try{return parseInt(localStorage.getItem(k)||'0',10)||0;}catch(e){return 0;}}
+function setBest(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+const BESTK='g100_doodle_best';
+const GRAV=0.45,JUMPV=-12.5,SPRINGV=-21;
+let px,py,vx,vy,camY,plats,score,state,paused,parts,raf,best,maxY,targetX,topY;
+
+function newPlat(y){const r=Math.random();const w=64;let type='n';if(r>0.86)type='m';const p={x:Math.random()*(W-w),y:y,w:w,type:type,spring:Math.random()<0.13,vx:type==='m'?(Math.random()<0.5?-1:1)*(1+Math.random()):0,broken:false};
+if(p.spring)p.w=70;return p;}
+function reset(){px=W/2;py=H-120;vx=0;vy=JUMPV;camY=0;maxY=py;score=0;parts=[];paused=false;targetX=W/2;plats=[{x:W/2-32,y:H-80,w:64,type:'n',spring:false,vx:0,broken:false}];topY=H-80;while(topY>-100){topY-=60+Math.random()*55;plats.push(newPlat(topY));}$('score').textContent='0';}
+function startGame(){reset();state='play';hide('startScr');hide('overScr');hide('pauseScr');}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function burst(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=1+Math.random()*2.5;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:24+Math.random()*14,color});}}
+function gameOver(){if(state!=='play')return;state='over';sFall();const b=getBest(BESTK);let best=b;if(score>best){best=score;setBest(BESTK,score);}$('overText').innerHTML='高度：<b style="color:#FFCA28">'+score+'m</b><br>最高纪录：'+best+'m';show('overScr');}
+function ppos(e){const r=cv.getBoundingClientRect();const p=e.touches&&e.touches[0]?e.touches[0]:e;return{x:(p.clientX-r.left)/r.width*W,y:(p.clientY-r.top)/r.height*H};}
+function onMove(e){if(state!=='play'||paused)return;targetX=ppos(e).x;if(e.cancelable)e.preventDefault();}
+cv.addEventListener('touchstart',onMove,{passive:false});
+cv.addEventListener('touchmove',onMove,{passive:false});
+cv.addEventListener('mousedown',e=>{md=true;onMove(e);});
+cv.addEventListener('mousemove',e=>{if(md)onMove(e);});
+window.addEventListener('mouseup',()=>{md=false;});
+let md=false;
+
+function drawMonster(x,y,vy){ctx.save();ctx.translate(x,y);const sq=Math.max(-0.2,Math.min(0.25,vy*0.02));ctx.scale(1+sq*0.4,1-sq*0.4);
+const g=ctx.createLinearGradient(0,-20,0,20);g.addColorStop(0,'#aed581');g.addColorStop(1,'#7cb342');ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(-17,-20,34,40,14);ctx.fill();
+ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-7,-6,7,0,7);ctx.arc(7,-6,7,0,7);ctx.fill();
+ctx.fillStyle='#212121';const lx=Math.max(-3,Math.min(3,vx*0.5));ctx.beginPath();ctx.arc(-7+lx,-6,3.2,0,7);ctx.arc(7+lx,-6,3.2,0,7);ctx.fill();
+ctx.strokeStyle='#33691e';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,8,7,0.3,Math.PI-0.3);ctx.stroke();
+ctx.strokeStyle='#7cb342';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-10,-20);ctx.lineTo(-14,-28);ctx.moveTo(10,-20);ctx.lineTo(14,-28);ctx.stroke();ctx.restore();}
+function draw(){ctx.clearRect(0,0,W,H);
+ctx.strokeStyle='rgba(255,255,255,.045)';ctx.lineWidth=1;for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+for(const p of plats){const y=p.y-camY;if(y<-30||y>H+30)continue;
+if(p.type==='m'){const g=ctx.createLinearGradient(0,y,0,y+12);g.addColorStop(0,'#4fc3f7');g.addColorStop(1,'#0288d1');ctx.fillStyle=g;}
+else{const g=ctx.createLinearGradient(0,y,0,y+12);g.addColorStop(0,'#9ccc65');g.addColorStop(1,'#558b2f');ctx.fillStyle=g;}
+ctx.beginPath();ctx.roundRect(p.x,y,p.w,12,6);ctx.fill();
+if(p.spring){ctx.strokeStyle='#e0e0e0';ctx.lineWidth=3;ctx.beginPath();const sy=y;for(let i=0;i<4;i++){ctx.moveTo(p.x+p.w/2-8,sy-i*5);ctx.lineTo(p.x+p.w/2+8,sy-(i+1)*5);}ctx.stroke();ctx.fillStyle='#ef5350';ctx.beginPath();ctx.roundRect(p.x+p.w/2-12,sy-24,24,6,3);ctx.fill();}}
+drawMonster(px,py-camY,vy);
+for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/38);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+ctx.fillStyle='#888';ctx.font='12px sans-serif';ctx.fillText('⬅ 拖动控制 ➡',10,20);
+}
+function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){
+px+=(targetX-px)*0.18;vx=(targetX-px)*0.18;
+if(px<-18)px=W+18;if(px>W+18)px=-18;
+vy+=GRAV;const prevY=py;py+=vy;
+if(vy>0){for(const p of plats){if(p.broken)continue;const top=p.y;if(prevY+20<=top&&py+20>=top&&px+14>p.x&&px-14<p.x+p.w){if(p.spring){vy=SPRINGV;sSpring();burst(px,py+18,'#ef5350',12);}else{vy=JUMPV;sBounce();burst(px,py+18,'#9ccc65',5);}break;}}}
+for(const p of plats){if(p.type==='m'){p.x+=p.vx;if(p.x<0||p.x+p.w>W)p.vx*=-1;}}
+if(py<camY+190)camY=py-190;
+if(py<maxY){maxY=py;score=Math.round(-maxY/10);$('score').textContent=score;}
+while(topY>camY-120){topY-=60+Math.random()*55;plats.push(newPlat(topY));}
+plats=plats.filter(p=>p.y>camY+H+60);
+if(py>camY+H+30)gameOver();
+for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.life--;}parts=parts.filter(p=>p.life>0);}
+draw();}
+$('startBtn').onclick=()=>{ac();startGame();};
+$('restartBtn').onclick=()=>{ac();startGame();};
+$('restartBtn2').onclick=()=>{ac();startGame();};
+$('resumeBtn').onclick=()=>{paused=false;hide('pauseScr');};
+$('pauseBtn').onclick=()=>{if(state!=='play')return;paused=!paused;if(paused)show('pauseScr');else hide('pauseScr');};
+$('soundBtn').onclick=function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}this.textContent=soundOn?'🔊':'🔇';};
+$('soundBtn').textContent=soundOn?'🔊':'🔇';
+state='start';reset();loop();
+</script>
+</body>
+</html>
