@@ -1,5 +1,6 @@
 name: 发布游戏资源
 # games/ 或本 workflow 有更新时：打包 zip、生成 manifest.json、刷新 CDN
+# manifest 条目 = meta.json 全部字段 + url/size（以后 meta 加字段无需改脚本）
 on:
   push:
     branches: [main]
@@ -34,16 +35,11 @@ jobs:
               with zipfile.ZipFile(zp, 'w', zipfile.ZIP_DEFLATED) as z:
                   z.write(idx_p, 'index.html')
                   z.write(meta_p, 'meta.json')
-              games.append({
-                  "id": gid,
-                  "name": meta.get('name', gid),
-                  "desc": meta.get('desc', ''),
-                  "version": meta.get('version', 1),
-                  "icon": meta.get('icon', '🎮'),
-                  "color": meta.get('color', '#607D8B'),
-                  "url": f"{BASE}/{zp}",
-                  "size": os.path.getsize(zp),
-              })
+              entry = dict(meta)  # 透传 meta 全部字段
+              entry['id'] = gid
+              entry['url'] = f"{BASE}/{zp}"
+              entry['size'] = os.path.getsize(zp)
+              games.append(entry)
           manifest = {
               "updated": datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
               "games": games,
