@@ -46,6 +46,11 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
 .pcell.found{background:rgba(46,204,113,.25);box-shadow:inset 0 0 0 2px #2ecc71}
 .pcell.found::after{content:'✅';position:absolute;right:-2px;top:-6px;font-size:14px}
 .pcell.reveal{background:rgba(255,107,107,.25);box-shadow:inset 0 0 0 2px #ff6b6b}
+.pcell.hintring{animation:hintring .7s ease-in-out 4}
+@keyframes hintring{0%,100%{box-shadow:inset 0 0 0 2px #ffd76a}50%{box-shadow:inset 0 0 0 4px #ffd76a,0 0 18px rgba(255,215,106,.9)}}
+#hintToast{position:fixed;top:64px;left:50%;transform:translateX(-50%);max-width:88vw;background:rgba(20,22,34,.96);border:1px solid rgba(255,215,106,.55);color:#ffe9a8;font-size:13px;line-height:1.7;padding:10px 16px;border-radius:12px;z-index:90;display:none;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#hintToast.show{display:block;animation:toastin .25s}
+@keyframes toastin{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 @media(max-width:380px){.pcell{width:40px;height:40px;font-size:26px}}
 </style>
 </head>
@@ -54,6 +59,7 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
   <div class="topbar">
     <div class="tb-title">🔍 找不同</div>
     <div class="tb-right">
+      <div class="iconbtn" id="hintBtn">💡</div>
       <div class="iconbtn" id="soundBtn">🔊</div>
       <div class="iconbtn hidden" id="pauseBtn">⏸</div>
     </div>
@@ -121,6 +127,7 @@ function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
 soundBtn.textContent=soundOn?'🔊':'🔇';
 soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
 pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('hintBtn').addEventListener('click',function(){ sClick(); spotHint(); });
 $('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
 /* ===== 游戏：找不同（场景由程序生成，每组5处不同） ===== */
 const ROWS=5, COLS=4, DIFFN=5, TIMELIMIT=120;
@@ -202,6 +209,33 @@ function tick(){
   timeLeft-=0.2;
   if(timeLeft<=0){ timeLeft=0; updateTime(); endGame(false); return; }
   updateTime();
+}
+var hintToastTimer=null;
+function showHintToast(html,ms){
+  var t=document.getElementById('hintToast');
+  if(!t){t=document.createElement('div');t.id='hintToast';document.body.appendChild(t);}
+  t.innerHTML=html;t.classList.add('show');
+  if(hintToastTimer)clearTimeout(hintToastTimer);
+  hintToastTimer=setTimeout(function(){t.classList.remove('show');},ms||4500);
+}
+function spotHint(){
+  if(!playing||paused)return;
+  var d=null,i;
+  var diffs=SCENES[si].diffs;
+  for(i=0;i<diffs.length;i++){
+    var k=diffs[i].r+'_'+diffs[i].c;
+    if(!foundSet[k]){d=diffs[i];break;}
+  }
+  if(!d){showHintToast('本场景都找完了 🎉');return;}
+  var els=document.querySelectorAll('.pcell[data-r="'+d.r+'"][data-c="'+d.c+'"]');
+  for(i=0;i<els.length;i++){
+    (function(el){
+      el.classList.remove('hintring');void el.offsetWidth;el.classList.add('hintring');
+      setTimeout(function(){el.classList.remove('hintring');},3000);
+    })(els[i]);
+  }
+  sClick();
+  showHintToast('💡 有一处不同被金色圈出来了，3 秒内快看！<br>（'+d.a+' ⇄ '+d.b+' 藏在左右两图同一位置）');
 }
 function endGame(win){
   playing=false; clearInterval(timerId); pauseBtn.classList.add('hidden'); setPaused(false);

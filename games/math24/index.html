@@ -30,6 +30,9 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
 #fx{position:absolute;inset:0;pointer-events:none;z-index:50}
 .float-txt{position:absolute;transform:translate(-50%,-50%);font-weight:800;font-size:22px;pointer-events:none;z-index:60;text-shadow:0 2px 8px rgba(0,0,0,.6);animation:floatUp 1.1s ease-out forwards}
 @keyframes floatUp{to{transform:translate(-50%,-160%);opacity:0}}
+#hintOv{position:absolute;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(3px);z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center}
+#hintOv .hsol{font-size:24px;font-weight:800;color:#7ee2a8;line-height:1.8;word-break:break-all}
+#hintOv .htip{font-size:13px;color:#bdbdbd;line-height:1.7}
 #pauseOv{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
 #pauseOv .btn{font-size:15px;padding:11px 34px}
 .endstats{font-size:15px;line-height:2.1;color:#ddd}
@@ -56,6 +59,7 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
   <div class="topbar">
     <div class="tb-title">🧮 24点</div>
     <div class="tb-right">
+      <div class="iconbtn" id="hintBtn">💡</div>
       <div class="iconbtn" id="soundBtn">🔊</div>
       <div class="iconbtn hidden" id="pauseBtn">⏸</div>
     </div>
@@ -97,6 +101,11 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
     <button class="btn" id="againBtn">再来一局</button>
     <button class="btn ghost" id="backBtn">返回</button>
   </div>
+  <div id="hintOv" class="hidden">
+    <div style="font-size:20px;font-weight:800">💡 一种解法</div>
+    <div class="hsol" id="hintSol"></div>
+    <div class="htip">照着这个思路自己组一遍算式吧<br>点任意处关闭</div>
+  </div>
   <div id="pauseOv" class="hidden">
     <div style="font-size:24px;font-weight:800">⏸ 已暂停</div>
     <button class="btn" id="resumeBtn">继续</button>
@@ -132,6 +141,7 @@ function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
 soundBtn.textContent=soundOn?'🔊':'🔇';
 soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
 pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('hintBtn').addEventListener('click',function(){ sClick(); mathHint(); });
 $('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
 /* ===== 游戏：24点（20组题目已用程序验算可解） ===== */
 const BANK=[[4,4,10,10],[3,3,8,8],[5,5,5,1],[1,3,4,6],[1,2,3,4],[2,3,4,5],[3,4,5,6],[1,1,5,8],[2,2,3,9],[4,5,6,7],[1,4,5,6],[3,3,7,7],[4,4,7,7],[2,5,5,10],[3,5,7,9],[2,3,5,12],[6,6,6,6],[8,8,3,8],[1,1,11,11],[2,7,8,9]];
@@ -281,6 +291,50 @@ $('pad').addEventListener('pointerdown',function(e){
   else if(k==='('||k===')') addParen(k);
   else addOp(k);
 },{passive:false});
+/* 24点求解器：全排列+运算符+5种括号结构 */
+function solve24(nums){
+  var ops=['+','-','*','/'],dsp={'+':'+','-':'\u2212','*':'\u00D7','/':'\u00F7'};
+  var perms=[[0,1,2,3],[0,1,3,2],[0,2,1,3],[0,2,3,1],[0,3,1,2],[0,3,2,1],[1,0,2,3],[1,0,3,2],[1,2,0,3],[1,2,3,0],[1,3,0,2],[1,3,2,0],[2,0,1,3],[2,0,3,1],[2,1,0,3],[2,1,3,0],[2,3,0,1],[2,3,1,0],[3,0,1,2],[3,0,2,1],[3,1,0,2],[3,1,2,0],[3,2,0,1],[3,2,1,0]];
+  function ap(a,b,op){
+    if(op==='+')return a+b;
+    if(op==='-')return a-b;
+    if(op==='*')return a*b;
+    if(Math.abs(b)<1e-9)return NaN;
+    return a/b;
+  }
+  function ok(v){return !isNaN(v)&&Math.abs(v-24)<1e-6;}
+  for(var pi=0;pi<24;pi++){
+    var p=perms[pi],A=nums[p[0]],B=nums[p[1]],C=nums[p[2]],D=nums[p[3]];
+    var sa=String(A),sb=String(B),sc=String(C),sd=String(D);
+    for(var i=0;i<4;i++)for(var j=0;j<4;j++)for(var k=0;k<4;k++){
+      var o1=ops[i],o2=ops[j],o3=ops[k],v;
+      v=ap(ap(ap(A,B,o1),C,o2),D,o3);
+      if(ok(v))return '(('+sa+dsp[o1]+sb+')'+dsp[o2]+sc+')'+dsp[o3]+sd+' = 24';
+      v=ap(ap(A,ap(B,C,o2),o1),D,o3);
+      if(ok(v))return '('+sa+dsp[o1]+'('+sb+dsp[o2]+sc+'))'+dsp[o3]+sd+' = 24';
+      v=ap(ap(A,B,o1),ap(C,D,o3),o2);
+      if(ok(v))return '('+sa+dsp[o1]+sb+')'+dsp[o2]+'('+sc+dsp[o3]+sd+') = 24';
+      v=ap(A,ap(ap(B,C,o2),D,o3),o1);
+      if(ok(v))return sa+dsp[o1]+'(('+sb+dsp[o2]+sc+')'+dsp[o3]+sd+') = 24';
+      v=ap(A,ap(B,ap(C,D,o3),o2),o1);
+      if(ok(v))return sa+dsp[o1]+'('+sb+dsp[o2]+'('+sc+dsp[o3]+sd+')) = 24';
+    }
+  }
+  return null;
+}
+function mathHint(){
+  if(!playing||paused)return;
+  var sol=solve24(nums);
+  sClick();
+  if(sol){
+    $('hintSol').textContent=sol;
+    $('hintOv').classList.remove('hidden');
+  }else{
+    $('hintSol').textContent='这组数字暂时没算出解，试试跳过';
+    $('hintOv').classList.remove('hidden');
+  }
+}
+$('hintOv').addEventListener('pointerdown',function(){$('hintOv').classList.add('hidden');});
 function endGame(){
   playing=false; clearInterval(timerId); pauseBtn.classList.add('hidden'); setPaused(false);
   const key='g100_math24_hs', best=hsGet(key);

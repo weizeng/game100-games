@@ -45,6 +45,7 @@ canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-acti
   <div class="topbar">
     <div class="tb-title">🎱 滚珠入洞</div>
     <div class="tb-right">
+      <div class="iconbtn" id="hintBtn">💡</div>
       <div class="iconbtn" id="soundBtn">🔊</div>
       <div class="iconbtn hidden" id="pauseBtn">⏸</div>
     </div>
@@ -109,6 +110,7 @@ function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
 soundBtn.textContent=soundOn?'🔊':'🔇';
 soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
 pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('hintBtn').addEventListener('click',function(){ sClick(); ballHint(); });
 $('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
 /* ===== 游戏：滚珠入洞 ===== */
 const LEVELS=[
@@ -170,6 +172,18 @@ function step(dt){
       if(Math.hypot(ball.x-h[0],ball.y-h[1])<0.04){ onFall(); return; }
     }
   }
+}
+let hintArrowUntil=0;
+function ballHint(){
+  if(!playing||paused)return;
+  var L=LEVELS[lvl];
+  var dx=L.goal[0]-ball.x,dy=L.goal[1]-ball.y,dir;
+  if(Math.abs(dx)>Math.abs(dy))dir=dx>0?'右':'左';
+  else dir=dy>0?'下':'上';
+  hintArrowUntil=performance.now()+2000;
+  sClick();
+  $('msg').textContent='💡 建议朝【'+dir+'】倾斜，箭头指向绿洞，注意绕开黑洞';
+  setTimeout(function(){if(playing)$('msg').textContent='';},2000);
 }
 function onFall(){
   deaths++; $('deaths').textContent=deaths;
@@ -240,6 +254,21 @@ function draw(t){
   bgrad.addColorStop(0,'#ffffff'); bgrad.addColorStop(0.6,'#9fdcf5'); bgrad.addColorStop(1,'#2e86c1');
   ctx.fillStyle=bgrad; ctx.beginPath(); ctx.arc(bx,by,br,0,7); ctx.fill();
   ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+  if(performance.now()<hintArrowUntil){
+    var _L=LEVELS[lvl];
+    var _bx=S(ball.x),_by=S(ball.y);
+    var _ang=Math.atan2(_L.goal[1]-ball.y,_L.goal[0]-ball.x);
+    var _len=S(0.2),_ex=_bx+Math.cos(_ang)*_len,_ey=_by+Math.sin(_ang)*_len;
+    ctx.save();
+    ctx.strokeStyle='#ffd76a';ctx.lineWidth=6;ctx.lineCap='round';
+    ctx.shadowColor='#ffd76a';ctx.shadowBlur=14;
+    ctx.beginPath();ctx.moveTo(_bx,_by);ctx.lineTo(_ex,_ey);ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(_ex,_ey);ctx.lineTo(_ex-18*Math.cos(_ang-0.42),_ey-18*Math.sin(_ang-0.42));
+    ctx.moveTo(_ex,_ey);ctx.lineTo(_ex-18*Math.cos(_ang+0.42),_ey-18*Math.sin(_ang+0.42));
+    ctx.stroke();
+    ctx.restore();
+  }
   if(Math.hypot(tilt.x,tilt.y)>0.08){
     ctx.strokeStyle='rgba(255,215,106,.8)'; ctx.lineWidth=4; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(w/2,w/2); ctx.lineTo(w/2+tilt.x*60,w/2+tilt.y*60); ctx.stroke();

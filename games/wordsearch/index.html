@@ -29,6 +29,11 @@ body{background:linear-gradient(160deg,#123a5c 0%,#121212 55%,#0a0a0a 100%);colo
 .lcell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;border-radius:8px;background:rgba(255,255,255,.06);color:#e8f2ff;transition:background .1s,transform .08s}
 .lcell.sel{background:rgba(125,211,252,.45)}
 .lcell.found{background:linear-gradient(135deg,#22c55e,#4ade80);color:#06281c}
+.lcell.hintblink{animation:hintblink .6s ease-in-out 5;box-shadow:0 0 0 3px #ffd76a}
+@keyframes hintblink{50%{background:rgba(255,215,106,.75);transform:scale(1.18)}}
+#hintToast{position:fixed;top:70px;left:50%;transform:translateX(-50%);max-width:88vw;background:rgba(20,22,34,.96);border:1px solid rgba(255,215,106,.55);color:#ffe9a8;font-size:13px;line-height:1.7;padding:10px 16px;border-radius:12px;z-index:90;display:none;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#hintToast.show{display:block;animation:toastin .25s}
+@keyframes toastin{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 #words{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:420px}
 .wchip{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);padding:7px 14px;border-radius:999px;font-size:14px;font-weight:700;letter-spacing:2px;transition:all .2s}
 .wchip.found{background:rgba(34,197,94,.2);border-color:#4ade80;color:#4ade80;text-decoration:line-through}
@@ -47,7 +52,7 @@ body{background:linear-gradient(160deg,#123a5c 0%,#121212 55%,#0a0a0a 100%);colo
   <div class="topbar">
     <span class="title">🔎 找单词</span>
     <span class="stat">找到 <b id="found">0</b>/8 · ⏱<b id="tm">0s</b></span>
-    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
+    <span><button class="tbtn" id="hintBtn">💡</button> <button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
   </div>
   <div class="screen on" id="s-start">
     <div class="card">
@@ -130,6 +135,30 @@ function endSel(){if(selCells.length<2){selCells=[];updateSel();return}
   selCells=[];updateSel();
   if(foundN===WORDS.length)win()}
  else{selCells=[];updateSel();tone(220,.1,"sine",.08)}}
+var hintToastTimer=null;
+function showHintToast(html,ms){
+  var t=$("hintToast");
+  if(!t){t=document.createElement("div");t.id="hintToast";document.body.appendChild(t);}
+  t.innerHTML=html;t.classList.add("show");
+  if(hintToastTimer)clearTimeout(hintToastTimer);
+  hintToastTimer=setTimeout(function(){t.classList.remove("show");},ms||4500);
+}
+function wsHint(){
+  if(!$("s-game").classList.contains("on"))return;
+  var target=null,i;
+  for(i=0;i<placed.length;i++){
+    if(!foundCells[placed[i].word]){target=placed[i];break;}
+  }
+  if(!target){showHintToast("都找完了 🎉");return;}
+  var c0=target.cells[0];
+  var el=$("lc_"+c0[0]+"_"+c0[1]);
+  if(el){
+    el.classList.remove("hintblink");void el.offsetWidth;el.classList.add("hintblink");
+    setTimeout(function(){el.classList.remove("hintblink");},3200);
+  }
+  sClick();
+  showHintToast('💡 单词 <b>'+target.word+'</b> 的首字母 <b>'+target.word[0]+'</b> 正在闪烁<br>从它出发，沿横/竖/斜方向找找');
+}
 function win(){clearInterval(timer);sWin();for(var i=0;i<5;i++)setTimeout(function(){burst(innerWidth/2+(Math.random()-.5)*260,innerHeight/3,["#ffd76a","#7dd3fc","#4ade80"][i%3],22)},i*120);
  var score=Math.max(100,Math.round(WORDS.length*500/(1+secs/30)));
  var best=store.get("best",null),nb=false;if(best==null||score>best){store.set("best",score);nb=true}
@@ -150,6 +179,7 @@ $("btnHome").onclick=function(){sClick();show("s-start")};
 $("sndBtn").onclick=function(){soundOn=!soundOn;store.set("sound",soundOn);$("sndBtn").textContent=soundOn?"🔊":"🔇";if(soundOn)sClick()};
 $("sndBtn").textContent=soundOn?"🔊":"🔇";
 $("pauseBtn").onclick=function(){if(!$("s-game").classList.contains("on"))return;sClick();paused=true;$("pauseov").classList.add("on")};
+$("hintBtn").onclick=function(){sClick();wsHint()};
 $("btnResume").onclick=function(){sClick();paused=false;$("pauseov").classList.remove("on")};
 $("btnQuit").onclick=function(){sClick();paused=false;$("pauseov").classList.remove("on");clearInterval(timer);show("s-start")};
 </script>
