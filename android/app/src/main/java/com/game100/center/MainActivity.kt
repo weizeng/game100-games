@@ -171,7 +171,7 @@ class MainActivity : AppCompatActivity() {
         // 再用上次的远端列表重建，保留分类选择与列表内容
         refreshChips()
         lifecycleScope.launch(Dispatchers.IO) {
-            repo.ensureBundledGames()
+            repo.ensureBundledGames(BuildConfig.VERSION_CODE)
             val items = repo.buildGameList(lastRemote)
             withContext(Dispatchers.Main) { showItems(items) }
         }
@@ -184,7 +184,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadLocal() {
         lifecycleScope.launch(Dispatchers.IO) {
-            repo.ensureBundledGames()
+            repo.ensureBundledGames(BuildConfig.VERSION_CODE)
             val items = repo.buildGameList(emptyList())
             withContext(Dispatchers.Main) {
                 showItems(items)

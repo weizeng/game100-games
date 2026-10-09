@@ -28,9 +28,14 @@ class GameRepository(private val context: Context) {
         prefs.edit().putString(KEY_URL, url.trim()).apply()
     }
 
-    fun ensureBundledGames() {
-        val marker = File(gamesDir, ".bundled_done")
-        if (marker.exists()) return
+    fun ensureBundledGames(appVersionCode: Int) {
+        // marker 记录上次解压时的 App versionCode；App 升级后重新比对版本
+        val marker = File(gamesDir, ".bundled_v2")
+        val marked = try {
+            if (marker.exists()) marker.readText().trim().toInt() else 0
+        } catch (e: Exception) { 0 }
+        if (marked == appVersionCode) return
+
         gamesDir.mkdirs()
         val assets = try {
             context.assets.list("bundled") ?: emptyArray()
@@ -40,20 +45,47 @@ class GameRepository(private val context: Context) {
         for (name in assets) {
             if (!name.endsWith(".zip")) continue
             val id = name.removeSuffix(".zip")
-            val dest = File(gamesDir, id)
-            if (File(dest, "index.html").exists()) continue
-            try {
-                context.assets.open("bundled/$name").use { ins ->
-                    ZipUtils.unzip(ins, dest)
+            // 只有内置版比已安装版新时才覆盖（不降级用户从远端更新的游戏）
+            if (getBundledVersion(name) > getInstalledVersion(id)) {
+                val dest = File(gamesDir, id)
+                try {
+                    if (dest.exists()) dest.deleteRecursively()
+                    context.assets.open("bundled/$name").use { ins ->
+                        ZipUtils.unzip(ins, dest)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
         try {
-            marker.createNewFile()
+            marker.writeText(appVersionCode.toString())
         } catch (_: Exception) {
         }
+    }
+
+    private fun getInstalledVersion(id: String): Int {
+        return try {
+            val meta = File(File(gamesDir, id), "meta.json")
+            if (!meta.exists()) 0 else JSONObject(meta.readText()).optInt("version", 0)
+        } catch (e: Exception) { 0 }
+    }
+
+    private fun getBundledVersion(zipName: String): Int {
+        return try {
+            context.assets.open("bundled/$zipName").use { ins ->
+                java.util.zip.ZipInputStream(ins).use { zis ->
+                    var entry = zis.nextEntry
+                    while (entry != null) {
+                        if (entry.name == "meta.json") {
+                            return JSONObject(zis.bufferedReader().readText()).optInt("version", 0)
+                        }
+                        entry = zis.nextEntry
+                    }
+                }
+            }
+            0
+        } catch (e: Exception) { 0 }
     }
 
     fun loadInstalled(): List<InstalledGame> {
