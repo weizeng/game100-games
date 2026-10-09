@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>飞行棋</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
+.hud{display:flex;gap:8px;align-items:center;font-size:13px}
+.hud .p{display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:8px;background:#1f1f1f}
+.hud .p.cur{outline:2px solid #FFD54F}
+.hud .p b{font-size:15px}
+.iconbtn{background:#1f1f1f;border:1px solid #333;color:#fff;font-size:17px;width:40px;height:40px;border-radius:10px;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+#cv{background:#16161e;border-radius:12px;touch-action:none;width:100%;max-width:440px;height:auto;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.dicerow{display:flex;gap:14px;align-items:center}
+#dice{width:74px;height:74px;border-radius:16px;background:linear-gradient(145deg,#fff,#cfcfcf);color:#111;font-size:40px;font-weight:900;border:none;cursor:pointer;transition:transform .08s;box-shadow:0 4px 16px rgba(255,255,255,.15);touch-action:none}
+#dice:active{transform:scale(.92)}
+#dice:disabled{opacity:.45;cursor:default}
+#dice.rolling{animation:shake .12s infinite}
+@keyframes shake{0%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}100%{transform:rotate(-8deg)}}
+.tip{font-size:12px;color:#888;min-height:16px;text-align:center}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.87);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.hidden{display:none!important}
+.overlay h1{font-size:32px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9;max-width:380px}
+.btn{background:linear-gradient(135deg,#EC407A,#AD1457);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;transition:transform .08s;box-shadow:0 4px 16px rgba(236,64,122,.35)}
+.btn:active{transform:scale(.94)}
+.big{font-size:44px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="hud" id="phud"></div>
+    <div>
+      <button class="iconbtn" id="pauseBtn">⏸</button>
+      <button class="iconbtn" id="sndBtn">🔊</button>
+    </div>
+  </div>
+  <canvas id="cv" width="400" height="400"></canvas>
+  <div class="dicerow">
+    <button id="dice">🎲</button>
+    <div class="tip" id="tip">你是红色 · 点骰子开始</div>
+  </div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="big">🎲</div>
+  <h1>飞行棋</h1>
+  <p>你（红色）对阵 3 个电脑。<br>掷到 6 点才能起飞；<br>踩中对手棋子把它送回起点；<br>终点需精确点数到达。<br>4 颗棋子全部到终点者胜！<br>轮到你时点骰子，再点发光的棋子走棋。</p>
+  <button class="btn" id="startBtn">开始游戏</button>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <h1>⏸ 已暂停</h1>
+  <button class="btn" id="resumeBtn">继续</button>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="big" id="endEmoji">🏆</div>
+  <h1 id="endTitle">你赢了！</h1>
+  <p id="endScore"></p>
+  <p style="color:#888;font-size:13px" id="endHs"></p>
+  <button class="btn" id="againBtn">再来一局</button>
+</div>
+
+<script>
+'use strict';
+// ============ 音效 ============
+let AC=null, soundOn=true;
+function tone(f,d,type,v,slide){ if(!soundOn)return; try{
+  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.type=type||'square'; o.frequency.value=f;
+  if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),AC.currentTime+d);
+  g.gain.setValueAtTime(v||0.05,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+d);
+  o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d);
+}catch(e){} }
+const sfx={
+  click(){tone(650,0.06);},
+  dice(){[300,400,500].forEach((f,i)=>setTimeout(()=>tone(f,0.06,'square',0.05),i*70));},
+  move(){tone(440,0.08,'triangle',0.07);},
+  capture(){tone(700,0.18,'square',0.08,-300);},
+  home(){tone(880,0.15,'sine',0.08,200);},
+  six(){tone(1046,0.15,'triangle',0.08);},
+  bad(){tone(150,0.15,'sawtooth',0.07,-60);},
+  win(){[523,659,784,1046,1318].forEach((f,i)=>setTimeout(()=>tone(f,0.22,'triangle',0.09),i*130));},
+  lose(){[400,300,220].forEach((f,i)=>setTimeout(()=>tone(f,0.25,'sawtooth',0.08,-40),i*150));}
+};
+const HSKEY='g100_ludo_hs';
+function getHS(){try{return +(localStorage.getItem(HSKEY)||0);}catch(e){return 0;}}
+function setHS(v){try{localStorage.setItem(HSKEY,v);}catch(e){}}
+// ============ 核心逻辑（可测试） ============
+const PCOLORS=['#EF5350','#66BB6A','#FFEB3B','#42A5F5'];
+const PNAMES=['你','绿','黄','蓝'];
+const OFFSETS=[0,10,20,30];
+function newLudo(){
+  return {pieces:[[-1,-1,-1,-1],[-1,-1,-1,-1],[-1,-1,-1,-1],[-1,-1,-1,-1]],
+    turn:0,roll:0,moves:[],winner:-1,turnCount:0};
+}
+function trackIndex(player,prog){return (OFFSETS[player]+prog)%40;}
+function isSafe(idx){return idx%10===0;}
+function legalMovesLudo(st,player,roll){
+  const moves=[],ps=st.pieces[player];
+  for(let i=0;i<4;i++){
+    const p=ps[i];
+    if(p===-1){if(roll===6)moves.push({piece:i,from:-1,to:0,leave:true});}
+    else if(p<40&&p+roll<=40)moves.push({piece:i,from:p,to:p+roll});
+  }
+  return moves;
+}
+function applyMoveLudo(st,player,mv){
+  st.pieces[player][mv.piece]=mv.to;
+  let captured=0;
+  if(mv.to<36&&!isSafe(trackIndex(player,mv.to))){
+    const idx=trackIndex(player,mv.to);
+    for(let q=0;q<4;q++){
+      if(q===player)continue;
+      for(let j=0;j<4;j++){
+        const p=st.pieces[q][j];
+        if(p>=0&&p<36&&trackIndex(q,p)===idx){st.pieces[q][j]=-1;captured++;}
+      }
+    }
+  }
+  return captured;
+}
+function checkWinLudo(st){
+  for(let p=0;p<4;p++)if(st.pieces[p].every(x=>x===40))return p;
+  return -1;
+}
+// AI：优先吃子 > 进终点 > 起飞 > 走远子，20%随机留破绽
+function aiChooseLudo(st,player,moves,rng){
+  rng=rng||Math.random;
+  if(!moves.length)return null;
+  if(rng()<0.2)return moves[(rng()*moves.length)|0];
+  let best=null,bs=-1e9;
+  for(const m of moves){
+    let s=rng()*4;
+    if(m.leave)s+=30;
+    if(m.to===40)s+=45;
+    if(m.to>=36&&m.to<40)s+=10;
+    if(m.to>=0&&m.to<36&&!isSafe(trackIndex(player,m.to))){
+      const idx=trackIndex(player,m.to);
+      for(let q=0;q<4;q++){
+        if(q===player)continue;
+        if(st.pieces[q].some(p=>p>=0&&p<36&&trackIndex(q,p)===idx))s+=50;
+      }
+    }
+    s+=m.to*0.3;
+    if(s>bs){bs=s;best=m;}
+  }
+  return best;
+}
+// 完整模拟一局（全AI），返回winner与回合数
+function simulateLudo(rng,maxTurns){
+  rng=rng||Math.random;maxTurns=maxTurns||8000;
+  const st=newLudo();
+  let guard=0;
+  while(st.winner<0&&guard++<maxTurns){
+    const p=st.turn;
+    const roll=1+((rng()*6)|0);
+    const moves=legalMovesLudo(st,p,roll);
+    const mv=aiChooseLudo(st,p,moves,rng);
+    if(mv)applyMoveLudo(st,p,mv);
+    st.winner=checkWinLudo(st);
+    if(st.winner>=0)break;
+    if(roll!==6)st.turn=(st.turn+1)%4; // 掷6奖励一手
+    st.turnCount++;
+  }
+  return {winner:st.winner,turns:st.turnCount,pieces:st.pieces.map(a=>a.slice())};
+}
+if(typeof window!=='undefined')window.__LUDO__={newLudo,legalMovesLudo,applyMoveLudo,aiChooseLudo,checkWinLudo,simulateLudo,trackIndex,isSafe};
+// ============ 棋盘坐标 ============
+const X0=46,X1=354,Y0=46,Y1=354,CX=200,CY=200;
+function trackXY(i){
+  const t=(i%40)/40;
+  if(t<0.25)return [X0+(X1-X0)*(t/0.25),Y0];
+  if(t<0.5)return [X1,Y0+(Y1-Y0)*((t-0.25)/0.25)];
+  if(t<0.75)return [X1-(X1-X0)*((t-0.5)/0.25),Y1];
+  return [X0,Y1-(Y1-Y0)*((t-0.75)/0.25)];
+}
+function pieceXY(player,prog,slot){
+  if(prog===-1){ // 基地
+    const bx=player===0||player===3?88:312;
+    const by=player<2?88:312;
+    const ox=(slot%2)*36,oy=((slot/2)|0)*36;
+    return [bx-18+ox,by-18+oy];
+  }
+  if(prog===40)return [CX,CY];
+  if(prog>=36){ // home stretch：从入口向中心
+    const e=trackXY((OFFSETS[player]+36)%40);
+    const k=(prog-35)/5;
+    return [e[0]+(CX-e[0])*k,e[1]+(CY-e[1])*k];
+  }
+  return trackXY(trackIndex(player,prog));
+}
+// ============ 游戏状态 ============
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let started=false,over=false,paused=false;
+let st,phase='idle',diceVal=1,rollAnim=0;
+let particles=[],floaters=[];
+let score=0;
+
+function startGame(){
+  st=newLudo();phase='idle';over=false;paused=false;started=true;
+  score=0;particles=[];floaters=[];
+  document.getElementById('startOv').classList.add('hidden');
+  document.getElementById('endOv').classList.add('hidden');
+  document.getElementById('pauseOv').classList.add('hidden');
+  renderHUD();setTip('你是红色 · 点骰子开始');draw();sfx.click();
+}
+function renderHUD(){
+  const h=document.getElementById('phud');h.innerHTML='';
+  for(let p=0;p<4;p++){
+    const d=document.createElement('div');
+    d.className='p'+(st&&st.turn===p&&!over?' cur':'');
+    const done=st?st.pieces[p].filter(x=>x===40).length:0;
+    d.innerHTML='<span style="width:12px;height:12px;border-radius:50%;background:'+PCOLORS[p]+';display:inline-block"></span>'+PNAMES[p]+' <b>'+done+'/4</b>';
+    h.appendChild(d);
+  }
+}
+function setTip(t){document.getElementById('tip').textContent=t;}
+function updateScore(){score=st.pieces[0].filter(x=>x===40).length*100+st.pieces[0].reduce((a,x)=>a+Math.max(0,x),0);}
+function doRoll(){
+  if(phase!=='idle'||over||paused||!started)return;
+  if(st.turn!==0)return; // 只人类点
+  rollDice();
+}
+function rollDice(){
+  phase='rolling';rollAnim=8;sfx.dice();
+  document.getElementById('dice').classList.add('rolling');
+  document.getElementById('dice').disabled=true;
+}
+function finishRoll(){
+  document.getElementById('dice').classList.remove('rolling');
+  diceVal=1+((Math.random()*6)|0);
+  document.getElementById('dice').textContent=diceVal;
+  st.roll=diceVal;
+  st.moves=legalMovesLudo(st,st.turn,diceVal);
+  if(diceVal===6)sfx.six();
+  if(!st.moves.length){
+    setTip(PNAMES[st.turn]+'掷出 '+diceVal+' 点，无棋可走');
+    sfx.bad();
+    setTimeout(nextTurn,1100);
+    return;
+  }
+  if(st.turn===0){
+    phase='choose';
+    setTip('掷出 '+diceVal+' 点，点发光的棋子走棋');
+    draw();
+  }else{
+    phase='aimove';
+    setTip(PNAMES[st.turn]+'掷出 '+diceVal+' 点思考中…');
+    setTimeout(()=>{
+      if(over||paused)return;
+      const mv=aiChooseLudo(st,st.turn,st.moves);
+      if(mv)execMove(mv);
+      else nextTurn();
+    },700+Math.random()*500);
+  }
+}
+function execMove(mv){
+  const player=st.turn;
+  const captured=applyMoveLudo(st,player,mv);
+  sfx.move();
+  const [px,py]=pieceXY(player,mv.to,mv.piece);
+  if(captured){sfx.capture();floaters.push({x:px,y:py-16,txt:'踩回起点!',life:1.4});
+    for(let i=0;i<10;i++)particles.push({x:px,y:py,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4-2,life:0.9,color:'#FF5252'});
+  }
+  if(mv.to===40){sfx.home();floaters.push({x:px,y:py-16,txt:'到终点!',life:1.4});}
+  if(mv.leave){floaters.push({x:px,y:py-16,txt:'起飞!',life:1.2});}
+  updateScore();
+  renderHUD();draw();
+  const w=checkWinLudo(st);
+  if(w>=0){finishGame(w);return;}
+  // 掷6奖励一手
+  if(st.roll===6){
+    setTip(PNAMES[player]+'掷出6点，再掷一次');
+    phase='idle';
+    if(player!==0)setTimeout(()=>{if(!over&&!paused)rollDice();},800);
+    else{document.getElementById('dice').disabled=false;}
+  }else nextTurn();
+}
+function nextTurn(){
+  st.turn=(st.turn+1)%4;
+  st.moves=[];phase='idle';
+  renderHUD();draw();
+  document.getElementById('dice').disabled=st.turn!==0;
+  if(st.turn===0)setTip('轮到你掷骰子');
+  else{setTip('轮到'+PNAMES[st.turn]+'…');setTimeout(()=>{if(!over&&!paused&&started)rollDice();},700);}
+}
+function finishGame(w){
+  over=true;phase='done';
+  updateScore();
+  if(score>getHS())setHS(score);
+  if(w===0)sfx.win();else sfx.lose();
+  setTimeout(()=>{
+    document.getElementById('endEmoji').textContent=w===0?'🏆':'🤖';
+    document.getElementById('endTitle').textContent=w===0?'你赢了！':PNAMES[w]+'获胜';
+    document.getElementById('endScore').textContent='你的终点棋子 '+st.pieces[0].filter(x=>x===40).length+'/4';
+    document.getElementById('endHs').textContent='历史最高分：'+getHS();
+    document.getElementById('endOv').classList.remove('hidden');
+  },800);
+}
+// ============ 绘制 ============
+function draw(){
+  ctx.clearRect(0,0,400,400);
+  // 基地
+  const bases=[[28,28,0],[252,28,1],[252,252,2],[28,252,3]];
+  for(const [bx,by,p] of bases){
+    ctx.fillStyle=PCOLORS[p]+'33';
+    if(ctx.roundRect){ctx.beginPath();ctx.roundRect(bx,by,120,120,14);ctx.fill();}
+    else ctx.fillRect(bx,by,120,120);
+    ctx.strokeStyle=PCOLORS[p];ctx.lineWidth=3;
+    if(ctx.roundRect){ctx.beginPath();ctx.roundRect(bx,by,120,120,14);ctx.stroke();}
+  }
+  // 主赛道
+  for(let i=0;i<40;i++){
+    const [x,y]=trackXY(i);
+    ctx.fillStyle=isSafe(i)?'#FFD54F':'#2c2c38';
+    ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(x,y,isSafe(i)?8:6.5,0,7);ctx.fill();ctx.stroke();
+    if(isSafe(i)){ctx.fillStyle='#111';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('★',x,y+0.5);}
+  }
+  // home stretch
+  for(let p=0;p<4;p++){
+    for(let j=36;j<40;j++){
+      const [x,y]=pieceXY(p,j,0);
+      ctx.fillStyle=PCOLORS[p]+'88';
+      ctx.beginPath();ctx.arc(x,y,6,0,7);ctx.fill();
+    }
+  }
+  // 中心
+  ctx.fillStyle='#2c2c38';ctx.beginPath();ctx.arc(CX,CY,26,0,7);ctx.fill();
+  ctx.strokeStyle='#FFD54F';ctx.lineWidth=2;ctx.beginPath();ctx.arc(CX,CY,26,0,7);ctx.stroke();
+  ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🏁',CX,CY+1);
+  if(!st)return;
+  // 棋子
+  const t=Date.now()/350;
+  for(let p=0;p<4;p++){
+    for(let s=0;s<4;s++){
+      const prog=st.pieces[p][s];
+      const [x,y]=pieceXY(p,prog,s);
+      // 可走高亮
+      const movable=phase==='choose'&&st.turn===0&&st.moves.some(m=>m.piece===s);
+      if(movable){
+        ctx.strokeStyle='rgba(255,213,79,'+(0.6+0.4*Math.sin(t+s))+')';
+        ctx.lineWidth=4;ctx.beginPath();ctx.arc(x,y,13,0,7);ctx.stroke();
+      }
+      const g=ctx.createRadialGradient(x-3,y-3,2,x,y,11);
+      g.addColorStop(0,'#fff');g.addColorStop(0.35,PCOLORS[p]);g.addColorStop(1,'#111');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,10.5,0,7);ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,10.5,0,7);ctx.stroke();
+      if(p===0){ctx.fillStyle='#fff';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('我',x,y+0.5);}
+    }
+  }
+  // 粒子
+  for(const pt of particles){
+    ctx.globalAlpha=Math.max(0,pt.life);ctx.fillStyle=pt.color;
+    ctx.fillRect(pt.x-2,pt.y-2,4,4);
+    pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=0.08;pt.life-=0.05;
+  }
+  ctx.globalAlpha=1;
+  particles=particles.filter(pt=>pt.life>0);
+  // 飘字
+  ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  for(const f of floaters){
+    ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle='#FFD54F';
+    ctx.fillText(f.txt,f.x,f.y);f.y-=0.7;f.life-=0.03;
+  }
+  ctx.globalAlpha=1;
+  floaters=floaters.filter(f=>f.life>0);
+}
+function drawLoop(){
+  if(rollAnim>0){
+    rollAnim--;
+    document.getElementById('dice').textContent=1+((Math.random()*6)|0);
+    if(rollAnim===0)finishRoll();
+  }
+  if(started&&!paused)draw();
+  requestAnimationFrame(drawLoop);
+}
+// ============ 输入 ============
+function tapPiece(e){
+  if(e.cancelable)e.preventDefault();
+  if(!started||paused||over||phase!=='choose')return;
+  const r=cv.getBoundingClientRect();
+  const x=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
+  const y=(e.touches?e.touches[0].clientY:e.clientY)-r.top;
+  const sx=x/r.width*400,sy=y/r.height*400;
+  for(let s=0;s<4;s++){
+    const mv=st.moves.find(m=>m.piece===s);
+    if(!mv)continue;
+    // 注意：棋子当前位置是 from
+    const [px,py]=pieceXY(0,st.pieces[0][s],s);
+    if(Math.hypot(px-sx,py-sy)<20){phase='moving';execMove(mv);return;}
+  }
+  sfx.bad();
+}
+cv.addEventListener('touchstart',tapPiece,{passive:false});
+cv.addEventListener('mousedown',tapPiece);
+document.getElementById('dice').addEventListener('click',()=>{sfx.click();doRoll();});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('againBtn').addEventListener('click',startGame);
+document.getElementById('pauseBtn').addEventListener('click',()=>{
+  if(!started||over)return;paused=true;
+  document.getElementById('pauseOv').classList.remove('hidden');sfx.click();
+});
+document.getElementById('resumeBtn').addEventListener('click',()=>{
+  paused=false;document.getElementById('pauseOv').classList.add('hidden');sfx.click();
+});
+document.getElementById('sndBtn').addEventListener('click',function(){
+  soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)sfx.click();
+});
+requestAnimationFrame(drawLoop);
+</script>
+</body>
+</html>

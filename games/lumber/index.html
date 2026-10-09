@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>砍树工</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d0d16;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#12251a 0%,#0d0d16 60%,#0e1410 100%)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none;font-size:15px}
+.hud .left{font-weight:bold;text-shadow:0 0 8px #aed581}
+.hud .right{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{width:38px;height:38px;border-radius:50%;border:1px solid #aed58155;background:#1c1c2bd9;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.ctr{position:absolute;bottom:26px;left:0;right:0;display:flex;justify-content:center;gap:36px}
+.gbtn{width:88px;height:88px;border-radius:50%;border:2px solid #aed581aa;background:#aed58122;color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center;touch-action:none;transition:transform .08s}
+.gbtn:active{transform:scale(.88)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,20,.88);backdrop-filter:blur(4px);z-index:10;text-align:center;padding:24px}
+.screen h1{font-size:38px;margin-bottom:6px;background:linear-gradient(135deg,#aed581,#7cb342);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.screen p{color:#aaa;font-size:14px;line-height:1.7;margin:12px 0 20px}
+.bigbtn{padding:14px 56px;font-size:18px;border:none;border-radius:30px;background:linear-gradient(135deg,#aed581,#7cb342);color:#fff;font-weight:bold;cursor:pointer;transition:transform .1s;box-shadow:0 4px 20px #aed58155}
+.bigbtn:active{transform:scale(.93)}
+.score{font-size:52px;font-weight:bold;background:linear-gradient(135deg,#ffd740,#aed581);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0}
+.hiscore{color:#888;font-size:14px;margin-bottom:20px}
+.hidden{display:none!important}
+.combo{position:absolute;top:56px;left:0;right:0;text-align:center;font-size:18px;font-weight:bold;color:#ffd740;pointer-events:none;text-shadow:0 0 10px #ffd74088}
+#timebar{position:absolute;top:0;left:0;height:4px;background:linear-gradient(90deg,#aed581,#7cb342);width:100%;z-index:5}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div id="timebar"></div>
+<div class="hud">
+<div class="left">SCORE <span id="score">0</span> · <span id="time">60</span>s</div>
+<div class="right"><button class="iconbtn" id="muteBtn">MUTE</button><button class="iconbtn" id="pauseBtn">II</button></div>
+</div>
+<div class="combo" id="combo"></div>
+<div class="ctr hidden" id="ctrls">
+<button class="gbtn" id="btnL">L</button>
+<button class="gbtn" id="btnR">R</button>
+</div>
+<div class="screen" id="startScr">
+<h1>LUMBER</h1>
+<p>树在中央，点左/右按钮砍对应一侧<br>树枝长在砍的那侧会被砸伤<br>连续成功砍伐攒连击加分<br>限时 60 秒</p>
+<button class="bigbtn" id="startBtn">开砍</button>
+</div>
+<div class="screen hidden" id="overScr">
+<h1>时间到</h1>
+<div class="score" id="finalScore">0</div>
+<div class="hiscore">最高分：<span id="hiScore">0</span> · 最高连击 <span id="maxCombo">0</span></div>
+<button class="bigbtn" id="retryBtn">再来一局</button>
+</div>
+<div class="screen hidden" id="pauseScr">
+<h1>已暂停</h1>
+<button class="bigbtn" id="resumeBtn">继续</button>
+</div>
+</div>
+<script>
+"use strict";
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),wrap=document.getElementById('wrap');
+var W,H,DPR;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=wrap.clientWidth;H=wrap.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+window.addEventListener('resize',resize);resize();
+var muted=false,AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+function sChop(){tone(220,.08,'square',.12,90);}
+function sHurt(){tone(160,.3,'sawtooth',.16,70);}
+function sCombo(c){tone(500+c*40,.12,'sine',.1);}
+document.getElementById('muteBtn').onclick=function(e){e.stopPropagation();muted=!muted;this.textContent=muted?'OFF':'MUTE';};
+var HIKEY='g100_lumber_hi',hi=0;
+try{hi=parseInt(localStorage.getItem(HIKEY))||0;}catch(e){}
+var state='start',paused=false,score=0,combo=0,maxCombo=0;
+var segs,parts,floats,timeLeft,side,swingT,hurtT,stumpAnim;
+var TIME_LIMIT=60,SEG_H=52,NSEG=8;
+var CX;
+function rand(a,b){return a+Math.random()*(b-a);}
+function newSeg(){var r=Math.random();return{branch:r<.32?-1:r<.64?1:0,wob:0};}
+function startGame(){score=0;combo=0;maxCombo=0;segs=[];parts=[];floats=[];timeLeft=TIME_LIMIT;side=0;swingT=0;hurtT=0;stumpAnim=0;
+CX=W/2;
+for(var i=0;i<NSEG;i++)segs.push(newSeg());
+document.getElementById('score').textContent='0';
+document.getElementById('combo').textContent='';
+setTime();
+document.getElementById('startScr').classList.add('hidden');document.getElementById('overScr').classList.add('hidden');document.getElementById('pauseScr').classList.add('hidden');
+document.getElementById('ctrls').classList.remove('hidden');
+state='play';paused=false;}
+function setTime(){document.getElementById('time').textContent=Math.ceil(timeLeft);
+document.getElementById('timebar').style.width=(timeLeft/TIME_LIMIT*100)+'%';}
+function gameOver(){state='over';document.getElementById('ctrls').classList.add('hidden');
+document.getElementById('finalScore').textContent=score;
+document.getElementById('maxCombo').textContent=maxCombo;
+if(score>hi){hi=score;try{localStorage.setItem(HIKEY,hi);}catch(e){}}
+document.getElementById('hiScore').textContent=hi;
+document.getElementById('overScr').classList.remove('hidden');}
+function chop(s){
+if(state!=='play'||paused||hurtT>0)return;
+side=s;swingT=12;
+var bottom=segs[0];
+if(bottom.branch===s){ // 砸伤
+hurtT=50;combo=0;
+document.getElementById('combo').textContent='';
+sHurt();
+floats.push({x:CX,y:H*.4,t:'砸伤了!',life:50,vy:-1});
+for(var i=0;i<12;i++)parts.push({x:CX+s*50,y:H*.55,vx:rand(-2,2),vy:rand(-3,0),life:rand(20,40),col:'#ff5252',s:rand(2,4)});
+return;}
+sChop();
+combo++;if(combo>maxCombo)maxCombo=combo;
+var pts=10+Math.min(90,combo*2);
+score+=pts;document.getElementById('score').textContent=score;
+document.getElementById('combo').textContent=combo>=5?('连击 x'+combo):'';
+floats.push({x:CX-s*60,y:H*.5,t:'+'+pts,life:40,vy:-1.2});
+if(combo%10===0)sCombo(combo);
+// 树干下落一段
+segs.shift();segs.push(newSeg());
+stumpAnim=10;
+for(var j=0;j<10;j++)parts.push({x:CX-s*30,y:H*.62,vx:rand(-3,3)+s*3,vy:rand(-3,1),life:rand(20,35),col:j%2?'#8d6e63':'#5d4037',s:rand(2,4)});}
+function update(){
+if(state!=='play'||paused)return;
+timeLeft-=1/60;setTime();
+if(timeLeft<=0){gameOver();return;}
+if(swingT>0)swingT--;
+if(hurtT>0)hurtT--;
+if(stumpAnim>0)stumpAnim--;
+for(var p=parts.length-1;p>=0;p--){var pt=parts[p];pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=.2;pt.life--;if(pt.life<=0)parts.splice(p,1);}
+for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.y+=fl.vy;fl.life--;if(fl.life<=0)floats.splice(f,1);}
+}
+function draw(){
+ctx.clearRect(0,0,W,H);
+var baseY=H*.62,drop=stumpAnim>0?(10-stumpAnim)*3:0;
+var TW=54;
+// 树桩
+ctx.fillStyle='#4e342e';ctx.fillRect(CX-TW/2-6,baseY,TW+12,16);
+// 树干段
+for(var i=0;i<segs.length;i++){
+var y=baseY-(i+1)*SEG_H+drop*(i+1)/segs.length;
+if(y<-SEG_H)continue;
+var wob=segs[i].wob;
+var g=ctx.createLinearGradient(CX-TW/2,0,CX+TW/2,0);
+g.addColorStop(0,'#6d4c41');g.addColorStop(.5,'#8d6e63');g.addColorStop(1,'#5d4037');
+ctx.fillStyle=g;ctx.fillRect(CX-TW/2+wob,y,TW,SEG_H);
+ctx.strokeStyle='#4e342e';ctx.lineWidth=2;
+ctx.beginPath();ctx.moveTo(CX-TW/2,y);ctx.lineTo(CX+TW/2,y);ctx.stroke();
+// 树枝
+var b=segs[i].branch;
+if(b!==0){var bx=CX+b*TW/2;
+ctx.strokeStyle='#33691e';ctx.lineWidth=9;
+ctx.beginPath();ctx.moveTo(bx,y+SEG_H/2);ctx.quadraticCurveTo(bx+b*44,y+SEG_H/2-6,bx+b*64,y+SEG_H/2-26);ctx.stroke();
+ctx.fillStyle='#2e7d32';
+ctx.beginPath();ctx.ellipse(bx+b*64,y+SEG_H/2-30,20,12,b*.5,0,6.28);ctx.fill();}}
+// 砍树工
+var px=CX+side*95,py=H*.62;
+var shake=hurtT>0?Math.sin(hurtT*1.2)*6:0;
+ctx.save();ctx.translate(px+shake,py);
+if(side!==0)ctx.scale(side,1);
+ctx.fillStyle=side!==0?'#1565c0':'#78909c';
+ctx.beginPath();ctx.arc(0,-52,10,0,6.28);ctx.fill(); // 头
+ctx.fillStyle=side!==0?'#e53935':'#78909c';
+ctx.fillRect(-8,-44,16,34); // 身体
+ctx.fillStyle='#5d4037';
+var sw=swingT>0?-Math.sin(swingT/12*Math.PI)*40:0;
+ctx.save();ctx.translate(-14,-30);ctx.rotate(-.7+sw*.02);
+ctx.fillRect(-34,-5,36,10);ctx.restore(); // 斧
+ctx.restore();
+// 砍击火花
+if(swingT>6){ctx.fillStyle='rgba(255,213,79,.9)';ctx.font='bold 20px sans-serif';
+ctx.fillText('💥',CX-side*40,H*.55);}
+parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/40);ctx.fillStyle=p.col;ctx.fillRect(p.x,p.y,p.s,p.s);});ctx.globalAlpha=1;
+ctx.font='bold 16px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/50);ctx.fillStyle=f.t==='砸伤了!'?'#ff5252':'#ffd740';ctx.fillText(f.t,f.x-24,f.y);});ctx.globalAlpha=1;
+}
+function loop(){update();draw();requestAnimationFrame(loop);}
+loop();
+function bindBtn(el,s){
+var h=function(e){e.preventDefault();chop(s);};
+el.addEventListener('touchstart',h,{passive:false});
+el.addEventListener('mousedown',h);}
+bindBtn(document.getElementById('btnL'),-1);
+bindBtn(document.getElementById('btnR'),1);
+document.addEventListener('keydown',function(e){
+if(e.key==='ArrowLeft')chop(-1);if(e.key==='ArrowRight')chop(1);});
+document.getElementById('startBtn').onclick=function(){ac();startGame();};
+document.getElementById('retryBtn').onclick=function(){startGame();};
+document.getElementById('pauseBtn').onclick=function(){if(state!=='play')return;paused=true;document.getElementById('pauseScr').classList.remove('hidden');};
+document.getElementById('resumeBtn').onclick=function(){paused=false;document.getElementById('pauseScr').classList.add('hidden');};
+document.addEventListener('visibilitychange',function(){if(document.hidden&&state==='play'&&!paused){paused=true;document.getElementById('pauseScr').classList.remove('hidden');}});
+</script>
+</body>
+</html>

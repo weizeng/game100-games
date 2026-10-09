@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>激光反射</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#050507;overflow:hidden;overscroll-behavior:none}
+body{display:flex;justify-content:center;align-items:center;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#fff;-webkit-user-select:none;user-select:none}
+#wrap{position:relative;width:min(100vw,60vh);aspect-ratio:3/5;max-height:100vh;background:#121212;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.8)}
+@media (max-aspect-ratio:3/5){#wrap{width:100vw;height:100vh;aspect-ratio:auto}}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:10px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,10,16,.62);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;backdrop-filter:blur(4px);white-space:nowrap}
+.hudl{display:flex;gap:8px}
+.hbtns{display:flex;gap:8px;pointer-events:auto}
+.icobtn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(10,10,16,.62);color:#fff;font-size:17px;cursor:pointer;transition:transform .08s}
+.icobtn:active{transform:scale(.88)}
+#overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(10,6,8,.86);backdrop-filter:blur(6px);padding:28px;text-align:center}
+#overlay h1{font-size:36px}
+#overlay .sub{font-size:14px;color:#b0bec5;line-height:1.8;max-width:340px}
+#overlay .best{font-size:14px;color:#ffd54f;font-weight:600}
+#overlay .bigscore{font-size:52px;font-weight:800;color:#ff5252}
+.btn{background:linear-gradient(135deg,#ff5252,#ff8a65);border:none;color:#3a0d0d;font-size:18px;font-weight:700;padding:14px 54px;border-radius:999px;cursor:pointer;box-shadow:0 6px 24px rgba(255,82,82,.4);transition:transform .1s}
+.btn:active{transform:scale(.93)}
+.btn2{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:15px;font-weight:600;padding:11px 34px;border-radius:999px;cursor:pointer;transition:transform .1s}
+.btn2:active{transform:scale(.93)}
+.row{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="hudl">
+    <div class="pill" id="scorePill">得分 0</div>
+    <div class="pill" id="lvPill">第 1 关</div>
+  </div>
+  <div class="hbtns">
+    <button class="icobtn" id="soundBtn">🔊</button>
+    <button class="icobtn" id="pauseBtn">⏸</button>
+  </div>
+</div>
+<div id="overlay"></div>
+</div>
+<script>
+'use strict';
+var W=480,H=800;
+var COLS=7,ROWS=9,CELL=62,OX=23,OY=150;
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+cv.width=W;cv.height=H;
+var AC=null,soundOn=true;
+function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}return AC;}
+function tone(f,d,type,vol,delay){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(vol||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function toGame(e){var r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
+var lastTouch=0;
+function bindDown(fn){cv.addEventListener('touchstart',function(e){e.preventDefault();lastTouch=Date.now();fn(toGame(e.touches[0]));},{passive:false});cv.addEventListener('mousedown',function(e){if(Date.now()-lastTouch<800)return;fn(toGame(e));});}
+var HSKEY='g100_laser_hs';
+function getHS(){try{return parseInt(localStorage.getItem(HSKEY),10)||0;}catch(e){return 0;}}
+function setHS(v){try{localStorage.setItem(HSKEY,String(v));}catch(e){}}
+var parts=[],floats=[];
+function boom(x,y,color,n){n=n||18;for(var i=0;i<n;i++){var a=Math.random()*6.2832,s=50+Math.random()*220;parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:0,life:0.4+Math.random()*0.5,color:color,r:2+Math.random()*3.5});}}
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,t:0,color:color||'#fff'});}
+function updParts(dt){for(var i=parts.length-1;i>=0;i--){var p=parts[i];p.t+=dt;if(p.t>=p.life){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;}}
+function drawParts(){for(var i=0;i<parts.length;i++){var p=parts[i];ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.2832);ctx.fill();}ctx.globalAlpha=1;}
+function updFloats(dt){for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.t+=dt;f.y-=44*dt;if(f.t>1)floats.splice(i,1);}}
+function drawFloats(){ctx.textAlign='center';ctx.font='bold 22px sans-serif';for(var i=0;i<floats.length;i++){var f=floats[i];ctx.globalAlpha=Math.max(0,1-f.t);ctx.fillStyle=f.color;ctx.fillText(f.txt,f.x,f.y);}ctx.globalAlpha=1;}
+/* ---------- 关卡生成（构造法保证有解） ---------- */
+var DIRS=[[1,0],[0,1],[-1,0],[0,-1]];
+var PHI=[0,90,180,270];
+var state='menu',score=0,lv=1;
+var mirrors=[],er=4,tx=0,ty=0,lockT=0,beam=null;
+function cellX(c){return OX+c*CELL+CELL/2;}
+function cellY(r){return OY+r*CELL+CELL/2;}
+function mirAt(cx,cy){for(var i=0;i<mirrors.length;i++)if(mirrors[i].cx===cx&&mirrors[i].cy===cy)return mirrors[i];return null;}
+function solutionS(cx,cy){var m=mirAt(cx,cy);return m?m.sol:null;}
+function traceBeam(orientFn){
+  var px=OX-10,py=cellY(er),dx=1,dy=0;
+  var pts=[{x:px,y:py}],cells=[],lastKey='start';
+  for(var i=0;i<400;i++){
+    px+=dx*5;py+=dy*5;
+    if(px<OX-30||px>OX+COLS*CELL+30||py<OY-30||py>OY+ROWS*CELL+30)break;
+    var cx=Math.floor((px-OX)/CELL),cy=Math.floor((py-OY)/CELL);
+    if(cx<0||cx>=COLS||cy<0||cy>=ROWS)continue;
+    var key=cx+','+cy;
+    if(key!==lastKey){lastKey=key;cells.push({cx:cx,cy:cy});
+      if(cx===tx&&cy===ty){pts.push({x:px,y:py});return{pts:pts,hit:true};}
+      var s=orientFn(cx,cy);
+      if(s!==null&&s!==undefined){var th=s*Math.PI/4,ux=Math.cos(th),uy=Math.sin(th);
+        var dot=dx*ux+dy*uy;dx=2*dot*ux-dx;dy=2*dot*uy-dy;
+        var dl=Math.hypot(dx,dy)||1;dx/=dl;dy/=dl;pts.push({x:px,y:py});}}
+  }
+  pts.push({x:px,y:py});return{pts:pts,hit:false,cells:cells};
+}
+function tryGen(lvNum){
+  var turns=2+Math.min(5,lvNum);
+  var cx=0,cy=2+((Math.random()*5)|0),dir=0;
+  var startCy=cy;
+  var list=[];
+  for(var i=0;i<turns;i++){
+    var steps=1+((Math.random()*2)|0);
+    for(var s=0;s<steps;s++){var nx=cx+DIRS[dir][0],ny=cy+DIRS[dir][1];if(nx<0||nx>=COLS||ny<0||ny>=ROWS)break;cx=nx;cy=ny;}
+    var t=Math.random()<0.5?-1:1,nd=(dir+t+4)%4;
+    list.push({cx:cx,cy:cy,dirIn:dir,dirOut:nd});dir=nd;
+  }
+  var seen={},dedup=[];
+  for(var k=list.length-1;k>=0;k--){var key=list[k].cx+','+list[k].cy;if(!seen[key]){seen[key]=1;dedup.unshift(list[k]);}}
+  mirrors=[];
+  for(k=0;k<dedup.length;k++){var m=dedup[k];
+    var th=(PHI[m.dirIn]+PHI[m.dirOut])/2;
+    m.sol=(((Math.round(th/45))%8)+8)%8;m.s=(Math.random()*8)|0;mirrors.push(m);}
+  var res;
+  er=startCy;tx=-1;ty=-1;
+  res=traceBeam(solutionS);
+  if(!res.cells||res.cells.length<3)return false;
+  var last=res.cells[res.cells.length-1];
+  if(mirAt(last.cx,last.cy))return false;
+  tx=last.cx;ty=last.cy;
+  return true;
+}
+function genLevel(lvNum){
+  for(var i=0;i<30;i++)if(tryGen(lvNum))return;
+  mirrors=[{cx:3,cy:4,dirIn:0,dirOut:1,sol:1,s:5}];er=4;tx=3;ty=8;
+}
+function reset(){score=0;lv=1;lockT=0;parts=[];floats=[];genLevel(1);beam=traceBeam(curS);updHUD();}
+function curS(cx,cy){var m=mirAt(cx,cy);return m?m.s:null;}
+function updHUD(){document.getElementById('scorePill').textContent='得分 '+score;document.getElementById('lvPill').textContent='第 '+lv+' 关';}
+function rotateAt(p){
+  if(lockT>0)return;
+  var cx=Math.floor((p.x-OX)/CELL),cy=Math.floor((p.y-OY)/CELL);
+  var m=mirAt(cx,cy);if(!m)return;
+  m.s=(m.s+1)%8;tone(500+m.s*40,0.07,'square',0.09);
+  beam=traceBeam(curS);
+  if(beam.hit){lockT=1.0;score=lv;updHUD();var hs=getHS();if(score>hs)setHS(score);
+    boom(cellX(tx),cellY(ty),'#ffeb3b',30);floatText(cellX(tx),cellY(ty)-20,'过关!','#ffd54f');
+    tone(523,0.12,'square',0.12);tone(659,0.12,'square',0.12,0.1);tone(784,0.2,'square',0.12,0.2);}
+}
+function update(dt){
+  if(lockT>0){lockT-=dt;if(lockT<=0){lv++;genLevel(lv);beam=traceBeam(curS);updHUD();}}
+  updParts(dt);updFloats(dt);
+}
+function render(){
+  var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#120d12');g.addColorStop(0.6,'#1c1218');g.addColorStop(1,'#100d0d');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  for(var i=0;i<50;i++){ctx.fillRect((i*113)%W,(i*71)%H,2,2);}
+  var gx,gy,j;
+  for(gx=0;gx<COLS;gx++)for(gy=0;gy<ROWS;gy++){
+    ctx.fillStyle=(gx+gy)%2?'rgba(255,255,255,.028)':'rgba(255,255,255,.055)';
+    ctx.fillRect(OX+gx*CELL+1,OY+gy*CELL+1,CELL-2,CELL-2);}
+  for(j=0;j<mirrors.length;j++){var m=mirrors[j],mx=cellX(m.cx),my=cellY(m.cy);
+    ctx.fillStyle='#2b2b36';ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=2;
+    roundRect(mx-24,my-24,48,48,10);ctx.fill();ctx.stroke();
+    var th=m.s*Math.PI/4;
+    ctx.strokeStyle='#80d8ff';ctx.lineWidth=7;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(mx-Math.cos(th)*19,my-Math.sin(th)*19);ctx.lineTo(mx+Math.cos(th)*19,my+Math.sin(th)*19);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.5)';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText((m.s*45)+'°',mx,my+34);}
+  var ex=OX-10,ey=cellY(er);
+  ctx.fillStyle='#ff5252';ctx.beginPath();ctx.arc(ex,ey,16,0,6.2832);ctx.fill();
+  ctx.fillStyle='#7f1d1d';ctx.fillRect(ex,ey-7,22,14);
+  ctx.fillStyle='#ff8a80';ctx.beginPath();ctx.arc(ex-5,ey-5,5,0,6.2832);ctx.fill();
+  ctx.font='40px sans-serif';ctx.textAlign='center';ctx.fillText('🎯',cellX(tx),cellY(ty)+14);
+  if(beam&&beam.pts.length>1){
+    ctx.save();ctx.shadowColor='#ffea00';ctx.shadowBlur=12;
+    ctx.strokeStyle=beam.hit?'#c6ff00':'#ff5252';ctx.lineWidth=5;ctx.lineJoin='round';ctx.beginPath();
+    ctx.moveTo(beam.pts[0].x,beam.pts[0].y);
+    for(j=1;j<beam.pts.length;j++)ctx.lineTo(beam.pts[j].x,beam.pts[j].y);
+    ctx.stroke();ctx.restore();}
+  drawParts();drawFloats();
+  if(state==='playing'&&lockT<=0){ctx.fillStyle='rgba(255,255,255,.4)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('点按镜子旋转 45°，让激光命中 🎯',W/2,H-56);}
+}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+var ov=document.getElementById('overlay');
+function showMenu(){state='menu';ov.style.display='flex';ov.innerHTML='<h1>🔦</h1><h1 style="font-size:30px">激光反射</h1><div class="sub">左侧发射激光，<b>点按镜子每次旋转 45°</b>，<br>引导激光经镜面反射命中 🎯 靶心。<br>过关数即得分，关卡越来越难！</div><div class="best">🏆 最高分 '+getHS()+'</div><button class="btn" id="startBtn">开始挑战</button>';
+  document.getElementById('startBtn').addEventListener('click',function(){ac();tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
+function pauseGame(){if(state!=='playing')return;state='paused';ov.style.display='flex';ov.innerHTML='<h1>⏸</h1><h1 style="font-size:28px">已暂停</h1><div class="sub">第 '+lv+' 关 · 得分 '+score+'</div><div class="row"><button class="btn" id="resumeBtn">继续</button><button class="btn2" id="restartBtn">重来</button></div>';
+  document.getElementById('resumeBtn').addEventListener('click',function(){state='playing';ov.style.display='none';});
+  document.getElementById('restartBtn').addEventListener('click',function(){reset();state='playing';ov.style.display='none';});}
+bindDown(function(p){if(state==='playing')rotateAt(p);});
+document.getElementById('pauseBtn').addEventListener('click',function(){pauseGame();});
+document.getElementById('soundBtn').addEventListener('click',function(){soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)tone(660,0.08,'square',0.1);});
+var last=0;
+function loop(t){requestAnimationFrame(loop);var dt=(t-last)/1000;last=t;if(!(dt>0)||dt>0.05)dt=0.016;if(state==='playing')update(dt);render();}
+reset();showMenu();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
