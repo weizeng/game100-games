@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>扫雷</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:17px;background:#1e1e1e;border-radius:12px;padding:10px 16px}
+.topbar b{color:#9C27B0;font-size:20px}
+.topbar .face{background:none;border:none;font-size:26px;cursor:pointer}
+.modebar{display:flex;gap:10px;align-items:center}
+.modebar button{background:#1e1e1e;border:2px solid #9C27B0;color:#f0f0f0;font-size:16px;font-weight:700;padding:8px 22px;border-radius:12px;cursor:pointer}
+#grid{width:100%;display:grid;grid-template-columns:repeat(9,1fr);gap:3px;background:#1e1e1e;padding:8px;border-radius:12px}
+.cell{aspect-ratio:1;border:none;border-radius:6px;background:#333;font-size:18px;font-weight:700;cursor:pointer;color:#f0f0f0;display:flex;align-items:center;justify-content:center}
+.cell:active{background:#3d3d3d}
+.cell.open{background:#242424;cursor:default}
+.cell.flag{background:#333}
+.cell.boom{background:#d32f2f}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.7}
+.btn{background:#9C27B0;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><b id="mineCount">💣 10</b><button class="face" id="faceBtn">😊</button><b id="timeCount">⏱ 0</b></div>
+<div class="modebar"><button id="modeBtn">🔍 翻开</button></div>
+<div id="grid"></div>
+<div class="hint">短按翻开 · 长按 450ms 插旗 · 右键插旗 · 第一下必不死</div>
+</div>
+<div class="overlay" id="startScr"><h1>💣 扫雷</h1><p>9x9 雷区，共 10 颗雷。<br>短按翻开格子，长按 450ms 插旗（鼠标右键也可插旗）。<br>先点一下开始计时，翻开所有非雷格即胜利！</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">重新开始</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function showOver(title,text){$('overTitle').textContent=title;$('overText').textContent=text;$('overScr').classList.remove('hidden');}
+const N=9,MINES=10,TOTAL=N*N;
+const NUMC=['','#42a5f5','#66bb6a','#ef5350','#ab47bc','#ffa726','#26c6da','#f5f5f5','#9e9e9e'];
+let cells,mines,flags,opened,firstClick,secs,timerInt,gameover,flagMode,suppressClick,lpTimer;
+function startGame(){
+  mines=null;flags=new Set();opened=0;firstClick=true;secs=0;gameover=false;flagMode=false;suppressClick=false;
+  clearInterval(timerInt);
+  const g=$('grid');g.innerHTML='';cells=[];
+  for(let i=0;i<TOTAL;i++){
+    const b=document.createElement('button');
+    b.className='cell';
+    b.addEventListener('click',()=>{if(suppressClick){suppressClick=false;return;}if(flagMode)toggleFlag(i);else openCell(i);});
+    b.addEventListener('contextmenu',e=>{e.preventDefault();toggleFlag(i);});
+    b.addEventListener('touchstart',()=>{clearTimeout(lpTimer);lpTimer=setTimeout(()=>{toggleFlag(i);suppressClick=true;},450);},{passive:true});
+    b.addEventListener('touchend',()=>clearTimeout(lpTimer));
+    b.addEventListener('touchmove',()=>clearTimeout(lpTimer));
+    g.appendChild(b);cells.push(b);
+  }
+  $('modeBtn').textContent='🔍 翻开';
+  $('faceBtn').textContent='😊';
+  updateTop();
+}
+function updateTop(){$('mineCount').textContent='💣 '+(MINES-flags.size);$('timeCount').textContent='⏱ '+secs;}
+function startTimer(){clearInterval(timerInt);timerInt=setInterval(()=>{secs++;$('timeCount').textContent='⏱ '+secs;},1000);}
+function nb(i){const r=Math.floor(i/N),c=i%N,res=[];for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(!dr&&!dc)continue;const nr=r+dr,nc=c+dc;if(nr>=0&&nr<N&&nc>=0&&nc<N)res.push(nr*N+nc);}return res;}
+function placeMines(excl){const s=new Set();while(s.size<MINES){const i=(Math.random()*TOTAL)|0;if(i!==excl)s.add(i);}mines=s;}
+function countM(i){let n=0;for(const j of nb(i))if(mines.has(j))n++;return n;}
+function openCell(i){
+  if(gameover)return;
+  if(flags.has(i)||cells[i].classList.contains('open'))return;
+  if(firstClick){placeMines(i);firstClick=false;startTimer();}
+  if(mines.has(i)){explode(i);return;}
+  flood(i);
+  if(opened===TOTAL-MINES)win();
+}
+function flood(start){
+  const q=[start];
+  while(q.length){
+    const i=q.pop();
+    if(cells[i].classList.contains('open')||flags.has(i))continue;
+    cells[i].classList.add('open');opened++;
+    const c=countM(i);
+    if(c>0){cells[i].textContent=c;cells[i].style.color=NUMC[c];}
+    else{for(const j of nb(i))if(!cells[j].classList.contains('open')&&!flags.has(j))q.push(j);}
+  }
+}
+function toggleFlag(i){
+  if(gameover||cells[i].classList.contains('open'))return;
+  if(flags.has(i)){flags.delete(i);cells[i].textContent='';cells[i].classList.remove('flag');}
+  else{flags.add(i);cells[i].textContent='🚩';cells[i].classList.add('flag');}
+  updateTop();
+}
+function explode(i){
+  gameover=true;clearInterval(timerInt);
+  $('faceBtn').textContent='💀';
+  cells[i].classList.add('boom');cells[i].textContent='💥';
+  for(const m of mines)if(m!==i&&!flags.has(m)){cells[m].textContent='💣';cells[m].classList.add('open');}
+  showOver('💥 游戏结束','踩到地雷了！用时 '+secs+' 秒，点击重新开始再来一局。');
+}
+function win(){
+  gameover=true;clearInterval(timerInt);
+  $('faceBtn').textContent='😎';
+  showOver('🎉 胜利！','9x9 雷区全部扫清，共用 '+secs+' 秒！');
+}
+$('modeBtn').addEventListener('click',()=>{flagMode=!flagMode;$('modeBtn').textContent=flagMode?'🚩 插旗':'🔍 翻开';});
+$('faceBtn').addEventListener('click',()=>{startGame();});
+$('startBtn').addEventListener('click',()=>{$('startScr').classList.add('hidden');startGame();});
+$('restartBtn').addEventListener('click',()=>{$('overScr').classList.add('hidden');startGame();});
+</script>
+</body>
+</html>

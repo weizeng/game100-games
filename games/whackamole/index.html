@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>打地鼠</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:17px;background:#1e1e1e;border-radius:12px;padding:10px 16px}
+.topbar .big{color:#8BC34A;font-size:26px;font-weight:700}
+#grid{width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;background:#1e1e1e;padding:20px;border-radius:12px}
+.hole{position:relative;aspect-ratio:1;cursor:pointer}
+.pit{position:absolute;bottom:0;width:100%;text-align:center;font-size:52px;line-height:1}
+.slot{position:absolute;bottom:30px;width:100%;text-align:center;pointer-events:none}
+.mole{display:inline-block;font-size:46px;animation:pop .25s}
+@keyframes pop{0%{transform:scale(0)}60%{transform:scale(1.3)}100%{transform:scale(1)}}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.7}
+.btn{background:#8BC34A;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🐹 打地鼠</span><span class="big" id="ttime">⏱ 60</span><span id="tscore">得分 0</span></div>
+<div id="grid"></div>
+<div class="hint">🐹 +1 分 · 🌟 +3 分 · 💣 炸弹点中 -3 分（不低于 0）</div>
+</div>
+<div class="overlay" id="startScr"><h1>🐹 打地鼠</h1><p>60 秒限时挑战！<br>🐹 地鼠 +1 分，🌟 星星 +3 分，<br>💣 炸弹点中扣 3 分（不低于 0 分）。<br>看你能拿多少分！</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">重新开始</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function showOver(title,text){$('overTitle').textContent=title;$('overText').textContent=text;$('overScr').classList.remove('hidden');}
+let score,timeLeft,playing,spawnInt,tickInt;
+function startGame(){
+  score=0;timeLeft=60;playing=true;
+  clearInterval(spawnInt);clearInterval(tickInt);
+  updateTop();
+  const g=$('grid');g.innerHTML='';
+  for(let i=0;i<9;i++){
+    const d=document.createElement('div');d.className='hole';
+    d.innerHTML='<div class="pit">🕳️</div><div class="slot"></div>';
+    d.addEventListener('click',()=>whack(d));
+    g.appendChild(d);
+  }
+  spawnInt=setInterval(spawn,500);
+  tickInt=setInterval(()=>{timeLeft--;updateTop();if(timeLeft<=0)endGame();},1000);
+}
+function spawn(){
+  if(!playing)return;
+  const holes=Array.prototype.slice.call(document.querySelectorAll('.hole')).filter(h=>!h._up);
+  if(!holes.length)return;
+  const h=holes[(Math.random()*holes.length)|0];
+  const r=Math.random();
+  const t=r<.8?['🐹',1]:r<.95?['🌟',3]:['💣',-3];
+  h._up=true;h._score=t[1];
+  h.querySelector('.slot').innerHTML='<span class="mole">'+t[0]+'</span>';
+  h._t=setTimeout(()=>retract(h),700+Math.random()*300);
+}
+function retract(h){h._up=null;h.querySelector('.slot').innerHTML='';}
+function whack(h){
+  if(!playing||!h._up)return;
+  clearTimeout(h._t);
+  score=Math.max(0,score+h._score);
+  retract(h);updateTop();
+}
+function endGame(){
+  playing=false;clearInterval(spawnInt);clearInterval(tickInt);
+  const holes=document.querySelectorAll('.hole');
+  for(const h of holes){clearTimeout(h._t);retract(h);}
+  showOver('⏰ 时间到','60 秒结束，你得了 '+score+' 分！');
+}
+function updateTop(){$('ttime').textContent='⏱ '+timeLeft;$('tscore').textContent='得分 '+score;}
+$('startBtn').addEventListener('click',()=>{$('startScr').classList.add('hidden');startGame();});
+$('restartBtn').addEventListener('click',()=>{$('overScr').classList.add('hidden');startGame();});
+</script>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>狂野赛车</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:16px}
+.topbar b{color:#F44336;font-size:22px}
+canvas{background:#1c1c1c;border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.8}
+.btn{background:#F44336;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🏎️ 狂野赛车</span><span>里程 <b id="score">0</b>m</span><span>⭐<b id="stars">0</b></span></div>
+<canvas id="cv" width="400" height="600"></canvas>
+<p class="hint">手指在屏幕上左右拖动换车道（鼠标拖动也行）<br>躲开敌方车辆，吃到 ⭐ 加分，里程越远越快</p>
+</div>
+<div class="overlay" id="startScr"><h1>🏎️ 狂野赛车</h1><p>手指左右拖动，赛车平滑切换车道<br>躲开从上方驶来的敌方车辆<br>撞上就结束，吃到 ⭐ +50 分<br>分数 = 行驶里程，越往后车速越快</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function vibrate(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);}catch(e){}}
+function setHUD(){$('score').textContent=score;$('stars').textContent=starCount;}
+
+const cv=$('cv'),ctx=cv.getContext('2d');
+const W=400,H=600;
+const ROAD_L=40,ROAD_R=360,LANES=4,LANE_W=(ROAD_R-ROAD_L)/LANES;
+const PY=470,CAR_W=56,CAR_H=96;
+const COLORS=['#2196F3','#9C27B0','#FF9800','#00BCD4','#8BC34A','#E91E63'];
+
+let playerX,targetLane,score,starCount,enemies,stars,raf,state,dist,spawnT,starT,lineOff,best;
+try{best=parseInt(localStorage.getItem('racing_best')||'0',10)||0;}catch(e){best=0;}
+
+function laneX(l){return ROAD_L+LANE_W*(l+0.5);}
+function enemySpeed(){return Math.min(12,4+dist/1400);}
+function spawnInterval(){return Math.max(34,78-score/45);}
+function reset(){
+  targetLane=1;playerX=laneX(1);
+  score=0;starCount=0;dist=0;spawnT=40;starT=180;lineOff=0;
+  enemies=[];stars=[];
+  setHUD();
+}
+function spawnEnemy(){
+  const l=(Math.random()*LANES)|0;
+  // 避免同车道顶部扎堆
+  for(const e of enemies){if(e.lane===l&&e.y<160)return;}
+  const sp=enemySpeed()*(0.85+Math.random()*0.3);
+  enemies.push({lane:l,x:laneX(l),y:-CAR_H-10,w:CAR_W,h:CAR_H,sp:sp,c:COLORS[(Math.random()*COLORS.length)|0]});
+}
+function spawnStar(){
+  const l=(Math.random()*LANES)|0;
+  stars.push({lane:l,x:laneX(l),y:-30,r:16,sp:enemySpeed()*0.9,ph:Math.random()*6});
+}
+function rectsOverlap(a,b){
+  return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+}
+function update(){
+  dist+=0.55+score/9000;
+  score=(dist/10)|0;
+  const sp=enemySpeed();
+  lineOff=(lineOff+sp)%60;
+  // 玩家平滑跟随目标车道
+  playerX+=(laneX(targetLane)-playerX)*0.22;
+  // 生成
+  spawnT--;
+  if(spawnT<=0){spawnEnemy();spawnT=spawnInterval();}
+  starT--;
+  if(starT<=0){spawnStar();starT=200+Math.random()*260;}
+  // 敌车
+  for(let i=enemies.length-1;i>=0;i--){
+    const e=enemies[i];
+    e.y+=e.sp;
+    if(e.y>H+CAR_H){enemies.splice(i,1);continue;}
+    const p={x:playerX-CAR_W/2+8,y:PY-CAR_H/2+8,w:CAR_W-16,h:CAR_H-16};
+    const q={x:e.x-CAR_W/2+8,y:e.y-CAR_H/2+8,w:CAR_W-16,h:CAR_H-16};
+    if(rectsOverlap(p,q)){gameOver();return;}
+  }
+  // 星星
+  for(let i=stars.length-1;i>=0;i--){
+    const s=stars[i];
+    s.y+=s.sp;s.ph+=0.15;
+    if(s.y>H+40){stars.splice(i,1);continue;}
+    const dx=s.x-playerX,dy=s.y-PY;
+    if(dx*dx+dy*dy<48*48){
+      starCount++;score+=50;setHUD();vibrate(30);
+      stars.splice(i,1);
+    }
+  }
+  setHUD();
+}
+function drawCar(x,y,w,h,color,isPlayer){
+  ctx.fillStyle='rgba(0,0,0,.35)';
+  ctx.beginPath();ctx.roundRect(x-w/2+3,y-h/2+5,w,h,10);ctx.fill();
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.roundRect(x-w/2,y-h/2,w,h,10);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.25)';
+  ctx.beginPath();ctx.roundRect(x-w/2+6,y-h/2+8,w-12,h*0.32,6);ctx.fill();
+  ctx.fillStyle='#222';
+  ctx.fillRect(x-w/2-4,y-h/2+10,5,h*0.22);ctx.fillRect(x+w/2-1,y-h/2+10,5,h*0.22);
+  ctx.fillRect(x-w/2-4,y+h/2-h*0.3,5,h*0.22);ctx.fillRect(x+w/2-1,y+h/2-h*0.3,5,h*0.22);
+  ctx.fillStyle=isPlayer?'#ffeb3b':'#fff';
+  ctx.fillRect(x-w/2+6,y+h/2-10,10,6);ctx.fillRect(x+w/2-16,y+h/2-10,10,6);
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 草地
+  ctx.fillStyle='#1e3a24';ctx.fillRect(0,0,ROAD_L,H);ctx.fillRect(ROAD_R,0,W-ROAD_R,H);
+  // 路面
+  ctx.fillStyle='#2b2b2b';ctx.fillRect(ROAD_L,0,ROAD_R-ROAD_L,H);
+  // 车道线（滚动）
+  ctx.fillStyle='#f5f5f5';
+  for(let i=1;i<LANES;i++){
+    const x=ROAD_L+LANE_W*i;
+    for(let y=-60;y<H;y+=60)ctx.fillRect(x-2,y+lineOff,4,28);
+  }
+  ctx.fillStyle='#F44336';
+  ctx.fillRect(ROAD_L-4,0,4,H);ctx.fillRect(ROAD_R,0,4,H);
+  // 星星
+  for(const s of stars){
+    const tw=1+Math.sin(s.ph)*0.15;
+    ctx.save();ctx.translate(s.x,s.y);ctx.scale(tw,tw);
+    ctx.font='30px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('⭐',0,0);
+    ctx.restore();
+  }
+  // 敌车
+  for(const e of enemies)drawCar(e.x,e.y,e.w,e.h,e.c,false);
+  // 玩家
+  drawCar(playerX,PY,CAR_W,CAR_H,'#F44336',true);
+  // 速度表
+  ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(ROAD_L+6,8,86,26);
+  ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText('时速 '+(120+((score/8)|0))+'km/h',ROAD_L+12,22);
+}
+function loop(){
+  if(state!=='play')return;
+  update();
+  if(state!=='play')return;
+  draw();
+  raf=requestAnimationFrame(loop);
+}
+function gameOver(){
+  if(state!=='play')return;
+  state='over';
+  cancelAnimationFrame(raf);
+  vibrate(150);
+  if(score>best){best=score;try{localStorage.setItem('racing_best',String(best));}catch(e){}}
+  $('overTitle').textContent='💥 撞车了！';
+  $('overText').textContent='行驶里程 '+score+'m，吃到 '+starCount+' 颗星\n历史最佳 '+best+'m';
+  $('overScr').classList.remove('hidden');
+}
+function startGame(){
+  cancelAnimationFrame(raf);
+  $('overScr').classList.add('hidden');
+  $('startScr').classList.add('hidden');
+  reset();
+  state='play';
+  loop();
+}
+function setLaneFromEvent(clientX){
+  const r=cv.getBoundingClientRect();
+  const x=(clientX-r.left)/r.width*W;
+  targetLane=Math.max(0,Math.min(LANES-1,((x-ROAD_L)/LANE_W)|0));
+}
+let touching=false;
+cv.addEventListener('touchstart',e=>{e.preventDefault();touching=true;setLaneFromEvent(e.touches[0].clientX);},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();if(touching)setLaneFromEvent(e.touches[0].clientX);},{passive:false});
+cv.addEventListener('touchend',()=>{touching=false;});
+cv.addEventListener('mousedown',e=>{touching=true;setLaneFromEvent(e.clientX);});
+cv.addEventListener('mousemove',e=>{if(touching)setLaneFromEvent(e.clientX);});
+cv.addEventListener('mouseup',()=>{touching=false;});
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A')targetLane=Math.max(0,targetLane-1);
+  if(e.key==='ArrowRight'||e.key==='d'||e.key==='D')targetLane=Math.min(LANES-1,targetLane+1);
+});
+$('startBtn').addEventListener('click',startGame);
+$('restartBtn').addEventListener('click',startGame);
+reset();draw();
+</script>
+</body>
+</html>

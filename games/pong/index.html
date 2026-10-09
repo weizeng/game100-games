@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>乒乓对战</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#121212;color:#eee;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;touch-action:manipulation;overscroll-behavior:none}
+.wrap{width:100%;max-width:480px;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px 12px 18px}
+.hud{width:100%;max-width:380px;display:flex;align-items:center;justify-content:space-between;padding:6px 2px 10px;font-size:15px}
+.hud .mid{font-weight:800;font-size:17px}
+.hud .mid .you{color:#FF8A65}
+.pause{background:#1e1e1e;color:#eee;border:1px solid #3a3a3a;border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer}
+.stage{position:relative;width:100%;max-width:380px}
+canvas{display:block;width:100%;height:auto;background:#0b0b0d;border-radius:14px;touch-action:none}
+.overlay{position:absolute;inset:0;border-radius:14px;background:rgba(8,8,10,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;z-index:10}
+.overlay h1{font-size:30px;margin-bottom:10px}
+.overlay h1 .ic{font-size:40px}
+.overlay p{font-size:14px;color:#bbb;line-height:1.8;max-width:300px}
+.overlay .big{font-size:40px;font-weight:800;color:#FF8A65;margin:8px 0}
+.btn{background:#FF5722;color:#fff;border:none;border-radius:999px;padding:13px 40px;font-size:17px;font-weight:700;cursor:pointer;margin-top:16px}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;margin-top:10px}
+.hidden{display:none!important}
+.hint{margin-top:10px;font-size:12px;color:#666;text-align:center;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hud">
+    <span class="mid"><span class="you">你 <span id="ps">0</span></span> : <span id="as">0</span> AI</span>
+    <span style="font-size:12px;color:#777">先到 7 分胜</span>
+    <button class="pause" id="pauseBtn">⏸</button>
+  </div>
+  <div class="stage">
+    <canvas id="cv" width="360" height="560"></canvas>
+    <div class="overlay" id="menu">
+      <h1><span class="ic">🏓</span><br>乒乓对战</h1>
+      <p>手指左右拖动，控制底部挡板接球<br>顶部 AI 挡板会自动追球（带误差）<br>漏球则对方得分，先到 7 分者胜<br>你的得分越高，AI 越强</p>
+      <button class="btn" id="startBtn">开始游戏</button>
+    </div>
+    <div class="overlay hidden" id="pauseOv">
+      <h1>⏸ 已暂停</h1>
+      <button class="btn" id="resumeBtn">继续</button>
+      <button class="btn ghost" id="restartBtn">重新开始</button>
+    </div>
+    <div class="overlay hidden" id="over">
+      <h1 id="overTitle">🏆 你赢了！</h1>
+      <div class="big" id="finalScore">7 : 0</div>
+      <p>最终比分（你 : AI）</p>
+      <button class="btn" id="againBtn">再来一局</button>
+    </div>
+  </div>
+  <p class="hint">左右拖动挡板接球 · 先到 7 分胜</p>
+</div>
+<script>
+(function(){
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=360,H=560,WIN=7;
+var psEl=document.getElementById('ps'),asEl=document.getElementById('as');
+var menuEl=document.getElementById('menu'),overEl=document.getElementById('over'),pauseEl=document.getElementById('pauseOv');
+var finalEl=document.getElementById('finalScore'),overTitle=document.getElementById('overTitle');
+var pauseBtn=document.getElementById('pauseBtn');
+var state='menu',rafId=null,lastT=0;
+var player,ai,ball,pScore,aScore,serveT,serveDir,err,elapsed;
+
+function reset(){
+  player={x:W/2,w:84,h:12,y:H-36};
+  ai={x:W/2,w:84,h:12,y:24};
+  ball={x:W/2,y:H/2,vx:0,vy:0,r:8};
+  pScore=0;aScore=0;elapsed=0;
+  updateHUD();
+}
+function updateHUD(){
+  psEl.textContent=pScore;asEl.textContent=aScore;
+}
+function cancelLoop(){if(rafId!==null){cancelAnimationFrame(rafId);rafId=null;}}
+function startGame(){
+  cancelLoop();reset();state='playing';
+  menuEl.classList.add('hidden');overEl.classList.add('hidden');pauseEl.classList.add('hidden');
+  pauseBtn.textContent='⏸';
+  serveBall(Math.random()<0.5?1:-1);
+  lastT=performance.now();rafId=requestAnimationFrame(loop);
+}
+function pauseGame(){
+  if(state!=='playing')return;
+  state='paused';cancelLoop();
+  pauseEl.classList.remove('hidden');pauseBtn.textContent='▶';
+}
+function resumeGame(){
+  if(state!=='paused')return;
+  state='playing';pauseEl.classList.add('hidden');pauseBtn.textContent='⏸';
+  lastT=performance.now();rafId=requestAnimationFrame(loop);
+}
+function endGame(playerWon){
+  state='over';cancelLoop();
+  overTitle.textContent=playerWon?'🏆 你赢了！':'🤖 AI 获胜';
+  finalEl.textContent=pScore+' : '+aScore;
+  overEl.classList.remove('hidden');pauseBtn.textContent='⏸';
+}
+function loop(t){
+  var dt=(t-lastT)/1000;lastT=t;
+  if(dt>0.05)dt=0.05;if(dt<0)dt=0;
+  update(dt);draw();
+  if(state==='playing'){rafId=requestAnimationFrame(loop);}else{rafId=null;}
+}
+function serveBall(dir){
+  var base=Math.min(320+(pScore+aScore)*10,470);
+  var ang=(Math.random()*0.7-0.35);
+  ball.x=W/2;ball.y=H/2;
+  ball.vx=Math.sin(ang)*base;
+  ball.vy=Math.cos(ang)*base*dir;
+  err=(Math.random()*2-1)*Math.max(34-pScore*3,10);
+  serveDir=dir;serveT=0.9;
+}
+function bounce(paddle,up){
+  var off=(ball.x-paddle.x)/(paddle.w/2);
+  if(off>1)off=1;if(off<-1)off=-1;
+  var sp=Math.min(Math.sqrt(ball.vx*ball.vx+ball.vy*ball.vy)*1.045,660);
+  ball.vx=Math.sin(off*1.05)*sp;
+  ball.vy=(up?-1:1)*Math.abs(Math.cos(off*0.95))*sp;
+  if(Math.abs(ball.vy)<sp*0.35)ball.vy=(up?-1:1)*sp*0.35;
+}
+function onPoint(playerWon){
+  updateHUD();
+  if(pScore>=WIN||aScore>=WIN){endGame(pScore>=WIN);return;}
+  ball.vx=0;ball.vy=0;ball.x=W/2;ball.y=H/2;
+  var dir=playerWon?-1:1;
+  var base=Math.min(320+(pScore+aScore)*10,470);
+  var ang=(Math.random()*0.7-0.35);
+  err=(Math.random()*2-1)*Math.max(34-pScore*3,10);
+  serveDir=dir;serveT=0.9;
+  ball._vx=Math.sin(ang)*base;ball._vy=Math.cos(ang)*base*dir;
+}
+function update(dt){
+  elapsed+=dt;
+  var aiSpeed=Math.min(215+pScore*24,440);
+  var target=(ball.vy<0&&serveT<=0)?ball.x+err:W/2+Math.sin(elapsed*1.4)*30;
+  var dx=target-ai.x;
+  var mv=Math.max(-aiSpeed*dt,Math.min(aiSpeed*dt,dx));
+  ai.x+=mv;
+  ai.x=Math.max(ai.w/2+4,Math.min(W-ai.w/2-4,ai.x));
+  if(serveT>0){
+    serveT-=dt;
+    if(serveT<=0){ball.vx=ball._vx;ball.vy=ball._vy;}
+    return;
+  }
+  ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;
+  if(ball.x<ball.r){ball.x=ball.r;ball.vx=Math.abs(ball.vx);}
+  if(ball.x>W-ball.r){ball.x=W-ball.r;ball.vx=-Math.abs(ball.vx);}
+  if(ball.vy>0&&ball.y+ball.r>=player.y&&ball.y+ball.r<=player.y+player.h+16&&
+     Math.abs(ball.x-player.x)<=player.w/2+ball.r){
+    ball.y=player.y-ball.r-1;bounce(player,true);
+  }
+  if(ball.vy<0&&ball.y-ball.r<=ai.y+ai.h&&ball.y-ball.r>=ai.y-16&&
+     Math.abs(ball.x-ai.x)<=ai.w/2+ball.r){
+    ball.y=ai.y+ai.h+ball.r+1;bounce(ai,false);
+  }
+  if(ball.y>H+30){aScore++;onPoint(false);}
+  else if(ball.y<-30){pScore++;onPoint(true);}
+}
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();ctx.fill();
+}
+function draw(){
+  ctx.fillStyle='#0b0b0d';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#2c2c30';ctx.lineWidth=3;ctx.setLineDash([14,12]);
+  ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,87,34,.16)';
+  ctx.fillRect(0,0,W,ai.y+ai.h+10);
+  ctx.fillStyle='#FF5722';
+  roundRect(ai.x-ai.w/2,ai.y,ai.w,ai.h,6);
+  roundRect(player.x-player.w/2,player.y,player.w,player.h,6);
+  ctx.fillStyle='#fff';
+  ctx.shadowColor='#fff';ctx.shadowBlur=10;
+  ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,7);ctx.fill();
+  ctx.shadowBlur=0;
+  if(serveT>0&&state==='playing'){
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    ctx.font='700 20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('准备…',W/2,H/2-40);
+  }
+}
+function toX(ev){
+  var t=(ev.touches&&ev.touches.length)?ev.touches[0]:ev;
+  var r=cv.getBoundingClientRect();
+  return (t.clientX-r.left)/r.width*W;
+}
+function movePlayer(x){
+  player.x=Math.max(player.w/2+4,Math.min(W-player.w/2-4,x));
+}
+var dragging=false;
+cv.addEventListener('touchstart',function(ev){ev.preventDefault();dragging=true;movePlayer(toX(ev));},{passive:false});
+cv.addEventListener('touchmove',function(ev){ev.preventDefault();if(dragging)movePlayer(toX(ev));},{passive:false});
+cv.addEventListener('touchend',function(ev){ev.preventDefault();dragging=false;},{passive:false});
+cv.addEventListener('touchcancel',function(){dragging=false;});
+cv.addEventListener('mousedown',function(ev){dragging=true;movePlayer(toX(ev));});
+window.addEventListener('mousemove',function(ev){if(dragging&&state==='playing')movePlayer(toX(ev));});
+window.addEventListener('mouseup',function(){dragging=false;});
+cv.addEventListener('contextmenu',function(ev){ev.preventDefault();});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('againBtn').addEventListener('click',startGame);
+document.getElementById('resumeBtn').addEventListener('click',resumeGame);
+document.getElementById('restartBtn').addEventListener('click',startGame);
+pauseBtn.addEventListener('click',function(){
+  if(state==='playing')pauseGame();else if(state==='paused')resumeGame();
+});
+reset();draw();
+})();
+</script>
+</body>
+</html>

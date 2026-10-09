@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>贪吃蛇</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:17px}
+.topbar b{color:#4CAF50;font-size:22px}
+canvas{background:#1e1e1e;border-radius:12px;touch-action:none;width:100%;height:auto}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.7}
+.btn{background:#4CAF50;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🐍 贪吃蛇</span><span>得分 <b id="score">0</b></span></div>
+<canvas id="cv" width="400" height="400"></canvas>
+<p class="hint">在画布上滑动控制方向（也可用方向键 / WASD）<br>吃到食物 +10 分，越吃越快</p>
+</div>
+<div class="overlay" id="startScr"><h1>🐍 贪吃蛇</h1><p>滑动或按键控制蛇移动<br>吃红色食物长大加速<br>撞墙或咬到自己就结束</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">重新开始</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function setScore(v){$('score').textContent=v;}
+function showOver(title,text){$('overTitle').textContent=title;$('overText').textContent=text;$('overScr').classList.remove('hidden');}
+
+const cv=$('cv'),ctx=cv.getContext('2d');
+const N=20,CELL=20; // 20x20 网格
+let snake,dir,pendingDir,food,score,speed,timer,alive;
+const OPP={up:'down',down:'up',left:'right',right:'left'};
+const DV={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+
+function placeFood(){
+  const free=[];
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++)
+    if(!snake.some(s=>s.x===x&&s.y===y))free.push({x:x,y:y});
+  food=free.length?free[(Math.random()*free.length)|0]:null;
+}
+function draw(){
+  ctx.clearRect(0,0,400,400);
+  // 食物：红色圆
+  if(food){
+    ctx.fillStyle='#ff4d4d';
+    ctx.beginPath();
+    ctx.arc(food.x*CELL+10,food.y*CELL+10,8,0,Math.PI*2);
+    ctx.fill();
+  }
+  // 蛇：绿色圆角块，头稍亮
+  snake.forEach((s,i)=>{
+    ctx.fillStyle=i===0?'#8BC34A':'#4CAF50';
+    const x=s.x*CELL+1,y=s.y*CELL+1;
+    ctx.beginPath();
+    ctx.roundRect(x,y,18,18,5);
+    ctx.fill();
+  });
+}
+function step(){
+  // 取最近的合法方向（防 180° 掉头）
+  while(pendingDir.length){
+    const d=pendingDir.shift();
+    if(d!==OPP[dir]){dir=d;break;}
+  }
+  const h=snake[0];
+  const nh={x:h.x+DV[dir][0],y:h.y+DV[dir][1]};
+  // 撞墙
+  if(nh.x<0||nh.x>=N||nh.y<0||nh.y>=N)return gameOver();
+  // 撞自己（尾巴这一格会被挪走，除非刚好吃到食物；简化：先判断不含尾巴）
+  const body=snake.slice(0,snake.length-(food&&nh.x===food.x&&nh.y===food.y?0:1));
+  if(body.some(s=>s.x===nh.x&&s.y===nh.y))return gameOver();
+  snake.unshift(nh);
+  if(food&&nh.x===food.x&&nh.y===food.y){
+    score+=10;setScore(score);
+    speed=Math.max(60,speed-5);
+    clearInterval(timer);timer=setInterval(step,speed);
+    placeFood();
+    if(!food)return gameOver(); // 棋盘填满，罕见
+  }else{
+    snake.pop();
+  }
+  draw();
+}
+function gameOver(){
+  alive=false;clearInterval(timer);
+  showOver('游戏结束','本局得分：'+score+' 分');
+}
+function startGame(){
+  snake=[{x:9,y:10},{x:8,y:10},{x:7,y:10}];
+  dir='right';pendingDir=[];score=0;speed=150;alive=true;
+  setScore(0);placeFood();draw();
+  clearInterval(timer);timer=setInterval(step,speed);
+}
+function toGame(e,cv2){
+  const r=cv2.getBoundingClientRect();
+  const t=e.touches?e.touches[0]:e;
+  return {x:(t.clientX-r.left)*cv2.width/r.width,y:(t.clientY-r.top)*cv2.height/r.height};
+}
+// 触屏滑动
+let sx=0,sy=0;
+cv.addEventListener('touchstart',e=>{e.preventDefault();const p=toGame(e,cv);sx=p.x;sy=p.y;},{passive:false});
+cv.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(!alive||!e.changedTouches)return;
+  const r=cv.getBoundingClientRect(),t=e.changedTouches[0];
+  const dx=(t.clientX-r.left)*cv.width/r.width-sx;
+  const dy=(t.clientY-r.top)*cv.height/r.height-sy;
+  if(Math.abs(dx)<12&&Math.abs(dy)<12)return;
+  queueDir(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+},{passive:false});
+// 键盘
+const KEY={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right'};
+document.addEventListener('keydown',e=>{
+  const d=KEY[e.key];
+  if(d){e.preventDefault();if(alive)queueDir(d);}
+});
+function queueDir(d){
+  if(pendingDir.length<3)pendingDir.push(d);
+}
+$('startBtn').addEventListener('click',()=>{$('startScr').classList.add('hidden');startGame();});
+$('restartBtn').addEventListener('click',()=>{$('overScr').classList.add('hidden');startGame();});
+</script>
+</body>
+</html>

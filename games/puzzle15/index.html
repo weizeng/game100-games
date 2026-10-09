@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>数字华容道</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:17px}
+.topbar b{color:#3F51B5;font-size:22px}
+#grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%;aspect-ratio:1/1}
+.tile{background:#3F51B5;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:46px;font-weight:700;color:#fff;cursor:pointer;touch-action:none}
+.tile:active{transform:scale(.96)}
+.tile.blank{background:transparent;cursor:default}
+.tile.blank:active{transform:none}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.7}
+.btn{background:#3F51B5;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🧩 数字华容道</span><span id="state">步数 0 · 00:00</span></div>
+<div id="grid"></div>
+<div class="hint">点击与空格相邻的数字进行滑动</div>
+</div>
+<div class="overlay" id="startScr"><h1>🧩 数字华容道</h1><p>把打乱的数字按 1→15 的顺序滑动复原。<br>第一次移动开始计时，步数越少、用时越短越好！</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">重新开始</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const N=4,SIZE=N*N;
+let board=[],moves=0,secs=0,timer=null,started=false,playing=false;
+function fmt(s){const m=String(Math.floor(s/60)).padStart(2,'0');const ss=String(s%60).padStart(2,'0');return m+':'+ss;}
+function upd(){$('state').textContent='步数 '+moves+' · '+fmt(secs);}
+function render(){
+  const g=$('grid');g.innerHTML='';
+  board.forEach((v,i)=>{
+    const d=document.createElement('div');
+    d.className='tile'+(v===0?' blank':'');
+    d.dataset.i=i;
+    if(v!==0)d.textContent=v;
+    g.appendChild(d);
+  });
+  upd();
+}
+function neighbors(i){
+  const r=Math.floor(i/N),c=i%N,res=[];
+  if(r>0)res.push(i-N);
+  if(r<N-1)res.push(i+N);
+  if(c>0)res.push(i-1);
+  if(c<N-1)res.push(i+1);
+  return res;
+}
+function blankIdx(){return board.indexOf(0);}
+function shuffle(){
+  board=[...Array(SIZE-1).keys()].map(x=>x+1);
+  board.push(0);
+  for(let k=0;k<300;k++){
+    const b=blankIdx(),nb=neighbors(b),p=nb[Math.floor(Math.random()*nb.length)];
+    const t=board[b];board[b]=board[p];board[p]=t;
+  }
+}
+function won(){
+  for(let i=0;i<SIZE-1;i++)if(board[i]!==i+1)return false;
+  return board[SIZE-1]===0;
+}
+function showOver(title,text){$('overTitle').textContent=title;$('overText').textContent=text;$('overScr').classList.remove('hidden');}
+function startGame(){
+  moves=0;secs=0;started=false;playing=true;
+  if(timer){clearInterval(timer);timer=null;}
+  shuffle();render();
+}
+function move(i){
+  if(!playing)return;
+  const b=blankIdx();
+  if(neighbors(b).indexOf(i)<0)return;
+  const t=board[b];board[b]=board[i];board[i]=t;
+  if(!started){started=true;timer=setInterval(()=>{secs++;upd();},1000);}
+  moves++;render();
+  if(won()){
+    playing=false;
+    if(timer){clearInterval(timer);timer=null;}
+    showOver('🎉 拼图完成！','步数 '+moves+' · 用时 '+fmt(secs));
+  }
+}
+$('grid').addEventListener('pointerdown',e=>{
+  const t=e.target.closest('.tile');
+  if(!t||t.classList.contains('blank'))return;
+  move(parseInt(t.dataset.i,10));
+});
+$('startBtn').addEventListener('click',()=>{$('startScr').classList.add('hidden');startGame();});
+$('restartBtn').addEventListener('click',()=>{$('overScr').classList.add('hidden');startGame();});
+board=[...Array(SIZE-1).keys()].map(x=>x+1);board.push(0);
+render();
+</script>
+</body>
+</html>

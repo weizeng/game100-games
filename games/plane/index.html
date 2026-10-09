@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>打飞机</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#121212;color:#eee;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;touch-action:manipulation;overscroll-behavior:none}
+.wrap{width:100%;max-width:480px;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px 12px 18px}
+.hud{width:100%;max-width:380px;display:flex;align-items:center;justify-content:space-between;padding:6px 2px 10px;font-size:15px}
+.hud .lives{color:#ff8a80;font-weight:700}
+.hud .buff{color:#80d8ff;font-size:13px;min-height:18px}
+.pause{background:#1e1e1e;color:#eee;border:1px solid #3a3a3a;border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer}
+.stage{position:relative;width:100%;max-width:380px}
+canvas{display:block;width:100%;height:auto;background:#0b0b0d;border-radius:14px;touch-action:none}
+.overlay{position:absolute;inset:0;border-radius:14px;background:rgba(8,8,10,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;z-index:10}
+.overlay h1{font-size:30px;margin-bottom:10px}
+.overlay h1 .ic{font-size:40px}
+.overlay p{font-size:14px;color:#bbb;line-height:1.8;max-width:300px}
+.overlay .big{font-size:44px;font-weight:800;color:#4FC3F3;margin:8px 0}
+.btn{background:#2196F3;color:#fff;border:none;border-radius:999px;padding:13px 40px;font-size:17px;font-weight:700;cursor:pointer;margin-top:16px}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;margin-top:10px}
+.hidden{display:none!important}
+.hint{margin-top:10px;font-size:12px;color:#666;text-align:center;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hud">
+    <span id="score">得分 0</span>
+    <span class="buff" id="buff"></span>
+    <span class="lives" id="lives">❤❤❤</span>
+    <button class="pause" id="pauseBtn">⏸</button>
+  </div>
+  <div class="stage">
+    <canvas id="cv" width="360" height="560"></canvas>
+    <div class="overlay" id="menu">
+      <h1><span class="ic">✈️</span><br>打飞机</h1>
+      <p>手指按住拖动，战机跟随移动<br>自动开火（每 180ms 一发）<br>击落敌机得分，拾取道具：<br>💥 双排子弹（10秒） 🛡 护盾（抵挡一次）<br>共 3 条命，敌机越打越快越多</p>
+      <button class="btn" id="startBtn">开始游戏</button>
+    </div>
+    <div class="overlay hidden" id="pauseOv">
+      <h1>⏸ 已暂停</h1>
+      <button class="btn" id="resumeBtn">继续</button>
+      <button class="btn ghost" id="restartBtn">重新开始</button>
+    </div>
+    <div class="overlay hidden" id="over">
+      <h1>💥 游戏结束</h1>
+      <div class="big" id="finalScore">0</div>
+      <p>最终得分</p>
+      <button class="btn" id="againBtn">再来一局</button>
+    </div>
+  </div>
+  <p class="hint">拖动走位 · 自动开火 · 难度随分数递增</p>
+</div>
+<script>
+(function(){
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=360,H=560;
+var scoreEl=document.getElementById('score'),livesEl=document.getElementById('lives'),buffEl=document.getElementById('buff');
+var menuEl=document.getElementById('menu'),overEl=document.getElementById('over'),pauseEl=document.getElementById('pauseOv');
+var finalEl=document.getElementById('finalScore'),pauseBtn=document.getElementById('pauseBtn');
+var state='menu',rafId=null,lastT=0;
+var player,bullets,enemies,ebullets,powers,stars;
+var score,lives,spawnT,elapsed,lastShot;
+
+function reset(){
+  player={x:W/2,y:H-80,r:13,inv:0,shield:false,dbl:0};
+  bullets=[];enemies=[];ebullets=[];powers=[];stars=[];
+  var i;for(i=0;i<70;i++)stars.push({x:Math.random()*W,y:Math.random()*H,s:Math.random()*1.6+0.4,v:24+Math.random()*50});
+  score=0;lives=3;spawnT=0.6;elapsed=0;lastShot=0;
+  updateHUD();
+}
+function updateHUD(){
+  scoreEl.textContent='得分 '+score;
+  livesEl.textContent=lives>0?'❤'.repeat(lives):'';
+  var b=[];
+  if(player.shield)b.push('🛡护盾');
+  if(player.dbl>0)b.push('💥双排'+Math.ceil(player.dbl)+'s');
+  buffEl.textContent=b.join(' ');
+}
+function cancelLoop(){if(rafId!==null){cancelAnimationFrame(rafId);rafId=null;}}
+function startGame(){
+  cancelLoop();reset();state='playing';
+  menuEl.classList.add('hidden');overEl.classList.add('hidden');pauseEl.classList.add('hidden');
+  pauseBtn.textContent='⏸';
+  lastT=performance.now();rafId=requestAnimationFrame(loop);
+}
+function pauseGame(){
+  if(state!=='playing')return;
+  state='paused';cancelLoop();
+  pauseEl.classList.remove('hidden');pauseBtn.textContent='▶';
+}
+function resumeGame(){
+  if(state!=='paused')return;
+  state='playing';pauseEl.classList.add('hidden');pauseBtn.textContent='⏸';
+  lastT=performance.now();rafId=requestAnimationFrame(loop);
+}
+function gameOver(){
+  if(state!=='playing')return;
+  state='over';cancelLoop();
+  finalEl.textContent=score;overEl.classList.remove('hidden');pauseBtn.textContent='⏸';
+}
+function loop(t){
+  var dt=(t-lastT)/1000;lastT=t;
+  if(dt>0.05)dt=0.05;if(dt<0)dt=0;
+  update(dt);draw();
+  if(state==='playing'){rafId=requestAnimationFrame(loop);}else{rafId=null;}
+}
+function spawnEnemy(){
+  var d=1+Math.min(score/450,1.6);
+  var r=Math.random(),type;
+  if(r<0.55)type=0;else if(r<0.8)type=1;else type=2;
+  var cfg=[
+    {hp:1,w:30,h:30,vy:95, s:10,c:'#ff5252',fire:0.45},
+    {hp:1,w:24,h:24,vy:160,s:15,c:'#ff9800',fire:0.12},
+    {hp:3,w:44,h:40,vy:62, s:30,c:'#e040fb',fire:0.9}
+  ][type];
+  enemies.push({x:26+Math.random()*(W-52),y:-40,w:cfg.w,h:cfg.h,hp:cfg.hp,vy:cfg.vy*d,
+    s:cfg.s,c:cfg.c,fireT:0.8+Math.random()*1.6,canFire:Math.random()<cfg.fire,wob:Math.random()*6.28});
+}
+function shoot(){
+  if(player.dbl>0){
+    bullets.push({x:player.x-10,y:player.y-20,vy:-540});
+    bullets.push({x:player.x+10,y:player.y-20,vy:-540});
+  }else{
+    bullets.push({x:player.x,y:player.y-20,vy:-540});
+  }
+}
+function hitPlayer(){
+  if(player.inv>0||state!=='playing')return;
+  if(player.shield){player.shield=false;}
+  else{lives--;}
+  player.inv=1.6;updateHUD();
+  if(lives<=0)gameOver();
+}
+function rectHit(ax,ay,aw,ah,bx,by,bw,bh){
+  return Math.abs(ax-bx)<(aw+bw)/2&&Math.abs(ay-by)<(ah+bh)/2;
+}
+function update(dt){
+  elapsed+=dt;
+  var i,j;
+  for(i=0;i<stars.length;i++){var st=stars[i];st.y+=st.v*dt;if(st.y>H){st.y=0;st.x=Math.random()*W;}}
+  if(player.inv>0)player.inv-=dt;
+  if(player.dbl>0){player.dbl-=dt;if(player.dbl<0)player.dbl=0;}
+  if(elapsed-lastShot>0.18){shoot();lastShot=elapsed;}
+  spawnT-=dt;
+  if(spawnT<=0){spawnEnemy();spawnT=Math.max(0.9-score*0.0011,0.32);}
+  for(i=enemies.length-1;i>=0;i--){
+    var e=enemies[i];
+    e.y+=e.vy*dt;e.x+=Math.sin(elapsed*2+e.wob)*24*dt;
+    if(e.canFire){
+      e.fireT-=dt;
+      if(e.fireT<=0&&e.y>0&&e.y<H*0.55){
+        ebullets.push({x:e.x,y:e.y+e.h/2,vy:175+score*0.09+Math.random()*50});
+        e.fireT=1.3+Math.random()*1.7;
+      }
+    }
+    if(e.y>H+50){enemies.splice(i,1);continue;}
+    if(player.inv<=0&&rectHit(e.x,e.y,e.w*0.8,e.h*0.8,player.x,player.y,player.r*1.6,player.r*1.6)){
+      enemies.splice(i,1);hitPlayer();continue;
+    }
+  }
+  for(i=bullets.length-1;i>=0;i--){
+    var b=bullets[i];b.y+=b.vy*dt;
+    if(b.y<-24){bullets.splice(i,1);continue;}
+    for(j=enemies.length-1;j>=0;j--){
+      var en=enemies[j];
+      if(rectHit(b.x,b.y,6,14,en.x,en.y,en.w,en.h)){
+        bullets.splice(i,1);en.hp--;
+        if(en.hp<=0){
+          score+=en.s;enemies.splice(j,1);
+          if(Math.random()<0.09)powers.push({x:en.x,y:en.y,type:Math.random()<0.55?'dbl':'sh'});
+        }
+        break;
+      }
+    }
+  }
+  for(i=ebullets.length-1;i>=0;i--){
+    var eb=ebullets[i];eb.y+=eb.vy*dt;
+    if(eb.y>H+20){ebullets.splice(i,1);continue;}
+    var dx=eb.x-player.x,dy=eb.y-player.y;
+    if(player.inv<=0&&dx*dx+dy*dy<(player.r+4)*(player.r+4)){ebullets.splice(i,1);hitPlayer();}
+  }
+  for(i=powers.length-1;i>=0;i--){
+    var p=powers[i];p.y+=95*dt;
+    if(p.y>H+20){powers.splice(i,1);continue;}
+    var pdx=p.x-player.x,pdy=p.y-player.y;
+    if(pdx*pdx+pdy*pdy<28*28){
+      if(p.type==='dbl')player.dbl=10;else player.shield=true;
+      powers.splice(i,1);
+    }
+  }
+  updateHUD();
+}
+function drawPlane(x,y,s,c,down){
+  ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+  if(down)ctx.rotate(Math.PI);
+  ctx.fillStyle=c;
+  ctx.beginPath();ctx.moveTo(0,-14);ctx.lineTo(7,6);ctx.lineTo(0,2);ctx.lineTo(-7,6);ctx.closePath();ctx.fill();
+  ctx.fillRect(-16,-2,32,7);
+  ctx.fillStyle='rgba(255,255,255,.75)';
+  ctx.beginPath();ctx.arc(0,-4,3.4,0,7);ctx.fill();
+  ctx.restore();
+}
+function draw(){
+  ctx.fillStyle='#0b0b0d';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff';
+  var i;
+  for(i=0;i<stars.length;i++){var st=stars[i];ctx.globalAlpha=0.25+st.s*0.25;ctx.fillRect(st.x,st.y,st.s,st.s);}
+  ctx.globalAlpha=1;
+  for(i=0;i<powers.length;i++){
+    var p=powers[i];
+    ctx.fillStyle=p.type==='dbl'?'#2196F3':'#00bcd4';
+    ctx.beginPath();ctx.arc(p.x,p.y,13,0,7);ctx.fill();
+    ctx.font='15px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(p.type==='dbl'?'💥':'🛡',p.x,p.y+1);
+  }
+  for(i=0;i<enemies.length;i++){var e=enemies[i];drawPlane(e.x,e.y,e.w/30,e.c,true);}
+  ctx.fillStyle='#4FC3F3';
+  for(i=0;i<bullets.length;i++){var b=bullets[i];ctx.fillRect(b.x-2.5,b.y-7,5,14);}
+  ctx.fillStyle='#FF5252';
+  for(i=0;i<ebullets.length;i++){var eb=ebullets[i];ctx.beginPath();ctx.arc(eb.x,eb.y,4,0,7);ctx.fill();}
+  var blink=player.inv>0&&Math.floor(elapsed*12)%2===0;
+  if(!blink){
+    drawPlane(player.x,player.y,1,'#2196F3',false);
+    if(player.shield){
+      ctx.strokeStyle='rgba(0,188,212,.9)';ctx.lineWidth=2.5;
+      ctx.beginPath();ctx.arc(player.x,player.y,22,0,7);ctx.stroke();
+    }
+  }
+}
+function toPos(ev){
+  var t=(ev.touches&&ev.touches.length)?ev.touches[0]:ev;
+  var r=cv.getBoundingClientRect();
+  return {x:(t.clientX-r.left)/r.width*W,y:(t.clientY-r.top)/r.height*H};
+}
+function movePlayer(p){
+  player.x=Math.max(16,Math.min(W-16,p.x));
+  player.y=Math.max(H*0.35,Math.min(H-40,p.y));
+}
+var dragging=false;
+cv.addEventListener('touchstart',function(ev){ev.preventDefault();dragging=true;movePlayer(toPos(ev));},{passive:false});
+cv.addEventListener('touchmove',function(ev){ev.preventDefault();if(dragging)movePlayer(toPos(ev));},{passive:false});
+cv.addEventListener('touchend',function(ev){ev.preventDefault();dragging=false;},{passive:false});
+cv.addEventListener('touchcancel',function(){dragging=false;});
+cv.addEventListener('mousedown',function(ev){dragging=true;movePlayer(toPos(ev));});
+window.addEventListener('mousemove',function(ev){if(dragging&&state==='playing')movePlayer(toPos(ev));});
+window.addEventListener('mouseup',function(){dragging=false;});
+cv.addEventListener('contextmenu',function(ev){ev.preventDefault();});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('againBtn').addEventListener('click',startGame);
+document.getElementById('resumeBtn').addEventListener('click',resumeGame);
+document.getElementById('restartBtn').addEventListener('click',startGame);
+pauseBtn.addEventListener('click',function(){
+  if(state==='playing')pauseGame();else if(state==='paused')resumeGame();
+});
+reset();draw();
+})();
+</script>
+</body>
+</html>

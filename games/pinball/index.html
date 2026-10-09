@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>弹珠台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:16px}
+.topbar b{color:#E91E63;font-size:22px}
+.balls{color:#E91E63;letter-spacing:2px}
+canvas{background:#16161f;border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px}
+.ctrl{width:100%;max-width:400px;display:flex;gap:10px}
+.fbtn{flex:1;padding:20px 0;font-size:19px;font-weight:700;border:none;border-radius:14px;background:#2a2a2a;color:#fff;touch-action:none}
+.fbtn.on{background:#E91E63}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.8}
+.btn{background:#E91E63;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🎰 弹珠台</span><span>得分 <b id="score">0</b></span><span class="balls" id="balls">●●●</span></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<div class="ctrl">
+<button class="fbtn" id="leftBtn">◀ 左挡板</button>
+<button class="fbtn" id="rightBtn">右挡板 ▶</button>
+</div>
+<p class="hint">左右按钮（或点按屏幕左右半边）控制挡板<br>别让小球从底部漏掉，共 3 颗球</p>
+</div>
+<div class="overlay" id="startScr"><h1>🎰 弹珠台</h1><p>按住左侧/右侧按钮（或触摸屏幕左右半边）<br>抬起对应挡板把球弹回去<br>撞中圆形目标 +100 分，挡板击球也有分<br>球漏出底部失去一颗，共 3 颗球<br>分数越高球速越快</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function vibrate(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);}catch(e){}}
+function setHUD(){$('score').textContent=score;$('balls').textContent='●'.repeat(Math.max(0,balls));}
+
+const cv=$('cv'),ctx=cv.getContext('2d');
+const W=400,H=560,L=20,R=380,TOP=20;
+const BALL_R=10;
+
+const FL={px:150,py:512,len:78,rest:0.55,active:-0.55,ang:0.55};   // 左挡板
+const FR={px:250,py:512,len:78,rest:Math.PI-0.55,active:Math.PI+0.55,ang:Math.PI-0.55}; // 右挡板
+const GUIDES=[{x1:L,y1:440,x2:150,y2:512},{x1:R,y1:440,x2:250,y2:512}]; // 两侧斜导板
+const KICKERS=[{x1:L,y1:280,x2:58,y2:318},{x1:R,y1:280,x2:342,y2:318}]; // 两侧弹射器
+const BUMPERS=[
+  {x:200,y:150,r:28,flash:0},
+  {x:118,y:238,r:24,flash:0},
+  {x:282,y:238,r:24,flash:0}
+];
+
+let ball,score,balls,raf,state,leftDown,rightDown;
+
+function level(){return 1+((score/800)|0);}
+function gravity(){return 0.22+0.025*(level()-1);}
+function reset(){
+  score=0;balls=3;leftDown=false;rightDown=false;
+  BUMPERS.forEach(b=>b.flash=0);
+  FL.ang=FL.rest;FR.ang=FR.rest;
+  ball=null;setHUD();
+}
+function launch(){
+  ball={x:200,y:80,vx:(Math.random()*4-2),vy:1};
+}
+function addScore(n){score+=n;setHUD();}
+function segClosest(px,py,s){
+  const dx=s.x2-s.x1,dy=s.y2-s.y1;
+  const len2=dx*dx+dy*dy||1;
+  let t=((px-s.x1)*dx+(py-s.y1)*dy)/len2;
+  t=Math.max(0,Math.min(1,t));
+  return {x:s.x1+dx*t,y:s.y1+dy*t};
+}
+function collideSeg(s,rest,boost){
+  const c=segClosest(ball.x,ball.y,s);
+  const dx=ball.x-c.x,dy=ball.y-c.y;
+  const d=Math.hypot(dx,dy);
+  if(d<BALL_R&&d>0.001){
+    const nx=dx/d,ny=dy/d;
+    ball.x=c.x+nx*BALL_R;ball.y=c.y+ny*BALL_R;
+    const vn=ball.vx*nx+ball.vy*ny;
+    if(vn<0){
+      ball.vx-=2*vn*nx;ball.vy-=2*vn*ny;
+      ball.vx*=rest;ball.vy*=rest;
+      if(boost){ball.vx+=-ny*boost;ball.vy+=nx*boost;}
+    }
+    return true;
+  }
+  return false;
+}
+function flipperSeg(f){
+  return {x1:f.px,y1:f.py,x2:f.px+Math.cos(f.ang)*f.len,y2:f.py+Math.sin(f.ang)*f.len};
+}
+function update(){
+  // 挡板角度
+  const rateL=leftDown?0.5:0.18,rateR=rightDown?0.5:0.18;
+  const tL=leftDown?FL.active:FL.rest,tR=rightDown?FR.active:FR.rest;
+  const dL=tL-FL.ang,dR=tR-FR.ang;
+  FL.ang+=Math.max(-rateL,Math.min(rateL,dL));
+  FR.ang+=Math.max(-rateR,Math.min(rateR,dR));
+
+  ball.vy+=gravity();
+  // 限速
+  const sp=Math.hypot(ball.vx,ball.vy),max=13+level()*0.4;
+  if(sp>max){ball.vx*=max/sp;ball.vy*=max/sp;}
+  ball.x+=ball.vx;ball.y+=ball.vy;
+
+  // 墙
+  if(ball.x<L+BALL_R){ball.x=L+BALL_R;ball.vx=Math.abs(ball.vx)*0.95;}
+  if(ball.x>R-BALL_R){ball.x=R-BALL_R;ball.vx=-Math.abs(ball.vx)*0.95;}
+  if(ball.y<TOP+BALL_R){ball.y=TOP+BALL_R;ball.vy=Math.abs(ball.vy)*0.95;}
+  // 斜导板与弹射器
+  GUIDES.forEach(s=>collideSeg(s,0.9,0));
+  KICKERS.forEach(s=>{if(collideSeg(s,1.15,2.5)){addScore(50);vibrate(20);}});
+  // 挡板碰撞
+  const fL=flipperSeg(FL),fR=flipperSeg(FR);
+  if(collideSeg(fL,1.0,leftDown?5:0)){addScore(10);if(leftDown)vibrate(25);}
+  if(collideSeg(fR,1.0,rightDown?5:0)){addScore(10);if(rightDown)vibrate(25);}
+  // 圆形加分目标
+  for(const b of BUMPERS){
+    const dx=ball.x-b.x,dy=ball.y-b.y,d=Math.hypot(dx,dy);
+    if(d<b.r+BALL_R&&d>0.001){
+      const nx=dx/d,ny=dy/d;
+      ball.x=b.x+nx*(b.r+BALL_R);ball.y=b.y+ny*(b.r+BALL_R);
+      const vn=ball.vx*nx+ball.vy*ny;
+      if(vn<0){
+        const kick=7*(1+0.06*(level()-1));
+        ball.vx-=2*vn*nx;ball.vy-=2*vn*ny;
+        ball.vx+=nx*kick;ball.vy+=ny*kick;
+      }
+      b.flash=10;addScore(100);vibrate(30);
+    }
+    if(b.flash>0)b.flash--;
+  }
+  // 漏球
+  if(ball.y-BALL_R>H){
+    balls--;setHUD();vibrate(100);
+    if(balls<=0){gameOver();}
+    else launch();
+  }
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 台面边框
+  ctx.strokeStyle='#E91E63';ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(L,440);ctx.lineTo(L,TOP);ctx.lineTo(R,TOP);ctx.lineTo(R,440);ctx.stroke();
+  // 斜导板
+  ctx.strokeStyle='#888';ctx.lineWidth=6;ctx.lineCap='round';
+  GUIDES.forEach(s=>{ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();});
+  // 弹射器
+  ctx.strokeStyle='#00BCD4';
+  KICKERS.forEach(s=>{ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();});
+  // 圆形目标
+  BUMPERS.forEach(b=>{
+    ctx.fillStyle=b.flash>0?'#fff':'#E91E63';
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=b.flash>0?'#E91E63':'#fff';
+    ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('+100',b.x,b.y);
+  });
+  // 挡板
+  [[FL,leftDown],[FR,rightDown]].forEach(pair=>{
+    const f=pair[0],s=flipperSeg(f);
+    ctx.strokeStyle=pair[1]?'#ff5c8a':'#E91E63';ctx.lineWidth=12;
+    ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(s.x1,s.y1,6,0,Math.PI*2);ctx.fill();
+  });
+  // 球
+  if(ball){
+    const g=ctx.createRadialGradient(ball.x-3,ball.y-3,2,ball.x,ball.y,BALL_R);
+    g.addColorStop(0,'#fff');g.addColorStop(1,'#E91E63');
+    ctx.fillStyle=g;
+    ctx.beginPath();ctx.arc(ball.x,ball.y,BALL_R,0,Math.PI*2);ctx.fill();
+  }
+  // 底部漏球区提示
+  ctx.fillStyle='#333';ctx.font='13px sans-serif';ctx.textAlign='center';
+  ctx.fillText('▼ 漏球区 ▼',200,H-8);
+}
+function loop(){
+  if(state!=='play')return;
+  update();
+  draw();
+  raf=requestAnimationFrame(loop);
+}
+function gameOver(){
+  if(state!=='play')return;
+  state='over';
+  cancelAnimationFrame(raf);
+  $('overTitle').textContent='游戏结束';
+  $('overText').textContent='最终得分 '+score+' 分';
+  $('overScr').classList.remove('hidden');
+}
+function startGame(){
+  cancelAnimationFrame(raf);
+  $('overScr').classList.add('hidden');
+  $('startScr').classList.add('hidden');
+  reset();
+  state='play';
+  launch();
+  loop();
+}
+function bindBtn(el,set){
+  const on=e=>{e.preventDefault();set(true);el.classList.add('on');};
+  const off=e=>{e.preventDefault();set(false);el.classList.remove('on');};
+  el.addEventListener('touchstart',on,{passive:false});
+  el.addEventListener('touchend',off);el.addEventListener('touchcancel',off);
+  el.addEventListener('mousedown',on);el.addEventListener('mouseup',off);el.addEventListener('mouseleave',off);
+}
+bindBtn($('leftBtn'),v=>leftDown=v);
+bindBtn($('rightBtn'),v=>rightDown=v);
+// 点按画布左右半屏也可控制
+function halfTouch(e){
+  const r=cv.getBoundingClientRect();
+  const t=e.touches?e.touches[0]:e;
+  const x=(t.clientX-r.left)/r.width*W;
+  return x<W/2?'left':'right';
+}
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    const r=cv.getBoundingClientRect();
+    const x=(t.clientX-r.left)/r.width*W;
+    if(x<W/2){leftDown=true;$('leftBtn').classList.add('on');}
+    else{rightDown=true;$('rightBtn').classList.add('on');}
+  }
+},{passive:false});
+function halfOff(e){
+  leftDown=false;rightDown=false;
+  $('leftBtn').classList.remove('on');$('rightBtn').classList.remove('on');
+}
+cv.addEventListener('touchend',halfOff);
+cv.addEventListener('touchcancel',halfOff);
+cv.addEventListener('mousedown',e=>{
+  const side=halfTouch(e);
+  if(side==='left'){leftDown=true;}else{rightDown=true;}
+});
+cv.addEventListener('mouseup',()=>{leftDown=false;rightDown=false;});
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'||e.key==='z'||e.key==='Z')leftDown=true;
+  if(e.key==='ArrowRight'||e.key==='m'||e.key==='M')rightDown=true;
+});
+document.addEventListener('keyup',e=>{
+  if(e.key==='ArrowLeft'||e.key==='z'||e.key==='Z')leftDown=false;
+  if(e.key==='ArrowRight'||e.key==='m'||e.key==='M')rightDown=false;
+});
+$('startBtn').addEventListener('click',startGame);
+$('restartBtn').addEventListener('click',startGame);
+reset();draw();
+</script>
+</body>
+</html>
