@@ -47,6 +47,7 @@ canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-acti
   <div class="topbar">
     <div class="tb-title">⬜ 点格棋</div>
     <div class="tb-right">
+      <div class="iconbtn" id="hintBtn" title="提示">💡</div>
       <div class="iconbtn" id="soundBtn">🔊</div>
       <div class="iconbtn hidden" id="pauseBtn">⏸</div>
     </div>
@@ -114,6 +115,8 @@ const cv=$('cv'), ctx=cv.getContext('2d');
 const DOT=6, BOX=5;
 let hE=[], vE=[], hOwn=[], vOwn=[], boxes=[], meS=0, aiS=0;
 let turn=1, playing=false, aiTimer=null;
+let hintEdge=null, hintOn=false, hintTimer=null;
+function clearDbHint(){ hintEdge=null; if(hintTimer){clearInterval(hintTimer);hintTimer=null} }
 let M=28, SP=0, W=380;
 function sizeCanvas(){
   W=Math.min(380,document.getElementById('app').clientWidth-36);
@@ -176,6 +179,40 @@ function aiChoose(){
   const pool=safe.length?safe:(function(){ const a=[]; eachEdge(function(t,r,c){ a.push({t:t,r:r,c:c}); }); return a; })();
   return pool[(Math.random()*pool.length)|0]; // 贪心但不懂让子，可战胜
 }
+/* ---------- 提示：优先占格 → 安全边 → 送格最少 ---------- */
+function dbHint(){
+  if(!playing||paused||turn!==1) return;
+  sClick(); clearDbHint();
+  let best=null, bg=0, msg='';
+  eachEdge(function(t,r,c){ const g=simGain(t,r,c); if(g>bg){ bg=g; best={t:t,r:r,c:c}; } });
+  if(best){ msg='💡 提示：走这条高亮边，能围 '+bg+' 格！'; }
+  else{
+    const safe=[];
+    eachEdge(function(t,r,c){ if(!givesThree(t,r,c)) safe.push({t:t,r:r,c:c}); });
+    if(safe.length){ best=safe[(Math.random()*safe.length)|0]; msg='💡 提示：走这条高亮边，安全不送格'; }
+    else{
+      let bl=1e9;
+      eachEdge(function(t,r,c){
+        setEdgeTmp(t,r,c,1);
+        let og=0;
+        eachEdge(function(t2,r2,c2){ const g=simGain(t2,r2,c2); if(g>og) og=g; });
+        setEdgeTmp(t,r,c,0);
+        if(og<bl){ bl=og; best={t:t,r:r,c:c}; }
+      });
+      msg='💡 只能送格，选送得最少的（对手下步最多得 '+bl+' 格）';
+    }
+  }
+  if(!best) return;
+  hintEdge=best; hintOn=true;
+  $('msg').textContent=msg;
+  render();
+  let n=0;
+  hintTimer=setInterval(function(){
+    n++; hintOn=!hintOn; render();
+    if(n>=8){ clearInterval(hintTimer); hintTimer=null; hintEdge=null; render(); }
+  },280);
+}
+$('hintBtn').addEventListener('click',dbHint);
 function claimed(){ return meS+aiS; }
 function updateScore(){
   $('meScore').textContent=meS; $('aiScore').textContent=aiS;
@@ -184,6 +221,7 @@ function updateScore(){
 }
 function playerMove(t,r,c){
   if(!playing||paused||turn!==1) return;
+  clearDbHint();
   const g=drawEdge(t,r,c,1);
   sClick(); render();
   if(g>0){
@@ -259,6 +297,17 @@ function render(){
     const p=dotXY(r,c);
     ctx.fillStyle='#fff';
     ctx.beginPath(); ctx.arc(p[0],p[1],5,0,7); ctx.fill();
+  }
+  // 提示高亮
+  if(hintEdge&&hintOn){
+    const t=hintEdge.t,r=hintEdge.r,c=hintEdge.c;
+    let a,b;
+    if(t==='h'){ a=dotXY(r,c); b=dotXY(r,c+1); } else { a=dotXY(r,c); b=dotXY(r+1,c); }
+    ctx.save();
+    ctx.strokeStyle='#ffd76a'; ctx.lineWidth=10; ctx.lineCap='round';
+    ctx.shadowColor='#ffd76a'; ctx.shadowBlur=18;
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+    ctx.restore();
   }
 }
 function onTap(e){

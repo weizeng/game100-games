@@ -45,7 +45,7 @@ body{background:linear-gradient(160deg,#1e2a4d 0%,#121212 55%,#0a0a0a 100%);colo
   <div class="topbar">
     <span class="title">💥 方块消消</span>
     <span class="stat">⏱<b id="tm">90</b>s · 分数 <b id="score">0</b></span>
-    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
+    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="hintBtn" title="提示">💡</button><button class="tbtn" id="pauseBtn">⏸</button></span>
   </div>
   <div class="screen on" id="s-start">
     <div class="card">
@@ -56,7 +56,7 @@ body{background:linear-gradient(160deg,#1e2a4d 0%,#121212 55%,#0a0a0a 100%);colo
   </div>
   <div class="screen" id="s-game">
     <div id="cvwrap"><canvas id="cv"></canvas></div>
-    <div class="hint">点击 3+ 连块消除 · 连击加成！</div>
+    <div class="hint" id="hintbar">点击 3+ 连块消除 · 连击加成！</div>
   </div>
   <div class="screen" id="s-end">
     <div class="card">
@@ -87,6 +87,7 @@ function floatTxt(txt,x,y,color){var d=document.createElement("div");d.className
 var COLS=8,ROWS=10,NCOLOR=4,TIME=90;
 var CCOLORS=["#ef4444","#3b82f6","#22c55e","#eab308"];
 var grid,score,left,over,paused,timer,animT=0,hover;
+var hintSet=null,hintTimer=null;
 var cv=$("cv"),ctx=cv.getContext("2d"),CS=0;
 function show(id){["s-start","s-game","s-end"].forEach(function(s){$(s).classList.toggle("on",s===id)})}
 function newBlock(){return Math.floor(Math.random()*NCOLOR)}
@@ -106,12 +107,15 @@ function draw(){animT+=.06;ctx.clearRect(0,0,cv.width,cv.height);
  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){var col=grid[r][c];if(col<0)continue;
   var x=c*CS+2,y=r*CS+2,w=CS-4;
   var isH=hover&&hover[0]===r&&hover[1]===c;
+  var isHint=hintSet&&hintSet[r+"_"+c];
   var g=ctx.createLinearGradient(x,y,x,y+w);g.addColorStop(0,CCOLORS[col]);g.addColorStop(1,"rgba(0,0,0,.35)");
   ctx.fillStyle=g;roundRect(x,y,w,w,8);ctx.fill();
   ctx.fillStyle="rgba(255,255,255,.25)";roundRect(x+4,y+4,w-8,Math.max(3,w*.22),4);ctx.fill();
-  if(isH){ctx.strokeStyle="#fff";ctx.lineWidth=2.5;roundRect(x,y,w,w,8);ctx.stroke()}}}
+  if(isH){ctx.strokeStyle="#fff";ctx.lineWidth=2.5;roundRect(x,y,w,w,8);ctx.stroke()}
+  if(isHint){ctx.save();ctx.shadowColor="#ffd76a";ctx.shadowBlur=10+8*Math.abs(Math.sin(animT*8));ctx.strokeStyle="#ffd76a";ctx.lineWidth=3;roundRect(x-2,y-2,w+4,w+4,10);ctx.stroke();ctx.restore()}}}
 function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
 function tap(r,c){if(over||paused||r<0||c<0||r>=ROWS||c>=COLS||grid[r][c]<0)return;
+ hintSet=null;if(hintTimer){clearTimeout(hintTimer);hintTimer=null}
  var grp=groupAt(r,c);
  if(grp.length<3){sErr();var rc=cv.getBoundingClientRect();floatTxt("需要 3 个以上连块",rc.left+20,rc.top+40,"#ff6b6b");return}
  var col=grid[r][c],n=grp.length,gain=n*n*10;
@@ -135,6 +139,27 @@ cv.addEventListener("touchstart",function(e){e.preventDefault();var p=pos2cell(e
 cv.addEventListener("touchend",function(e){e.preventDefault();var p=pos2cell(e);hover=null;if(p)tap(p[0],p[1]);else draw()});
 cv.addEventListener("mousedown",function(e){var p=pos2cell(e);if(p)tap(p[0],p[1])});
 cv.addEventListener("mousemove",function(e){if(e.buttons){var p=pos2cell(e);if(p&&( !hover||hover[0]!==p[0]||hover[1]!==p[1])){hover=p;draw()}}});
+/* ---------- 提示：找出当前最大连块组并闪烁高亮 ---------- */
+function collapseHint(){
+ if(!$("s-game").classList.contains("on")||over||paused)return;
+ sClick();
+ hintSet=null;if(hintTimer){clearTimeout(hintTimer);hintTimer=null}
+ var seen={},best=null;
+ for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+  var k=r+"_"+c;
+  if(seen[k]||grid[r][c]<0)continue;
+  var grp=groupAt(r,c);
+  grp.forEach(function(p){seen[p[0]+"_"+p[1]]=1});
+  if(grp.length>=3&&(!best||grp.length>best.length))best=grp;
+ }
+ if(!best){$("hintbar").textContent="💡 当前没有可消除的连块";return}
+ hintSet={};best.forEach(function(p){hintSet[p[0]+"_"+p[1]]=1});
+ var gain=best.length*best.length*10;
+ $("hintbar").textContent="💡 提示：点这 "+best.length+" 个高亮连块，得 "+gain+" 分！";
+ draw();
+ hintTimer=setTimeout(function(){hintSet=null;hintTimer=null;$("hintbar").textContent="点击 3+ 连块消除 · 连击加成！";draw()},2600);
+}
+$("hintBtn").onclick=function(){collapseHint()};
 $("btnStart").onclick=function(){sClick();startGame()};
 $("btnAgain").onclick=function(){sClick();startGame()};
 $("btnHome").onclick=function(){sClick();show("s-start")};

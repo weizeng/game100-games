@@ -55,7 +55,7 @@ body{background:linear-gradient(160deg,#3a0f22 0%,#220a16 60%,#12060c 100%);colo
     <span class="stat">⏱<b id="timer">3:00</b></span>
     <span class="stat">⭐<b id="score">0</b></span>
     <span class="stat">剩<b id="left">24</b>对</span>
-    <span><button class="tbtn" id="muteBtn">🔊</button> <button class="tbtn" id="pauseBtn">⏸</button></span>
+    <span><button class="tbtn" id="muteBtn">🔊</button> <button class="tbtn" id="hintBtn" title="提示">💡</button> <button class="tbtn" id="pauseBtn">⏸</button></span>
   </div>
   <div id="stage">
     <div id="boardWrap">
@@ -64,7 +64,6 @@ body{background:linear-gradient(160deg,#3a0f22 0%,#220a16 60%,#12060c 100%);colo
     </div>
   </div>
   <div class="tools">
-    <button class="toolbtn" id="hintBtn">💡 提示 ×3</button>
     <button class="toolbtn" id="shufBtn">🔀 洗牌 ×2</button>
   </div>
 </div>
@@ -74,7 +73,7 @@ body{background:linear-gradient(160deg,#3a0f22 0%,#220a16 60%,#12060c 100%);colo
 
 <div class="overlay" id="startScr">
   <h1>🔗 连连看</h1>
-  <p>8×6 牌面，24 对 emoji。<br>点选两张相同图案，若连线<b style="color:#fff">拐弯不超过 2 次</b>即可消除。<br>⏱ 限时 3 分钟；连续快速消除触发<b style="color:#ffd54f">连击加分</b>！<br>💡 提示 ×3、🔀 洗牌 ×2，无解时自动洗牌。</p>
+  <p>8×6 牌面，24 对 emoji。<br>点选两张相同图案，若连线<b style="color:#fff">拐弯不超过 2 次</b>即可消除。<br>⏱ 限时 3 分钟；连续快速消除触发<b style="color:#ffd54f">连击加分</b>！<br>💡 提示不限次数、🔀 洗牌 ×2，无解时自动洗牌。</p>
   <div class="best" id="bestLine"></div>
   <button class="btn" id="startBtn">开始游戏</button>
 </div>
@@ -132,7 +131,7 @@ updMute();
 var COLS=8,ROWS=6,N=COLS*ROWS,PAIRS=24,TIME=180;
 var EMO=['🍎','🍌','🍇','🍉','🍒','🍑','🍍','🥝','🍓','🥥','🥭','🍋','🍈','🍐','🫐','🍅','🥕','🌽','🍆','🥑','🫒','🌶','🍄','🌰'];
 var tiles=[],tileEls=[],sel=-1,lock=false;
-var score=0,combo=0,lastElim=0,hints=3,shufs=2;
+var score=0,combo=0,lastElim=0,shufs=2;
 var playing=false,paused=false,over=false,leftPairs=PAIRS;
 var remainMs=TIME*1000,timerRaf=null,lastTick=0;
 var cell=52,lineRaf=null;
@@ -346,17 +345,20 @@ function animateLine(path,done){
 }
 
 /* ===== 道具 ===== */
+/* ---------- 提示：不限次数，高亮一对并说明连接方式 ---------- */
 function useHint(){
-  if(!playing||paused||over||lock||hints<=0)return;
+  if(!playing||paused||over||lock)return;
   var pr=findPair();
-  if(!pr)return;
-  hints--;$('hintBtn').textContent='💡 提示 ×'+hints;
-  if(hints<=0)$('hintBtn').disabled=true;
+  if(!pr){showToast('💡 暂无可消的对子');return;}
   sfx('hint');vib(30);
+  var path=findPath(pr[0],pr[1]);
+  var turns=path?path.length-1:0;
+  var conn=turns<=1?'直连':(turns===2?'一折':'两折');
+  showToast('💡 '+conn+'可消：'+EMO[tiles[pr[0]].e]+'（已高亮）');
   for(var k=0;k<2;k++)(function(idx){
     var el=tileEls[idx];
     el.classList.remove('hint');void el.offsetWidth;el.classList.add('hint');
-    setTimeout(function(){el.classList.remove('hint');},1600);
+    setTimeout(function(){el.classList.remove('hint');},2000);
   })(pr[k]);
 }
 function shuffleTiles(){
@@ -428,9 +430,8 @@ function newGame(){
   if(lineRaf){cancelAnimationFrame(lineRaf);lineRaf=null;}
   var cv=$('lineCv');cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
   deal();
-  score=0;combo=0;lastElim=0;hints=3;shufs=2;leftPairs=PAIRS;
+  score=0;combo=0;lastElim=0;shufs=2;leftPairs=PAIRS;
   remainMs=TIME*1000;playing=true;paused=false;over=false;
-  $('hintBtn').textContent='💡 提示 ×3';$('hintBtn').disabled=false;
   $('shufBtn').textContent='🔀 洗牌 ×2';$('shufBtn').disabled=false;
   $('overScr').classList.add('hidden');$('pauseScr').classList.add('hidden');$('startScr').classList.add('hidden');
   render();startTimer();

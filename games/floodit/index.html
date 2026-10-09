@@ -41,6 +41,8 @@ canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-acti
 .sw{width:52px;height:52px;border-radius:16px;cursor:pointer;border:3px solid rgba(255,255,255,.18);transition:transform .1s,border-color .15s;box-shadow:0 4px 12px rgba(0,0,0,.4)}
 .sw:active{transform:scale(.9)}
 .sw.cur{border-color:#fff;box-shadow:0 0 14px rgba(255,255,255,.5);opacity:.45;pointer-events:none}
+.sw.hint{animation:hintpulse .6s ease-in-out infinite;border-color:#fff;box-shadow:0 0 18px rgba(255,255,255,.85)}
+@keyframes hintpulse{50%{transform:scale(1.14)}}
 </style>
 </head>
 <body>
@@ -48,6 +50,7 @@ canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-acti
   <div class="topbar">
     <div class="tb-title">🎨 翻色 Flood-It</div>
     <div class="tb-right">
+      <div class="iconbtn" id="hintBtn" title="提示">💡</div>
       <div class="iconbtn" id="soundBtn" title="声音">🔊</div>
       <div class="iconbtn hidden" id="pauseBtn" title="暂停">⏸</div>
     </div>
@@ -126,6 +129,7 @@ const N=14, MAXMOVES=25;
 const COLORS=['#ef476f','#ffd166','#06d6a0','#118ab2','#9b5de5','#f3864a'];
 const cv=$('cv'), ctx=cv.getContext('2d'), palette=$('palette');
 let grid=[], movesLeft=MAXMOVES, regionColor=0, playing=false;
+let hintColor=-1, hintTimer=null;
 
 function sizeCanvas(){ const w=Math.min(420,document.getElementById('app').clientWidth-36); cv.width=w; cv.height=w; cv.style.width=w+'px'; cv.style.height=w+'px'; }
 window.addEventListener('resize',function(){ if(playing) draw(); });
@@ -142,11 +146,47 @@ function newGame(){
 function buildPalette(){
   palette.innerHTML='';
   COLORS.forEach(function(col,i){
-    const d=document.createElement('div'); d.className='sw'+(i===regionColor?' cur':''); d.style.background=col;
+    const d=document.createElement('div'); d.className='sw'+(i===regionColor?' cur':'')+(i===hintColor?' hint':''); d.style.background=col;
     d.addEventListener('pointerdown',function(e){ e.preventDefault(); flood(i); });
     palette.appendChild(d);
   });
 }
+/* ---------- 提示：贪心选让淹没区面积最大的颜色 ---------- */
+function regionSizeIf(color){
+  const seen=new Set([0]), stack=[[0,0]];
+  while(stack.length){
+    const rc=stack.pop(), r=rc[0], c=rc[1];
+    const nb=[[r+1,c],[r-1,c],[r,c+1],[r,c-1]];
+    for(let i=0;i<4;i++){
+      const nr=nb[i][0], nc=nb[i][1];
+      if(nr<0||nc<0||nr>=N||nc>=N) continue;
+      const k=nr*N+nc;
+      if(seen.has(k)) continue;
+      const cc=grid[nr][nc];
+      if(cc!==regionColor&&cc!==color) continue;
+      seen.add(k); stack.push([nr,nc]);
+    }
+  }
+  return seen.size;
+}
+function floodHint(){
+  if(!playing||paused) return;
+  sClick();
+  const names=['红','黄','绿','蓝','紫','橙'];
+  let best=-1, bs=-1;
+  for(let c=0;c<COLORS.length;c++){
+    if(c===regionColor) continue;
+    const s=regionSizeIf(c);
+    if(s>bs){ bs=s; best=c; }
+  }
+  if(best<0) return;
+  hintColor=best;
+  $('msg').textContent='💡 提示：选「'+names[best]+'」色，淹没区可扩大到 '+bs+' 格（共 '+(N*N)+' 格）';
+  buildPalette();
+  if(hintTimer) clearTimeout(hintTimer);
+  hintTimer=setTimeout(function(){ hintColor=-1; hintTimer=null; buildPalette(); },2600);
+}
+$('hintBtn').addEventListener('click',floodHint);
 function draw(){
   const w=cv.width, cell=w/N;
   for(let r=0;r<N;r++) for(let c=0;c<N;c++){
@@ -164,6 +204,7 @@ function updateHud(){
 }
 function flood(color){
   if(!playing||paused||color===regionColor) return;
+  hintColor=-1; if(hintTimer){clearTimeout(hintTimer);hintTimer=null}
   const target=regionColor; regionColor=color; movesLeft--;
   const seen=new Set([0]), stack=[[0,0]];
   grid[0][0]=color;

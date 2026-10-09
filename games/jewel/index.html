@@ -19,6 +19,7 @@ body{background:linear-gradient(160deg,#1a0f24 0%,#2c1440 55%,#160a20 100%);colo
 @keyframes blink{from{opacity:1}to{opacity:.45}}
 canvas{width:100%;height:auto;border-radius:16px;touch-action:none;box-shadow:0 8px 26px rgba(0,0,0,.45);background:#1d1029}
 .hint{color:#9d86ad;font-size:13px;text-align:center;line-height:1.7}
+#hintbar{min-height:20px;font-size:13px;color:#ffd54f;text-align:center}
 .overlay{position:fixed;inset:0;background:rgba(10,4,16,.88);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:30;padding:28px;text-align:center}
 .overlay.hidden{display:none}
 .overlay h1{font-size:32px}
@@ -40,6 +41,7 @@ canvas{width:100%;height:auto;border-radius:16px;touch-action:none;box-shadow:0 
     <div class="title">💎 消消乐</div>
     <div class="tbtns">
       <button class="iconbtn" id="muteBtn">🔊</button>
+      <button class="iconbtn" id="hintBtn" title="提示">💡</button>
       <button class="iconbtn" id="pauseBtn">⏸</button>
     </div>
   </div>
@@ -49,6 +51,7 @@ canvas{width:100%;height:auto;border-radius:16px;touch-action:none;box-shadow:0 
     <span>最高<b id="best">0</b></span>
   </div>
   <canvas id="cv" width="480" height="480"></canvas>
+  <div id="hintbar"></div>
   <p class="hint">滑动宝石交换位置，3 个连成一线即消除<br>4 连整行/列、5 连或 T/L 型大爆炸 · 60 秒挑战</p>
 </div>
 <div id="comboTag"></div>
@@ -533,6 +536,21 @@ $('resumeBtn').addEventListener('click',function(){
 $('pauseRetryBtn').addEventListener('click',function(){Snd.click();$('pauseScr').classList.add('hidden');newGame();});
 function refreshMute(){$('muteBtn').textContent=Snd.muted?'🔇':'🔊';}
 $('muteBtn').addEventListener('click',function(){Snd.ensure();Snd.muted=!Snd.muted;refreshMute();if(!Snd.muted)Snd.click();});
+/* ---------- 提示：复用 findMove 找一个合法交换并高亮 ---------- */
+$('hintBtn').addEventListener('click',function(){
+  if(busy)return;
+  Snd.ensure();Snd.click();
+  const mv=findMove();
+  if(!mv){$('hintbar').textContent='💡 暂无可用走法，稍后再试';return;}
+  hintMove=mv;lastActT=performance.now();
+  const a=board[mv.ay][mv.ax];board[mv.ay][mv.ax]=board[mv.by][mv.bx];board[mv.by][mv.bx]=a;
+  const res=findMatches();
+  board[mv.by][mv.bx]=board[mv.ay][mv.ax];board[mv.ay][mv.ax]=a;
+  const n=res?res.clear.length:0;
+  $('hintbar').textContent='💡 提示：交换两颗高亮宝石，可消除 '+n+' 颗！';
+  clearTimeout($('hintbar')._t);
+  $('hintbar')._t=setTimeout(function(){$('hintbar').textContent='';},3000);
+});
 refreshMute();
 $('best').textContent=best;
 document.addEventListener('visibilitychange',function(){if(document.hidden&&playing&&!paused&&!over)$('pauseBtn').click();});
