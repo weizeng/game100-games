@@ -31,6 +31,9 @@ body{background:linear-gradient(160deg,#1a1b3a 0%,#12132a 60%,#0d0e20 100%);colo
 .cell.pop{animation:pop .22s}
 @keyframes pop{0%{transform:scale(.7)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
 .cell.hinted{animation:hintflash 1s}
+#hintToast{position:fixed;top:70px;left:50%;transform:translateX(-50%);max-width:88vw;background:rgba(20,22,34,.96);border:1px solid rgba(255,215,106,.55);color:#ffe9a8;font-size:13px;line-height:1.7;padding:10px 16px;border-radius:12px;z-index:90;display:none;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#hintToast.show{display:block;animation:toastin .25s}
+@keyframes toastin{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 @keyframes hintflash{0%,100%{background:rgba(76,175,80,.1)}50%{background:rgba(76,175,80,.55)}}
 .tools{width:100%;display:flex;gap:10px}
 .toolbtn{flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:#dfe3ff;font-size:14px;font-weight:600;padding:10px 0;border-radius:12px;cursor:pointer;transition:transform .08s}
@@ -62,11 +65,10 @@ body{background:linear-gradient(160deg,#1a1b3a 0%,#12132a 60%,#0d0e20 100%);colo
     <span class="title">🔢 数独</span>
     <span class="stat">⏱<b id="timer">00:00</b></span>
     <span class="stat">❌<b id="errs">0/3</b></span>
-    <span><button class="tbtn" id="muteBtn">🔊</button> <button class="tbtn" id="pauseBtn">⏸</button></span>
+    <span><button class="tbtn" id="hintTopBtn">💡</button> <button class="tbtn" id="muteBtn">🔊</button> <button class="tbtn" id="pauseBtn">⏸</button></span>
   </div>
   <div id="board"></div>
   <div class="tools">
-    <button class="toolbtn" id="hintBtn">💡 提示 ×3</button>
     <button class="toolbtn" id="eraseBtn">⌫ 擦除</button>
   </div>
   <div id="pad"></div>
@@ -75,7 +77,7 @@ body{background:linear-gradient(160deg,#1a1b3a 0%,#12132a 60%,#0d0e20 100%);colo
 
 <div class="overlay" id="startScr">
   <h1>🔢 数独</h1>
-  <p>点选空格，再点下方数字填入。<br>填错标红并计 1 次错误，<b style="color:#ff8a8a">3 次错误判负</b>。<br>💡 提示可自动填对一个空格（3 次）。<br>同行 / 列 / 宫的相同数字会高亮。</p>
+  <p>点选空格，再点下方数字填入。<br>填错标红并计 1 次错误，<b style="color:#ff8a8a">3 次错误判负</b>。<br>💡 提示可自动填对一个空格（不限次数），并告诉你思路。<br>同行 / 列 / 宫的相同数字会高亮。</p>
   <div class="drow" id="diffRow">
     <button class="dbtn" data-d="easy">简单</button>
     <button class="dbtn on" data-d="mid">中等</button>
@@ -233,7 +235,7 @@ function newGame(){
   grid=puzzle.slice();fixed=puzzle.map(function(v){return v!==0;});
   wrongF=new Array(81).fill(false);
   sel=-1;errors=0;hints=3;playing=true;paused=false;over=false;
-  $('errs').textContent='0/3';$('hintBtn').textContent='💡 提示 ×3';$('hintBtn').disabled=false;
+  $('errs').textContent='0/3';
   $('timer').textContent='00:00';
   startTs=performance.now();elapsed=0;
   render();startTimer();
@@ -284,16 +286,66 @@ function erase(){
   if(!playing||paused||over||sel<0||fixed[sel])return;
   if(grid[sel]!==0){grid[sel]=0;wrongF[sel]=false;sfx('click');render();}
 }
+var hintToastTimer=null;
+function showHintToast(html,ms){
+  var t=$('hintToast');
+  if(!t){t=document.createElement('div');t.id='hintToast';document.body.appendChild(t);}
+  t.innerHTML=html;t.classList.add('show');
+  if(hintToastTimer)clearTimeout(hintToastTimer);
+  hintToastTimer=setTimeout(function(){t.classList.remove('show');},ms||4500);
+}
+function unitCells(u){
+  var out=[],r,c,dr,dc;
+  if(u<9){for(c=0;c<9;c++)out.push(u*9+c);}
+  else if(u<18){var cc=u-9;for(r=0;r<9;r++)out.push(r*9+cc);}
+  else{var b=u-18,br=((b/3)|0)*3,bc=(b%3)*3;for(dr=0;dr<3;dr++)for(dc=0;dc<3;dc++)out.push((br+dr)*9+bc+dc);}
+  return out;
+}
+function unitName(u){
+  if(u<9)return '第'+(u+1)+'行';
+  if(u<18)return '第'+(u-9+1)+'列';
+  return '第'+(u-18+1)+'宫';
+}
 function useHint(){
-  if(!playing||paused||over||hints<=0)return;
-  var cand=[];
-  for(var i=0;i<81;i++)if(!fixed[i]&&grid[i]!==solution[i])cand.push(i);
-  if(!cand.length)return;
-  var i=cand[(Math.random()*cand.length)|0];
-  grid[i]=solution[i];wrongF[i]=false;sel=i;
-  hints--;$('hintBtn').textContent='💡 提示 ×'+hints;
-  if(hints<=0)$('hintBtn').disabled=true;else $('hintBtn').disabled=false;
-  var d=cells[i];d.classList.remove('hinted');void d.offsetWidth;d.classList.add('hinted');
+  if(!playing||paused||over)return;
+  var empt=[],i;
+  for(i=0;i<81;i++)if(!fixed[i]&&grid[i]!==solution[i])empt.push(i);
+  if(!empt.length){showHintToast('棋盘已经填满了 🎉');return;}
+  var best=-1,val=0,reason='',k,cc;
+  for(k=0;k<empt.length;k++){
+    i=empt[k];cc=cands(grid,i);
+    if(cc.length===1){best=i;val=cc[0];break;}
+  }
+  if(best>=0){
+    var r0=(best/9)|0,c0=best%9,b0=((r0/3)|0)*3+((c0/3)|0);
+    reason='第'+(r0+1)+'行、第'+(c0+1)+'列、第'+(b0+1)+'宫里，数字 1–9 只剩下 <b>'+val+'</b> 能放进这一格';
+  }else{
+    var u,j,d,idx,places,j2,vv;
+    outer:
+    for(u=0;u<27;u++){
+      var cellsU=unitCells(u),present={};
+      for(j=0;j<9;j++){vv=grid[cellsU[j]];if(vv)present[vv]=1;}
+      for(d=1;d<=9;d++){
+        if(present[d])continue;
+        places=[];
+        for(j2=0;j2<9;j2++){idx=cellsU[j2];if(grid[idx]===0&&cands(grid,idx).indexOf(d)>=0)places.push(idx);}
+        if(places.length===1){best=places[0];val=d;reason=unitName(u)+'里数字 <b>'+d+'</b> 只能放在这一格';break outer;}
+      }
+    }
+  }
+  var rr,cc2,dd;
+  if(best>=0){
+    rr=(best/9)|0;cc2=best%9;
+    grid[best]=val;wrongF[best]=false;sel=best;
+    dd=cells[best];dd.classList.remove('hinted');void dd.offsetWidth;dd.classList.add('hinted');
+    showHintToast('💡 '+reason+'<br>→ 第'+(rr+1)+'行第'+(cc2+1)+'列填入 <b>'+val+'</b>');
+  }else{
+    var ri=(Math.random()*empt.length)|0,idx2=empt[ri];
+    rr=(idx2/9)|0;cc2=idx2%9;val=solution[idx2];
+    grid[idx2]=val;wrongF[idx2]=false;sel=idx2;
+    dd=cells[idx2];dd.classList.remove('hinted');void dd.offsetWidth;dd.classList.add('hinted');
+    showHintToast('💡 这一格用基础排除法暂时看不出<br>→ 按完整解法，第'+(rr+1)+'行第'+(cc2+1)+'列填入 <b>'+val+'</b>');
+  }
   sfx('hint');vib(40);
   render();
   checkWin();
@@ -397,7 +449,7 @@ $('resumeBtn').addEventListener('click',resumeGame);
 $('pqBtn').addEventListener('click',function(){sfx('click');newGame();});
 $('againBtn').addEventListener('click',function(){sfx('click');newGame();});
 $('diffBtn').addEventListener('click',function(){sfx('click');$('overScr').classList.add('hidden');showBest();$('startScr').classList.remove('hidden');});
-$('hintBtn').addEventListener('click',useHint);
+$('hintTopBtn').addEventListener('click',useHint);
 $('eraseBtn').addEventListener('click',erase);
 $('startBtn').addEventListener('click',function(){ac();sfx('click');newGame();});
 var dbs=document.querySelectorAll('#diffRow .dbtn');

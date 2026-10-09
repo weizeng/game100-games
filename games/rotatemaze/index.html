@@ -46,6 +46,7 @@ canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-acti
   <div class="topbar">
     <div class="tb-title">🌀 旋转迷宫</div>
     <div class="tb-right">
+      <div class="iconbtn" id="hintBtn" title="提示">💡</div>
       <div class="iconbtn" id="soundBtn">🔊</div>
       <div class="iconbtn hidden" id="pauseBtn">⏸</div>
     </div>
@@ -137,6 +138,7 @@ let lvl=0, R=0, C=0, wall=[], Spos=[1,1], Gpos=[1,1];
 let rot=0, drawAng=0, animFrom=0, animTo=0, animT=1;
 let ball={x:1.5,y:1.5,vx:0,vy:0};
 let moves=0, playing=false, levelDone=false;
+let hintPath=null, hintUntil=0;
 
 function sizeCanvas(){ const w=Math.min(400,document.getElementById('app').clientWidth-36); cv.width=w; cv.height=w; cv.style.width=w+'px'; cv.style.height=w+'px'; }
 window.addEventListener('resize',function(){ sizeCanvas(); if(playing) draw(performance.now()); });
@@ -144,7 +146,7 @@ window.addEventListener('resize',function(){ sizeCanvas(); if(playing) draw(perf
 function loadLevel(i){
   const m=LEVELS[i]; R=m.length; C=m[0].length; wall=[];
   for(let r=0;r<R;r++){ const row=[]; for(let c=0;c<C;c++){ const ch=m[r][c]; row.push(ch==='#'); if(ch==='S')Spos=[r,c]; if(ch==='G')Gpos=[r,c]; } wall.push(row); }
-  rot=0; drawAng=0; animT=1; levelDone=false;
+  rot=0; drawAng=0; animT=1; levelDone=false; hintPath=null;
   ball={x:Spos[1]+0.5,y:Spos[0]+0.5,vx:0,vy:0};
   $('lvl').textContent=i+1; $('moves').textContent=moves;
   sizeCanvas(); draw(performance.now());
@@ -246,6 +248,21 @@ function draw(t){
   ctx.fillStyle=bg;
   ctx.beginPath(); ctx.arc(bx,by,br,0,7); ctx.fill();
   ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+  // 提示路径（BFS）
+  if(hintPath&&t<hintUntil){
+    const pu2=0.5+0.5*Math.sin(t/150);
+    ctx.save();
+    ctx.strokeStyle='rgba(78,205,196,'+(0.55+0.35*pu2)+')';
+    ctx.lineWidth=cell*0.28; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.shadowColor='#4ecdc4'; ctx.shadowBlur=12;
+    ctx.beginPath();
+    hintPath.forEach(function(p,i){
+      const x=(p[1]+0.5)*cell, y=(p[0]+0.5)*cell;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.restore();
 }
 let lastT=0;
@@ -255,6 +272,36 @@ function loop(t){
   const dt=Math.min((t-lastT)/1000,0.05); lastT=t;
   step(dt); draw(t);
 }
+/* ---------- 提示：BFS 求小球当前位置到终点的格子路径 ---------- */
+function rmHint(){
+  if(!playing||paused||levelDone) return;
+  sClick();
+  const sr=Math.floor(ball.y), sc=Math.floor(ball.x);
+  const prev={}, seen={};
+  seen[sr+','+sc]=1;
+  const q=[[sr,sc]];
+  let found=null;
+  while(q.length){
+    const cur=q.shift(), r=cur[0], c=cur[1];
+    if(r===Gpos[0]&&c===Gpos[1]){ found=cur; break; }
+    const nb=[[r+1,c],[r-1,c],[r,c+1],[r,c-1]];
+    for(let i=0;i<4;i++){
+      const nr=nb[i][0], nc=nb[i][1], k=nr+','+nc;
+      if(nr<0||nc<0||nr>=R||nc>=C||wall[nr][nc]||seen[k]) continue;
+      seen[k]=1; prev[k]=r+','+c; q.push([nr,nc]);
+    }
+  }
+  if(!found){ $('msg').textContent='💡 找不到通路'; return; }
+  const path=[];
+  let k=Gpos[0]+','+Gpos[1];
+  while(k){ const xy=k.split(','); path.push([+xy[0],+xy[1]]); k=prev[k]; }
+  path.reverse();
+  hintPath=path; hintUntil=performance.now()+2200;
+  $('msg').textContent='💡 提示：沿高亮路线走，旋转迷宫可改变重力方向';
+  clearTimeout(rmHint._t);
+  rmHint._t=setTimeout(function(){ $('msg').textContent=''; },2600);
+}
+$('hintBtn').addEventListener('click',rmHint);
 $('rotL').addEventListener('pointerdown',function(e){ e.preventDefault(); rotate(-1); });
 $('rotR').addEventListener('pointerdown',function(e){ e.preventDefault(); rotate(1); });
 // 滑动旋转

@@ -51,6 +51,11 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
 .key:active{transform:scale(.9)}
 .key.wide{max-width:64px;font-size:13px}
 .key.correct{background:#2ecc71}.key.present{background:#d4a017}.key.absent{background:#1e1e20;color:#777}
+.key.hinted{animation:keyhint 1s ease-in-out 3;box-shadow:0 0 0 3px #ffd76a}
+@keyframes keyhint{50%{box-shadow:0 0 16px 4px rgba(255,215,106,.9)}}
+#hintToast{position:fixed;top:64px;left:50%;transform:translateX(-50%);max-width:88vw;background:rgba(20,22,34,.96);border:1px solid rgba(255,215,106,.55);color:#ffe9a8;font-size:14px;line-height:1.7;padding:10px 16px;border-radius:12px;z-index:90;display:none;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#hintToast.show{display:block;animation:toastin .25s}
+@keyframes toastin{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 .hud{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
 .pill{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700}
 </style>
@@ -60,6 +65,7 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
   <div class="topbar">
     <div class="tb-title">🔤 猜单词 Wordle</div>
     <div class="tb-right">
+      <div class="iconbtn" id="hintBtn">💡</div>
       <div class="iconbtn" id="soundBtn">🔊</div>
       <div class="iconbtn hidden" id="pauseBtn">⏸</div>
     </div>
@@ -119,6 +125,7 @@ function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
 soundBtn.textContent=soundOn?'🔊':'🔇';
 soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
 pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('hintBtn').addEventListener('click',function(){ sClick(); wordleHint(); });
 $('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
 /* ===== 游戏：猜单词 ===== */
 const WORDS=['about','above','actor','acute','admit','adopt','adult','after','again','agent','agree','ahead','alarm','album','alert','alive','allow','alone','along','alter','among','angle','angry','apart','apple','apply','arena','argue','arise','arrow','aside','asset','audio','audit','avoid','award','aware','baker','beach','beast','begin','below','berry','birth','black','blade','blame','blank','blast','blend','bless','blind','block','blood','board','bonus','boost','booth','bound','brain','brand','brave','bread','break','brick','bride','brief','bring','brown','brush','build','bunch','buyer','cabin','cable','candy','carry','catch','cause','chain'];
@@ -219,6 +226,35 @@ function submit(){
       $('round').textContent=row+1;
     }
   },5*280+350);
+}
+var hintToastTimer=null;
+function showHintToast(html,ms){
+  var t=document.getElementById('hintToast');
+  if(!t){t=document.createElement('div');t.id='hintToast';document.body.appendChild(t);}
+  t.innerHTML=html;t.classList.add('show');
+  if(hintToastTimer)clearTimeout(hintToastTimer);
+  hintToastTimer=setTimeout(function(){t.classList.remove('show');},ms||4500);
+}
+function wordleHint(){
+  if(!playing||paused)return;
+  var revealed=[false,false,false,false,false],r,c;
+  for(r=0;r<6;r++)for(c=0;c<5;c++){
+    var t=document.getElementById('t'+r+'_'+c);
+    if(t&&t.classList.contains('correct')&&t.textContent.toLowerCase()===answer[c])revealed[c]=true;
+  }
+  var pos=-1;
+  for(c=0;c<5;c++)if(!revealed[c]){pos=c;break;}
+  if(pos<0){showHintToast('5 个字母位置都已确定，加油！');return;}
+  var ch=answer[pos].toUpperCase();
+  var keys=kbdEl.querySelectorAll('.key'),i;
+  for(i=0;i<keys.length;i++){
+    if(keys[i].dataset.k===answer[pos]){
+      keys[i].classList.remove('hinted');void keys[i].offsetWidth;keys[i].classList.add('hinted');
+      setTimeout((function(k){return function(){k.classList.remove('hinted');};})(keys[i]),3200);
+    }
+  }
+  sClick();
+  showHintToast('💡 第 <b>'+(pos+1)+'</b> 个字母是 <b>'+ch+'</b><br>键盘上已帮你闪烁标出');
 }
 function endGame(win){
   playing=false; pauseBtn.classList.add('hidden'); setPaused(false);

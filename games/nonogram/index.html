@@ -47,6 +47,11 @@ body{background:linear-gradient(160deg,#1a2a6c 0%,#121212 55%,#0a0a0a 100%);colo
 #fx{position:fixed;inset:0;pointer-events:none;z-index:50}
 .float{position:fixed;pointer-events:none;z-index:60;font-weight:700;font-size:18px;animation:floatup 1.1s ease-out forwards}
 @keyframes floatup{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-46px)}}
+#board td.cell.hinted{animation:hintflash 1.1s}
+@keyframes hintflash{0%,100%{box-shadow:inset 0 0 0 0 rgba(74,222,128,0)}50%{box-shadow:inset 0 0 0 3px #4ade80;background:rgba(74,222,128,.25)}}
+#hintToast{position:fixed;top:70px;left:50%;transform:translateX(-50%);max-width:88vw;background:rgba(20,22,34,.96);border:1px solid rgba(255,215,106,.55);color:#ffe9a8;font-size:13px;line-height:1.7;padding:10px 16px;border-radius:12px;z-index:90;display:none;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#hintToast.show{display:block;animation:toastin .25s}
+@keyframes toastin{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 #pauseov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px)}
 #pauseov.on{display:flex}
 .pausecard{background:#1c1c22;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:28px 36px;text-align:center;display:flex;flex-direction:column;gap:12px}
@@ -59,6 +64,7 @@ body{background:linear-gradient(160deg,#1a2a6c 0%,#121212 55%,#0a0a0a 100%);colo
     <span class="title">🧩 数织</span>
     <span class="stat">已完成 <b id="doneCnt">0</b>/4</span>
     <span>
+      <button class="tbtn" id="hintBtn">💡</button>
       <button class="tbtn" id="sndBtn">🔊</button>
       <button class="tbtn" id="pauseBtn">⏸</button>
     </span>
@@ -145,6 +151,94 @@ function bindCells(){var cells=document.querySelectorAll("#board td.cell");
   td.addEventListener("mouseover",function(){if(dragging&&!isTouch)apply(td)});
  })}
 var isTouch=false;addEventListener("touchstart",function(){isTouch=true},{passive:true});
+var hintToastTimer=null;
+function showHintToast(html,ms){
+  var t=$("hintToast");
+  if(!t){t=document.createElement("div");t.id="hintToast";document.body.appendChild(t);}
+  t.innerHTML=html;t.classList.add("show");
+  if(hintToastTimer)clearTimeout(hintToastTimer);
+  hintToastTimer=setTimeout(function(){t.classList.remove("show");},ms||4500);
+}
+/* 行逻辑求解：返回每格在所有合法排列中的确定值(1必填/-1必空/0分歧)，无解返回null */
+function lineSolve(n,clue,known){
+  var agree=new Array(n),i,found=0,cur=new Array(n);
+  for(i=0;i<n;i++){agree[i]=undefined;cur[i]=-1;}
+  function record(){
+    found++;
+    for(var k=0;k<n;k++){
+      if(agree[k]===undefined)agree[k]=cur[k];
+      else if(agree[k]!==cur[k])agree[k]=0;
+    }
+  }
+  function dfs(bi,pos){
+    var i,s,k,ok;
+    if(bi===clue.length){
+      for(i=pos;i<n;i++){if(known[i]===1)return;cur[i]=-1;}
+      record();
+      return;
+    }
+    var b=clue[bi],minRest=0;
+    for(k=bi;k<clue.length;k++)minRest+=clue[k];
+    minRest+=clue.length-bi-1;
+    for(s=pos;s+b<=n&&s+minRest<=n;s++){
+      ok=true;
+      for(i=pos;i<s;i++){if(known[i]===1){ok=false;break;}cur[i]=-1;}
+      if(!ok)continue;
+      if(s+b<n&&known[s+b]===1)continue;
+      for(i=s;i<s+b;i++){if(known[i]===-1){ok=false;break;}cur[i]=1;}
+      if(!ok){for(i=pos;i<s+b;i++)cur[i]=-1;continue;}
+      dfs(bi+1,s+b+1);
+      for(i=pos;i<s+b;i++)cur[i]=-1;
+      if(known[s]===1)break;
+    }
+  }
+  if(clue.length===0){
+    for(i=0;i<n;i++){if(known[i]===1)return null;agree[i]=-1;}
+    return agree;
+  }
+  dfs(0,0);
+  if(found===0)return null;
+  return agree;
+}
+function applyNonoHint(r,c,v,why){
+  grid[r][c]=v;
+  refresh();
+  var tds=document.querySelectorAll("#board td.cell"),td=null;
+  for(var i=0;i<tds.length;i++){
+    if(+tds[i].dataset.r===r&&+tds[i].dataset.c===c){td=tds[i];break;}
+  }
+  if(td){td.classList.remove("hinted");void td.offsetWidth;td.classList.add("hinted");}
+  sFill();
+  showHintToast("💡 "+why+"<br>→ 第"+(r+1)+"行第"+(c+1)+"列应该"+(v===1?"<b>涂色 ⬛</b>":"<b>打 ✕</b>")+"，已帮你填好");
+  checkWin();
+}
+function nonoHint(){
+  if(!$("s-game").classList.contains("on"))return;
+  var n=P.n,r,c,known,res;
+  for(r=0;r<n;r++){
+    known=[];for(c=0;c<n;c++)known.push(grid[r][c]);
+    res=lineSolve(n,P.rowC[r],known);
+    if(!res)continue;
+    for(c=0;c<n;c++){
+      if((res[c]===1||res[c]===-1)&&grid[r][c]===0){
+        applyNonoHint(r,c,res[c],"第"+(r+1)+"行按线索 ["+P.rowC[r].join(",")+"] 可确定");
+        return;
+      }
+    }
+  }
+  for(c=0;c<n;c++){
+    known=[];for(r=0;r<n;r++)known.push(grid[r][c]);
+    res=lineSolve(n,P.colC[c],known);
+    if(!res)continue;
+    for(r=0;r<n;r++){
+      if((res[r]===1||res[r]===-1)&&grid[r][c]===0){
+        applyNonoHint(r,c,res[r],"第"+(c+1)+"列按线索 ["+P.colC[c].join(",")+"] 可确定");
+        return;
+      }
+    }
+  }
+  showHintToast("💡 单看行/列暂时推不出确定格，试试把行列线索结合起来看");
+}
 function checkWin(){var n=P.n;for(var i=0;i<n;i++)for(var j=0;j<n;j++){var want=P.sol[i][j]==="X"?1:0;var got=grid[i][j]===1?1:0;if(want!==got)return}win()}
 function win(){clearInterval(timer);sWin();var cx=innerWidth/2,cy=innerHeight/3;for(var i=0;i<5;i++)setTimeout(function(){burst(cx+(Math.random()-.5)*220,cy+(Math.random()-.5)*140,["#ffd76a","#8ab4ff","#4ade80"][i%3],22)},i*140);
  if(doneList.indexOf(curIdx)<0){doneList.push(curIdx);store.set("done",doneList)}
@@ -162,6 +256,7 @@ $("btnHome").onclick=function(){sClick();show("s-start");renderLvls()};
 $("sndBtn").onclick=function(){soundOn=!soundOn;store.set("sound",soundOn);$("sndBtn").textContent=soundOn?"🔊":"🔇";if(soundOn)sClick()};
 $("sndBtn").textContent=soundOn?"🔊":"🔇";
 $("pauseBtn").onclick=function(){if(!$("s-game").classList.contains("on"))return;sClick();paused=true;$("pauseov").classList.add("on")};
+$("hintBtn").onclick=function(){sClick();nonoHint()};
 $("btnResume").onclick=function(){sClick();paused=false;$("pauseov").classList.remove("on")};
 $("btnQuit").onclick=function(){sClick();paused=false;$("pauseov").classList.remove("on");clearInterval(timer);show("s-start");renderLvls()};
 renderLvls();

@@ -44,6 +44,11 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
 .tcell.v0{color:#9fc2ff}
 .tcell.v1{color:#ffd76a}
 .tcell.err{border-color:#ff6b6b;animation:shake .35s}
+.tcell.hinted{animation:hintflash 1.1s;border-color:#ffd76a!important}
+@keyframes hintflash{0%,100%{box-shadow:0 0 0 0 rgba(255,215,106,0)}50%{box-shadow:0 0 14px 3px rgba(255,215,106,.8)}}
+#hintToast{position:fixed;top:64px;left:50%;transform:translateX(-50%);max-width:88vw;background:rgba(20,22,34,.96);border:1px solid rgba(255,215,106,.55);color:#ffe9a8;font-size:13px;line-height:1.7;padding:10px 16px;border-radius:12px;z-index:90;display:none;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#hintToast.show{display:block;animation:toastin .25s}
+@keyframes toastin{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 </style>
 </head>
 <body>
@@ -51,6 +56,7 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
   <div class="topbar">
     <div class="tb-title">🔢 二进制</div>
     <div class="tb-right">
+      <div class="iconbtn" id="hintBtn">💡</div>
       <div class="iconbtn" id="soundBtn">🔊</div>
       <div class="iconbtn hidden" id="pauseBtn">⏸</div>
     </div>
@@ -117,6 +123,7 @@ function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
 soundBtn.textContent=soundOn?'🔊':'🔇';
 soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
 pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('hintBtn').addEventListener('click',function(){ sClick(); takuzuHint(); });
 $('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
 /* ===== 游戏：二进制（谜题已验证唯一解） ===== */
 const PUZZLES=[
@@ -159,6 +166,82 @@ $('grid').addEventListener('pointerdown',function(e){
   grid[r][c]=grid[r][c]===-1?0:(grid[r][c]===0?1:-1);
   paintCell(t,grid[r][c]); sClick();
 });
+var hintToastTimer=null;
+function showHintToast(html,ms){
+  var t=document.getElementById('hintToast');
+  if(!t){t=document.createElement('div');t.id='hintToast';document.body.appendChild(t);}
+  t.innerHTML=html;t.classList.add('show');
+  if(hintToastTimer)clearTimeout(hintToastTimer);
+  hintToastTimer=setTimeout(function(){t.classList.remove('show');},ms||4500);
+}
+/* 二进制求解器：回溯+约束剪枝 */
+function takuzuSolve(g){
+  var n=g.length,half=n/2,b=g.map(function(r){return r.slice();});
+  function okPartial(){
+    var r,c,z,o,i;
+    for(r=0;r<n;r++){
+      z=0;o=0;
+      for(c=0;c<n;c++){if(b[r][c]===0)z++;else if(b[r][c]===1)o++;}
+      if(z>half||o>half)return false;
+      for(c=0;c+2<n;c++){var a=b[r][c];if(a!==-1&&a===b[r][c+1]&&a===b[r][c+2])return false;}
+    }
+    for(c=0;c<n;c++){
+      z=0;o=0;
+      for(r=0;r<n;r++){if(b[r][c]===0)z++;else if(b[r][c]===1)o++;}
+      if(z>half||o>half)return false;
+      for(r=0;r+2<n;r++){var a2=b[r][c];if(a2!==-1&&a2===b[r+1][c]&&a2===b[r+2][c])return false;}
+    }
+    return true;
+  }
+  function bt(){
+    var bi=-1,bj=-1,r,c,v;
+    for(r=0;r<n&&bi<0;r++)for(c=0;c<n;c++)if(b[r][c]===-1){bi=r;bj=c;break;}
+    if(bi<0){
+      var rows={},cols={};
+      for(r=0;r<n;r++){var k=b[r].join('');if(rows[k])return false;rows[k]=1;}
+      for(c=0;c<n;c++){var k2='';for(r=0;r<n;r++)k2+=b[r][c];if(cols[k2])return false;cols[k2]=1;}
+      return true;
+    }
+    for(v=0;v<=1;v++){b[bi][bj]=v;if(okPartial()&&bt())return true;}
+    b[bi][bj]=-1;return false;
+  }
+  return bt()?b:null;
+}
+function takuzuHint(){
+  if(!playing||paused)return;
+  var pz=PUZZLES[pi],n=pz.length,r,c;
+  var sol=takuzuSolve(grid);
+  if(!sol){showHintToast('💡 当前局面无解，请检查已填数字');return;}
+  var cand=null;
+  for(r=0;r<n&&!cand;r++)for(c=0;c<n;c++){
+    if(pz[r][c]===-1&&grid[r][c]===-1){cand=[r,c];break;}
+  }
+  if(!cand){showHintToast('已经填满了，点 ✅ 检查吧');return;}
+  r=cand[0];c=cand[1];
+  var v=sol[r][c],opp=1-v,reason='';
+  function gv(rr,cc){if(rr<0||rr>=n||cc<0||cc>=n)return -2;return grid[rr][cc];}
+  if((gv(r,c-2)===opp&&gv(r,c-1)===opp)||(gv(r,c-1)===opp&&gv(r,c+1)===opp)||(gv(r,c+1)===opp&&gv(r,c+2)===opp))
+    reason='第'+(r+1)+'行这里左右已有两个连续的 <b>'+opp+'</b>，再填 '+opp+' 就三连了，所以只能是 <b>'+v+'</b>';
+  else if((gv(r-2,c)===opp&&gv(r-1,c)===opp)||(gv(r-1,c)===opp&&gv(r+1,c)===opp)||(gv(r+1,c)===opp&&gv(r+2,c)===opp))
+    reason='第'+(c+1)+'列这里上下已有两个连续的 <b>'+opp+'</b>，再填 '+opp+' 就三连了，所以只能是 <b>'+v+'</b>';
+  else{
+    var half=n/2,zr=0,orr=0,zc=0,oc=0,cc;
+    for(cc=0;cc<n;cc++){if(grid[r][cc]===0)zr++;else if(grid[r][cc]===1)orr++;}
+    for(rr=0;rr<n;rr++){if(grid[rr][c]===0)zc++;else if(grid[rr][c]===1)oc++;}
+    if(v===0&&(orr===half||oc===half))
+      reason=(orr===half?('第'+(r+1)+'行已有 '+half+' 个 1'):('第'+(c+1)+'列已有 '+half+' 个 1'))+'，0 和 1 数量须各半，这里只能填 <b>0</b>';
+    else if(v===1&&(zr===half||zc===half))
+      reason=(zr===half?('第'+(r+1)+'行已有 '+half+' 个 0'):('第'+(c+1)+'列已有 '+half+' 个 0'))+'，0 和 1 数量须各半，这里只能填 <b>1</b>';
+    else
+      reason='按三条规则（数量各半/禁三连/行列不重复）推得这里是 <b>'+v+'</b>';
+  }
+  grid[r][c]=v;
+  var d=$('grid').children[r*n+c];
+  paintCell(d,v);
+  d.classList.remove('hinted');void d.offsetWidth;d.classList.add('hinted');
+  sClick();
+  showHintToast('💡 '+reason);
+}
 function validate(){
   const n=grid.length, half=n/2;
   const errs=[];
