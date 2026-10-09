@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>简易塔防</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#050507;overflow:hidden;overscroll-behavior:none}
+body{display:flex;justify-content:center;align-items:center;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#fff;-webkit-user-select:none;user-select:none}
+#wrap{position:relative;width:min(100vw,60vh);aspect-ratio:3/5;max-height:100vh;background:#121212;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.8)}
+@media (max-aspect-ratio:3/5){#wrap{width:100vw;height:100vh;aspect-ratio:auto}}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:10px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,10,16,.62);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;backdrop-filter:blur(4px);white-space:nowrap}
+.hudl{display:flex;gap:8px}
+.hbtns{display:flex;gap:8px;pointer-events:auto}
+.icobtn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(10,10,16,.62);color:#fff;font-size:17px;cursor:pointer;transition:transform .08s}
+.icobtn:active{transform:scale(.88)}
+#overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,8,10,.86);backdrop-filter:blur(6px);padding:28px;text-align:center}
+#overlay h1{font-size:36px}
+#overlay .sub{font-size:14px;color:#b0bec5;line-height:1.8;max-width:340px}
+#overlay .best{font-size:14px;color:#ffd54f;font-weight:600}
+#overlay .bigscore{font-size:52px;font-weight:800;color:#ffd54f}
+.btn{background:linear-gradient(135deg,#ffd54f,#ffb300);border:none;color:#3a2500;font-size:18px;font-weight:700;padding:14px 54px;border-radius:999px;cursor:pointer;box-shadow:0 6px 24px rgba(255,213,79,.4);transition:transform .1s}
+.btn:active{transform:scale(.93)}
+.btn2{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:15px;font-weight:600;padding:11px 34px;border-radius:999px;cursor:pointer;transition:transform .1s}
+.btn2:active{transform:scale(.93)}
+.row{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="hudl">
+    <div class="pill" id="goldPill">🪙 170</div>
+    <div class="pill" id="wavePill">第 1/10 波</div>
+    <div class="pill" id="hpPill">🏠 100</div>
+  </div>
+  <div class="hbtns">
+    <button class="icobtn" id="soundBtn">🔊</button>
+    <button class="icobtn" id="pauseBtn">⏸</button>
+  </div>
+</div>
+<div id="overlay"></div>
+</div>
+<script>
+'use strict';
+var W=480,H=800,CELL=48,OY=96;
+var COLS=10,ROWS=13;
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+cv.width=W;cv.height=H;
+var AC=null,soundOn=true;
+function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}return AC;}
+function tone(f,d,type,vol,delay){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(vol||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function noise(d,vol){if(!soundOn)return;try{var c=ac();if(!c)return;var n=(c.sampleRate*d)|0;var b=c.createBuffer(1,n,c.sampleRate);var ch=b.getChannelData(0);for(var i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);var s=c.createBufferSource();s.buffer=b;var g=c.createGain();g.gain.value=vol||0.25;s.connect(g);g.connect(c.destination);s.start();}catch(e){}}
+function toGame(e){var r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
+var lastTouch=0;
+function bindDown(fn){cv.addEventListener('touchstart',function(e){e.preventDefault();lastTouch=Date.now();fn(toGame(e.touches[0]));},{passive:false});cv.addEventListener('mousedown',function(e){if(Date.now()-lastTouch<800)return;fn(toGame(e));});}
+var HSKEY='g100_towerdef_hs';
+function getHS(){try{return parseInt(localStorage.getItem(HSKEY),10)||0;}catch(e){return 0;}}
+function setHS(v){try{localStorage.setItem(HSKEY,String(v));}catch(e){}}
+var parts=[],floats=[];
+function boom(x,y,color,n){n=n||14;for(var i=0;i<n;i++){var a=Math.random()*6.2832,s=40+Math.random()*180;parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:0,life:0.4+Math.random()*0.4,color:color,r:2+Math.random()*3});}}
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,t:0,color:color||'#fff'});}
+function updParts(dt){for(var i=parts.length-1;i>=0;i--){var p=parts[i];p.t+=dt;if(p.t>=p.life){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;}}
+function drawParts(){for(var i=0;i<parts.length;i++){var p=parts[i];ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.2832);ctx.fill();}ctx.globalAlpha=1;}
+function updFloats(dt){for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.t+=dt;f.y-=40*dt;if(f.t>1.1)floats.splice(i,1);}}
+function drawFloats(){ctx.textAlign='center';ctx.font='bold 19px sans-serif';for(var i=0;i<floats.length;i++){var f=floats[i];ctx.globalAlpha=Math.max(0,1-f.t/1.1);ctx.fillStyle=f.color;ctx.fillText(f.txt,f.x,f.y);}ctx.globalAlpha=1;}
+/* ---------- 地图 ---------- */
+var WP=[[0,240],[336,240],[336,432],[144,432],[144,624],[480,624]];
+function segDist(px,py,ax,ay,bx,by){var dx=bx-ax,dy=by-ay;var L2=dx*dx+dy*dy;var t=L2?((px-ax)*dx+(py-ay)*dy)/L2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));}
+function cellBlocked(gx,gy){var cx=gx*CELL+24,cy=OY+gy*CELL+24;for(var i=0;i<WP.length-1;i++){if(segDist(cx,cy,WP[i][0],WP[i][1],WP[i+1][0],WP[i+1][1])<40)return true;}return false;}
+/* ---------- 状态 ---------- */
+var state='menu',gold=0,baseHP=0,wave=0,score=0;
+var towers=[],enemies=[],shots=[];
+var phase='build',phaseT=0,spawnLeft=0,spawnT=0,waveTotal=0;
+var BUILD_COST=50;
+function reset(){gold=200;baseHP=100;wave=0;score=0;towers=[];enemies=[];shots=[];parts=[];floats=[];phase='build';phaseT=6;updHUD();}
+function updHUD(){document.getElementById('goldPill').textContent='🪙 '+gold;document.getElementById('wavePill').textContent='第 '+Math.max(1,wave)+'/10 波';document.getElementById('hpPill').textContent='🏠 '+Math.max(0,baseHP);}
+function startWave(){wave++;waveTotal=5+wave*2;spawnLeft=waveTotal;spawnT=0.5;phase='spawn';updHUD();floatText(W/2,300,'第 '+wave+' 波来袭！','#ff5252');tone(220,0.2,'sawtooth',0.14);tone(180,0.25,'sawtooth',0.14,0.18);}
+function spawnEnemy(){var hp=Math.round(24*(1+wave*0.35));enemies.push({wp:0,x:WP[0][0],y:WP[0][1],hp:hp,maxhp:hp,speed:52+wave*5,reward:8+wave*2,r:13+Math.min(6,wave)});}
+function towerStats(lv){return{dmg:Math.round(9*Math.pow(1.7,lv-1)),range:115+(lv-1)*12};}
+function upCost(t){return 40*t.level;}
+function buildAt(gx,gy){
+  if(gx<0||gx>=COLS||gy<0||gy>=ROWS)return;
+  for(var i=0;i<towers.length;i++){var t=towers[i];
+    if(t.gx===gx&&t.gy===gy){
+      if(t.level>=3){floatText(t.x,t.y-30,'已满级','#b0bec5');tone(200,0.1,'square',0.08);return;}
+      var c=upCost(t);
+      if(gold<c){floatText(t.x,t.y-30,'金币不足','#ff5252');tone(200,0.1,'square',0.08);return;}
+      gold-=c;t.level++;var st=towerStats(t.level);t.dmg=st.dmg;t.range=st.range;updHUD();floatText(t.x,t.y-30,'升级 Lv'+t.level+'!','#ffd54f');boom(t.x,t.y,'#ffd54f',14);tone(660,0.1,'square',0.1);tone(880,0.12,'square',0.1,0.08);return;}}
+  if(cellBlocked(gx,gy)){floatText(gx*CELL+24,OY+gy*CELL,'路线上不能建','#ff5252');return;}
+  if(gold<BUILD_COST){floatText(gx*CELL+24,OY+gy*CELL,'金币不足','#ff5252');tone(200,0.1,'square',0.08);return;}
+  gold-=BUILD_COST;var st2=towerStats(1);
+  towers.push({gx:gx,gy:gy,x:gx*CELL+24,y:OY+gy*CELL+24,level:1,dmg:st2.dmg,range:st2.range,rate:1.1,cd:0,ang:0});
+  updHUD();boom(gx*CELL+24,OY+gy*CELL+24,'#ffd54f',12);tone(520,0.1,'square',0.1);
+}
+function update(dt){
+  var i,j;
+  if(phase==='build'){phaseT-=dt;if(phaseT<=0)startWave();}
+  else if(phase==='spawn'){spawnT-=dt;if(spawnT<=0&&spawnLeft>0){spawnT=0.7;spawnLeft--;spawnEnemy();}if(spawnLeft<=0)phase='fight';}
+  else if(phase==='fight'){if(enemies.length===0){var bonus=30+wave*8;gold+=bonus;score+=wave*100;updHUD();floatText(W/2,300,'守住！+'+bonus+'🪙','#ffd54f');tone(660,0.12,'square',0.1);tone(880,0.15,'square',0.1,0.1);
+      if(wave>=10){gameOver(true);return;}phase='build';phaseT=5;}}
+  for(i=enemies.length-1;i>=0;i--){var e=enemies[i];var tgt=WP[e.wp+1];var dx=tgt[0]-e.x,dy=tgt[1]-e.y,d=Math.hypot(dx,dy);
+    if(d<6){e.wp++;if(e.wp>=WP.length-1){enemies.splice(i,1);var dmg=Math.round(5+wave*1.5);baseHP-=dmg;updHUD();boom(e.x,e.y,'#ff5252',18);noise(0.3,0.25);floatText(W-60,600,'-'+dmg,'#ff5252');tone(150,0.3,'sawtooth',0.15);if(baseHP<=0){baseHP=0;updHUD();gameOver(false);return;}continue;}}
+    else{e.x+=dx/d*e.speed*dt;e.y+=dy/d*e.speed*dt;}}
+  for(i=0;i<towers.length;i++){var tw=towers[i];tw.cd-=dt;var best=null,bd=1e9;
+    for(j=0;j<enemies.length;j++){var en=enemies[j];var dd=Math.hypot(en.x-tw.x,en.y-tw.y);if(dd<tw.range&&dd<bd){bd=dd;best=en;}}
+    if(best){tw.ang=Math.atan2(best.y-tw.y,best.x-tw.x);
+      if(tw.cd<=0){tw.cd=1/tw.rate;shots.push({x:tw.x,y:tw.y-6,target:best,dmg:tw.dmg,speed:480});tone(900,0.05,'square',0.05);}}}
+  for(i=shots.length-1;i>=0;i--){var sh=shots[i];
+    if(sh.target.hp<=0||enemies.indexOf(sh.target)<0){shots.splice(i,1);continue;}
+    var sx=sh.target.x-sh.x,sy=sh.target.y-sh.y,sd=Math.hypot(sx,sy);
+    if(sd<14){sh.target.hp-=sh.dmg;boom(sh.x,sh.y,'#ffeb3b',6);shots.splice(i,1);
+      if(sh.target.hp<=0){var ei=enemies.indexOf(sh.target);if(ei>=0){enemies.splice(ei,1);gold+=sh.target.reward;score+=10;updHUD();boom(sh.target.x,sh.target.y,'#ff7043',16);floatText(sh.target.x,sh.target.y,'+'+sh.target.reward+'🪙','#ffd54f');tone(740,0.08,'square',0.09);}}
+      continue;}
+    sh.x+=sx/sd*sh.speed*dt;sh.y+=sy/sd*sh.speed*dt;}
+  updParts(dt);updFloats(dt);
+}
+function gameOver(win){state='over';var hs=getHS();if(score>hs)setHS(score);if(win){tone(523,0.15,'square',0.12);tone(659,0.15,'square',0.12,0.12);tone(784,0.25,'square',0.12,0.24);}showEnd(win);}
+function render(){
+  var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#101418');g.addColorStop(1,'#161a12');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,.045)';ctx.lineWidth=1;
+  var gx,gy;
+  for(gx=0;gx<=COLS;gx++){ctx.beginPath();ctx.moveTo(gx*CELL,OY);ctx.lineTo(gx*CELL,OY+ROWS*CELL);ctx.stroke();}
+  for(gy=0;gy<=ROWS;gy++){ctx.beginPath();ctx.moveTo(0,OY+gy*CELL);ctx.lineTo(W,OY+gy*CELL);ctx.stroke();}
+  ctx.lineCap='round';ctx.strokeStyle='#3a3f4a';ctx.lineWidth=52;ctx.beginPath();ctx.moveTo(WP[0][0],WP[0][1]);
+  for(var i=1;i<WP.length;i++)ctx.lineTo(WP[i][0],WP[i][1]);ctx.stroke();
+  ctx.strokeStyle='rgba(255,213,79,.35)';ctx.lineWidth=3;ctx.setLineDash([12,10]);ctx.beginPath();ctx.moveTo(WP[0][0],WP[0][1]);
+  for(i=1;i<WP.length;i++)ctx.lineTo(WP[i][0],WP[i][1]);ctx.stroke();ctx.setLineDash([]);
+  ctx.font='40px sans-serif';ctx.textAlign='center';ctx.fillText('🏰',WP[WP.length-1][0]-24,WP[WP.length-1][1]+14);
+  ctx.fillStyle='rgba(255,82,82,.9)';ctx.font='bold 15px sans-serif';ctx.textAlign='left';ctx.fillText('◀ 进攻',8,WP[0][1]+5);
+  var j;
+  for(j=0;j<towers.length;j++){var t=towers[j];
+    ctx.fillStyle='rgba(255,213,79,'+(0.10+t.level*0.05)+')';ctx.beginPath();ctx.arc(t.x,t.y,t.range,0,6.2832);ctx.fill();
+    var tg=ctx.createLinearGradient(t.x,t.y-20,t.x,t.y+20);tg.addColorStop(0,'#78909c');tg.addColorStop(1,'#455a64');
+    ctx.fillStyle=tg;ctx.beginPath();ctx.arc(t.x,t.y,19,0,6.2832);ctx.fill();
+    ctx.strokeStyle='#263238';ctx.lineWidth=3;ctx.beginPath();ctx.arc(t.x,t.y,19,0,6.2832);ctx.stroke();
+    ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.ang);ctx.fillStyle='#263238';ctx.fillRect(0,-4,24,8);ctx.restore();
+    ctx.fillStyle='#ffd54f';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+    ctx.fillText('★'.repeat(t.level),t.x,t.y+5);}
+  for(j=0;j<enemies.length;j++){var e=enemies[j];
+    var eg=ctx.createRadialGradient(e.x-4,e.y-4,2,e.x,e.y,e.r+4);eg.addColorStop(0,'#ff8a80');eg.addColorStop(1,'#c62828');
+    ctx.fillStyle=eg;ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,6.2832);ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(e.x-e.r,e.y-e.r-9,e.r*2,5);
+    ctx.fillStyle='#69f0ae';ctx.fillRect(e.x-e.r,e.y-e.r-9,e.r*2*Math.max(0,e.hp/e.maxhp),5);}
+  ctx.fillStyle='#ffeb3b';
+  for(j=0;j<shots.length;j++){var s=shots[j];ctx.beginPath();ctx.arc(s.x,s.y,4,0,6.2832);ctx.fill();}
+  drawParts();drawFloats();
+  if(phase==='build'&&state==='playing'){ctx.fillStyle='rgba(255,255,255,.75)';ctx.font='bold 17px sans-serif';ctx.textAlign='center';ctx.fillText('第 '+Math.min(10,wave+1)+' 波 '+Math.ceil(phaseT)+' 秒后来袭',W/2,OY+ROWS*CELL+34);}
+  else if(phase!=='build'&&state==='playing'){ctx.fillStyle='rgba(255,255,255,.6)';ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('剩余敌人 '+enemies.length+' / 待出 '+spawnLeft,W/2,OY+ROWS*CELL+34);}
+}
+var ov=document.getElementById('overlay');
+function showMenu(){state='menu';ov.style.display='flex';ov.innerHTML='<h1>🗼</h1><h1 style="font-size:30px">简易塔防</h1><div class="sub">敌人沿路线进攻基地！<br><b>点击空格</b>花费 50🪙 建炮塔，<b>点击炮塔</b>花金币升级（最高 3 级）。<br>击杀赚金币，守住 <b>10 波</b>获胜。<br>漏怪会扣基地血量，血量归零则失败。</div><div class="best">🏆 历史最高分 '+getHS()+'</div><button class="btn" id="startBtn">开始布防</button>';
+  document.getElementById('startBtn').addEventListener('click',function(){ac();tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
+function showEnd(win){var hs=getHS();ov.style.display='flex';ov.innerHTML='<h1>'+(win?'🏆':'💥')+'</h1><h1 style="font-size:30px">'+(win?'守住了 10 波！':'基地被攻破')+'</h1><div class="bigscore">'+score+'</div><div class="best">🏆 历史最高分 '+hs+'</div><button class="btn" id="againBtn">再来一局</button>';
+  document.getElementById('againBtn').addEventListener('click',function(){tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
+function pauseGame(){if(state!=='playing')return;state='paused';ov.style.display='flex';ov.innerHTML='<h1>⏸</h1><h1 style="font-size:28px">已暂停</h1><div class="sub">第 '+Math.max(1,wave)+' 波 · 🪙'+gold+' · 🏠'+baseHP+'</div><div class="row"><button class="btn" id="resumeBtn">继续</button><button class="btn2" id="restartBtn">重来</button></div>';
+  document.getElementById('resumeBtn').addEventListener('click',function(){state='playing';ov.style.display='none';});
+  document.getElementById('restartBtn').addEventListener('click',function(){reset();state='playing';ov.style.display='none';});}
+bindDown(function(p){if(state!=='playing')return;var gx=(p.x/CELL)|0,gy=((p.y-OY)/CELL)|0;buildAt(gx,gy);});
+document.getElementById('pauseBtn').addEventListener('click',function(){pauseGame();});
+document.getElementById('soundBtn').addEventListener('click',function(){soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)tone(660,0.08,'square',0.1);});
+var last=0;
+function loop(t){requestAnimationFrame(loop);var dt=(t-last)/1000;last=t;if(!(dt>0)||dt>0.05)dt=0.016;if(state==='playing')update(dt);render();}
+reset();showMenu();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
