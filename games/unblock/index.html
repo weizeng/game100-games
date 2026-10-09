@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>挪车让路</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:linear-gradient(160deg,#241207 0%,#3d1f0e 55%,#200f06 100%);color:#f7efe8;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px 14px 22px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
+.title{font-size:19px;font-weight:800}
+.tbtns{display:flex;gap:8px}
+.iconbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:18px;width:42px;height:42px;border-radius:12px;cursor:pointer}
+.iconbtn:active{transform:scale(.94)}
+.stats{width:100%;display:flex;justify-content:space-around;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:10px 6px;box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:14px;color:#d8bfae}
+.stats b{color:#fff;font-size:18px;margin-left:4px}
+canvas{width:100%;height:auto;border-radius:16px;touch-action:none;box-shadow:0 8px 26px rgba(0,0,0,.45);background:#2a1a10}
+.btnrow{display:flex;gap:12px;width:100%}
+.btn{flex:1;border:none;border-radius:14px;padding:13px;font-size:17px;font-weight:800;color:#fff;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16)}
+.btn:active{transform:scale(.96)}
+.hint{color:#a68a76;font-size:13px;text-align:center;line-height:1.7}
+.overlay{position:fixed;inset:0;background:rgba(16,8,4,.88);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:30;padding:28px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:32px}
+.overlay h2{font-size:24px}
+.overlay p{color:#d8bfae;font-size:15px;line-height:1.9}
+.overlay .btn{flex:none;padding:13px 44px;min-width:200px;border:none;border-radius:14px;font-size:18px;font-weight:800;color:#fff;cursor:pointer}
+.overlay .btn:active{transform:scale(.96)}
+.overlay .btn.primary{background:linear-gradient(135deg,#ff7043,#f4511e)}
+.overlay .btn.ghost{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);font-size:16px;padding:11px 40px}
+.lvlgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;width:100%;max-width:400px}
+.lvl{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);border-radius:12px;padding:10px 2px;color:#fff;cursor:pointer;font-size:16px;font-weight:700}
+.lvl small{display:block;font-size:11px;color:#ffb74d;margin-top:3px;font-weight:400;letter-spacing:1px}
+.lvl:active{transform:scale(.94)}
+.stars{font-size:26px;color:#ffd54f;letter-spacing:4px}
+.statline{display:flex;gap:18px;color:#f0ddd0;font-size:15px}
+.statline b{color:#ffd54f;font-size:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="title">🚗 挪车让路 <span id="lvlLabel" style="font-size:14px;color:#c9a68c"></span></div>
+    <div class="tbtns">
+      <button class="iconbtn" id="muteBtn">🔊</button>
+      <button class="iconbtn" id="pauseBtn">⏸</button>
+    </div>
+  </div>
+  <div class="stats">
+    <span>步数<b id="moves">0</b></span>
+    <span>参考<b id="par">0</b></span>
+    <span>关卡<b id="clvl">1/20</b></span>
+  </div>
+  <canvas id="cv" width="480" height="480"></canvas>
+  <div class="btnrow">
+    <button class="btn" id="undoBtn">↩ 撤销</button>
+    <button class="btn" id="resetBtn">↺ 重来</button>
+  </div>
+  <p class="hint">拖动车辆（只能沿车身方向移动）<br>把 <b style="color:#ff5252">红色小车</b> 从右侧出口挪出去即过关</p>
+</div>
+
+<div class="overlay" id="startScr">
+  <h1>🚗 挪车让路</h1>
+  <p>20 关挪车，红车突围<br><br>👆 按住车辆沿车身方向拖动<br>🚗 横车左右移，竖车上下移<br>🎯 把红色小车送出右侧出口<br>⭐ 步数越少星级越高（1-3 星）<br>↩ 走错了可以撤销</p>
+  <button class="btn primary" id="startBtn">开始游戏</button>
+</div>
+
+<div class="overlay hidden" id="lvlScr">
+  <h2>选择关卡</h2>
+  <div class="lvlgrid" id="lvlGrid"></div>
+  <button class="btn ghost" id="lvlBack">返回</button>
+</div>
+
+<div class="overlay hidden" id="pauseScr">
+  <h2>⏸ 已暂停</h2>
+  <p>车辆们熄火等待中</p>
+  <button class="btn primary" id="resumeBtn">继续</button>
+  <button class="btn ghost" id="pauseRetryBtn">重来本关</button>
+  <button class="btn ghost" id="pauseLevelsBtn">选择关卡</button>
+</div>
+
+<div class="overlay hidden" id="winScr">
+  <h1>🎉 突围成功！</h1>
+  <div class="stars" id="wStars">★★★</div>
+  <div class="statline"><span>步数 <b id="wMoves">0</b></span><span>参考 <b id="wPar">0</b></span></div>
+  <p id="wNew" style="color:#ffd54f;font-weight:700"></p>
+  <button class="btn primary" id="nextBtn">下一关 →</button>
+  <button class="btn ghost" id="winRetryBtn">重玩本关</button>
+  <button class="btn ghost" id="winLevelsBtn">选择关卡</button>
+</div>
+
+<script>
+'use strict';
+/* ============ 工具 ============ */
+const $=id=>document.getElementById(id);
+function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function buzz(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms||50);}catch(e){}}
+
+/* ============ 音效（WebAudio 现场合成） ============ */
+const Snd={
+  ctx:null,
+  get muted(){return lsGet('unblock_mute',false);},
+  set muted(v){lsSet('unblock_mute',v);},
+  ensure(){
+    if(!this.ctx){try{this.ctx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+    if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume();
+  },
+  tone(f,dur,type,vol,delay,slideTo){
+    if(this.muted)return;this.ensure();if(!this.ctx)return;
+    const t=this.ctx.currentTime+(delay||0);
+    const o=this.ctx.createOscillator(),g=this.ctx.createGain();
+    o.type=type||'sine';o.frequency.setValueAtTime(f,t);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(slideTo,t+dur);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol||0.14,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g);g.connect(this.ctx.destination);
+    o.start(t);o.stop(t+dur+0.05);
+  },
+  click(){this.tone(660,0.06,'square',0.07);},
+  drag(){this.tone(240,0.08,'triangle',0.08,0,300);},
+  snap(){this.tone(520,0.07,'triangle',0.1,0,660);},
+  win(){const s=this;[523,659,784,1046,1318].forEach(function(f,i){s.tone(f,0.2,'triangle',0.13,i*0.09);});}
+};
+
+/* ============ 关卡数据（生成器+BFS已验证可解，par=最优拖动步数） ============ */
+const LEVELS=[{"cars":[[0,2,2,1],[3,4,2,0],[3,3,2,1]],"par":1},{"cars":[[0,2,2,1],[2,1,2,0],[2,3,2,1],[1,0,2,0]],"par":2},{"cars":[[0,2,2,1],[4,4,2,1],[3,2,2,0],[4,3,2,1],[5,1,2,0],[2,2,2,0],[0,0,2,0]],"par":4},{"cars":[[0,2,2,1],[5,2,3,0],[0,3,2,0],[2,1,2,0],[3,5,3,1],[3,0,3,1],[2,4,2,0]],"par":5},{"cars":[[0,2,2,1],[4,0,3,0],[0,4,2,1],[3,3,2,1],[5,1,2,0],[2,1,2,1],[3,4,2,1]],"par":5},{"cars":[[0,2,2,1],[2,0,2,0],[1,5,3,1],[1,4,3,1],[5,0,3,0],[2,2,2,0],[3,0,2,1],[1,0,2,0]],"par":7},{"cars":[[0,2,2,1],[4,3,2,1],[1,1,3,1],[3,2,2,0],[1,3,3,0],[5,0,3,0],[2,4,2,1],[0,0,2,0],[4,0,3,0]],"par":8},{"cars":[[0,2,2,1],[0,4,2,1],[3,1,2,0],[5,1,3,0],[2,0,3,0],[1,5,3,1],[3,3,2,0],[3,0,2,1]],"par":9},{"cars":[[0,2,2,1],[4,4,2,0],[5,2,3,0],[3,0,2,0],[0,5,3,1],[2,1,3,0],[4,1,2,0],[3,3,2,1]],"par":11},{"cars":[[0,2,2,1],[3,1,2,0],[3,5,2,1],[1,0,2,0],[4,3,2,0],[0,4,3,1],[2,3,2,1],[2,0,3,0],[5,3,3,0]],"par":11},{"cars":[[0,2,2,1],[3,1,2,1],[3,4,3,1],[1,5,2,1],[4,2,2,0],[2,2,3,0],[2,0,3,1],[5,2,2,0],[5,0,2,0],[3,2,2,0]],"par":11},{"cars":[[0,2,2,1],[0,4,2,0],[4,0,2,0],[4,2,2,0],[1,3,2,1],[2,1,2,0],[1,5,2,1],[1,0,3,1],[2,4,2,1]],"par":13},{"cars":[[0,2,2,1],[2,1,3,0],[5,1,2,0],[3,0,3,1],[0,0,2,1],[3,3,2,0],[0,3,2,0],[4,2,3,0],[1,4,2,1]],"par":15},{"cars":[[0,2,2,1],[3,1,3,1],[1,1,2,1],[0,3,2,0],[1,5,2,1],[5,4,2,0],[3,4,2,1],[2,3,2,0],[5,2,2,0],[3,2,2,0],[4,0,2,1],[1,0,3,1]],"par":15},{"cars":[[0,2,2,1],[2,3,3,0],[3,1,3,0],[5,2,3,0],[4,5,2,1],[5,0,2,0],[1,1,2,1],[0,4,2,0],[0,3,2,1]],"par":16},{"cars":[[0,2,2,1],[2,3,2,0],[4,0,3,0],[3,1,2,0],[0,0,3,1],[1,4,2,0],[4,3,2,1],[0,1,2,1],[4,4,2,1]],"par":17},{"cars":[[0,2,2,1],[5,2,2,0],[2,5,2,1],[0,0,3,1],[2,1,2,0],[1,3,3,1],[4,1,2,1],[4,5,2,1],[3,4,3,1],[4,0,2,1],[3,0,2,0]],"par":21},{"cars":[[0,2,2,1],[4,0,2,0],[5,4,2,0],[4,2,2,0],[1,4,2,0],[3,4,2,1],[1,3,2,1],[5,0,2,0],[2,4,2,0],[0,1,3,1]],"par":22},{"cars":[[0,2,2,1],[1,4,2,0],[3,5,2,1],[5,4,2,0],[2,3,2,0],[3,4,2,1],[1,1,3,1],[2,0,2,1],[5,2,2,0],[0,3,3,0],[0,0,2,0],[3,2,2,0]],"par":22},{"cars":[[0,2,2,1],[0,3,2,1],[3,2,3,0],[4,2,3,0],[5,0,2,0],[0,0,3,1],[1,4,2,1],[5,3,2,0],[3,0,2,0],[4,5,2,1],[4,0,2,0],[2,1,2,0],[0,4,2,0]],"par":22}];
+
+/* ============ 状态 ============ */
+const cv=$('cv'),g=cv.getContext('2d');
+const SZ=480,CELL=80,P=CELL-4,EXIT_ROW=2; // P=76 车辆格距
+const CAR_COLORS=['#FF7043','#4FC3F7','#AED581','#FFF176','#BA68C8','#4DB6AC','#FF8A65','#90A4AE','#F06292','#7986CB','#A1887F','#81D4FA','#80CBC4'];
+let li=0,cars=[],moves=0,history=[];
+let playing=false,paused=false,won=false,drag=null;
+let raf=0,lastT=0,parts=[];
+let stars=lsGet('unblock_stars',{});
+
+function loadLevel(l){
+  stopLoop();
+  li=l;won=false;drag=null;parts=[];
+  const lv=LEVELS[l];
+  cars=lv.cars.map(function(c,i){
+    return {x:c[0],y:c[1],len:c[2],h:c[3]===1,fx:c[0],fy:c[1],
+      color:i===0?'#E53935':CAR_COLORS[(i-1)%CAR_COLORS.length],target:i===0};
+  });
+  moves=0;history=[];
+  $('moves').textContent='0';
+  $('par').textContent=lv.par;
+  $('lvlLabel').textContent='第 '+(l+1)+' 关';
+  $('clvl').textContent=(l+1)+'/'+LEVELS.length;
+  hideAll();
+  playing=true;paused=false;
+  startLoop();
+}
+function stopLoop(){if(raf)cancelAnimationFrame(raf);raf=0;}
+function startLoop(){stopLoop();lastT=performance.now();raf=requestAnimationFrame(loop);}
+function hideAll(){['startScr','lvlScr','pauseScr','winScr'].forEach(function(id){$(id).classList.add('hidden');});}
+function positions(){return cars.map(function(c){return c.h?c.x:c.y;});}
+function restore(pos){cars.forEach(function(c,i){if(c.h){c.x=pos[i];c.fx=pos[i];}else{c.y=pos[i];c.fy=pos[i];}});}
+function occupancy(skip){
+  const o=[];
+  for(let x=0;x<6;x++){o.push([]);for(let y=0;y<6;y++)o[x].push(-1);}
+  cars.forEach(function(c,i){
+    if(i===skip)return;
+    for(let k=0;k<c.len;k++)o[c.h?c.x+k:c.x][c.h?c.y:c.y+k]=i;
+  });
+  return o;
+}
+function dragRange(i){
+  const c=cars[i],o=occupancy(i);
+  let lo,hi;
+  if(c.h){
+    lo=c.x;while(lo-1>=0&&o[lo-1][c.y]<0)lo--;
+    hi=c.x;while(hi+c.len<6&&o[hi+c.len][c.y]<0)hi++;
+    if(i===0&&hi>4)hi=4; // 红车最多到出口格
+  }else{
+    lo=c.y;while(lo-1>=0&&o[c.x][lo-1]<0)lo--;
+    hi=c.y;while(hi+c.len<6&&o[c.x][hi+c.len]<0)hi++;
+  }
+  return [lo,hi];
+}
+
+/* ============ 输入（拖动） ============ */
+let lastTouch=0;
+function evtPos(e){
+  const r=cv.getBoundingClientRect();
+  return {x:(e.clientX-r.left)/r.width*SZ,y:(e.clientY-r.top)/r.height*SZ};
+}
+function carAt(px,py){
+  for(let i=cars.length-1;i>=0;i--){
+    const c=cars[i];
+    const x0=c.fx*P+12,y0=c.fy*P+12;
+    const w=(c.h?c.len:1)*P,h=(c.h?1:c.len)*P;
+    if(px>=x0&&px<=x0+w&&py>=y0&&py<=y0+h)return i;
+  }
+  return -1;
+}
+function onDown(e){
+  if(!playing||paused||won)return;
+  const p=evtPos(e);
+  const i=carAt(p.x,p.y);
+  if(i<0)return;
+  const c=cars[i];
+  drag={i:i,range:dragRange(i),
+    startP:c.h?p.x:p.y,
+    orig:c.h?c.x:c.y};
+  Snd.drag();
+}
+function onMove(e){
+  if(!drag)return;
+  const p=evtPos(e);
+  const c=cars[drag.i];
+  const cur=c.h?p.x:p.y;
+  const np=Math.max(drag.range[0],Math.min(drag.range[1],drag.orig+(cur-drag.startP)/P));
+  if(c.h)c.fx=np;else c.fy=np;
+}
+function onUp(){
+  if(!drag)return;
+  const d=drag;drag=null;
+  const c=cars[d.i];
+  const cur=c.h?c.fx:c.fy;
+  const np=Math.round(Math.max(d.range[0],Math.min(d.range[1],cur)));
+  if(c.h)c.fx=np;else c.fy=np;
+  if(np!==d.orig){
+    history.push(positions());
+    if(c.h)c.x=np;else c.y=np;
+    moves++;$('moves').textContent=moves;
+    Snd.snap();buzz(25);
+    if(d.i===0&&np===4)doWin();
+  }else{
+    if(c.h)c.fx=d.orig;else c.fy=d.orig;
+  }
+}
+cv.addEventListener('touchstart',function(e){e.preventDefault();lastTouch=Date.now();Snd.ensure();onDown(e.touches[0]);},{passive:false});
+cv.addEventListener('touchmove',function(e){e.preventDefault();onMove(e.touches[0]);},{passive:false});
+cv.addEventListener('touchend',function(e){e.preventDefault();onUp();},{passive:false});
+cv.addEventListener('touchcancel',function(){onUp();});
+cv.addEventListener('mousedown',function(e){if(Date.now()-lastTouch<600)return;Snd.ensure();onDown(e);});
+cv.addEventListener('mousemove',function(e){if(Date.now()-lastTouch<600)return;onMove(e);});
+cv.addEventListener('mouseup',function(e){if(Date.now()-lastTouch<600)return;onUp();});
+
+/* ============ 胜利 ============ */
+function starCount(mv,par){
+  if(mv<=par)return 3;
+  if(mv<=par+Math.max(2,Math.ceil(par*0.5)))return 2;
+  return 1;
+}
+function doWin(){
+  won=true;playing=false;
+  Snd.win();buzz(80);
+  const lv=LEVELS[li],st=starCount(moves,lv.par);
+  const prev=stars[li]||0,isNew=st>prev;
+  if(isNew){stars[li]=st;lsSet('unblock_stars',stars);}
+  const red=cars[0];
+  let slideT=0;
+  const slide=function(){
+    slideT+=0.035;red.fx=4+slideT*3.4;
+    if(slideT<1)requestAnimationFrame(slide);
+  };
+  slide();
+  const cols=['#ffd54f','#ff7043','#fff176','#aed581'];
+  for(let i=0;i<80;i++)parts.push({x:380+Math.random()*100,y:180+Math.random()*80,vx:120+Math.random()*220,vy:-60-Math.random()*160,life:1.6,max:1.6,c:cols[(Math.random()*4)|0],s:3+Math.random()*4,grav:300,conf:true});
+  setTimeout(function(){
+    stopLoop();
+    $('wMoves').textContent=moves;$('wPar').textContent=lv.par;
+    let ss='';for(let i=0;i<3;i++)ss+=i<st?'★':'☆';
+    $('wStars').textContent=ss;
+    $('wNew').textContent=isNew?'🏆 新纪录！':'';
+    $('nextBtn').style.display=(li<LEVELS.length-1)?'':'none';
+    $('winScr').classList.remove('hidden');
+  },850);
+}
+
+/* ============ 主循环 ============ */
+function loop(t){
+  raf=requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(t-lastT)/1000);lastT=t;
+  for(let i=0;i<cars.length;i++){
+    if(drag&&drag.i===i)continue;
+    const c=cars[i];
+    if(c.h&&Math.abs(c.fx-c.x)>0.001)c.fx+=(c.x-c.fx)*Math.min(1,dt*18);
+    if(!c.h&&Math.abs(c.fy-c.y)>0.001)c.fy+=(c.y-c.fy)*Math.min(1,dt*18);
+  }
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];p.life-=dt;
+    if(p.life<=0){parts.splice(i,1);continue;}
+    p.vy+=(p.grav||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;
+  }
+  render();
+}
+
+/* ============ 绘制 ============ */
+function rr(x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);
+  g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();
+}
+function shade(hex,amt){
+  const n=parseInt(hex.slice(1),16);
+  let r=(n>>16)+amt,gc=((n>>8)&255)+amt,b=(n&255)+amt;
+  r=Math.max(0,Math.min(255,r));gc=Math.max(0,Math.min(255,gc));b=Math.max(0,Math.min(255,b));
+  return '#'+((r<<16)|(gc<<8)|b).toString(16).padStart(6,'0');
+}
+function render(){
+  g.clearRect(0,0,SZ,SZ);
+  const ox=(SZ-6*P)/2,oy=(SZ-6*P)/2;
+  g.fillStyle='#312013';rr(2,2,SZ-4,SZ-4,14);g.fill();
+  g.fillStyle='#241708';rr(ox-4,oy-4,6*P+8,6*P+8,12);g.fill();
+  for(let y=0;y<6;y++)for(let x=0;x<6;x++){
+    if((x+y)%2===0){g.fillStyle='rgba(255,255,255,0.03)';g.fillRect(ox+x*P,oy+y*P,P,P);}
+  }
+  g.strokeStyle='rgba(255,255,255,0.07)';g.lineWidth=1;
+  for(let i=0;i<=6;i++){
+    g.beginPath();g.moveTo(ox+i*P,oy);g.lineTo(ox+i*P,oy+6*P);g.stroke();
+    g.beginPath();g.moveTo(ox,oy+i*P);g.lineTo(ox+6*P,oy+i*P);g.stroke();
+  }
+  // 出口：在右侧边框 row2 处开缺口 + 箭头
+  const ey=oy+EXIT_ROW*P;
+  g.fillStyle='#2a1a10';
+  g.fillRect(ox+6*P-3,ey+2,15,P-4);
+  g.fillStyle='#ff7043';
+  g.font='bold 26px sans-serif';g.textAlign='center';g.textBaseline='middle';
+  g.fillText('▶',ox+6*P-12,ey+P/2);
+  // 车辆
+  const di=drag?drag.i:-1;
+  for(let i=0;i<cars.length;i++){
+    const c=cars[i];
+    const w=(c.h?c.len:1)*P-8,h=(c.h?1:c.len)*P-8;
+    const x=ox+c.fx*P+4,y=oy+c.fy*P+4;
+    g.save();
+    if(i===di){g.shadowColor='rgba(0,0,0,0.6)';g.shadowBlur=14;g.shadowOffsetY=5;}
+    const gr=g.createLinearGradient(x,y,x,y+h);
+    gr.addColorStop(0,shade(c.color,30));gr.addColorStop(0.5,c.color);gr.addColorStop(1,shade(c.color,-32));
+    g.fillStyle=gr;rr(x,y,w,h,13);g.fill();
+    g.strokeStyle='rgba(0,0,0,0.35)';g.lineWidth=2;rr(x,y,w,h,13);g.stroke();
+    g.fillStyle='rgba(255,255,255,0.26)';
+    if(c.h){rr(x+w*0.16,y+h*0.2,w*0.68,h*0.6,8);g.fill();}
+    else{rr(x+w*0.2,y+h*0.12,w*0.6,h*0.32,8);g.fill();}
+    if(c.target){
+      g.fillStyle='rgba(255,255,255,0.9)';
+      g.font='bold 22px sans-serif';g.textAlign='center';g.textBaseline='middle';
+      g.fillText('★',x+w/2,y+h/2+1);
+    }
+    g.restore();
+  }
+  for(let i=0;i<parts.length;i++){
+    const p=parts[i];
+    g.globalAlpha=Math.max(0,p.life/p.max);
+    g.fillStyle=p.c;
+    if(p.conf){g.save();g.translate(p.x,p.y);g.rotate(p.life*5);g.fillRect(-p.s/2,-p.s/3,p.s,p.s*0.66);g.restore();}
+    else{g.beginPath();g.arc(p.x,p.y,p.s,0,Math.PI*2);g.fill();}
+  }
+  g.globalAlpha=1;
+}
+
+/* ============ 界面 ============ */
+function starStr(s){let r='';for(let i=0;i<3;i++)r+=i<s?'★':'☆';return r;}
+function buildLevels(){
+  const gr=$('lvlGrid');gr.innerHTML='';
+  LEVELS.forEach(function(lv,i){
+    const b=document.createElement('button');
+    b.className='lvl';
+    const s=stars[i]||0;
+    b.innerHTML=(i+1)+'<small>'+(s?starStr(s):'未过关')+'</small>';
+    b.addEventListener('click',function(){Snd.ensure();Snd.click();buzz(20);loadLevel(i);});
+    gr.appendChild(b);
+  });
+}
+$('startBtn').addEventListener('click',function(){Snd.ensure();Snd.click();buzz(30);buildLevels();$('startScr').classList.add('hidden');$('lvlScr').classList.remove('hidden');});
+$('lvlBack').addEventListener('click',function(){Snd.click();$('lvlScr').classList.add('hidden');$('startScr').classList.remove('hidden');});
+$('undoBtn').addEventListener('click',function(){
+  if(!playing||paused||won||!history.length)return;
+  restore(history.pop());
+  moves=Math.max(0,moves-1);$('moves').textContent=moves;
+  Snd.click();
+});
+$('resetBtn').addEventListener('click',function(){if(!playing||paused)return;Snd.click();loadLevel(li);});
+$('pauseBtn').addEventListener('click',function(){
+  if(!playing||paused||won||drag)return;
+  Snd.click();paused=true;stopLoop();$('pauseScr').classList.remove('hidden');
+});
+$('resumeBtn').addEventListener('click',function(){Snd.click();$('pauseScr').classList.add('hidden');paused=false;startLoop();});
+$('pauseRetryBtn').addEventListener('click',function(){Snd.click();loadLevel(li);});
+$('pauseLevelsBtn').addEventListener('click',function(){Snd.click();$('pauseScr').classList.add('hidden');buildLevels();$('lvlScr').classList.remove('hidden');});
+$('nextBtn').addEventListener('click',function(){Snd.click();loadLevel(li+1);});
+$('winRetryBtn').addEventListener('click',function(){Snd.click();loadLevel(li);});
+$('winLevelsBtn').addEventListener('click',function(){Snd.click();buildLevels();$('winScr').classList.add('hidden');$('lvlScr').classList.remove('hidden');});
+function refreshMute(){$('muteBtn').textContent=Snd.muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(){Snd.ensure();Snd.muted=!Snd.muted;refreshMute();if(!Snd.muted)Snd.click();});
+refreshMute();
+document.addEventListener('visibilitychange',function(){if(document.hidden&&playing&&!paused&&!won)$('pauseBtn').click();});
+</script>
+</body>
+</html>
