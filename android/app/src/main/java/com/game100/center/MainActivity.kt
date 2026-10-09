@@ -2,6 +2,7 @@ package com.game100.center
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -11,6 +12,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.drawable.DrawableCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -47,6 +49,9 @@ class MainActivity : AppCompatActivity() {
         selectedCat = savedInstanceState?.getString("selectedCat") ?: "全部"
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
+        toolbar.menu.findItem(R.id.action_refresh)?.icon?.let {
+            DrawableCompat.setTint(it, getColor(R.color.text_primary))
+        }
         toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_refresh -> {
@@ -70,6 +75,7 @@ class MainActivity : AppCompatActivity() {
         recycler.adapter = adapter
 
         swipe = findViewById(R.id.swipe)
+        swipe.setColorSchemeResources(R.color.brand, R.color.accent)
         swipe.setOnRefreshListener { refreshRemote(silent = false) }
 
         buildCategoryChips()
@@ -106,10 +112,13 @@ class MainActivity : AppCompatActivity() {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(20).toFloat()
             if (selected) {
-                setColor(getColor(R.color.brand))
+                orientation = GradientDrawable.Orientation.TL_BR
+                colors = intArrayOf(
+                    Color.parseColor("#FF6F61"),
+                    Color.parseColor("#FFB84D")
+                )
             } else {
-                setColor(getColor(android.R.color.transparent))
-                setStroke(dp(1), getColor(R.color.text_secondary))
+                setColor(getColor(R.color.bg_chip))
             }
         }
     }
@@ -118,7 +127,8 @@ class MainActivity : AppCompatActivity() {
         for (i in categories.indices) {
             val sel = categories[i] == selectedCat
             chipViews[i].background = chipBg(sel)
-            chipViews[i].setTextColor(getColor(if (sel) android.R.color.white else R.color.text_primary))
+            chipViews[i].setTextColor(getColor(if (sel) android.R.color.white else R.color.text_secondary))
+            chipViews[i].setTypeface(null, if (sel) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         }
     }
 
@@ -135,11 +145,11 @@ class MainActivity : AppCompatActivity() {
     private fun showItems(items: List<GameItem>) {
         allItems = items
         applyFilter()
+        findViewById<TextView>(R.id.tv_subtitle).text =
+            getString(R.string.subtitle_games, items.size)
     }
 
     // ---------- App 自升级 ----------
-
-    private var updateDialog: AlertDialog? = null
 
     private fun checkAppUpdate() {
         if (!AppUpdater.shouldCheck(this)) return
@@ -148,51 +158,9 @@ class MainActivity : AppCompatActivity() {
                 val info = AppUpdater.fetchInfo() ?: return@launch
                 AppUpdater.markChecked(this@MainActivity)
                 if (!AppUpdater.hasUpdate(info)) return@launch
-                withContext(Dispatchers.Main) { showUpdateDialog(info) }
+                withContext(Dispatchers.Main) { AppUpdater.showUpdateFlow(this@MainActivity, info) }
             } catch (e: Exception) {
                 // 检查失败静默，下次启动再试
-            }
-        }
-    }
-
-    @SuppressLint("SetTextI18n")
-    private fun showUpdateDialog(info: AppUpdater.AppInfo) {
-        val msg = "发现新版本 v${info.versionName}\n\n${info.changelog}".trim()
-        AlertDialog.Builder(this)
-            .setTitle("应用有更新")
-            .setMessage(msg)
-            .setPositiveButton("立即更新") { _, _ -> downloadAndInstall(info) }
-            .setNegativeButton("稍后再说", null)
-            .show()
-    }
-
-    private fun downloadAndInstall(info: AppUpdater.AppInfo) {
-        val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = 100
-            val pad = dp(24)
-            setPadding(pad, dp(8), pad, dp(16))
-        }
-        updateDialog = AlertDialog.Builder(this)
-            .setTitle("正在下载 v${info.versionName}")
-            .setView(bar)
-            .setCancelable(false)
-            .show()
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val apk = AppUpdater.downloadApk(this@MainActivity, info.apkUrl) { p ->
-                    lifecycleScope.launch(Dispatchers.Main) { bar.progress = p }
-                }
-                withContext(Dispatchers.Main) {
-                    updateDialog?.dismiss()
-                    updateDialog = null
-                    AppUpdater.installApk(this@MainActivity, apk)
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    updateDialog?.dismiss()
-                    updateDialog = null
-                    toast("更新包下载失败：${e.message}")
-                }
             }
         }
     }

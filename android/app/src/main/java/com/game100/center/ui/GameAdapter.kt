@@ -1,5 +1,6 @@
 package com.game100.center.ui
 
+import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
@@ -21,6 +22,31 @@ class GameAdapter(
         val DIFF = object : DiffUtil.ItemCallback<GameItem>() {
             override fun areItemsTheSame(a: GameItem, b: GameItem) = a.id == b.id
             override fun areContentsTheSame(a: GameItem, b: GameItem) = a == b
+        }
+
+        /** 游戏色 → 深色的对角渐变，用作图标底 */
+        fun tileBackground(ctx: Context, colorStr: String): GradientDrawable {
+            val base = try {
+                Color.parseColor(colorStr)
+            } catch (e: Exception) {
+                Color.parseColor("#607D8B")
+            }
+            val dark = darken(base, 0.45f)
+            return GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(base, dark)
+            ).apply {
+                val r = (20 * ctx.resources.displayMetrics.density)
+                cornerRadii = floatArrayOf(r, r, r, r, r, r, r, r)
+            }
+        }
+
+        private fun darken(color: Int, factor: Float): Int {
+            return Color.rgb(
+                (Color.red(color) * factor).toInt(),
+                (Color.green(color) * factor).toInt(),
+                (Color.blue(color) * factor).toInt()
+            )
         }
     }
 
@@ -44,24 +70,18 @@ class GameAdapter(
 
     override fun onBindViewHolder(h: VH, position: Int) {
         val item = getItem(position)
+        val ctx = h.itemView.context
         h.icon.text = item.icon
         h.name.text = item.name
         h.desc.text = item.desc
         h.desc.visibility = if (item.desc.isBlank()) View.GONE else View.VISIBLE
         h.catChip.text = item.category
-        val bg = GradientDrawable()
-        try {
-            bg.setColor(Color.parseColor(item.color))
-        } catch (e: Exception) {
-            bg.setColor(Color.parseColor("#607D8B"))
-        }
-        h.iconBg.background = bg
+        h.iconBg.background = tileBackground(ctx, item.color)
 
         h.badge.visibility = if (item.hasUpdate) View.VISIBLE else View.GONE
         h.dlBadge.visibility = if (item.canDownload) View.VISIBLE else View.GONE
 
-        val ctx = h.itemView.context
-        h.status.text = when {
+        val statusText = when {
             item.hasUpdate -> "v${item.installedVersion} → v${item.remote!!.version}"
             item.installed -> ctx.getString(R.string.version_format, item.installedVersion)
             item.canDownload -> {
@@ -69,8 +89,10 @@ class GameAdapter(
                 if (kb > 0) "${ctx.getString(R.string.not_installed)} · ${kb}KB"
                 else ctx.getString(R.string.not_installed)
             }
-            else -> item.desc
+            else -> ""
         }
+        h.status.text = statusText
+        h.status.visibility = if (statusText.isBlank()) View.GONE else View.VISIBLE
 
         h.itemView.setOnClickListener { onClick(item) }
         h.itemView.setOnLongClickListener { onLongClick(item); true }
