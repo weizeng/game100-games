@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>跳一跳</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.topbar b{color:#66BB6A;font-size:22px}
+.iconbtn{background:#1e1e1e;border:1px solid #333;color:#fff;font-size:18px;min-width:40px;height:40px;border-radius:10px;cursor:pointer}
+.iconbtn:active{transform:scale(.92)}
+canvas{background:linear-gradient(180deg,#0e1a14 0%,#121212 70%);border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px;border:1px solid #222}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9}
+.btn{background:linear-gradient(135deg,#66BB6A,#2E7D32);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;box-shadow:0 4px 14px rgba(102,187,106,.35)}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;box-shadow:none}
+.hint{color:#888;font-size:13px;text-align:center;line-height:1.7}
+.rowbtns{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🐧 跳一跳</span><span>得分 <b id="score">0</b></span><span><button class="iconbtn" id="pauseBtn">⏸</button> <button class="iconbtn" id="soundBtn">🔊</button></span></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<p class="hint">按住屏幕蓄力，松手跳向下一个平台<br>落在平台中心得 +2 分，掉下去结束</p>
+</div>
+<div class="overlay" id="startScr"><h1>🐧 跳一跳</h1><p>按住屏幕任意位置开始蓄力<br>蓄力越久跳得越远，松手起跳<br>落在下一个平台上 +1 分<br>🎯 落在平台中心区域 +2 分<br>掉进缝隙则游戏结束<br>平台会越来越窄，加油！</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">掉下去了！</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d'),W=400,H=560;
+let AC=null,soundOn=true;try{soundOn=localStorage.getItem('g100_sound')!=='0';}catch(e){}
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,d,type,vol,when){if(!soundOn)return;const a=ac();if(!a)return;type=type||'sine';vol=vol||0.15;when=when||0;const t=a.currentTime+when;const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}
+function sJump(){tone(300,0.18,'sine',0.14);tone(500,0.15,'sine',0.1,0.08);}
+function sLand(){tone(520,0.1,'triangle',0.14);}
+function sPerfect(){[660,880,1174].forEach((f,i)=>tone(f,0.14,'triangle',0.14,i*0.07));}
+function sFall(){tone(500,0.5,'sawtooth',0.12);tone(250,0.6,'sawtooth',0.12,0.15);}
+function getBest(k){try{return parseInt(localStorage.getItem(k)||'0',10)||0;}catch(e){return 0;}}
+function setBest(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+const BESTK='g100_jump_best';
+const GY=430,MAXD=360,CHARGE_T=90;
+let plats,px,py,camX,score,state,paused,phase,power,jump,parts,floats,raf,best,landX,chargeSndT;
+
+function platW(){return Math.max(52,96-score*1.4);}
+function nextGap(){return 70+Math.random()*110+Math.min(60,score*1.5);}
+function reset(){plats=[{x:40,w:120}];landX=100;const g=nextGap(),w=platW();plats.push({x:plats[0].x+plats[0].w+g,w:w});px=landX;py=GY;camX=0;score=0;phase='idle';power=0;jump=null;parts=[];floats=[];paused=false;$('score').textContent='0';}
+function startGame(){reset();state='play';hide('startScr');hide('overScr');hide('pauseScr');}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function sx(x){return x-camX;}
+function burst(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=1+Math.random()*2.5;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:26+Math.random()*16,color});}}
+function doJump(){const dist=power*MAXD;const dur=0.42+power*0.3;jump={t:0,dur:dur,x0:px,dist:dist,peak:70+power*70};phase='jump';sJump();}
+function land(){const lx=px;const tgt=plats[1];let ok=false,perfect=false;
+if(lx>=tgt.x&&lx<=tgt.x+tgt.w){ok=true;const c=tgt.x+tgt.w/2;if(Math.abs(lx-c)<tgt.w*0.22){perfect=true;score+=2;floats.push({x:sx(lx),y:GY-70,t:'完美 +2',life:60,color:'#ffd740'});sPerfect();}else{score+=1;floats.push({x:sx(lx),y:GY-70,t:'+1',life:50,color:'#a5d6a7'});sLand();}}
+if(ok){burst(sx(lx),GY,'#66BB6A',10);landX=lx;plats.shift();const g=nextGap(),w=platW();const last=plats[plats.length-1];plats.push({x:last.x+last.w+g,w:w});px=lx;phase='idle';power=0;$('score').textContent=score;}
+else{phase='fall';sFall();}}
+function gameOver(){state='over';const b=getBest(BESTK);let best=b;if(score>best){best=score;setBest(BESTK,score);}$('overText').innerHTML='得分：<b style="color:#66BB6A">'+score+'</b><br>最高分：'+best;show('overScr');}
+
+function onDown(e){if(state!=='play'||paused||phase!=='idle')return;ac();phase='charge';power=0;chargeSndT=0;if(e.cancelable)e.preventDefault();}
+function onUp(e){if(state!=='play'||paused||phase!=='charge')return;doJump();if(e.cancelable)e.preventDefault();}
+cv.addEventListener('touchstart',onDown,{passive:false});
+cv.addEventListener('touchend',onUp,{passive:false});
+cv.addEventListener('touchcancel',onUp,{passive:false});
+cv.addEventListener('mousedown',onDown);
+window.addEventListener('mouseup',onUp);
+
+function drawPlat(p){const x=sx(p.x);if(x>W+40||x+p.w<-40)return;const g=ctx.createLinearGradient(0,GY-26,0,GY);g.addColorStop(0,'#2e4a38');g.addColorStop(1,'#1b2b21');ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(x,GY-26,p.w,26,8);ctx.fill();ctx.fillStyle='rgba(102,187,106,.35)';ctx.fillRect(x+4,GY-26,p.w-8,4);
+const c=p.x+p.w/2;ctx.fillStyle='rgba(255,215,64,.5)';ctx.beginPath();ctx.roundRect(sx(c-p.w*0.22),GY-26,p.w*0.44,26,6);ctx.fill();}
+function drawPlayer(x,y,squash){ctx.save();ctx.translate(x,y);ctx.scale(1,1-squash*0.25);
+const g=ctx.createLinearGradient(0,-46,0,0);g.addColorStop(0,'#90caf9');g.addColorStop(1,'#42a5f5');ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(-13,-46,26,34,10);ctx.fill();
+ctx.fillStyle='#ffcc80';ctx.beginPath();ctx.arc(0,-52,11,0,7);ctx.fill();
+ctx.fillStyle='#212121';ctx.beginPath();ctx.arc(-4,-54,2.4,0,7);ctx.arc(4,-54,2.4,0,7);ctx.fill();ctx.restore();}
+function draw(){ctx.clearRect(0,0,W,H);
+ctx.fillStyle='rgba(255,255,255,.05)';for(let i=0;i<6;i++){ctx.beginPath();ctx.arc(60+i*70,90+(i%3)*40,22,0,7);ctx.fill();}
+for(const p of plats)drawPlat(p);
+let drawY=py,drawX=sx(px),sq=0;
+if(phase==='charge'){sq=power*0.8;const pr=26+power*46;ctx.strokeStyle='rgba(255,215,64,.85)';ctx.lineWidth=5;ctx.beginPath();ctx.arc(sx(px),GY-24,pr,-Math.PI/2,-Math.PI/2+power*Math.PI*2);ctx.stroke();}
+if(phase==='jump'&&jump){const t=Math.min(1,jump.t/jump.dur);const e=t;drawX=sx(jump.x0+jump.dist*e);drawY=GY-4*jump.peak*e*(1-e);}
+if(phase==='fall'){drawY=py+ (fallT*fallT)*0.6;}
+drawPlayer(drawX,drawY,sq);
+for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/42);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/60);ctx.fillStyle=f.color||'#fff';ctx.font='bold 20px sans-serif';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
+if(phase==='charge'){ctx.fillStyle='#ffd740';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText('蓄力 '+Math.round(power*100)+'%',W/2,120);ctx.textAlign='left';}
+}
+let fallT=0;
+function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){
+if(phase==='charge'){power=Math.min(1,power+1/CHARGE_T);chargeSndT++;if(chargeSndT%18===0)tone(200+power*400,0.06,'sine',0.05);if(power>=1)doJump();}
+else if(phase==='jump'&&jump){jump.t++;if(jump.t>=jump.dur){px=jump.x0+jump.dist;py=GY;jump=null;fallT=0;land();}}
+else if(phase==='fall'){fallT++;if(fallT>40)gameOver();}
+const targetX=px-W*0.32;camX+=(targetX-camX)*0.08;
+for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life--;}parts=parts.filter(p=>p.life>0);
+for(const f of floats){f.y-=0.6;f.life--;}floats=floats.filter(f=>f.life>0);}
+draw();}
+$('startBtn').onclick=()=>{ac();startGame();};
+$('restartBtn').onclick=()=>{ac();startGame();};
+$('restartBtn2').onclick=()=>{ac();startGame();};
+$('resumeBtn').onclick=()=>{paused=false;hide('pauseScr');};
+$('pauseBtn').onclick=()=>{if(state!=='play')return;paused=!paused;if(paused)show('pauseScr');else hide('pauseScr');};
+$('soundBtn').onclick=function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}this.textContent=soundOn?'🔊':'🔇';};
+$('soundBtn').textContent=soundOn?'🔊':'🔇';
+state='start';reset();loop();
+</script>
+</body>
+</html>
