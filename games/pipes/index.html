@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>水管工</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:linear-gradient(160deg,#0b1e24 0%,#123c46 55%,#0d2733 100%);color:#eef4f4;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px 14px 22px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
+.title{font-size:19px;font-weight:800}
+.tbtns{display:flex;gap:8px}
+.iconbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:18px;width:42px;height:42px;border-radius:12px;cursor:pointer}
+.iconbtn:active{transform:scale(.94)}
+.stats{width:100%;display:flex;justify-content:space-around;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:10px 6px;box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:14px;color:#a9c6cb}
+.stats b{color:#fff;font-size:18px;margin-left:4px}
+canvas{width:100%;height:auto;border-radius:16px;touch-action:none;box-shadow:0 8px 26px rgba(0,0,0,.45);background:#12242d}
+.btnrow{display:flex;gap:12px;width:100%}
+.btn{border:none;border-radius:14px;padding:14px;font-size:18px;font-weight:800;color:#fff;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.btn:active{transform:scale(.96)}
+#flowBtn{flex:1;background:linear-gradient(135deg,#00bcd4,#009688)}
+#resetBtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16)}
+.hint{color:#7d99a0;font-size:13px;text-align:center;line-height:1.7}
+.overlay{position:fixed;inset:0;background:rgba(4,12,16,.88);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:30;padding:28px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:32px}
+.overlay h2{font-size:24px}
+.overlay p{color:#a9c3c7;font-size:15px;line-height:1.9}
+.overlay .btn{padding:13px 44px;min-width:200px}
+.overlay .btn.primary{background:linear-gradient(135deg,#00bcd4,#009688)}
+.overlay .btn.ghost{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);font-size:16px;padding:11px 40px}
+.lvlgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%;max-width:380px}
+.lvl{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);border-radius:14px;padding:12px 4px;color:#fff;cursor:pointer;font-size:17px;font-weight:700}
+.lvl small{display:block;font-size:11px;color:#8fb0b5;margin-top:5px;font-weight:400}
+.lvl.locked{opacity:.32}
+.lvl:active{transform:scale(.94)}
+.statline{display:flex;gap:18px;color:#cfe3e6;font-size:15px}
+.statline b{color:#ffd54f;font-size:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="title">🔧 水管工 <span id="lvlLabel" style="font-size:14px;color:#8fb0b5"></span></div>
+    <div class="tbtns">
+      <button class="iconbtn" id="muteBtn" title="声音">🔊</button>
+      <button class="iconbtn" id="pauseBtn" title="暂停">⏸</button>
+    </div>
+  </div>
+  <div class="stats">
+    <span>步数<b id="moves">0</b></span>
+    <span>用时<b id="time">0:00</b></span>
+    <span>关卡<b id="clvl">1/8</b></span>
+  </div>
+  <canvas id="cv" width="480" height="480"></canvas>
+  <div class="btnrow">
+    <button class="btn" id="flowBtn">💧 放水</button>
+    <button class="btn" id="resetBtn">↺ 重置</button>
+  </div>
+  <p class="hint">点按管道旋转 90°，把「起」连到「终」再按放水<br>水流到达终点即过关，中途断开会漏水失败</p>
+</div>
+
+<div class="overlay" id="startScr">
+  <h1>🔧 水管工</h1>
+  <p>旋转接通，一气呵成<br><br>👆 点按任意管道旋转 90°<br>🔗 把起点水管连到终点<br>💧 按「放水」检验，漏水就再调调<br>🏆 8 关渐进：5×5 → 6×6 → 7×7<br>步数越少、用时越短，得分越高</p>
+  <button class="btn primary" id="startBtn">开始游戏</button>
+</div>
+
+<div class="overlay hidden" id="lvlScr">
+  <h2>选择关卡</h2>
+  <div class="lvlgrid" id="lvlGrid"></div>
+  <button class="btn ghost" id="lvlBack">返回</button>
+</div>
+
+<div class="overlay hidden" id="pauseScr">
+  <h2>⏸ 已暂停</h2>
+  <p>休息一下，管道不会跑掉</p>
+  <button class="btn primary" id="resumeBtn">继续</button>
+  <button class="btn ghost" id="pauseRetryBtn">重来本关</button>
+  <button class="btn ghost" id="pauseLevelsBtn">选择关卡</button>
+</div>
+
+<div class="overlay hidden" id="winScr">
+  <h1>🎉 通关！</h1>
+  <div class="statline"><span>步数 <b id="wMoves">0</b></span><span>用时 <b id="wTime">0:00</b></span></div>
+  <div class="statline"><span>得分 <b id="wScore">0</b></span><span>最佳 <b id="wBest">0</b></span></div>
+  <p id="wNew" style="color:#ffd54f;font-weight:700"></p>
+  <button class="btn primary" id="nextBtn">下一关 →</button>
+  <button class="btn ghost" id="winRetryBtn">重玩本关</button>
+  <button class="btn ghost" id="winLevelsBtn">选择关卡</button>
+</div>
+
+<div class="overlay hidden" id="failScr">
+  <h1>💦 漏水了！</h1>
+  <p>水管中途断开了<br>看看哪里在喷水，调整后再放水</p>
+  <button class="btn primary" id="fixBtn">继续调整</button>
+  <button class="btn ghost" id="failRetryBtn">重置本关</button>
+</div>
+
+<script>
+'use strict';
+/* ============ 工具 ============ */
+const $=id=>document.getElementById(id);
+function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function buzz(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms||50);}catch(e){}}
+function fmtT(s){return ((s/60)|0)+':'+String(s%60).padStart(2,'0');}
+
+/* ============ 音效（WebAudio 现场合成） ============ */
+const Snd={
+  ctx:null,
+  get muted(){return lsGet('pipes_mute',false);},
+  set muted(v){lsSet('pipes_mute',v);},
+  ensure(){
+    if(!this.ctx){try{this.ctx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+    if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume();
+  },
+  tone(f,dur,type,vol,delay,slideTo){
+    if(this.muted)return; this.ensure(); if(!this.ctx)return;
+    const t=this.ctx.currentTime+(delay||0);
+    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    o.type=type||'sine'; o.frequency.setValueAtTime(f,t);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(slideTo,t+dur);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol||0.18,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(this.ctx.destination);
+    o.start(t); o.stop(t+dur+0.05);
+  },
+  click(){this.tone(660,0.06,'square',0.08);},
+  rotate(){this.tone(320,0.09,'triangle',0.14,0,640);},
+  splash(){for(let i=0;i<5;i++)this.tone(300+Math.random()*500,0.09,'sine',0.07,i*0.05);},
+  bad(){this.tone(320,0.35,'sawtooth',0.12,0,140);},
+  good(){[523,659,784].forEach((f,i)=>this.tone(f,0.16,'triangle',0.14,i*0.09));},
+  win(){[523,659,784,1046,1318].forEach((f,i)=>this.tone(f,0.22,'triangle',0.15,i*0.1));}
+};
+
+/* ============ 管道定义 ============ */
+const DIRS=[[0,-1],[1,0],[0,1],[-1,0]]; // N,E,S,W
+const TYPES={
+  I:{rots:2,base:[1,0,1,0]},
+  L:{rots:4,base:[1,1,0,0]},
+  T:{rots:4,base:[1,1,1,0]},
+  X:{rots:1,base:[1,1,1,1]},
+  S:{rots:1,base:null},
+  E:{rots:1,base:null}
+};
+function rotMask(m,r){r=((r%4)+4)%4;const o=[0,0,0,0];for(let i=0;i<4;i++)o[(i+r)%4]=m[i];return o;}
+function maskEq(a,b){return a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2]&&a[3]===b[3];}
+function correctRot(type,need){
+  const t=TYPES[type];
+  for(let r=0;r<t.rots;r++)if(maskEq(rotMask(t.base,r),need))return r;
+  return 0;
+}
+
+const LEVELS=[
+  {n:5,fill:['I','L'],maxPath:7},
+  {n:5,fill:['I','L','T'],maxPath:9},
+  {n:6,fill:['I','L','T'],maxPath:12},
+  {n:6,fill:['I','L','T','X'],maxPath:14},
+  {n:7,fill:['I','L','T'],maxPath:16},
+  {n:7,fill:['I','L','T','X'],maxPath:18},
+  {n:7,fill:['I','L','T','X'],maxPath:20},
+  {n:7,fill:['I','L','T','X'],maxPath:22}
+];
+
+/* ============ 关卡生成（保证有解） ============ */
+function genPath(n,sr,maxLen){
+  for(let attempt=0;attempt<60;attempt++){
+    const visited=new Set(),path=[];
+    (function dfs(x,y){
+      visited.add(x+','+y);path.push([x,y]);
+      if(x===n-1)return true;
+      const opts=[[1,0],[0,1],[0,-1],[-1,0]].sort(()=>Math.random()-0.5);
+      for(const d of opts){
+        const nx=x+d[0],ny=y+d[1];
+        if(nx<0||nx>=n||ny<0||ny>=n||visited.has(nx+','+ny))continue;
+        if(dfs(nx,ny))return true;
+      }
+      path.pop();return false;
+    })(0,sr);
+    if(path.length>=4&&path.length<=maxLen)return path;
+  }
+  return null;
+}
+function typeOfMask(m){
+  const c=m[0]+m[1]+m[2]+m[3];
+  if(c===4)return 'X';
+  if(c===3)return 'T';
+  if(m[0]===m[2])return 'I';
+  return 'L';
+}
+function genLevel(li){
+  const cfg=LEVELS[li],n=cfg.n;
+  const sr=(Math.random()*n)|0;
+  const path=genPath(n,sr,cfg.maxPath)||Array.from({length:n},(_,i)=>[i,sr]);
+  const onPath=new Set(path.map(p=>p[0]+','+p[1]));
+  const grid=[];
+  for(let y=0;y<n;y++){grid.push([]);for(let x=0;x<n;x++)grid[y].push(null);}
+  // 主路径：算出每格所需开口
+  for(let i=0;i<path.length;i++){
+    const [x,y]=path[i];
+    const need=[0,0,0,0];
+    const link=(nx,ny)=>{ // 把指向邻格的方向加入 need
+      for(let d=0;d<4;d++)if(x+DIRS[d][0]===nx&&y+DIRS[d][1]===ny)need[d]=1;
+    };
+    if(i===0){need[3]=1;link(path[1][0],path[1][1]);} // 起点：西接水龙头 + 下一格
+    else if(i===path.length-1){need[1]=1;link(path[i-1][0],path[i-1][1]);} // 终点：东接出水口 + 上一格
+    else{link(path[i-1][0],path[i-1][1]);link(path[i+1][0],path[i+1][1]);}
+    let type,rot;
+    if(i===0){type='S';rot=0;}
+    else if(i===path.length-1){type='E';rot=0;}
+    else{
+      type=typeOfMask(need);
+      const cr=correctRot(type,need);
+      const wrong=[];for(let r=0;r<TYPES[type].rots;r++)if(r!==cr)wrong.push(r);
+      rot=wrong[(Math.random()*wrong.length)|0];
+    }
+    grid[y][x]={type:type,rot:rot,mask:need,disp:rot*90,target:rot*90,wet:0,path:i};
+  }
+  // 填充其余格子：随机类型+随机朝向
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+    if(grid[y][x])continue;
+    let type=cfg.fill[(Math.random()*cfg.fill.length)|0];
+    if(type==='X'&&Math.random()<0.75)type='L'; // 十字少放
+    const rots=TYPES[type].rots;
+    const rot=(Math.random()*rots)|0;
+    grid[y][x]={type:type,rot:rot,mask:rotMask(TYPES[type].base,rot),disp:rot*90,target:rot*90,wet:0,path:-1};
+  }
+  return {n:n,grid:grid,start:path[0],end:path[path.length-1]};
+}
+function maskOf(cell){
+  if(cell.type==='S'||cell.type==='E')return cell.mask;
+  return rotMask(TYPES[cell.type].base,cell.rot);
+}
+// 起点→终点是否连通；返回 {win, parent链}
+function solveFlow(){
+  const S=G.start,E=G.end,n=G.n,grid=G.grid;
+  const seen=new Set([S[0]+','+S[1]]);
+  const parent={};
+  const q=[[S[0],S[1]]];
+  let win=false;
+  while(q.length){
+    const [x,y]=q.pop();
+    if(x===E[0]&&y===E[1]){win=true;break;}
+    const m=maskOf(grid[y][x]);
+    for(let d=0;d<4;d++){
+      if(!m[d])continue;
+      const nx=x+DIRS[d][0],ny=y+DIRS[d][1];
+      if(nx<0||ny<0||nx>=n||ny>=n)continue;
+      if(!maskOf(grid[ny][nx])[(d+2)%4])continue;
+      const k=nx+','+ny;
+      if(!seen.has(k)){seen.add(k);parent[k]=[x,y];q.push([nx,ny]);}
+    }
+  }
+  return {win:win,seen:seen,parent:parent};
+}
+// 找漏水点：连通域内离起点最近的有悬空开口的格子
+function findLeak(seen,parent){
+  const n=G.n,grid=G.grid,S=G.start;
+  let best=null,bestD=1e9;
+  // BFS 求连通域内各格到起点的距离
+  const dist={};dist[S[0]+','+S[1]]=0;
+  const q=[[S[0],S[1]]];
+  while(q.length){
+    const [x,y]=q.shift();
+    const m=maskOf(grid[y][x]);
+    for(let d=0;d<4;d++){
+      if(!m[d])continue;
+      const nx=x+DIRS[d][0],ny=y+DIRS[d][1];
+      if(nx<0||ny<0||nx>=n||ny>=n)continue;
+      const k=nx+','+ny;
+      if(!seen.has(k))continue;
+      if(!(k in dist)){dist[k]=dist[x+','+y]+1;q.push([nx,ny]);}
+    }
+  }
+  seen.forEach(k=>{
+    const [x,y]=k.split(',').map(Number);
+    const cell=grid[y][x];
+    const m=maskOf(cell);
+    for(let d=0;d<4;d++){
+      if(!m[d])continue;
+      if(cell.type==='S'&&d===3)continue; // 水龙头不算漏
+      if(cell.type==='E'&&d===1)continue; // 出水口不算漏
+      const nx=x+DIRS[d][0],ny=y+DIRS[d][1];
+      let open=true;
+      if(nx>=0&&ny>=0&&nx<n&&ny<n)open=!maskOf(grid[ny][nx])[(d+2)%4];
+      if(open&&(dist[k]||0)<bestD){bestD=dist[k]||0;best={x:x,y:y,d:d};}
+    }
+  });
+  // 回溯链
+  const chain=[];
+  if(best){
+    let k=best.x+','+best.y;
+    while(k){chain.unshift(k.split(',').map(Number));k=parent[k]?parent[k][0]+','+parent[k][1]:null;}
+  }
+  return {leak:best,chain:chain};
+}
+
+/* ============ 状态 ============ */
+const cv=$('cv'),g=cv.getContext('2d');
+let G=null,li=0,moves=0,sec=0,timerId=null;
+let playing=false,paused=false,flow=null;
+let parts=[],floats=[],shake=0;
+let raf=0,lastT=0;
+let progress=lsGet('pipes_progress',0); // 已通关数
+let bests=lsGet('pipes_best',{});
+
+function newGame(l){
+  stopLoop();
+  li=l;
+  let tries=0;
+  do{
+    G=genLevel(li);tries++;
+  }while(solveFlow().win&&tries<40); // 确保开局未连通
+  moves=0;sec=0;flow=null;parts=[];floats=[];shake=0;
+  $('moves').textContent='0';$('time').textContent='0:00';
+  $('lvlLabel').textContent='第 '+(li+1)+' 关';
+  $('clvl').textContent=(li+1)+'/8';
+  clearInterval(timerId);
+  timerId=setInterval(()=>{if(playing&&!paused){sec++;$('time').textContent=fmtT(sec);}},1000);
+  playing=true;paused=false;
+  hideAll();
+  startLoop();
+}
+function stopLoop(){if(raf)cancelAnimationFrame(raf);raf=0;}
+function startLoop(){stopLoop();lastT=performance.now();raf=requestAnimationFrame(loop);}
+function hideAll(){['startScr','lvlScr','pauseScr','winScr','failScr'].forEach(id=>$(id).classList.add('hidden'));}
+
+/* ============ 输入 ============ */
+let lastTouch=0;
+function cellFromEvent(e){
+  const r=cv.getBoundingClientRect();
+  const px=(e.clientX-r.left)/r.width*480, py=(e.clientY-r.top)/r.height*480;
+  const n=G.n,sz=480/n;
+  const x=(px/sz)|0,y=(py/sz)|0;
+  if(x<0||y<0||x>=n||y>=n)return null;
+  return {x:x,y:y};
+}
+function tapCell(e){
+  if(!playing||paused||flow)return;
+  const c=cellFromEvent(e);if(!c)return;
+  const cell=G.grid[c.y][c.x];
+  const rots=TYPES[cell.type].rots;
+  if(rots<=1){ // 起点/终点/十字：转一下意思一下，不计步
+    cell.target+=90;Snd.click();return;
+  }
+  cell.rot=(cell.rot+1)%rots;
+  cell.mask=rotMask(TYPES[cell.type].base,cell.rot);
+  cell.target+=90;
+  moves++;$('moves').textContent=moves;
+  Snd.rotate();buzz(20);
+}
+cv.addEventListener('touchstart',e=>{e.preventDefault();lastTouch=Date.now();tapCell(e.touches[0]);},{passive:false});
+cv.addEventListener('mousedown',e=>{if(Date.now()-lastTouch<600)return;tapCell(e);});
+
+/* ============ 放水 ============ */
+$('flowBtn').addEventListener('click',()=>{
+  if(!playing||paused||flow)return;
+  Snd.ensure();Snd.splash();buzz(40);
+  const r=solveFlow();
+  if(r.win){
+    const chain=[];let k=G.end[0]+','+G.end[1];
+    while(k){chain.unshift(k.split(',').map(Number));const p=r.parent[k];k=p?p[0]+','+p[1]:null;}
+    flow={cells:chain,t:0,mode:'win',done:false};
+  }else{
+    const lk=findLeak(r.seen,r.parent);
+    if(!lk.leak||!lk.chain.length){
+      // 极罕见：起点连通域形成闭环、无悬空开口——在起点出水口喷溅示意
+      const sm=maskOf(G.grid[G.start[1]][G.start[0]]);
+      let dd=1;for(let d=0;d<4;d++)if(sm[d]&&!(G.grid[G.start[1]][G.start[0]].type==='S'&&d===3)){dd=d;break;}
+      flow={cells:[[G.start[0],G.start[1]]],t:0,mode:'leak',done:false,leak:{x:G.start[0],y:G.start[1],d:dd}};
+    }else{
+      flow={cells:lk.chain,t:0,mode:'leak',done:false,leak:lk.leak};
+    }
+  }
+});
+$('resetBtn').addEventListener('click',()=>{if(!playing||paused)return;Snd.click();newGame(li);});
+
+function finishFlow(){
+  const n=G.n,sz=480/n;
+  if(flow.mode==='win'){
+    Snd.win();buzz(80);
+    for(let i=0;i<90;i++)parts.push({x:Math.random()*480,y:-10-Math.random()*60,vx:(Math.random()-0.5)*120,vy:60+Math.random()*140,life:2.4,max:2.4,c:['#ffd54f','#4fc3f7','#ff8a65','#aed581','#ba68c8'][(Math.random()*5)|0],s:4+Math.random()*5,grav:160,conf:true});
+    const score=Math.max(50,1000-moves*12-sec*2);
+    const prev=bests[li]||0,isNew=score>prev;
+    if(isNew){bests[li]=score;lsSet('pipes_best',bests);}
+    if(li+1>progress){progress=li+1;lsSet('pipes_progress',progress);}
+    setTimeout(()=>{
+      $('wMoves').textContent=moves;$('wTime').textContent=fmtT(sec);
+      $('wScore').textContent=score;$('wBest').textContent=bests[li];
+      $('wNew').textContent=isNew?'🏆 新纪录！':'';
+      $('nextBtn').style.display=(li<7)?'':'none';
+      stopLoop();playing=false;clearInterval(timerId);
+      $('winScr').classList.remove('hidden');
+    },900);
+  }else{
+    Snd.bad();buzz(120);shake=10;
+    const lx=(flow.leak.x+0.5)*sz,ly=(flow.leak.y+0.5)*sz;
+    const d=DIRS[flow.leak.d];
+    for(let i=0;i<40;i++)parts.push({x:lx,y:ly,vx:d[0]*(60+Math.random()*160)+(Math.random()-0.5)*90,vy:d[1]*(60+Math.random()*160)+(Math.random()-0.5)*90-40,life:0.9,max:0.9,c:'#4fc3f7',s:2+Math.random()*4,grav:420});
+    floats.push({x:lx,y:ly-20,txt:'漏水！',life:1.2,max:1.2,c:'#4fc3f7'});
+    setTimeout(()=>{stopLoop();paused=true;$('failScr').classList.remove('hidden');},700);
+  }
+  flow.done=true;
+}
+
+/* ============ 主循环 ============ */
+function loop(t){
+  raf=requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(t-lastT)/1000);lastT=t;
+  // 旋转动画
+  for(let y=0;y<G.n;y++)for(let x=0;x<G.n;x++){
+    const c=G.grid[y][x];
+    if(Math.abs(c.target-c.disp)>0.2)c.disp+=(c.target-c.disp)*Math.min(1,dt*14);
+    else c.disp=c.target;
+  }
+  // 水流
+  if(flow&&!flow.done){
+    flow.t+=dt;
+    const seg=0.13,idx=Math.min(flow.cells.length-1,(flow.t/seg)|0);
+    for(let i=0;i<idx;i++){const [cx,cy]=flow.cells[i];G.grid[cy][cx].wet=1;}
+    const [hx,hy]=flow.cells[idx];
+    const sz=480/G.n;
+    const nx=flow.cells[Math.min(idx+1,flow.cells.length-1)];
+    const f=Math.min(1,(flow.t-idx*seg)/seg);
+    const px=((hx+(nx[0]-hx)*f)+0.5)*sz, py=((hy+(nx[1]-hy)*f)+0.5)*sz;
+    for(let i=0;i<3;i++)parts.push({x:px+(Math.random()-0.5)*8,y:py+(Math.random()-0.5)*8,vx:(Math.random()-0.5)*60,vy:-40-Math.random()*60,life:0.5,max:0.5,c:'#7fd4ff',s:2+Math.random()*3,grav:200});
+    if(flow.t>=flow.cells.length*seg)finishFlow();
+  }
+  // 粒子
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];p.life-=dt;
+    if(p.life<=0){parts.splice(i,1);continue;}
+    p.vy+=(p.grav||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;
+    if(p.conf)p.vx*=0.99;
+  }
+  for(let i=floats.length-1;i>=0;i--){const f=floats[i];f.life-=dt;f.y-=34*dt;if(f.life<=0)floats.splice(i,1);}
+  if(shake>0)shake=Math.max(0,shake-dt*26);
+  render();
+}
+
+/* ============ 绘制 ============ */
+function rr(x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);
+  g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();
+}
+function render(){
+  g.clearRect(0,0,480,480);
+  g.save();
+  if(shake>0)g.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake);
+  const n=G.n,sz=480/n;
+  // 棋盘底
+  g.fillStyle='#16242d';rr(0,0,480,480,16);g.fill();
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+    if((x+y)%2===0){g.fillStyle='rgba(255,255,255,0.025)';g.fillRect(x*sz,y*sz,sz,sz);}
+  }
+  // 出口/入口标记
+  // 管道
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+    const c=G.grid[y][x],cx=(x+0.5)*sz,cy=(y+0.5)*sz;
+    const base=TYPES[c.type].base||c.mask;
+    g.save();g.translate(cx,cy);g.rotate(c.disp*Math.PI/180);
+    const w=sz*0.30;
+    g.lineCap='round';
+    for(let d=0;d<4;d++){
+      if(!base[d])continue;
+      const dx=DIRS[d][0],dy=DIRS[d][1];
+      // 外壳
+      g.strokeStyle='rgba(0,0,0,0.4)';g.lineWidth=w+5;
+      g.beginPath();g.moveTo(0,0);g.lineTo(dx*sz*0.5,dy*sz*0.5);g.stroke();
+      // 内芯
+      if(c.wet>0){
+        const gr=g.createLinearGradient(0,0,dx*sz*0.5,dy*sz*0.5);
+        gr.addColorStop(0,'#4fc3f7');gr.addColorStop(1,'#0288d1');
+        g.strokeStyle=gr;
+      }else g.strokeStyle=c.path>=0?'#7d94a0':'#5b707b';
+      g.lineWidth=w;
+      g.beginPath();g.moveTo(0,0);g.lineTo(dx*sz*0.5,dy*sz*0.5);g.stroke();
+    }
+    // 中心节
+    g.fillStyle=c.wet>0?'#29b6f6':'#455a64';
+    g.beginPath();g.arc(0,0,w*0.62,0,Math.PI*2);g.fill();
+    if(c.wet>0){g.fillStyle='rgba(255,255,255,0.5)';g.beginPath();g.arc(-w*0.15,-w*0.18,w*0.2,0,Math.PI*2);g.fill();}
+    g.restore();
+    // 起终点徽标
+    if(c.type==='S'||c.type==='E'){
+      g.fillStyle=c.type==='S'?'#0288d1':'#009688';
+      g.beginPath();g.arc(x*sz+sz*0.82,y*sz+sz*0.18,sz*0.16,0,Math.PI*2);g.fill();
+      g.fillStyle='#fff';g.font='bold '+Math.round(sz*0.2)+'px sans-serif';
+      g.textAlign='center';g.textBaseline='middle';
+      g.fillText(c.type==='S'?'起':'终',x*sz+sz*0.82,y*sz+sz*0.19);
+    }
+  }
+  // 水流头水滴
+  if(flow&&!flow.done){
+    const seg=0.13,idx=Math.min(flow.cells.length-1,(flow.t/seg)|0);
+    const [hx,hy]=flow.cells[idx];
+    const nx2=flow.cells[Math.min(idx+1,flow.cells.length-1)];
+    const f=Math.min(1,(flow.t-idx*seg)/seg);
+    const px=((hx+(nx2[0]-hx)*f)+0.5)*sz, py=((hy+(nx2[1]-hy)*f)+0.5)*sz;
+    g.fillStyle='#b3e5fc';
+    g.beginPath();g.arc(px,py,sz*0.14+Math.sin(flow.t*30)*2,0,Math.PI*2);g.fill();
+    g.fillStyle='rgba(255,255,255,0.7)';
+    g.beginPath();g.arc(px-3,py-3,sz*0.05,0,Math.PI*2);g.fill();
+  }
+  // 粒子
+  for(const p of parts){
+    g.globalAlpha=Math.max(0,p.life/p.max);
+    g.fillStyle=p.c;
+    if(p.conf){g.save();g.translate(p.x,p.y);g.rotate(p.life*6);g.fillRect(-p.s/2,-p.s/3,p.s,p.s*0.66);g.restore();}
+    else{g.beginPath();g.arc(p.x,p.y,p.s,0,Math.PI*2);g.fill();}
+  }
+  g.globalAlpha=1;
+  // 飘字
+  g.textAlign='center';
+  for(const f of floats){
+    g.globalAlpha=Math.max(0,f.life/f.max);
+    g.fillStyle=f.c;g.font='bold 24px sans-serif';
+    g.fillText(f.txt,f.x,f.y);
+  }
+  g.globalAlpha=1;
+  g.restore();
+}
+
+/* ============ 界面 ============ */
+function buildLevels(){
+  const gr=$('lvlGrid');gr.innerHTML='';
+  LEVELS.forEach((cfg,i)=>{
+    const b=document.createElement('button');
+    b.className='lvl'+(i<=progress?'':' locked');
+    const best=bests[i];
+    b.innerHTML=(i<=progress?(i+1):'🔒')+'<small>'+cfg.n+'×'+cfg.n+(best?' · '+best+'分':'')+'</small>';
+    if(i<=progress)b.addEventListener('click',()=>{Snd.ensure();Snd.click();newGame(i);});
+    gr.appendChild(b);
+  });
+}
+$('startBtn').addEventListener('click',()=>{Snd.ensure();Snd.click();buzz(30);buildLevels();$('startScr').classList.add('hidden');$('lvlScr').classList.remove('hidden');});
+$('lvlBack').addEventListener('click',()=>{Snd.click();$('lvlScr').classList.add('hidden');$('startScr').classList.remove('hidden');});
+$('pauseBtn').addEventListener('click',()=>{
+  if(!playing||paused||flow)return;
+  Snd.click();paused=true;stopLoop();clearInterval(timerId);
+  timerId=null;$('pauseScr').classList.remove('hidden');
+});
+$('resumeBtn').addEventListener('click',()=>{Snd.click();$('pauseScr').classList.add('hidden');paused=false;
+  clearInterval(timerId);timerId=setInterval(()=>{if(playing&&!paused){sec++;$('time').textContent=fmtT(sec);}},1000);
+  startLoop();});
+$('pauseRetryBtn').addEventListener('click',()=>{Snd.click();$('pauseScr').classList.add('hidden');newGame(li);});
+$('pauseLevelsBtn').addEventListener('click',()=>{Snd.click();$('pauseScr').classList.add('hidden');buildLevels();$('lvlScr').classList.remove('hidden');});
+$('fixBtn').addEventListener('click',()=>{Snd.click();$('failScr').classList.add('hidden');paused=false;startLoop();});
+$('failRetryBtn').addEventListener('click',()=>{Snd.click();$('failScr').classList.add('hidden');newGame(li);});
+$('nextBtn').addEventListener('click',()=>{Snd.click();newGame(li+1);});
+$('winRetryBtn').addEventListener('click',()=>{Snd.click();newGame(li);});
+$('winLevelsBtn').addEventListener('click',()=>{Snd.click();buildLevels();$('winScr').classList.add('hidden');$('lvlScr').classList.remove('hidden');});
+function refreshMute(){$('muteBtn').textContent=Snd.muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',()=>{Snd.ensure();Snd.muted=!Snd.muted;refreshMute();if(!Snd.muted)Snd.click();});
+refreshMute();
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing&&!paused&&!flow)$('pauseBtn').click();});
+// 预生成一局垫在开始界面下
+G=genLevel(0);
+</script>
+</body>
+</html>
