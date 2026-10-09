@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>消消乐</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:linear-gradient(160deg,#1a0f24 0%,#2c1440 55%,#160a20 100%);color:#f3eef7;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px 14px 22px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
+.title{font-size:19px;font-weight:800}
+.tbtns{display:flex;gap:8px}
+.iconbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:18px;width:42px;height:42px;border-radius:12px;cursor:pointer}
+.iconbtn:active{transform:scale(.94)}
+.stats{width:100%;display:flex;justify-content:space-around;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:10px 6px;box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:14px;color:#cdb9d8}
+.stats b{color:#fff;font-size:18px;margin-left:4px}
+.stats b.hot{color:#ff5252;animation:blink .5s infinite alternate}
+@keyframes blink{from{opacity:1}to{opacity:.45}}
+canvas{width:100%;height:auto;border-radius:16px;touch-action:none;box-shadow:0 8px 26px rgba(0,0,0,.45);background:#1d1029}
+.hint{color:#9d86ad;font-size:13px;text-align:center;line-height:1.7}
+.overlay{position:fixed;inset:0;background:rgba(10,4,16,.88);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:30;padding:28px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:32px}
+.overlay h2{font-size:24px}
+.overlay p{color:#c9b3d6;font-size:15px;line-height:1.9}
+.overlay .btn{border:none;border-radius:14px;padding:13px 44px;min-width:200px;font-size:18px;font-weight:800;color:#fff;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.overlay .btn:active{transform:scale(.96)}
+.overlay .btn.primary{background:linear-gradient(135deg,#ab47bc,#7b1fa2)}
+.overlay .btn.ghost{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);font-size:16px;padding:11px 40px}
+.statline{display:flex;gap:18px;color:#e6d5ee;font-size:15px}
+.statline b{color:#ffd54f;font-size:22px}
+#comboTag{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%) scale(.6);font-size:44px;font-weight:900;color:#ffd54f;text-shadow:0 3px 18px rgba(255,213,79,.6);opacity:0;pointer-events:none;z-index:40;transition:opacity .18s,transform .18s}
+#comboTag.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="title">💎 消消乐</div>
+    <div class="tbtns">
+      <button class="iconbtn" id="muteBtn">🔊</button>
+      <button class="iconbtn" id="pauseBtn">⏸</button>
+    </div>
+  </div>
+  <div class="stats">
+    <span>得分<b id="score">0</b></span>
+    <span>⏱ <b id="time">60</b>s</span>
+    <span>最高<b id="best">0</b></span>
+  </div>
+  <canvas id="cv" width="480" height="480"></canvas>
+  <p class="hint">滑动宝石交换位置，3 个连成一线即消除<br>4 连整行/列、5 连或 T/L 型大爆炸 · 60 秒挑战</p>
+</div>
+<div id="comboTag"></div>
+
+<div class="overlay" id="startScr">
+  <h1>💎 消消乐</h1>
+  <p>三消连击，爽快消除<br><br>👉 滑动相邻宝石交换位置<br>✨ 3 连消除，4 连整行/列清屏<br>💥 5 连或 T/L 型触发大爆炸<br>🔥 连续消除触发连击加成<br>⏱ 限时 60 秒，冲击最高分！</p>
+  <button class="btn primary" id="startBtn">开始游戏</button>
+</div>
+
+<div class="overlay hidden" id="pauseScr">
+  <h2>⏸ 已暂停</h2>
+  <p>宝石们原地待命</p>
+  <button class="btn primary" id="resumeBtn">继续</button>
+  <button class="btn ghost" id="pauseRetryBtn">重新开始</button>
+</div>
+
+<div class="overlay hidden" id="overScr">
+  <h1>⏱ 时间到！</h1>
+  <div class="statline"><span>得分 <b id="oScore">0</b></span><span>最高 <b id="oBest">0</b></span></div>
+  <p id="oNew" style="color:#ffd54f;font-weight:700"></p>
+  <button class="btn primary" id="retryBtn">再来一局</button>
+</div>
+
+<script>
+'use strict';
+/* ============ 工具 ============ */
+const $=id=>document.getElementById(id);
+function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function buzz(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms||50);}catch(e){}}
+const easeInOut=t=>t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+const easeOutCubic=t=>1-Math.pow(1-t,3);
+
+/* ============ 音效 ============ */
+const Snd={
+  ctx:null,
+  get muted(){return lsGet('jewel_mute',false);},
+  set muted(v){lsSet('jewel_mute',v);},
+  ensure(){
+    if(!this.ctx){try{this.ctx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+    if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume();
+  },
+  tone(f,dur,type,vol,delay,slideTo){
+    if(this.muted)return;this.ensure();if(!this.ctx)return;
+    const t=this.ctx.currentTime+(delay||0);
+    const o=this.ctx.createOscillator(),g=this.ctx.createGain();
+    o.type=type||'sine';o.frequency.setValueAtTime(f,t);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(slideTo,t+dur);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol||0.16,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g);g.connect(this.ctx.destination);
+    o.start(t);o.stop(t+dur+0.05);
+  },
+  swap(){this.tone(500,0.07,'triangle',0.1,0,700);},
+  deny(){this.tone(180,0.12,'square',0.08);},
+  clear(combo){const b=440+combo*90;this.tone(b,0.12,'sine',0.14,0,b*1.5);this.tone(b*1.5,0.1,'sine',0.08,0.05);},
+  special(){const self=this;[660,880,1174,1568].forEach((f,i)=>self.tone(f,0.14,'triangle',0.12,i*0.06));},
+  tick(){this.tone(880,0.05,'square',0.06);},
+  over(){const self=this;[523,392,330,262].forEach((f,i)=>self.tone(f,0.25,'triangle',0.13,i*0.16));},
+  click(){this.tone(660,0.06,'square',0.08);}
+};
+
+/* ============ 棋盘 ============ */
+const N=8,SZ=480,CELL=SZ/N,NT=6;
+const cv=$('cv'),g=cv.getContext('2d');
+const GCOLS=[['#ff8a80','#e53935'],['#ffcc80','#fb8c00'],['#fff59d','#f9a825'],['#a5d6a7','#43a047'],['#90caf9','#1e88e5'],['#ce93d8','#8e24aa']];
+let board=[];
+let busy=false,playing=false,paused=false,over=false;
+let score=0,remain=60,best=lsGet('jewel_best',0);
+let tweens=[],parts=[],floats=[],flashes=[];
+let raf=0,lastT=0,lastTickSec=60;
+let sel=null,hintMove=null,lastActT=0;
+let gid=0;
+
+function cellXY(x,y){return [(x+0.5)*CELL,(y+0.5)*CELL];}
+function mkGem(t,x,y){
+  const p=cellXY(x,y);
+  return {t:t,px:p[0],py:p[1],sc:1,alpha:1,id:gid++,x:x,y:y};
+}
+function genBoard(){
+  let guard=0;
+  do{
+    board=[];
+    for(let y=0;y<N;y++){board.push([]);
+      for(let x=0;x<N;x++){
+        let t;
+        do{t=(Math.random()*NT)|0;}
+        while((x>=2&&board[y][x-1].t===t&&board[y][x-2].t===t)||
+              (y>=2&&board[y-1][x].t===t&&board[y-2][x].t===t));
+        board[y][x]=mkGem(t,x,y);
+      }
+    }
+    guard++;
+  }while((findMatches()||!findMove())&&guard<300);
+}
+function matchAt(x,y){
+  const t=board[y][x].t;let c=1;
+  for(let i=x-1;i>=0&&board[y][i].t===t;i--)c++;
+  for(let i=x+1;i<N&&board[y][i].t===t;i++)c++;
+  if(c>=3)return true;c=1;
+  for(let i=y-1;i>=0&&board[i][x].t===t;i--)c++;
+  for(let i=y+1;i<N&&board[i][x].t===t;i++)c++;
+  return c>=3;
+}
+function findMatches(){
+  const runs=[];
+  for(let y=0;y<N;y++){let x=0;
+    while(x<N){const t=board[y][x].t;let x2=x;while(x2<N&&board[y][x2].t===t)x2++;
+      if(x2-x>=3){const cells=[];for(let i=x;i<x2;i++)cells.push([i,y]);runs.push({dir:'h',fixed:y,cells:cells,len:x2-x});}
+      x=x2;}}
+  for(let x=0;x<N;x++){let y=0;
+    while(y<N){const t=board[y][x].t;let y2=y;while(y2<N&&board[y2][x].t===t)y2++;
+      if(y2-y>=3){const cells=[];for(let i=y;i<y2;i++)cells.push([x,i]);runs.push({dir:'v',fixed:x,cells:cells,len:y2-y});}
+      y=y2;}}
+  if(!runs.length)return null;
+  const clear=new Set(),specials=[],consumed=new Set();
+  const hMap={},vMap={};
+  runs.forEach(r=>r.cells.forEach(c=>{if(r.dir==='h')hMap[c[0]+','+c[1]]=r;else vMap[c[0]+','+c[1]]=r;}));
+  for(const k in hMap)if(vMap[k]){
+    const xy=k.split(','),x=+xy[0],y=+xy[1];
+    specials.push({kind:'bomb',x:x,y:y});
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      const nx=x+dx,ny=y+dy;
+      if(nx>=0&&ny>=0&&nx<N&&ny<N)clear.add(nx+','+ny);
+    }
+    hMap[k].cells.forEach(c=>clear.add(c[0]+','+c[1]));
+    vMap[k].cells.forEach(c=>clear.add(c[0]+','+c[1]));
+    consumed.add(hMap[k]);consumed.add(vMap[k]);
+  }
+  runs.forEach(r=>{
+    if(consumed.has(r))return;
+    if(r.len>=5){
+      const mid=r.cells[r.len>>1];
+      specials.push({kind:'cross',x:mid[0],y:mid[1]});
+      for(let i=0;i<N;i++){clear.add(i+','+mid[1]);clear.add(mid[0]+','+i);}
+    }else if(r.len===4){
+      specials.push({kind:'line',dir:r.dir,fixed:r.fixed});
+      for(let i=0;i<N;i++)clear.add(r.dir==='h'?(i+','+r.fixed):(r.fixed+','+i));
+    }else r.cells.forEach(c=>clear.add(c[0]+','+c[1]));
+  });
+  const list=[];clear.forEach(k=>{const xy=k.split(',');list.push([+xy[0],+xy[1]]);});
+  return {clear:list,specials:specials};
+}
+function findMove(){
+  const dirs=[[1,0],[0,1]];
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++)for(let di=0;di<2;di++){
+    const nx=x+dirs[di][0],ny=y+dirs[di][1];
+    if(nx>=N||ny>=N)continue;
+    const a=board[y][x];board[y][x]=board[ny][nx];board[ny][nx]=a;
+    const ok=matchAt(x,y)||matchAt(nx,ny);
+    board[ny][nx]=board[y][x];board[y][x]=a;
+    if(ok)return {ax:x,ay:y,bx:nx,by:ny};
+  }
+  return null;
+}
+
+/* ============ 补间 ============ */
+function tween(gem,tx,ty,dur,ease,delay,onDone,scaleTo){
+  tweens.push({gem:gem,fx:gem.px,fy:gem.py,tx:tx,ty:ty,t:-(delay||0),dur:dur,ease:ease||easeInOut,onDone:onDone,scaleTo:scaleTo});
+}
+function swapGems(A,B,dur,cb){
+  const ax=A.px,ay=A.py,bx=B.px,by=B.py;
+  let n=0;
+  const done=function(){
+    n++;
+    if(n===2){
+      const t1=board[A.y][A.x];board[A.y][A.x]=board[B.y][B.x];board[B.y][B.x]=t1;
+      const tx=A.x;A.x=B.x;B.x=tx;const ty=A.y;A.y=B.y;B.y=ty;
+      if(cb)cb();
+    }
+  };
+  tween(A,bx,by,dur,easeInOut,0,done);
+  tween(B,ax,ay,dur,easeInOut,0,done);
+}
+
+/* ============ 消除流程 ============ */
+function playerSwap(ax,ay,bx,by){
+  if(busy||over||paused||!playing)return;
+  busy=true;sel=null;hintMove=null;lastActT=performance.now();
+  Snd.swap();
+  const A=board[ay][ax],B=board[by][bx];
+  swapGems(A,B,0.16,function(){
+    const res=findMatches();
+    if(!res){
+      Snd.deny();
+      swapGems(A,B,0.18,function(){busy=false;});
+    }else resolveLoop(1);
+  });
+}
+function resolveLoop(combo){
+  const res=findMatches();
+  if(!res){
+    busy=false;
+    if(!findMove()){
+      reshuffle();
+      floats.push({x:SZ/2,y:SZ/2,txt:'洗牌！',life:1.2,max:1.2,c:'#ffd54f'});
+    }
+    return;
+  }
+  let pts=res.clear.length*10*combo;
+  res.specials.forEach(s=>{pts+=s.kind==='bomb'?120:(s.kind==='cross'?200:60);});
+  score+=pts;$('score').textContent=score;
+  res.specials.forEach(s=>flashes.push({kind:s.kind,x:s.x,y:s.y,fixed:s.fixed,dir:s.dir,t:0}));
+  let sx=0,sy=0;
+  res.clear.forEach(c=>{sx+=c[0];sy+=c[1];});
+  const n=res.clear.length||1;
+  floats.push({x:(sx/n+0.5)*CELL,y:(sy/n+0.5)*CELL,txt:'+'+pts,life:0.9,max:0.9,c:'#ffd54f'});
+  if(combo>=2){
+    const tag=$('comboTag');
+    tag.textContent='连击 x'+combo+'!';
+    tag.classList.add('show');
+    setTimeout(function(){tag.classList.remove('show');},700);
+  }
+  if(res.specials.length){Snd.special();buzz(60);}else{Snd.clear(combo);buzz(30);}
+  res.clear.forEach(c=>{
+    const gem=board[c[1]][c[0]];
+    const col=GCOLS[gem.t][1];
+    for(let i=0;i<4;i++)parts.push({x:gem.px,y:gem.py,vx:(Math.random()-0.5)*260,vy:(Math.random()-0.5)*260-60,life:0.55,max:0.55,c:col,s:2+Math.random()*3,grav:300});
+  });
+  const clearedGems=res.clear.map(c=>board[c[1]][c[0]]);
+  let doneN=0;
+  clearedGems.forEach(function(gem){
+    tween(gem,gem.px,gem.py,0.22,easeInOut,0,function(){
+      doneN++;
+      if(doneN===clearedGems.length)collapse(combo);
+    },0);
+  });
+}
+function collapse(combo){
+  const jobs=[];
+  for(let x=0;x<N;x++){
+    let w=N-1;
+    for(let y=N-1;y>=0;y--){
+      const gem=board[y][x];
+      if(gem&&gem.sc>0.01){
+        if(w!==y){
+          board[w][x]=gem;board[y][x]=null;gem.x=x;gem.y=w;
+          const p=cellXY(x,w);
+          jobs.push({gem:gem,tx:p[0],ty:p[1],delay:(N-1-w)*0.03});
+        }
+        w--;
+      }else{
+        board[y][x]=null;
+      }
+    }
+    for(let y=w;y>=0;y--){
+      const gem=mkGem((Math.random()*NT)|0,x,y);
+      const p=cellXY(x,y);
+      gem.py=p[1]-(w-y+1)*CELL-CELL*0.5;
+      board[y][x]=gem;
+      jobs.push({gem:gem,tx:p[0],ty:p[1],delay:0.02*(w-y)});
+    }
+  }
+  if(!jobs.length){resolveLoop(combo+1);return;}
+  let n=0;
+  jobs.forEach(function(j){
+    tween(j.gem,j.tx,j.ty,0.32,easeOutCubic,j.delay,function(){
+      n++;
+      if(n===jobs.length)resolveLoop(combo+1);
+    });
+  });
+}
+function reshuffle(){
+  const types=[];
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++)types.push(board[y][x].t);
+  let guard=0;
+  do{
+    for(let i=types.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;const t=types[i];types[i]=types[j];types[j]=t;}
+    let k=0;
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+      const gem=board[y][x];gem.t=types[k++];
+      const p=cellXY(x,y);gem.px=p[0];gem.py=p[1];gem.sc=1;
+    }
+    guard++;
+  }while((findMatches()||!findMove())&&guard<200);
+}
+
+/* ============ 主循环 ============ */
+function loop(t){
+  raf=requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(t-lastT)/1000);lastT=t;
+  if(playing&&!paused&&!over){
+    remain-=dt;
+    const s=Math.max(0,Math.ceil(remain));
+    if(s!==lastTickSec){lastTickSec=s;$('time').textContent=s;
+      if(s<=10)$('time').classList.add('hot');else $('time').classList.remove('hot');
+      if(s<=10&&s>0)Snd.tick();}
+    if(remain<=0)gameOver();
+    if(!busy&&performance.now()-lastActT>7000&&!hintMove)hintMove=findMove();
+  }
+  for(let i=tweens.length-1;i>=0;i--){
+    const tw=tweens[i];tw.t+=dt;
+    if(tw.t<0)continue;
+    const f=Math.min(1,tw.t/tw.dur),e=tw.ease(f);
+    tw.gem.px=tw.fx+(tw.tx-tw.fx)*e;
+    tw.gem.py=tw.fy+(tw.ty-tw.fy)*e;
+    if(tw.scaleTo!==undefined)tw.gem.sc=1+(tw.scaleTo-1)*e;
+    if(f>=1){tweens.splice(i,1);if(tw.onDone)tw.onDone();}
+  }
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];p.life-=dt;
+    if(p.life<=0){parts.splice(i,1);continue;}
+    p.vy+=(p.grav||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;
+  }
+  for(let i=floats.length-1;i>=0;i--){const f=floats[i];f.life-=dt;f.y-=40*dt;if(f.life<=0)floats.splice(i,1);}
+  for(let i=flashes.length-1;i>=0;i--){flashes[i].t+=dt;if(flashes[i].t>0.4)flashes.splice(i,1);}
+  render();
+}
+function stopLoop(){if(raf)cancelAnimationFrame(raf);raf=0;}
+function startLoop(){stopLoop();lastT=performance.now();raf=requestAnimationFrame(loop);}
+function gameOver(){
+  over=true;playing=false;stopLoop();
+  Snd.over();buzz(100);
+  const isNew=score>best;
+  if(isNew){best=score;lsSet('jewel_best',best);}
+  $('oScore').textContent=score;$('oBest').textContent=best;
+  $('oNew').textContent=isNew?'🏆 新纪录！':'';
+  $('overScr').classList.remove('hidden');
+}
+function newGame(){
+  stopLoop();
+  genBoard();
+  busy=false;over=false;paused=false;
+  score=0;remain=60;lastTickSec=60;
+  tweens=[];parts=[];floats=[];flashes=[];
+  sel=null;hintMove=null;lastActT=performance.now();
+  $('score').textContent='0';$('time').textContent='60';
+  $('time').classList.remove('hot');
+  $('best').textContent=best;
+  ['startScr','pauseScr','overScr'].forEach(id=>$(id).classList.add('hidden'));
+  playing=true;
+  startLoop();
+}
+
+/* ============ 绘制 ============ */
+function gemPath(t,s){
+  g.beginPath();
+  if(t===0){g.arc(0,0,s*0.42,0,Math.PI*2);}
+  else if(t===1){g.moveTo(0,-s*0.46);g.lineTo(s*0.36,0);g.lineTo(0,s*0.46);g.lineTo(-s*0.36,0);g.closePath();}
+  else if(t===2){g.moveTo(0,-s*0.46);g.lineTo(s*0.42,s*0.34);g.lineTo(-s*0.42,s*0.34);g.closePath();}
+  else if(t===3){for(let i=0;i<6;i++){const a=Math.PI/3*i-Math.PI/6;const px=Math.cos(a)*s*0.44,py=Math.sin(a)*s*0.44;if(i)g.lineTo(px,py);else g.moveTo(px,py);}g.closePath();}
+  else if(t===4){for(let i=0;i<10;i++){const r=i%2?s*0.2:s*0.46;const a=-Math.PI/2+i*Math.PI/5;const px=Math.cos(a)*r,py=Math.sin(a)*r;if(i)g.lineTo(px,py);else g.moveTo(px,py);}g.closePath();}
+  else{const r=s*0.42,cr=s*0.14;g.moveTo(-r+cr,-r);g.arcTo(r,-r,r,r,cr);g.arcTo(r,r,-r,r,cr);g.arcTo(-r,r,-r,-r,cr);g.arcTo(-r,-r,r,-r,cr);g.closePath();}
+}
+function drawGem(gem){
+  const s=CELL*0.86*gem.sc;
+  if(s<1||gem.alpha<=0)return;
+  g.save();
+  g.globalAlpha=gem.alpha;
+  g.translate(gem.px,gem.py);
+  const lite=GCOLS[gem.t][0],base=GCOLS[gem.t][1];
+  const gr=g.createRadialGradient(-s*0.25,-s*0.3,s*0.08,0,0,s*0.55);
+  gr.addColorStop(0,lite);gr.addColorStop(1,base);
+  gemPath(gem.t,s);
+  g.fillStyle=gr;g.fill();
+  g.strokeStyle='rgba(255,255,255,0.25)';g.lineWidth=1.5;g.stroke();
+  g.fillStyle='rgba(255,255,255,0.55)';
+  g.beginPath();g.ellipse(-s*0.16,-s*0.2,s*0.1,s*0.06,-0.6,0,Math.PI*2);g.fill();
+  g.restore();
+}
+function render(){
+  g.clearRect(0,0,SZ,SZ);
+  g.fillStyle='#1d1029';
+  g.beginPath();
+  if(g.roundRect)g.roundRect(0,0,SZ,SZ,16);else g.rect(0,0,SZ,SZ);
+  g.fill();
+  g.save();
+  g.beginPath();
+  if(g.roundRect)g.roundRect(0,0,SZ,SZ,16);else g.rect(0,0,SZ,SZ);
+  g.clip();
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++)
+    if((x+y)%2===0){g.fillStyle='rgba(255,255,255,0.03)';g.fillRect(x*CELL,y*CELL,CELL,CELL);}
+  for(let fi=0;fi<flashes.length;fi++){
+    const f=flashes[fi],a=1-f.t/0.4;
+    g.fillStyle='rgba(255,255,255,'+(0.55*a)+')';
+    if(f.kind==='line'){
+      if(f.dir==='h')g.fillRect(0,f.fixed*CELL,SZ,CELL);
+      else g.fillRect(f.fixed*CELL,0,CELL,SZ);
+    }else if(f.kind==='cross'){
+      g.fillRect(0,f.y*CELL,SZ,CELL);g.fillRect(f.x*CELL,0,CELL,SZ);
+    }else{
+      g.fillRect((f.x-1)*CELL,(f.y-1)*CELL,CELL*3,CELL*3);
+    }
+  }
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const gem=board[y]&&board[y][x];
+    if(gem)drawGem(gem);
+  }
+  if(sel){
+    const gem=board[sel.y]&&board[sel.y][sel.x];
+    if(gem){g.strokeStyle='#fff';g.lineWidth=3;g.setLineDash([8,6]);
+      g.beginPath();g.arc(gem.px,gem.py,CELL*0.44,0,Math.PI*2);g.stroke();g.setLineDash([]);}
+  }
+  if(hintMove&&!busy){
+    const a=0.4+0.3*Math.sin(performance.now()/180);
+    g.strokeStyle='rgba(255,213,79,'+a+')';g.lineWidth=3;
+    const pts=[[hintMove.ax,hintMove.ay],[hintMove.bx,hintMove.by]];
+    for(let i=0;i<2;i++){
+      const p=cellXY(pts[i][0],pts[i][1]);
+      g.beginPath();g.arc(p[0],p[1],CELL*0.44,0,Math.PI*2);g.stroke();
+    }
+  }
+  for(let i=0;i<parts.length;i++){
+    const p=parts[i];
+    g.globalAlpha=Math.max(0,p.life/p.max);
+    g.fillStyle=p.c;
+    g.beginPath();g.arc(p.x,p.y,p.s,0,Math.PI*2);g.fill();
+  }
+  g.globalAlpha=1;
+  g.textAlign='center';
+  for(let i=0;i<floats.length;i++){
+    const f=floats[i];
+    g.globalAlpha=Math.max(0,f.life/f.max);
+    g.fillStyle=f.c;g.font='bold 26px sans-serif';
+    g.strokeStyle='rgba(0,0,0,0.6)';g.lineWidth=4;g.strokeText(f.txt,f.x,f.y);
+    g.fillText(f.txt,f.x,f.y);
+  }
+  g.globalAlpha=1;
+  g.restore();
+}
+
+/* ============ 输入 ============ */
+let lastTouch=0,dragStart=null;
+function evtCell(e){
+  const r=cv.getBoundingClientRect();
+  const px=(e.clientX-r.left)/r.width*SZ,py=(e.clientY-r.top)/r.height*SZ;
+  const x=(px/CELL)|0,y=(py/CELL)|0;
+  if(x<0||y<0||x>=N||y>=N)return null;
+  return {x:x,y:y,px:px,py:py};
+}
+function onDown(e){
+  if(!playing||paused||over||busy)return;
+  const c=evtCell(e);if(!c)return;
+  dragStart={c:c};
+}
+function onMove(e){
+  if(!dragStart||busy||!playing||paused||over)return;
+  const c=evtCell(e);if(!c)return;
+  const ox=(dragStart.c.x+0.5)*CELL,oy=(dragStart.c.y+0.5)*CELL;
+  const sx=c.px-ox,sy=c.py-oy;
+  if(Math.abs(sx)>CELL*0.45||Math.abs(sy)>CELL*0.45){
+    let nx=dragStart.c.x,ny=dragStart.c.y;
+    if(Math.abs(sx)>Math.abs(sy))nx+=sx>0?1:-1;else ny+=sy>0?1:-1;
+    const sx0=dragStart.c.x,sy0=dragStart.c.y;
+    dragStart=null;
+    if(nx>=0&&ny>=0&&nx<N&&ny<N)playerSwap(sx0,sy0,nx,ny);
+  }
+}
+function onUp(e){
+  if(!dragStart)return;
+  dragStart=null;
+  if(!playing||paused||over||busy)return;
+  const c=evtCell(e);if(!c)return;
+  if(sel&&Math.abs(sel.x-c.x)+Math.abs(sel.y-c.y)===1){
+    const s=sel;sel=null;
+    playerSwap(s.x,s.y,c.x,c.y);
+  }else{
+    sel=(sel&&sel.x===c.x&&sel.y===c.y)?null:{x:c.x,y:c.y};
+    Snd.click();
+  }
+  lastActT=performance.now();hintMove=null;
+}
+cv.addEventListener('touchstart',function(e){e.preventDefault();lastTouch=Date.now();Snd.ensure();onDown(e.touches[0]);},{passive:false});
+cv.addEventListener('touchmove',function(e){e.preventDefault();onMove(e.touches[0]);},{passive:false});
+cv.addEventListener('touchend',function(e){e.preventDefault();onUp(e.changedTouches[0]);},{passive:false});
+cv.addEventListener('mousedown',function(e){if(Date.now()-lastTouch<600)return;Snd.ensure();onDown(e);});
+cv.addEventListener('mousemove',function(e){if(Date.now()-lastTouch<600)return;onMove(e);});
+cv.addEventListener('mouseup',function(e){if(Date.now()-lastTouch<600)return;onUp(e);});
+
+/* ============ 界面 ============ */
+$('startBtn').addEventListener('click',function(){Snd.ensure();Snd.click();buzz(30);newGame();});
+$('retryBtn').addEventListener('click',function(){Snd.click();buzz(30);newGame();});
+$('pauseBtn').addEventListener('click',function(){
+  if(!playing||paused||over)return;
+  Snd.click();paused=true;stopLoop();$('pauseScr').classList.remove('hidden');
+});
+$('resumeBtn').addEventListener('click',function(){
+  Snd.click();$('pauseScr').classList.add('hidden');paused=false;lastActT=performance.now();startLoop();
+});
+$('pauseRetryBtn').addEventListener('click',function(){Snd.click();$('pauseScr').classList.add('hidden');newGame();});
+function refreshMute(){$('muteBtn').textContent=Snd.muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(){Snd.ensure();Snd.muted=!Snd.muted;refreshMute();if(!Snd.muted)Snd.click();});
+refreshMute();
+$('best').textContent=best;
+document.addEventListener('visibilitychange',function(){if(document.hidden&&playing&&!paused&&!over)$('pauseBtn').click();});
+genBoard();
+render();
+</script>
+</body>
+</html>
