@@ -51,6 +51,11 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
 #ownBoard .cell.sunk{background:#5b1a1a;box-shadow:inset 0 0 0 1px #ff6b6b}
 .turndot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#2ecc71;margin-right:4px;animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.3}}
+.cell.hintshot{animation:hintpulse .8s ease-in-out 4}
+@keyframes hintpulse{0%,100%{box-shadow:inset 0 0 0 2px rgba(255,215,106,.6)}50%{box-shadow:inset 0 0 0 4px #ffd76a,0 0 18px rgba(255,215,106,.9)}}
+#hintToast{position:fixed;top:64px;left:50%;transform:translateX(-50%);max-width:88vw;background:rgba(20,22,34,.96);border:1px solid rgba(255,215,106,.55);color:#ffe9a8;font-size:13px;line-height:1.7;padding:10px 16px;border-radius:12px;z-index:90;display:none;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#hintToast.show{display:block;animation:toastin .25s}
+@keyframes toastin{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 </style>
 </head>
 <body>
@@ -58,6 +63,7 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
   <div class="topbar">
     <div class="tb-title">🚢 海战棋</div>
     <div class="tb-right">
+      <div class="iconbtn" id="hintBtn">💡</div>
       <div class="iconbtn" id="soundBtn">🔊</div>
       <div class="iconbtn hidden" id="pauseBtn">⏸</div>
     </div>
@@ -132,6 +138,7 @@ function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
 soundBtn.textContent=soundOn?'🔊':'🔇';
 soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
 pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('hintBtn').addEventListener('click',function(){ sClick(); bsHint(); });
 $('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
 /* ===== 游戏：海战棋 ===== */
 const SZ=10, SHIPS=[5,4,3,3,2];
@@ -263,6 +270,63 @@ function aiShoot(){
   renderBoards();
   if(checkWin(playerFleet)){ endGame(false); return; }
   turn='player'; $('turnTxt').textContent='你的回合'; $('turnDot').style.background='#2ecc71';
+}
+var hintToastTimer=null;
+function showHintToast(html,ms){
+  var t=document.getElementById('hintToast');
+  if(!t){t=document.createElement('div');t.id='hintToast';document.body.appendChild(t);}
+  t.innerHTML=html;t.classList.add('show');
+  if(hintToastTimer)clearTimeout(hintToastTimer);
+  hintToastTimer=setTimeout(function(){t.classList.remove('show');},ms||4500);
+}
+function bsHint(){
+  if(!playing||paused||turn!=='player')return;
+  var r,c,k,shots=playerShots;
+  // 1) 追击模式：找已命中但未击沉的格子，看 DOM 上 hit(非sunk) 的邻格
+  var hits=[];
+  var cells=$('enemyBoard').children;
+  for(r=0;r<SZ;r++)for(c=0;c<SZ;c++){
+    var el=cells[r*SZ+c];
+    if(el.classList.contains('hit')&&!el.classList.contains('sunk'))hits.push([r,c]);
+  }
+  var why='';
+  var pick=null;
+  if(hits.length){
+    var nb=[],i;
+    for(i=0;i<hits.length;i++){
+      var h=hits[i];
+      var ns=[[h[0]+1,h[1]],[h[0]-1,h[1]],[h[0],h[1]+1],[h[0],h[1]-1]];
+      for(var j=0;j<ns.length;j++){
+        var nr=ns[j][0],nc=ns[j][1];
+        if(nr>=0&&nr<SZ&&nc>=0&&nc<SZ&&!shots.has(key(nr,nc)))nb.push([nr,nc]);
+      }
+    }
+    if(nb.length){
+      pick=nb[(Math.random()*nb.length)|0];
+      why='这艘船已被命中，相邻格很可能还有船身，顺着打过去';
+    }
+  }
+  // 2) 狩猎模式：黑白格跳打（最小的船占2格，跳打必能先发现任意船）
+  if(!pick){
+    var opts=[];
+    for(r=0;r<SZ;r++)for(c=0;c<SZ;c++){
+      if(!shots.has(key(r,c))&&(r+c)%2===0)opts.push([r,c]);
+    }
+    if(!opts.length){
+      for(r=0;r<SZ;r++)for(c=0;c<SZ;c++){
+        if(!shots.has(key(r,c)))opts.push([r,c]);
+      }
+    }
+    if(!opts.length){showHintToast('没有可打的格子了');return;}
+    pick=opts[(Math.random()*opts.length)|0];
+    why='按黑白格跳打：最小的船也占 2 格，跳打一定能先蹭到任意一艘船，比逐格扫快近一倍';
+  }
+  var el2=cells[pick[0]*SZ+pick[1]];
+  el2.classList.remove('hintshot');void el2.offsetWidth;el2.classList.add('hintshot');
+  setTimeout(function(){el2.classList.remove('hintshot');},3400);
+  sClick();
+  var colName='ABCDEFGHIJ';
+  showHintToast('💡 建议打 <b>'+colName[pick[1]]+(pick[0]+1)+'</b>（已闪烁标出）<br>'+why);
 }
 function endGame(win){
   playing=false; clearTimeout(aiTimer); pauseBtn.classList.add('hidden'); setPaused(false);
