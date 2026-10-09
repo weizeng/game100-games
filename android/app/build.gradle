@@ -11,13 +11,33 @@ android {
         applicationId = "com.game100.center"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.5"
+        versionCode = 7
+        versionName = "1.6"
+    }
+
+    signingConfigs {
+        release {
+            def propFile = rootProject.file("release.properties")
+            def props = new java.util.Properties()
+            if (propFile.exists()) { propFile.withInputStream { props.load(it) } }
+            def prop = { name ->
+                props.getProperty(name)
+                    ?: project.findProperty(name)?.toString()
+                    ?: System.getenv(name.toUpperCase().replace('.', '_'))
+                    ?: { throw new GradleException("缺少签名配置 " + name) }()
+            }
+            storeFile = file(prop("game100.release.storeFile"))
+            storePassword = prop("game100.release.storePassword")
+            keyAlias = prop("game100.release.keyAlias")
+            keyPassword = prop("game100.release.keyPassword")
+        }
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             minifyEnabled = false
+            debuggable = false
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -25,6 +45,9 @@ android {
     }
     buildFeatures {
         buildConfig = true
+    }
+    lint {
+        checkReleaseBuilds = false
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
