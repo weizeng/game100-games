@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>神射手</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d0d16;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#0f1e2e 0%,#0d0d16 55%,#0e1a12 100%)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none;font-size:15px}
+.hud .left{font-weight:bold;text-shadow:0 0 8px #aed581}
+.hud .right{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{width:38px;height:38px;border-radius:50%;border:1px solid #aed58155;background:#1c1c2bd9;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,20,.88);backdrop-filter:blur(4px);z-index:10;text-align:center;padding:24px}
+.screen h1{font-size:38px;margin-bottom:6px;background:linear-gradient(135deg,#aed581,#ffd740);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.screen p{color:#aaa;font-size:14px;line-height:1.7;margin:12px 0 20px}
+.bigbtn{padding:14px 56px;font-size:18px;border:none;border-radius:30px;background:linear-gradient(135deg,#aed581,#7cb342);color:#fff;font-weight:bold;cursor:pointer;transition:transform .1s;box-shadow:0 4px 20px #aed58155}
+.bigbtn:active{transform:scale(.93)}
+.score{font-size:52px;font-weight:bold;background:linear-gradient(135deg,#ffd740,#aed581);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0}
+.hiscore{color:#888;font-size:14px;margin-bottom:20px}
+.hidden{display:none!important}
+.arrows{color:#ffd740;font-size:14px;letter-spacing:2px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div class="hud">
+<div class="left">SCORE <span id="score">0</span> · <span class="arrows" id="arrows"></span></div>
+<div class="right"><button class="iconbtn" id="muteBtn">MUTE</button><button class="iconbtn" id="pauseBtn">II</button></div>
+</div>
+<div class="screen" id="startScr">
+<h1>ARCHERY</h1>
+<p>按住屏幕拉弓，拖动微调瞄准<br>拉得越久手越抖，松手射箭<br>按命中环数计分（10环最高）<br>共 10 支箭</p>
+<button class="bigbtn" id="startBtn">开弓</button>
+</div>
+<div class="screen hidden" id="overScr">
+<h1>比赛结束</h1>
+<div class="score" id="finalScore">0</div>
+<div class="hiscore">最高分：<span id="hiScore">0</span> · 平均 <span id="avg">0</span> 环/箭</div>
+<button class="bigbtn" id="retryBtn">再来一局</button>
+</div>
+<div class="screen hidden" id="pauseScr">
+<h1>已暂停</h1>
+<button class="bigbtn" id="resumeBtn">继续</button>
+</div>
+</div>
+<script>
+"use strict";
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),wrap=document.getElementById('wrap');
+var W,H,DPR;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=wrap.clientWidth;H=wrap.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+window.addEventListener('resize',resize);resize();
+var muted=false,AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+function sDraw(){tone(180,.4,'sine',.04,320);}
+function sShoot(){tone(600,.12,'square',.1,150);}
+function sHit(ring){var f=300+ring*70;tone(f,.18,'sine',.14);if(ring>=9)setTimeout(function(){tone(f*1.5,.25,'sine',.12);},90);}
+function sWin(){[523,659,784,1046].forEach(function(f,i){setTimeout(function(){tone(f,.25,'sine',.12);},i*140);});}
+document.getElementById('muteBtn').onclick=function(e){e.stopPropagation();muted=!muted;this.textContent=muted?'OFF':'MUTE';};
+var HIKEY='g100_archery_hi',hi=0;
+try{hi=parseInt(localStorage.getItem(HIKEY))||0;}catch(e){}
+var state='start',paused=false,score=0,arrowsLeft=10;
+var aiming,drawT,aimX,aimY,arrow,parts,floats,target,frame=0;
+var AX=56; // 弓手x
+function rand(a,b){return a+Math.random()*(b-a);}
+function setArrows(){var s='';for(var i=0;i<10;i++)s+=i<arrowsLeft?'\u27B6':'\u00B7';document.getElementById('arrows').textContent=s;}
+function startGame(){score=0;arrowsLeft=10;aiming=false;drawT=0;arrow=null;parts=[];floats=[];frame=0;
+target={x:W-64,baseY:H*.42,ph:rand(0,6.28),spd:rand(.03,.05),r:64};
+aimX=target.x;aimY=target.baseY;
+document.getElementById('score').textContent='0';setArrows();
+document.getElementById('startScr').classList.add('hidden');document.getElementById('overScr').classList.add('hidden');document.getElementById('pauseScr').classList.add('hidden');
+state='play';paused=false;}
+function endGame(){state='over';sWin();
+document.getElementById('finalScore').textContent=score;
+document.getElementById('avg').textContent=(score/10).toFixed(1);
+if(score>hi){hi=score;try{localStorage.setItem(HIKEY,hi);}catch(e){}}
+document.getElementById('hiScore').textContent=hi;
+setTimeout(function(){document.getElementById('overScr').classList.remove('hidden');},600);}
+function releaseArrow(){
+if(arrowsLeft<=0||arrow)return;
+arrowsLeft--;setArrows();
+var bx=AX+22,byy=H*.55-8;
+var dx=aimX-bx,dy=aimY-byy,d=Math.hypot(dx,dy)||1,sp=16;
+arrow={x:bx,y:byy,vx:dx/d*sp,vy:dy/d*sp,trail:[]};
+sShoot();}
+function update(){
+if(state!=='play'||paused)return;
+frame++;
+target.ph+=target.spd;
+target.y=target.baseY+Math.sin(target.ph)*(H*.22);
+if(aiming){drawT++;
+// 手抖：随拉弓时间增大
+var shake=Math.min(26,drawT*.22);
+aimX+=rand(-shake,shake)*.3;aimY+=rand(-shake,shake)*.3;
+aimX=Math.max(60,Math.min(W-20,aimX));aimY=Math.max(60,Math.min(H-120,aimY));}
+if(arrow){var a=arrow;
+a.vy+=.12;a.x+=a.vx;a.y+=a.vy;
+a.trail.push({x:a.x,y:a.y});if(a.trail.length>12)a.trail.shift();
+var dx=a.x-target.x,dy=a.y-target.y,d=Math.hypot(dx,dy);
+if(d<target.r||a.x>W+20||a.y>H){ // 命中或飞出
+if(d<target.r){
+var ring=Math.max(1,10-Math.floor(d/(target.r/10)));
+score+=ring;document.getElementById('score').textContent=score;
+floats.push({x:target.x,y:target.y-target.r-6,t:ring+'环! +'+ring,life:55,vy:-1});
+for(var i=0;i<14;i++){var an=rand(0,6.28),sp2=rand(1,4);parts.push({x:a.x,y:a.y,vx:Math.cos(an)*sp2,vy:Math.sin(an)*sp2,life:rand(20,40),col:ring>=8?'#ffd740':'#aed581',s:rand(2,4)});}
+sHit(ring);}
+arrow=null;
+if(arrowsLeft<=0&&parts.length===0)setTimeout(function(){if(state==='play')endGame();},500);}}
+for(var p=parts.length-1;p>=0;p--){var pt=parts[p];pt.x+=pt.vx;pt.y+=pt.vy;pt.life--;if(pt.life<=0)parts.splice(p,1);}
+for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.y+=fl.vy;fl.life--;if(fl.life<=0)floats.splice(f,1);}
+}
+function drawTarget(){
+var t=target;
+var cols=['#fff','#212121','#4fc3f7','#ff5252','#ffd740'];
+for(var i=5;i>=1;i--){ctx.fillStyle=cols[i-1];ctx.beginPath();ctx.arc(t.x,t.y,t.r*i/5,0,6.28);ctx.fill();}
+ctx.fillStyle='#ff5252';ctx.beginPath();ctx.arc(t.x,t.y,4,0,6.28);ctx.fill();
+// 支架
+ctx.strokeStyle='#5d4037';ctx.lineWidth=8;
+ctx.beginPath();ctx.moveTo(t.x,t.y+t.r);ctx.lineTo(t.x,H-60);ctx.stroke();}
+function draw(){
+ctx.clearRect(0,0,W,H);
+// 地面
+ctx.fillStyle='#14251a';ctx.fillRect(0,H-60,W,60);
+drawTarget();
+// 弓手
+var by=H*.55;
+ctx.fillStyle='#8d6e63';ctx.beginPath();ctx.arc(AX,by-24,9,0,6.28);ctx.fill();
+ctx.fillStyle='#5d4037';ctx.fillRect(AX-6,by-16,12,26);
+// 弓
+ctx.strokeStyle='#d7ccc8';ctx.lineWidth=4;
+var pull=aiming?Math.min(26,drawT*.3):0;
+ctx.beginPath();ctx.arc(AX+22,by-8,26,-1.1,1.1);ctx.stroke();
+if(aiming){ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(AX+22+Math.cos(-1.1)*26,by-8+Math.sin(-1.1)*26);
+ctx.lineTo(AX+22-pull,by-8);ctx.lineTo(AX+22+Math.cos(1.1)*26,by-8+Math.sin(1.1)*26);ctx.stroke();
+ctx.strokeStyle='#ffeb3b';ctx.lineWidth=2;
+ctx.beginPath();ctx.moveTo(AX+22-pull,by-8);ctx.lineTo(AX+22-pull+20,by-8);ctx.stroke();}
+// 瞄准
+if(aiming&&state==='play'){
+ctx.strokeStyle='rgba(255,235,59,.5)';ctx.setLineDash([6,6]);ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(AX+30,by-8);ctx.lineTo(aimX,aimY);ctx.stroke();ctx.setLineDash([]);
+ctx.strokeStyle='#ff5252';ctx.lineWidth=2;
+ctx.beginPath();ctx.arc(aimX,aimY,10+Math.min(26,drawT*.22),0,6.28);ctx.stroke();
+ctx.beginPath();ctx.moveTo(aimX-16,aimY);ctx.lineTo(aimX-6,aimY);ctx.moveTo(aimX+6,aimY);ctx.lineTo(aimX+16,aimY);
+ctx.moveTo(aimX,aimY-16);ctx.lineTo(aimX,aimY-6);ctx.moveTo(aimX,aimY+6);ctx.lineTo(aimX,aimY+16);ctx.stroke();}
+// 箭
+if(arrow){var a=arrow;
+ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=2;ctx.beginPath();a.trail.forEach(function(t,i){i?ctx.lineTo(t.x,t.y):ctx.moveTo(t.x,t.y);});ctx.stroke();
+ctx.strokeStyle='#d7ccc8';ctx.lineWidth=3;var an=Math.atan2(a.vy,a.vx);
+ctx.save();ctx.translate(a.x,a.y);ctx.rotate(an);
+ctx.beginPath();ctx.moveTo(-14,0);ctx.lineTo(10,0);ctx.stroke();
+ctx.fillStyle='#ff5252';ctx.beginPath();ctx.moveTo(10,0);ctx.lineTo(2,-4);ctx.lineTo(2,4);ctx.closePath();ctx.fill();
+ctx.restore();}
+parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/40);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,6.28);ctx.fill();});ctx.globalAlpha=1;
+ctx.font='bold 16px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/55);ctx.fillStyle='#ffd740';ctx.fillText(f.t,f.x-30,f.y);});ctx.globalAlpha=1;
+}
+function loop(){update();draw();requestAnimationFrame(loop);}
+loop();
+function posOf(e){var r=cv.getBoundingClientRect();var t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
+function tStart(e){e.preventDefault();if(state!=='play'||paused||arrow||arrowsLeft<=0)return;
+aiming=true;drawT=0;aimX=target.x;aimY=target.y;sDraw();}
+function tMove(e){e.preventDefault();if(!aiming)return;
+var p=posOf(e);aimX=p.x;aimY=p.y;}
+function tEnd(e){if(e)e.preventDefault();if(!aiming)return;aiming=false;releaseArrow();}
+cv.addEventListener('touchstart',tStart,{passive:false});
+cv.addEventListener('touchmove',tMove,{passive:false});
+cv.addEventListener('touchend',tEnd,{passive:false});
+cv.addEventListener('touchcancel',function(e){if(e)e.preventDefault();aiming=false;},{passive:false});
+cv.addEventListener('mousedown',tStart);
+cv.addEventListener('mousemove',tMove);
+document.addEventListener('mouseup',tEnd);
+document.getElementById('startBtn').onclick=function(){ac();startGame();};
+document.getElementById('retryBtn').onclick=function(){startGame();};
+document.getElementById('pauseBtn').onclick=function(){if(state!=='play')return;paused=true;aiming=false;document.getElementById('pauseScr').classList.remove('hidden');};
+document.getElementById('resumeBtn').onclick=function(){paused=false;document.getElementById('pauseScr').classList.add('hidden');};
+document.addEventListener('visibilitychange',function(){if(document.hidden&&state==='play'&&!paused){paused=true;aiming=false;document.getElementById('pauseScr').classList.remove('hidden');}});
+</script>
+</body>
+</html>

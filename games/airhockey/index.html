@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>气垫球</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.topbar b{color:#90CAF9;font-size:22px}
+.iconbtn{background:#1e1e1e;border:1px solid #333;color:#fff;font-size:18px;min-width:40px;height:40px;border-radius:10px;cursor:pointer}
+.iconbtn:active{transform:scale(.92)}
+canvas{background:linear-gradient(180deg,#0f1620 0%,#121212 60%,#101a12 100%);border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px;border:1px solid #222}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9}
+.btn{background:linear-gradient(135deg,#90CAF9,#1565C0);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;box-shadow:0 4px 14px rgba(144,202,249,.35)}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;box-shadow:none}
+.hint{color:#888;font-size:13px;text-align:center;line-height:1.7}
+.rowbtns{display:flex;gap:12px}
+.scorebig{font-size:44px;font-weight:800;letter-spacing:8px}
+.scorebig .me{color:#66BB6A}.scorebig .ai{color:#EF5350}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🏒 气垫球</span><span class="scorebig"><span class="me" id="sMe">0</span>:<span class="ai" id="sAi">0</span></span><span><button class="iconbtn" id="pauseBtn">⏸</button> <button class="iconbtn" id="soundBtn">🔊</button></span></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<p class="hint">拖动下方绿色推子击球，把球打进顶部球门<br>先到 7 分获胜，AI 会防守和反击</p>
+</div>
+<div class="overlay" id="startScr"><h1>🏒 气垫球</h1><p>👆 手指拖动绿色推子（只能在己方半场）<br>把气垫球打进🔴顶部球门得分<br>小心别被 AI 把球打进你的球门<br>🏆 先到 <b>7 分</b>者获胜<br>AI 速度中等，找准角度就能战胜它！</p><button class="btn" id="startBtn">开始比赛</button></div>
+<div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle"></h1><p id="overText"></p><button class="btn" id="restartBtn">再来一场</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d'),W=400,H=560;
+let AC=null,soundOn=true;try{soundOn=localStorage.getItem('g100_sound')!=='0';}catch(e){}
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,d,type,vol,when){if(!soundOn)return;const a=ac();if(!a)return;type=type||'sine';vol=vol||0.13;when=when||0;const t=a.currentTime+when;const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}
+function sHit(){tone(300+Math.random()*200,0.07,'square',0.08);}
+function sWall(){tone(200,0.05,'sine',0.06);}
+function sGoalMe(){[523,659,784,1047].forEach((f,i)=>tone(f,0.16,'triangle',0.14,i*0.08));}
+function sGoalAi(){[400,340,280].forEach((f,i)=>tone(f,0.18,'sawtooth',0.1,i*0.1));}
+function sWin(){[523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,0.2,'triangle',0.14,i*0.1));}
+function getBest(k){try{return parseInt(localStorage.getItem(k)||'0',10)||0;}catch(e){return 0;}}
+function setBest(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+const BESTK='g100_airhockey_best';
+const PR=26,PUCKR=13,GOALW=150,WIN=7,MID=H/2;
+let puck,me,ai,sMe,sAi,state,paused,parts,raf,freeze,goalMsg,goalT,best,t;
+
+function resetPuck(dir){puck={x:W/2,y:MID,vx:(Math.random()-0.5)*4,vy:dir*3,r:PUCKR};}
+function reset(){me={x:W/2,y:H-110,px:W/2,py:H-110,vx:0,vy:0,r:PR};ai={x:W/2,y:110,r:PR};resetPuck(1);sMe=0;sAi=0;parts=[];paused=false;freeze=0;goalMsg='';goalT=0;t=0;$('sMe').textContent='0';$('sAi').textContent='0';}
+function startGame(){reset();state='play';hide('startScr');hide('overScr');hide('pauseScr');}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function burst(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=1+Math.random()*3;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:26+Math.random()*16,color});}}
+function gameOver(win){state='over';if(win){sWin();const b=getBest(BESTK);if(sMe-sAi>b||b===0)setBest(BESTK,Math.max(b,sMe-sAi));}
+$('overTitle').textContent=win?'🏆 你赢了！':'😞 惜败';$('overText').innerHTML='比分 <b>'+sMe+' : '+sAi+'</b><br>'+(win?'漂亮的 7 分！再接再厉':'AI 先到了 7 分，下次赢回来！');show('overScr');}
+function goal(byMe){if(byMe){sMe++;sGoalMe();goalMsg='⚽ 进球!';burst(W/2,30,'#66BB6A',20);}else{sAi++;sGoalAi();goalMsg='😱 被进球';burst(W/2,H-30,'#ef5350',20);}
+$('sMe').textContent=sMe;$('sAi').textContent=sAi;goalT=50;freeze=50;
+me.x=W/2;me.y=H-110;ai.x=W/2;ai.y=110;resetPuck(byMe?-1:1);
+if(sMe>=WIN)gameOver(true);else if(sAi>=WIN)gameOver(false);}
+function ppos(e){const r=cv.getBoundingClientRect();const p=e.touches&&e.touches[0]?e.touches[0]:e;return{x:(p.clientX-r.left)/r.width*W,y:(p.clientY-r.top)/r.height*H};}
+let target=null;
+function onDown(e){if(state!=='play'||paused)return;ac();target=ppos(e);if(e.cancelable)e.preventDefault();}
+function onMove(e){if(state!=='play'||paused||!target)return;target=ppos(e);if(e.cancelable)e.preventDefault();}
+function onUp(){target=null;}
+cv.addEventListener('touchstart',onDown,{passive:false});
+cv.addEventListener('touchmove',onMove,{passive:false});
+cv.addEventListener('touchend',onUp,{passive:false});
+cv.addEventListener('mousedown',e=>{md=true;onDown(e);});
+cv.addEventListener('mousemove',e=>{if(md)onMove(e);});
+window.addEventListener('mouseup',()=>{md=false;onUp();});
+let md=false;
+
+function collide(pad){const dx=puck.x-pad.x,dy=puck.y-pad.y;const d=Math.hypot(dx,dy),min=puck.r+pad.r;
+if(d<min&&d>0.01){const nx=dx/d,ny=dy/d;puck.x=pad.x+nx*min;puck.y=pad.y+ny*min;
+const rel=(puck.vx-pad.vx)*nx+(puck.vy-pad.vy)*ny;
+if(rel<0){const imp=-rel*1.9;puck.vx+=nx*imp+pad.vx*0.55;puck.vy+=ny*imp+pad.vy*0.55;sHit();burst(puck.x,puck.y,'#fff',5);}}}
+function physics(){t++;
+if(target){const tx=Math.max(30,Math.min(W-30,target.x)),ty=Math.max(MID+24,Math.min(H-40,target.y));
+me.px=me.x;me.py=me.y;me.x+=(tx-me.x)*0.4;me.y+=(ty-me.y)*0.4;me.vx=(me.x-me.px);me.vy=(me.y-me.py);}
+else{me.vx*=0.8;me.vy*=0.8;}
+const inOff=puck.y<MID*0.9;const wob=Math.sin(t*0.045)*26;
+let tx2=W/2,ty2=120;
+if(inOff){tx2=Math.max(40,Math.min(W-40,puck.x+wob));ty2=Math.max(50,Math.min(250,puck.y+30));}
+const dx=tx2-ai.x,dy=ty2-ai.y,d=Math.hypot(dx,dy),sp=Math.min(d,4.6);
+if(d>1){ai.x+=dx/d*sp;ai.y+=dy/d*sp;}
+ai.x=Math.max(30,Math.min(W-30,ai.x));ai.y=Math.max(30,Math.min(MID-24,ai.y));
+puck.x+=puck.vx;puck.y+=puck.vy;puck.vx*=0.992;puck.vy*=0.992;
+const spd=Math.hypot(puck.vx,puck.vy);if(spd>13){puck.vx*=13/spd;puck.vy*=13/spd;}
+if(puck.x<puck.r){puck.x=puck.r;puck.vx*=-1;sWall();}
+if(puck.x>W-puck.r){puck.x=W-puck.r;puck.vx*=-1;sWall();}
+const gx0=W/2-GOALW/2,gx1=W/2+GOALW/2;
+if(puck.y<puck.r){if(puck.x>gx0&&puck.x<gx1){if(puck.y<-puck.r){goal(true);return;}}else{puck.y=puck.r;puck.vy*=-1;sWall();}}
+if(puck.y>H-puck.r){if(puck.x>gx0&&puck.x<gx1){if(puck.y>H+puck.r){goal(false);return;}}else{puck.y=H-puck.r;puck.vy*=-1;sWall();}}
+collide(me);collide({x:ai.x,y:ai.y,vx:0,vy:0,r:ai.r});
+if(goalT>0)goalT--;}
+function drawPaddle(x,y,color){const g=ctx.createRadialGradient(x-6,y-8,4,x,y,PR);g.addColorStop(0,'#ffffff');g.addColorStop(0.35,color);g.addColorStop(1,color);ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,PR,0,7);ctx.fill();ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.arc(x,y,10,0,7);ctx.fill();}
+function draw(){ctx.clearRect(0,0,W,H);
+ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(14,MID);ctx.lineTo(W-14,MID);ctx.stroke();
+ctx.beginPath();ctx.arc(W/2,MID,52,0,7);ctx.stroke();
+ctx.strokeStyle='rgba(255,255,255,.2)';ctx.strokeRect(14,14,W-28,H-28);
+ctx.fillStyle='#EF5350';ctx.fillRect(W/2-GOALW/2,8,GOALW,10);ctx.fillStyle='#66BB6A';ctx.fillRect(W/2-GOALW/2,H-18,GOALW,10);
+ctx.fillStyle='#EF5350';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('AI 球门',W/2,34);ctx.fillStyle='#66BB6A';ctx.fillText('你的球门',W/2,H-26);ctx.textAlign='left';
+drawPaddle(ai.x,ai.y,'#ef5350');drawPaddle(me.x,me.y,'#66bb6a');
+const g=ctx.createRadialGradient(puck.x-4,puck.y-5,2,puck.x,puck.y,PUCKR);g.addColorStop(0,'#ffffff');g.addColorStop(1,'#90caf9');ctx.fillStyle=g;ctx.beginPath();ctx.arc(puck.x,puck.y,puck.r,0,7);ctx.fill();
+for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/42);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+if(goalT>0){ctx.globalAlpha=Math.min(1,goalT/25);ctx.fillStyle='#ffd740';ctx.font='bold 30px sans-serif';ctx.textAlign='center';ctx.fillText(goalMsg,W/2,MID);ctx.textAlign='left';ctx.globalAlpha=1;}
+if(freeze>0&&state==='play'){ctx.fillStyle='rgba(255,255,255,.7)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('准备…',W/2,MID-70);ctx.textAlign='left';}
+}
+function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){if(freeze>0)freeze--;else physics();
+for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.life--;}parts=parts.filter(p=>p.life>0);}
+draw();}
+$('startBtn').onclick=()=>{ac();startGame();};
+$('restartBtn').onclick=()=>{ac();startGame();};
+$('restartBtn2').onclick=()=>{ac();startGame();};
+$('resumeBtn').onclick=()=>{paused=false;hide('pauseScr');};
+$('pauseBtn').onclick=()=>{if(state!=='play')return;paused=!paused;if(paused)show('pauseScr');else hide('pauseScr');};
+$('soundBtn').onclick=function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}this.textContent=soundOn?'🔊':'🔇';};
+$('soundBtn').textContent=soundOn?'🔊':'🔇';
+state='start';reset();loop();
+</script>
+</body>
+</html>
