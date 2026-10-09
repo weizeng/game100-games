@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>钓鱼</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d0d16;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#0b2033 0%,#0d2b45 35%,#082033 100%)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none;font-size:15px}
+.hud .left{font-weight:bold;text-shadow:0 0 8px #4fc3f7}
+.hud .right{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{width:38px;height:38px;border-radius:50%;border:1px solid #4fc3f755;background:#1c1c2bd9;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,20,.88);backdrop-filter:blur(4px);z-index:10;text-align:center;padding:24px}
+.screen h1{font-size:38px;margin-bottom:6px;background:linear-gradient(135deg,#4fc3f7,#0288d1);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.screen p{color:#aaa;font-size:14px;line-height:1.7;margin:12px 0 20px}
+.bigbtn{padding:14px 56px;font-size:18px;border:none;border-radius:30px;background:linear-gradient(135deg,#4fc3f7,#0288d1);color:#fff;font-weight:bold;cursor:pointer;transition:transform .1s;box-shadow:0 4px 20px #4fc3f755}
+.bigbtn:active{transform:scale(.93)}
+.score{font-size:52px;font-weight:bold;background:linear-gradient(135deg,#ffd740,#4fc3f7);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0}
+.hiscore{color:#888;font-size:14px;margin-bottom:20px}
+.hidden{display:none!important}
+#timebar{position:absolute;top:0;left:0;height:4px;background:linear-gradient(90deg,#4fc3f7,#0288d1);width:100%;z-index:5}
+.hint{position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#90caf9aa;font-size:12px;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div id="timebar"></div>
+<div class="hud">
+<div class="left">SCORE <span id="score">0</span> · <span id="time">90</span>s</div>
+<div class="right"><button class="iconbtn" id="muteBtn">MUTE</button><button class="iconbtn" id="pauseBtn">II</button></div>
+</div>
+<div class="hint" id="hint">点击放钩，再点击收钩 · 大鱼分更高</div>
+<div class="screen" id="startScr">
+<h1>FISHING</h1>
+<p>鱼儿左右游动<br>点击屏幕放钩下沉，再点收钩<br>钩到鱼按大小计分（大鱼分高）<br>限时 90 秒</p>
+<button class="bigbtn" id="startBtn">出海</button>
+</div>
+<div class="screen hidden" id="overScr">
+<h1>收竿了</h1>
+<div class="score" id="finalScore">0</div>
+<div class="hiscore">最高分：<span id="hiScore">0</span> · 钓到 <span id="caught">0</span> 条</div>
+<button class="bigbtn" id="retryBtn">再钓一次</button>
+</div>
+<div class="screen hidden" id="pauseScr">
+<h1>已暂停</h1>
+<button class="bigbtn" id="resumeBtn">继续</button>
+</div>
+</div>
+<script>
+"use strict";
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),wrap=document.getElementById('wrap');
+var W,H,DPR,SURF;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=wrap.clientWidth;H=wrap.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);SURF=86;}
+window.addEventListener('resize',resize);
+var muted=false,AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+function sDrop(){tone(400,.2,'sine',.06,150);}
+function sReel(){tone(300,.3,'sawtooth',.05,700);}
+function sCatch(){tone(523,.12,'sine',.12);setTimeout(function(){tone(784,.18,'sine',.12);},90);}
+function sWin(){[523,659,784,1046].forEach(function(f,i){setTimeout(function(){tone(f,.25,'sine',.12);},i*140);});}
+document.getElementById('muteBtn').onclick=function(e){e.stopPropagation();muted=!muted;this.textContent=muted?'OFF':'MUTE';};
+var HIKEY='g100_fishing_hi',hi=0;
+try{hi=parseInt(localStorage.getItem(HIKEY))||0;}catch(e){}
+var state='start',paused=false,score=0,caught=0;
+var fishes,parts,floats,bubbles,hook,timeLeft,frame=0;
+var TIME_LIMIT=90,BOATX;
+var FISH_COLS=[['#ff8a65','#e64a19'],['#ffd740','#ff8f00'],['#80d8ff','#0277bd'],['#ce93d8','#6a1b9a'],['#a5d6a7','#2e7d32'],['#ff5252','#b71c1c']];
+function rand(a,b){return a+Math.random()*(b-a);}
+function spawnFish(){
+var dir=Math.random()<.5?1:-1;
+var depth=rand(SURF+60,H-60);
+var s=rand(.6,1.6);
+var col=FISH_COLS[Math.floor(Math.random()*FISH_COLS.length)];
+var spd=rand(1,2.4)/Math.sqrt(s); // 大鱼慢
+fishes.push({x:dir>0?-60:W+60,y:depth,vx:dir*spd,dir:dir,s:s,col:col,ph:rand(0,6.28),wig:rand(.2,.4)});}
+function startGame(){score=0;caught=0;fishes=[];parts=[];floats=[];bubbles=[];hook=null;timeLeft=TIME_LIMIT;frame=0;
+BOATX=W/2;
+for(var i=0;i<9;i++)spawnFish();
+document.getElementById('score').textContent='0';setTime();
+document.getElementById('hint').style.display='block';
+document.getElementById('startScr').classList.add('hidden');document.getElementById('overScr').classList.add('hidden');document.getElementById('pauseScr').classList.add('hidden');
+state='play';paused=false;}
+function setTime(){document.getElementById('time').textContent=Math.ceil(timeLeft);
+document.getElementById('timebar').style.width=(timeLeft/TIME_LIMIT*100)+'%';}
+function gameOver(){state='over';sWin();document.getElementById('hint').style.display='none';
+document.getElementById('finalScore').textContent=score;
+document.getElementById('caught').textContent=caught;
+if(score>hi){hi=score;try{localStorage.setItem(HIKEY,hi);}catch(e){}}
+document.getElementById('hiScore').textContent=hi;
+document.getElementById('overScr').classList.remove('hidden');}
+function toggleHook(){
+if(state!=='play'||paused)return;
+if(!hook){hook={y:SURF+10,vy:0,state:'drop',fish:null};sDrop();}
+else if(hook.state==='drop'){hook.state='reel';sReel();}
+else if(hook.state==='reel'){ // 提前收回
+if(hook.fish){scoreFish(hook.fish);}hook=null;}}
+function scoreFish(f){
+var pts=Math.round(40*f.s*f.s);
+score+=pts;caught++;
+document.getElementById('score').textContent=score;
+floats.push({x:BOATX,y:SURF+40,t:'+'+pts,life:50,vy:-1});
+for(var i=0;i<14;i++){var a=rand(0,6.28),sp=rand(1,3.5);parts.push({x:BOATX,y:SURF+20,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rand(20,40),col:f.col[0],s:rand(2,4)});}
+sCatch();}
+function update(){
+if(state!=='play'||paused)return;
+frame++;
+timeLeft-=1/60;setTime();
+if(timeLeft<=0){gameOver();return;}
+// 鱼
+if(fishes.length<9&&Math.random()<.03)spawnFish();
+for(var i=fishes.length-1;i>=0;i--){var f=fishes[i];
+f.x+=f.vx;f.ph+=f.wig;
+if(f.x<-80||f.x>W+80){fishes.splice(i,1);continue;}
+if(hook&&hook.state!=='done'&&!hook.fish){
+var hy=hook.y;
+if(Math.hypot(f.x-BOATX,f.y-hy)<16*f.s){hook.fish=f;hook.state='reel';fishes.splice(i,1);sCatch();}}}
+// 鱼钩
+if(hook){
+if(hook.state==='drop'){hook.y+=5.2;
+if(hook.y>H-30)hook.state='reel';}
+else if(hook.state==='reel'){hook.y-=6.5;
+if(hook.fish){hook.fish.x=BOATX;hook.fish.y=hook.y;}
+if(hook.y<=SURF+10){if(hook.fish)scoreFish(hook.fish);hook=null;}}}
+// 气泡
+if(Math.random()<.25)bubbles.push({x:Math.random()*W,y:H,v:rand(.5,1.5),s:rand(1,3)});
+for(var b=bubbles.length-1;b>=0;b--){var bb=bubbles[b];bb.y-=bb.v;if(bb.y<SURF){bubbles.splice(b,1);}}
+for(var p=parts.length-1;p>=0;p--){var pt=parts[p];pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=.1;pt.life--;if(pt.life<=0)parts.splice(p,1);}
+for(var fl=floats.length-1;fl>=0;fl--){var f2=floats[fl];f2.y+=f2.vy;f2.life--;if(f2.life<=0)floats.splice(fl,1);}
+}
+function drawFish(f){
+ctx.save();ctx.translate(f.x,f.y+Math.sin(f.ph)*4);ctx.scale(f.dir*f.s,f.s);
+var tail=Math.sin(f.ph*2)*8;
+ctx.fillStyle=f.col[1];
+ctx.beginPath();ctx.moveTo(-18,0);ctx.lineTo(-30,-8-tail*.4);ctx.lineTo(-30,8+tail*.4);ctx.closePath();ctx.fill();
+var g=ctx.createLinearGradient(-18,0,18,0);g.addColorStop(0,f.col[1]);g.addColorStop(1,f.col[0]);
+ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(0,0,18,10,0,0,6.28);ctx.fill();
+ctx.fillStyle='#212121';ctx.beginPath();ctx.arc(9,-3,2.5,0,6.28);ctx.fill();
+ctx.restore();}
+function draw(){
+ctx.clearRect(0,0,W,H);
+// 光线
+ctx.fillStyle='rgba(79,195,247,.06)';
+for(var i=0;i<3;i++){var lx=W*(.25+.25*i)+Math.sin(frame*.01+i)*20;
+ctx.beginPath();ctx.moveTo(lx-40,SURF);ctx.lineTo(lx+40,SURF);ctx.lineTo(lx+90,H);ctx.lineTo(lx-10,H);ctx.closePath();ctx.fill();}
+// 气泡
+ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;
+bubbles.forEach(function(b){ctx.beginPath();ctx.arc(b.x,b.y,b.s,0,6.28);ctx.stroke();});
+fishes.forEach(drawFish);
+// 船
+ctx.fillStyle='#5d4037';
+ctx.beginPath();ctx.moveTo(BOATX-46,SURF);ctx.lineTo(BOATX+46,SURF);ctx.lineTo(BOATX+30,SURF+26);ctx.lineTo(BOATX-30,SURF+26);ctx.closePath();ctx.fill();
+ctx.fillStyle='#8d6e63';ctx.fillRect(BOATX-6,SURF-26,12,28);
+// 渔夫
+ctx.fillStyle='#ffcc80';ctx.beginPath();ctx.arc(BOATX,SURF-14,8,0,6.28);ctx.fill();
+ctx.fillStyle='#e53935';ctx.fillRect(BOATX-8,SURF-6,16,14);
+// 鱼线与钩
+ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=1.5;
+var hy=hook?hook.y:SURF+10;
+ctx.beginPath();ctx.moveTo(BOATX,SURF-24);ctx.lineTo(BOATX,hy);ctx.stroke();
+ctx.strokeStyle='#ffd740';ctx.lineWidth=3;
+ctx.beginPath();ctx.arc(BOATX,hy+6,5,0,Math.PI*1.5);ctx.stroke();
+if(hook&&hook.fish){var hf=hook.fish;
+ctx.save();ctx.translate(hf.x,hf.y);ctx.scale(hf.s,hf.s);ctx.rotate(Math.PI/2);
+ctx.fillStyle=hf.col[0];ctx.beginPath();ctx.ellipse(0,0,16,9,0,0,6.28);ctx.fill();ctx.restore();}
+// 水面
+var wg=ctx.createLinearGradient(0,SURF-8,0,SURF+8);
+wg.addColorStop(0,'rgba(79,195,247,0)');wg.addColorStop(.5,'rgba(79,195,247,.55)');wg.addColorStop(1,'rgba(79,195,247,0)');
+ctx.fillStyle=wg;ctx.fillRect(0,SURF-8,W,16);
+parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/40);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,6.28);ctx.fill();});ctx.globalAlpha=1;
+ctx.font='bold 16px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/50);ctx.fillStyle='#ffd740';ctx.fillText(f.t,f.x-16,f.y);});ctx.globalAlpha=1;
+}
+function loop(){update();draw();requestAnimationFrame(loop);}
+resize();loop();
+function posOf(e){var r=cv.getBoundingClientRect();var t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
+cv.addEventListener('touchstart',function(e){e.preventDefault();toggleHook();},{passive:false});
+cv.addEventListener('mousedown',function(e){toggleHook();});
+document.getElementById('startBtn').onclick=function(){ac();startGame();};
+document.getElementById('retryBtn').onclick=function(){startGame();};
+document.getElementById('pauseBtn').onclick=function(){if(state!=='play')return;paused=true;document.getElementById('pauseScr').classList.remove('hidden');};
+document.getElementById('resumeBtn').onclick=function(){paused=false;document.getElementById('pauseScr').classList.add('hidden');};
+document.addEventListener('visibilitychange',function(){if(document.hidden&&state==='play'&&!paused){paused=true;document.getElementById('pauseScr').classList.remove('hidden');}});
+</script>
+</body>
+</html>

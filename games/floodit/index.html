@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>翻色 · 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;justify-content:center;overscroll-behavior:none}
+#app{width:100%;max-width:480px;min-height:100vh;position:relative;display:flex;flex-direction:column;background:radial-gradient(900px 480px at 50% -8%,rgba(255,107,107,.13),transparent 60%),radial-gradient(700px 500px at 90% 110%,rgba(78,205,196,.10),transparent 60%),#121212;overflow:hidden}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;z-index:20}
+.tb-title{font-size:14px;font-weight:700;color:#cfcfcf;letter-spacing:1px}
+.tb-right{display:flex;gap:8px}
+.iconbtn{width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .1s}
+.iconbtn:active{transform:scale(.88)}
+.screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:12px;text-align:center;z-index:10}
+.hidden{display:none!important}
+.bigemoji{font-size:64px;filter:drop-shadow(0 6px 16px rgba(0,0,0,.5));animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.gamename{font-size:28px;font-weight:800;background:linear-gradient(135deg,#ffd76a,#ff6b6b);-webkit-background-clip:text;background-clip:text;color:transparent}
+.howto{font-size:13.5px;line-height:1.8;color:#bdbdbd;max-width:350px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px 16px}
+.btn{background:linear-gradient(135deg,#ff9a5c,#ff6b6b);border:none;color:#fff;font-size:17px;font-weight:800;padding:13px 46px;border-radius:999px;cursor:pointer;box-shadow:0 8px 24px rgba(255,107,107,.35);transition:transform .1s;letter-spacing:2px}
+.btn:active{transform:scale(.93)}
+.btn.ghost{background:rgba(255,255,255,.08);box-shadow:none;border:1px solid rgba(255,255,255,.16)}
+.hsline{font-size:13px;color:#ffd76a}
+.hud{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+.pill{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700}
+#fx{position:absolute;inset:0;pointer-events:none;z-index:50}
+.float-txt{position:absolute;transform:translate(-50%,-50%);font-weight:800;font-size:20px;pointer-events:none;z-index:60;text-shadow:0 2px 8px rgba(0,0,0,.6);animation:floatUp 1.1s ease-out forwards}
+@keyframes floatUp{to{transform:translate(-50%,-160%);opacity:0}}
+#pauseOv{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#pauseOv .btn{font-size:15px;padding:11px 34px}
+.endstats{font-size:15px;line-height:2.1;color:#ddd}
+.endstats b{color:#ffd76a;font-size:22px}
+canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-action:none}
+.msg{min-height:22px;font-size:13px;color:#ff9a9a}
+.shake{animation:shake .35s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+#palette{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:4px}
+.sw{width:52px;height:52px;border-radius:16px;cursor:pointer;border:3px solid rgba(255,255,255,.18);transition:transform .1s,border-color .15s;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.sw:active{transform:scale(.9)}
+.sw.cur{border-color:#fff;box-shadow:0 0 14px rgba(255,255,255,.5);opacity:.45;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="tb-title">🎨 翻色 Flood-It</div>
+    <div class="tb-right">
+      <div class="iconbtn" id="soundBtn" title="声音">🔊</div>
+      <div class="iconbtn hidden" id="pauseBtn" title="暂停">⏸</div>
+    </div>
+  </div>
+
+  <div class="screen" id="scrStart">
+    <div class="bigemoji">🎨</div>
+    <div class="gamename">翻色</div>
+    <div class="howto">14×14 彩色格子，从左上角开始蔓延。<br>点击底部色块，把左上角的<strong style="color:#fff">连通区域</strong>染成该颜色。<br>在 <strong style="color:#ffd76a">25 步</strong> 内让全屏变成同一种颜色！</div>
+    <button class="btn" id="startBtn">开始游戏</button>
+    <div class="hsline" id="startHs"></div>
+  </div>
+
+  <div class="screen hidden" id="scrGame" style="justify-content:flex-start;padding-top:6px">
+    <div class="hud">
+      <div class="pill">剩余步数 <span id="moves" style="color:#ffd76a">25</span></div>
+      <div class="pill">进度 <span id="prog" style="color:#7ee2a8">0%</span></div>
+    </div>
+    <canvas class="game" id="cv" width="420" height="420"></canvas>
+    <div id="palette"></div>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="screen hidden" id="scrEnd">
+    <div class="bigemoji" id="endEmoji">🏆</div>
+    <div class="gamename" id="endTitle">通关！</div>
+    <div class="endstats" id="endStats"></div>
+    <div class="hsline" id="endHs"></div>
+    <button class="btn" id="againBtn">再来一局</button>
+    <button class="btn ghost" id="backBtn">返回</button>
+  </div>
+
+  <div id="pauseOv" class="hidden">
+    <div style="font-size:24px;font-weight:800">⏸ 已暂停</div>
+    <button class="btn" id="resumeBtn">继续</button>
+    <button class="btn ghost" id="restartBtn">重新开始</button>
+  </div>
+  <canvas id="fx"></canvas>
+</div>
+<script>
+'use strict';
+/* ===== 通用：音频 ===== */
+let ACTX=null, soundOn=true;
+try{ soundOn=localStorage.getItem('g100_sound')!=='0'; }catch(e){}
+function audio(){ if(!ACTX){ try{ ACTX=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } } if(ACTX&&ACTX.state==='suspended'){ ACTX.resume().catch(function(){}); } return ACTX; }
+function tone(f,d,type,vol,delay){ if(!soundOn) return; try{ const c=audio(); if(!c) return; const t=c.currentTime+(delay||0); const o=c.createOscillator(),g=c.createGain(); o.type=type||'sine'; o.frequency.setValueAtTime(f,t); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.12,t+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t+d); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+d+0.05); }catch(e){} }
+function sClick(){ tone(660,0.07,'square',0.05); }
+function sGood(){ tone(520,0.1,'sine',0.11); tone(780,0.12,'sine',0.11,0.08); }
+function sBad(){ tone(200,0.2,'sawtooth',0.08); }
+function sWin(){ const seq=[523,659,784,1046,1318]; for(let i=0;i<seq.length;i++) tone(seq[i],0.22,'triangle',0.11,i*0.11); }
+/* ===== 通用：最高分 ===== */
+function hsGet(k){ try{ const v=parseInt(localStorage.getItem(k)||'0',10); return isNaN(v)?0:v; }catch(e){ return 0; } }
+function hsSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(e){} }
+/* ===== 通用：粒子 ===== */
+const fxC=document.getElementById('fx'), fxX=fxC.getContext('2d');
+let P=[];
+function fxSize(){ const r=fxC.parentElement.getBoundingClientRect(); fxC.width=r.width; fxC.height=r.height; }
+window.addEventListener('resize',fxSize);
+function burst(x,y,n,cols){ for(let i=0;i<(n||24);i++){ const a=Math.random()*Math.PI*2,s=1+Math.random()*3.2; P.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.2,l:1,c:cols[i%cols.length],r:2+Math.random()*3}); } }
+function fxLoop(){ fxX.clearRect(0,0,fxC.width,fxC.height); P=P.filter(function(p){return p.l>0;}); for(let i=0;i<P.length;i++){ const p=P[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.06; p.l-=0.018; fxX.globalAlpha=Math.max(p.l,0); fxX.fillStyle=p.c; fxX.beginPath(); fxX.arc(p.x,p.y,p.r,0,7); fxX.fill(); } fxX.globalAlpha=1; requestAnimationFrame(fxLoop); }
+function floatText(x,y,txt,color){ const s=document.createElement('div'); s.className='float-txt'; s.textContent=txt; s.style.left=x+'px'; s.style.top=y+'px'; s.style.color=color||'#ffd76a'; document.getElementById('app').appendChild(s); setTimeout(function(){ s.remove(); },1150); }
+function shakeEl(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+/* ===== 通用：界面 ===== */
+const $=function(id){ return document.getElementById(id); };
+const scrStart=$('scrStart'), scrGame=$('scrGame'), scrEnd=$('scrEnd'), pauseOv=$('pauseOv'), pauseBtn=$('pauseBtn'), soundBtn=$('soundBtn');
+let paused=false;
+function show(el){ [scrStart,scrGame,scrEnd].forEach(function(s){ s.classList.add('hidden'); }); el.classList.remove('hidden'); fxSize(); }
+function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
+soundBtn.textContent=soundOn?'🔊':'🔇';
+soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
+pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
+
+/* ===== 游戏：翻色 ===== */
+const N=14, MAXMOVES=25;
+const COLORS=['#ef476f','#ffd166','#06d6a0','#118ab2','#9b5de5','#f3864a'];
+const cv=$('cv'), ctx=cv.getContext('2d'), palette=$('palette');
+let grid=[], movesLeft=MAXMOVES, regionColor=0, playing=false;
+
+function sizeCanvas(){ const w=Math.min(420,document.getElementById('app').clientWidth-36); cv.width=w; cv.height=w; cv.style.width=w+'px'; cv.style.height=w+'px'; }
+window.addEventListener('resize',function(){ if(playing) draw(); });
+
+function newGame(){
+  grid=[];
+  for(let r=0;r<N;r++){ const row=[]; for(let c=0;c<N;c++) row.push((Math.random()*COLORS.length)|0); grid.push(row); }
+  movesLeft=MAXMOVES; regionColor=grid[0][0]; playing=true;
+  setPaused(false); pauseBtn.classList.remove('hidden');
+  $('msg').textContent='';
+  sizeCanvas(); buildPalette(); draw(); updateHud();
+  show(scrGame);
+}
+function buildPalette(){
+  palette.innerHTML='';
+  COLORS.forEach(function(col,i){
+    const d=document.createElement('div'); d.className='sw'+(i===regionColor?' cur':''); d.style.background=col;
+    d.addEventListener('pointerdown',function(e){ e.preventDefault(); flood(i); });
+    palette.appendChild(d);
+  });
+}
+function draw(){
+  const w=cv.width, cell=w/N;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    ctx.fillStyle=COLORS[grid[r][c]];
+    ctx.fillRect(c*cell,r*cell,cell+0.5,cell+0.5);
+  }
+  ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=2;
+  ctx.strokeRect(1,1,w-2,w-2);
+}
+function updateHud(){
+  $('moves').textContent=movesLeft;
+  let same=0;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(grid[r][c]===regionColor) same++;
+  $('prog').textContent=Math.round(same/(N*N)*100)+'%';
+}
+function flood(color){
+  if(!playing||paused||color===regionColor) return;
+  const target=regionColor; regionColor=color; movesLeft--;
+  const seen=new Set([0]), stack=[[0,0]];
+  grid[0][0]=color;
+  while(stack.length){
+    const rc=stack.pop(), r=rc[0], c=rc[1];
+    const nb=[[r+1,c],[r-1,c],[r,c+1],[r,c-1]];
+    for(let i=0;i<4;i++){
+      const nr=nb[i][0], nc=nb[i][1];
+      if(nr<0||nc<0||nr>=N||nc>=N) continue;
+      const k=nr*N+nc;
+      if(seen.has(k)||grid[nr][nc]!==target) continue;
+      seen.add(k); grid[nr][nc]=color; stack.push([nr,nc]);
+    }
+  }
+  sClick();
+  buildPalette(); draw(); updateHud();
+  const r=cv.getBoundingClientRect(), ar=$('app').getBoundingClientRect();
+  floatText(r.left-ar.left+40, r.top-ar.top+40, '−1', '#fff');
+  if(checkWin()){ endGame(true); }
+  else if(movesLeft<=0){ endGame(false); }
+}
+function checkWin(){
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(grid[r][c]!==regionColor) return false;
+  return true;
+}
+function endGame(win){
+  playing=false; pauseBtn.classList.add('hidden'); setPaused(false);
+  const score=win?movesLeft*100:0;
+  const key='g100_floodit_hs', best=hsGet(key);
+  let nb=false;
+  if(win&&score>best){ hsSet(key,score); nb=true; }
+  $('endEmoji').textContent=win?'🏆':'😵';
+  $('endTitle').textContent=win?'通关成功！':'步数用完了';
+  $('endStats').innerHTML=win?('得分 <b>'+score+'</b>'+(nb?'<br>🎉 新纪录！':'')):('差一点就淹没全屏了<br>再挑战一次吧！');
+  $('endHs').textContent='🏅 历史最高：'+Math.max(best,score)+' 分';
+  show(scrEnd);
+  if(win){ sWin(); const r=$('app').getBoundingClientRect(); burst(r.width/2,200,80,COLORS); }
+  else sBad();
+}
+$('startBtn').addEventListener('click',function(){ audio(); sClick(); newGame(); });
+$('againBtn').addEventListener('click',function(){ sClick(); newGame(); });
+$('backBtn').addEventListener('click',function(){ sClick(); pauseBtn.classList.add('hidden'); show(scrStart); refreshStartHs(); });
+$('restartBtn').addEventListener('click',function(){ sClick(); newGame(); });
+function refreshStartHs(){ const b=hsGet('g100_floodit_hs'); $('startHs').textContent=b>0?('🏅 历史最高：'+b+' 分'):''; }
+refreshStartHs(); fxSize(); fxLoop();
+</script>
+</body>
+</html>
