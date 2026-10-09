@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>旋转迷宫 · 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;justify-content:center;overscroll-behavior:none}
+#app{width:100%;max-width:480px;min-height:100vh;position:relative;display:flex;flex-direction:column;background:radial-gradient(900px 480px at 50% -8%,rgba(78,205,196,.12),transparent 60%),radial-gradient(700px 500px at 90% 110%,rgba(155,93,229,.10),transparent 60%),#121212;overflow:hidden}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;z-index:20}
+.tb-title{font-size:14px;font-weight:700;color:#cfcfcf;letter-spacing:1px}
+.tb-right{display:flex;gap:8px}
+.iconbtn{width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .1s}
+.iconbtn:active{transform:scale(.88)}
+.screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:12px;text-align:center;z-index:10}
+.hidden{display:none!important}
+.bigemoji{font-size:64px;filter:drop-shadow(0 6px 16px rgba(0,0,0,.5));animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.gamename{font-size:28px;font-weight:800;background:linear-gradient(135deg,#7ee2a8,#4ecdc4);-webkit-background-clip:text;background-clip:text;color:transparent}
+.howto{font-size:13.5px;line-height:1.8;color:#bdbdbd;max-width:350px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px 16px}
+.btn{background:linear-gradient(135deg,#4ecdc4,#44a8d1);border:none;color:#fff;font-size:17px;font-weight:800;padding:13px 46px;border-radius:999px;cursor:pointer;box-shadow:0 8px 24px rgba(78,205,196,.35);transition:transform .1s;letter-spacing:2px}
+.btn:active{transform:scale(.93)}
+.btn.ghost{background:rgba(255,255,255,.08);box-shadow:none;border:1px solid rgba(255,255,255,.16)}
+.hsline{font-size:13px;color:#ffd76a}
+.hud{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+.pill{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700}
+#fx{position:absolute;inset:0;pointer-events:none;z-index:50}
+.float-txt{position:absolute;transform:translate(-50%,-50%);font-weight:800;font-size:20px;pointer-events:none;z-index:60;text-shadow:0 2px 8px rgba(0,0,0,.6);animation:floatUp 1.1s ease-out forwards}
+@keyframes floatUp{to{transform:translate(-50%,-160%);opacity:0}}
+#pauseOv{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#pauseOv .btn{font-size:15px;padding:11px 34px}
+.endstats{font-size:15px;line-height:2.1;color:#ddd}
+.endstats b{color:#ffd76a;font-size:22px}
+canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-action:none}
+.msg{min-height:22px;font-size:13px;color:#ff9a9a}
+.rotbtns{display:flex;gap:18px;justify-content:center}
+.rotbtn{width:84px;height:84px;border-radius:50%;border:2px solid rgba(78,205,196,.5);background:linear-gradient(135deg,rgba(78,205,196,.25),rgba(68,168,209,.15));color:#fff;font-size:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .1s;box-shadow:0 6px 20px rgba(78,205,196,.25)}
+.rotbtn:active{transform:scale(.9)}
+.hintline{font-size:12px;color:#8a8a8a}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="tb-title">🌀 旋转迷宫</div>
+    <div class="tb-right">
+      <div class="iconbtn" id="soundBtn">🔊</div>
+      <div class="iconbtn hidden" id="pauseBtn">⏸</div>
+    </div>
+  </div>
+
+  <div class="screen" id="scrStart">
+    <div class="bigemoji">🌀</div>
+    <div class="gamename">旋转迷宫</div>
+    <div class="howto">点击 <strong style="color:#fff">⟲ ⟳</strong> 把整个迷宫旋转 90°，<br>小球受<strong style="color:#fff">重力</strong>（永远朝下）滚向绿色终点。<br>共 <strong style="color:#ffd76a">6 关</strong>，旋转次数越少越好！</div>
+    <button class="btn" id="startBtn">开始游戏</button>
+    <div class="hsline" id="startHs"></div>
+  </div>
+
+  <div class="screen hidden" id="scrGame" style="justify-content:flex-start;padding-top:6px">
+    <div class="hud">
+      <div class="pill">第 <span id="lvl" style="color:#4ecdc4">1</span>/6 关</div>
+      <div class="pill">旋转 <span id="moves" style="color:#ffd76a">0</span> 次</div>
+      <div class="pill">⬇ 重力</div>
+    </div>
+    <canvas class="game" id="cv" width="400" height="400"></canvas>
+    <div class="rotbtns">
+      <div class="rotbtn" id="rotL">⟲</div>
+      <div class="rotbtn" id="rotR">⟳</div>
+    </div>
+    <div class="hintline">也可以在迷宫上左右滑动旋转</div>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="screen hidden" id="scrEnd">
+    <div class="bigemoji" id="endEmoji">🏆</div>
+    <div class="gamename" id="endTitle">全部通关！</div>
+    <div class="endstats" id="endStats"></div>
+    <div class="hsline" id="endHs"></div>
+    <button class="btn" id="againBtn">再来一局</button>
+    <button class="btn ghost" id="backBtn">返回</button>
+  </div>
+
+  <div id="pauseOv" class="hidden">
+    <div style="font-size:24px;font-weight:800">⏸ 已暂停</div>
+    <button class="btn" id="resumeBtn">继续</button>
+    <button class="btn ghost" id="restartBtn">重新开始</button>
+  </div>
+  <canvas id="fx"></canvas>
+</div>
+<script>
+'use strict';
+/* ===== 通用：音频 ===== */
+let ACTX=null, soundOn=true;
+try{ soundOn=localStorage.getItem('g100_sound')!=='0'; }catch(e){}
+function audio(){ if(!ACTX){ try{ ACTX=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } } if(ACTX&&ACTX.state==='suspended'){ ACTX.resume().catch(function(){}); } return ACTX; }
+function tone(f,d,type,vol,delay){ if(!soundOn) return; try{ const c=audio(); if(!c) return; const t=c.currentTime+(delay||0); const o=c.createOscillator(),g=c.createGain(); o.type=type||'sine'; o.frequency.setValueAtTime(f,t); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.12,t+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t+d); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+d+0.05); }catch(e){} }
+function sClick(){ tone(520,0.07,'square',0.05); }
+function sGood(){ tone(520,0.1,'sine',0.11); tone(780,0.14,'sine',0.11,0.09); }
+function sWin(){ const seq=[523,659,784,1046,1318]; for(let i=0;i<seq.length;i++) tone(seq[i],0.22,'triangle',0.11,i*0.11); }
+/* ===== 通用：最高分 ===== */
+function hsGet(k){ try{ const v=parseInt(localStorage.getItem(k)||'0',10); return isNaN(v)?0:v; }catch(e){ return 0; } }
+function hsSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(e){} }
+/* ===== 通用：粒子 ===== */
+const fxC=document.getElementById('fx'), fxX=fxC.getContext('2d');
+let P=[];
+function fxSize(){ const r=fxC.parentElement.getBoundingClientRect(); fxC.width=r.width; fxC.height=r.height; }
+window.addEventListener('resize',fxSize);
+function burst(x,y,n,cols){ for(let i=0;i<(n||24);i++){ const a=Math.random()*Math.PI*2,s=1+Math.random()*3.2; P.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.2,l:1,c:cols[i%cols.length],r:2+Math.random()*3}); } }
+function fxLoop(){ fxX.clearRect(0,0,fxC.width,fxC.height); P=P.filter(function(p){return p.l>0;}); for(let i=0;i<P.length;i++){ const p=P[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.06; p.l-=0.018; fxX.globalAlpha=Math.max(p.l,0); fxX.fillStyle=p.c; fxX.beginPath(); fxX.arc(p.x,p.y,p.r,0,7); fxX.fill(); } fxX.globalAlpha=1; requestAnimationFrame(fxLoop); }
+function floatText(x,y,txt,color){ const s=document.createElement('div'); s.className='float-txt'; s.textContent=txt; s.style.left=x+'px'; s.style.top=y+'px'; s.style.color=color||'#ffd76a'; document.getElementById('app').appendChild(s); setTimeout(function(){ s.remove(); },1150); }
+/* ===== 通用：界面 ===== */
+const $=function(id){ return document.getElementById(id); };
+const scrStart=$('scrStart'), scrGame=$('scrGame'), scrEnd=$('scrEnd'), pauseOv=$('pauseOv'), pauseBtn=$('pauseBtn'), soundBtn=$('soundBtn');
+let paused=false;
+function show(el){ [scrStart,scrGame,scrEnd].forEach(function(s){ s.classList.add('hidden'); }); el.classList.remove('hidden'); fxSize(); }
+function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
+soundBtn.textContent=soundOn?'🔊':'🔇';
+soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
+pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
+
+/* ===== 游戏：旋转迷宫 ===== */
+const LEVELS=[
+["#########","#S......#","#.#####.#","#.#...#.#","#.#.#.#.#","#.#...#.#","#.#####.#","#......G#","#########"],
+["#########","#S..#...#","###.#.#.#","#...#.#.#","#.###.#.#","#.#...#.#","#.#.###.#","#...#..G#","#########"],
+["###########","#S....#...#","#.###.#.#.#","#.#...#.#.#","#.#.###.#.#","#.#.#...#.#","#.#.#.###.#","#...#...#.#","#.#####.#.#","#.......#G#","###########"],
+["###########","#S#...#...#","#.#.#.#.#.#","#.#.#...#.#","#.#.#####.#","#.#.....#.#","#.#####.#.#","#.....#.#.#","#####.#.#.#","#G....#...#","###########"],
+["###########","#...#...#G#","#.#.#.#.#.#","#.#...#.#.#","#.#####...#","#.#.....#.#","#.#.#####.#","#.#.#...#.#","#.#.#.#.#.#","#S..#...#.#","###########"],
+["###########","#S..#.....#","##..#.###.#","#...#.#...#","#.###.#.#.#","#.#...#.#.#","#.#.###.#.#","#.#.#...#.#","#...#.###.#","#.###...#G#","###########"]
+];
+const GRAV=[[0,1],[1,0],[0,-1],[-1,0]]; // rot=0..3 时局部坐标系中的重力方向
+const cv=$('cv'), ctx=cv.getContext('2d');
+let lvl=0, R=0, C=0, wall=[], Spos=[1,1], Gpos=[1,1];
+let rot=0, drawAng=0, animFrom=0, animTo=0, animT=1;
+let ball={x:1.5,y:1.5,vx:0,vy:0};
+let moves=0, playing=false, levelDone=false;
+
+function sizeCanvas(){ const w=Math.min(400,document.getElementById('app').clientWidth-36); cv.width=w; cv.height=w; cv.style.width=w+'px'; cv.style.height=w+'px'; }
+window.addEventListener('resize',function(){ sizeCanvas(); if(playing) draw(performance.now()); });
+
+function loadLevel(i){
+  const m=LEVELS[i]; R=m.length; C=m[0].length; wall=[];
+  for(let r=0;r<R;r++){ const row=[]; for(let c=0;c<C;c++){ const ch=m[r][c]; row.push(ch==='#'); if(ch==='S')Spos=[r,c]; if(ch==='G')Gpos=[r,c]; } wall.push(row); }
+  rot=0; drawAng=0; animT=1; levelDone=false;
+  ball={x:Spos[1]+0.5,y:Spos[0]+0.5,vx:0,vy:0};
+  $('lvl').textContent=i+1; $('moves').textContent=moves;
+  sizeCanvas(); draw(performance.now());
+}
+function newGame(){
+  lvl=0; moves=0; playing=true;
+  setPaused(false); pauseBtn.classList.remove('hidden');
+  show(scrGame); loadLevel(0);
+  lastT=performance.now();
+}
+function rotate(dir){
+  if(!playing||paused||levelDone||animT<1) return;
+  rot=(rot+dir+4)%4;
+  animFrom=drawAng; animTo=drawAng+dir*Math.PI/2; animT=0;
+  ball.vx=0; ball.vy=0; moves++;
+  $('moves').textContent=moves;
+  sClick();
+}
+function blockedAt(x,y){
+  const c=Math.floor(x), r=Math.floor(y);
+  if(r<0||c<0||r>=R||c>=C) return true;
+  return wall[r][c];
+}
+function collide(x,y){
+  const rb=0.3;
+  return blockedAt(x-rb,y)||blockedAt(x+rb,y)||blockedAt(x,y-rb)||blockedAt(x,y+rb);
+}
+const G=16, DAMP=1.6, VMAX=9;
+function step(dt){
+  if(animT<1){ animT=Math.min(1,animT+dt/0.28); const e=1-Math.pow(1-animT,3); drawAng=animFrom+(animTo-animFrom)*e; }
+  const gv=GRAV[rot];
+  ball.vx+=gv[0]*G*dt; ball.vy+=gv[1]*G*dt;
+  const dmp=Math.exp(-DAMP*dt); ball.vx*=dmp; ball.vy*=dmp;
+  const sp=Math.hypot(ball.vx,ball.vy);
+  if(sp>VMAX){ ball.vx*=VMAX/sp; ball.vy*=VMAX/sp; }
+  const steps=4, h=dt/steps;
+  for(let s=0;s<steps;s++){
+    const nx=ball.x+ball.vx*h;
+    if(collide(nx,ball.y)) ball.vx=0; else ball.x=nx;
+    const ny=ball.y+ball.vy*h;
+    if(collide(ball.x,ny)) ball.vy=0; else ball.y=ny;
+  }
+  if(!levelDone && Math.floor(ball.y)===Gpos[0] && Math.floor(ball.x)===Gpos[1]){
+    levelDone=true; onLevelClear();
+  }
+}
+function onLevelClear(){
+  sGood();
+  const r=cv.getBoundingClientRect(), ar=$('app').getBoundingClientRect();
+  burst(r.left-ar.left+r.width/2, r.top-ar.top+r.height/2, 50, ['#4ecdc4','#7ee2a8','#ffd76a','#fff']);
+  floatText(r.left-ar.left+r.width/2, r.top-ar.top+60, '过关！', '#7ee2a8');
+  setTimeout(function(){
+    if(lvl<LEVELS.length-1){ lvl++; loadLevel(lvl); }
+    else endGame();
+  },900);
+}
+function endGame(){
+  playing=false; pauseBtn.classList.add('hidden'); setPaused(false);
+  const key='g100_rotatemaze_hs', best=hsGet(key);
+  let nb=false;
+  if(best===0||moves<best){ hsSet(key,moves); nb=true; }
+  $('endStats').innerHTML='总旋转次数 <b>'+moves+'</b> 次'+(nb?'<br>🎉 新纪录！':'');
+  $('endHs').textContent='🏅 最佳纪录：'+(best===0?moves:Math.min(best,moves))+' 次旋转';
+  show(scrEnd); sWin();
+  const r=$('app').getBoundingClientRect(); burst(r.width/2,220,90,['#4ecdc4','#ffd76a','#9b5de5','#fff']);
+}
+function draw(t){
+  const w=cv.width, cell=w/C, bh=R*cell;
+  ctx.clearRect(0,0,w,w);
+  ctx.save();
+  ctx.translate(w/2,w/2); ctx.rotate(drawAng); ctx.translate(-w/2,-bh/2);
+  // 路面
+  ctx.fillStyle='#1b1f2e';
+  ctx.fillRect(0,0,w,bh);
+  // 墙
+  for(let r=0;r<R;r++) for(let c=0;c<C;c++){
+    if(!wall[r][c]) continue;
+    const g=ctx.createLinearGradient(c*cell,r*cell,c*cell,(r+1)*cell);
+    g.addColorStop(0,'#3a4a6b'); g.addColorStop(1,'#2a3550');
+    ctx.fillStyle=g;
+    ctx.fillRect(c*cell+0.5,r*cell+0.5,cell-1,cell-1);
+  }
+  // 起点
+  ctx.fillStyle='rgba(255,215,106,.35)';
+  ctx.beginPath(); ctx.arc((Spos[1]+0.5)*cell,(Spos[0]+0.5)*cell,cell*0.32,0,7); ctx.fill();
+  // 终点(呼吸)
+  const pu=0.32+0.08*Math.sin(t/300);
+  const gg=ctx.createRadialGradient((Gpos[1]+0.5)*cell,(Gpos[0]+0.5)*cell,2,(Gpos[1]+0.5)*cell,(Gpos[0]+0.5)*cell,cell*0.5);
+  gg.addColorStop(0,'#7ee2a8'); gg.addColorStop(1,'rgba(46,204,113,.15)');
+  ctx.fillStyle=gg;
+  ctx.beginPath(); ctx.arc((Gpos[1]+0.5)*cell,(Gpos[0]+0.5)*cell,cell*pu+6,0,7); ctx.fill();
+  ctx.fillStyle='#2ecc71';
+  ctx.beginPath(); ctx.arc((Gpos[1]+0.5)*cell,(Gpos[0]+0.5)*cell,cell*0.22,0,7); ctx.fill();
+  // 小球
+  const bx=ball.x*cell, by=ball.y*cell, br=cell*0.3;
+  ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
+  const bg=ctx.createRadialGradient(bx-br*0.4,by-br*0.4,br*0.2,bx,by,br);
+  bg.addColorStop(0,'#ffffff'); bg.addColorStop(0.6,'#ffd76a'); bg.addColorStop(1,'#ff8a5c');
+  ctx.fillStyle=bg;
+  ctx.beginPath(); ctx.arc(bx,by,br,0,7); ctx.fill();
+  ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+  ctx.restore();
+}
+let lastT=0;
+function loop(t){
+  requestAnimationFrame(loop);
+  if(!playing||paused){ lastT=t; return; }
+  const dt=Math.min((t-lastT)/1000,0.05); lastT=t;
+  step(dt); draw(t);
+}
+$('rotL').addEventListener('pointerdown',function(e){ e.preventDefault(); rotate(-1); });
+$('rotR').addEventListener('pointerdown',function(e){ e.preventDefault(); rotate(1); });
+// 滑动旋转
+let swX=null;
+cv.addEventListener('touchstart',function(e){ swX=e.touches[0].clientX; },{passive:true});
+cv.addEventListener('touchend',function(e){
+  if(swX===null) return;
+  const dx=e.changedTouches[0].clientX-swX; swX=null;
+  if(Math.abs(dx)>40) rotate(dx>0?1:-1);
+},{passive:true});
+$('startBtn').addEventListener('click',function(){ audio(); sClick(); newGame(); });
+$('againBtn').addEventListener('click',function(){ sClick(); newGame(); });
+$('backBtn').addEventListener('click',function(){ sClick(); playing=false; pauseBtn.classList.add('hidden'); show(scrStart); refreshStartHs(); });
+$('restartBtn').addEventListener('click',function(){ sClick(); newGame(); });
+function refreshStartHs(){ const b=hsGet('g100_rotatemaze_hs'); $('startHs').textContent=b>0?('🏅 最佳纪录：'+b+' 次旋转'):''; }
+refreshStartHs(); fxSize(); fxLoop(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>

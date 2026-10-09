@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>滑雪</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d0d16;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#dfe9f2 0%,#cfdbe8 100%)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none;font-size:15px}
+.hud .left{font-weight:bold;color:#1565c0;text-shadow:0 0 8px #ffffff}
+.hud .right{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{width:38px;height:38px;border-radius:50%;border:1px solid #90caf955;background:#ffffffd9;color:#1565c0;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,20,30,.88);backdrop-filter:blur(4px);z-index:10;text-align:center;padding:24px}
+.screen h1{font-size:38px;margin-bottom:6px;background:linear-gradient(135deg,#4fc3f7,#81d4fa);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.screen p{color:#aaa;font-size:14px;line-height:1.7;margin:12px 0 20px}
+.bigbtn{padding:14px 56px;font-size:18px;border:none;border-radius:30px;background:linear-gradient(135deg,#4fc3f7,#0288d1);color:#fff;font-weight:bold;cursor:pointer;transition:transform .1s;box-shadow:0 4px 20px #4fc3f755}
+.bigbtn:active{transform:scale(.93)}
+.score{font-size:52px;font-weight:bold;background:linear-gradient(135deg,#4fc3f7,#0288d1);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0}
+.hiscore{color:#888;font-size:14px;margin-bottom:20px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div class="hud">
+<div class="left">SCORE <span id="score">0</span></div>
+<div class="right"><button class="iconbtn" id="muteBtn">MUTE</button><button class="iconbtn" id="pauseBtn">II</button></div>
+</div>
+<div class="screen" id="startScr">
+<h1>SKI</h1>
+<p>左右拖动控制滑雪者<br>穿过蓝色旗门得分（+10）<br>撞到树木即结束<br>速度会越来越快！</p>
+<button class="bigbtn" id="startBtn">出发</button>
+</div>
+<div class="screen hidden" id="overScr">
+<h1>撞树了</h1>
+<div class="score" id="finalScore">0</div>
+<div class="hiscore">最高分：<span id="hiScore">0</span> · 穿过 <span id="gates">0</span> 个旗门</div>
+<button class="bigbtn" id="retryBtn">再滑一次</button>
+</div>
+<div class="screen hidden" id="pauseScr">
+<h1>已暂停</h1>
+<button class="bigbtn" id="resumeBtn">继续</button>
+</div>
+</div>
+<script>
+"use strict";
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),wrap=document.getElementById('wrap');
+var W,H,DPR;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=wrap.clientWidth;H=wrap.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+window.addEventListener('resize',resize);resize();
+var muted=false,AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+function sGate(){tone(990,.12,'sine',.1);setTimeout(function(){tone(1485,.14,'sine',.1);},70);}
+function sCrash(){tone(140,.5,'sawtooth',.2,50);}
+document.getElementById('muteBtn').onclick=function(e){e.stopPropagation();muted=!muted;this.textContent=muted?'OFF':'MUTE';};
+var HIKEY='g100_ski_hi',hi=0;
+try{hi=parseInt(localStorage.getItem(HIKEY))||0;}catch(e){}
+var state='start',paused=false,score=0,gatesPassed=0;
+var px,speed,dist,trees,gatesArr,parts,floats,snow,dragging,lastTX,tilt=0;
+var PY;
+function rand(a,b){return a+Math.random()*(b-a);}
+function spawnRow(y){
+var n=Math.floor(rand(2,5));
+for(var i=0;i<n;i++){var tx=rand(20,W-20);
+if(Math.abs(tx-px)>70)trees.push({x:tx,y:y,s:rand(.8,1.3)});}
+if(Math.random()<.75){var gx=rand(70,W-70),gw=rand(70,110);
+gatesArr.push({x1:gx-gw/2,x2:gx+gw/2,y:y,passed:false});}}
+function startGame(){score=0;gatesPassed=0;dist=0;px=W/2;speed=3;trees=[];gatesArr=[];parts=[];floats=[];snow=[];dragging=false;tilt=0;
+PY=H*.72;
+for(var i=0;i<70;i++)snow.push({x:Math.random()*W,y:Math.random()*H,s:rand(1,2.5),v:rand(.3,1)});
+for(var y=-100;y<H;y+=150)spawnRow(y);
+document.getElementById('score').textContent='0';
+document.getElementById('startScr').classList.add('hidden');document.getElementById('overScr').classList.add('hidden');document.getElementById('pauseScr').classList.add('hidden');
+state='play';paused=false;}
+function gameOver(){state='over';sCrash();
+for(var i=0;i<22;i++)parts.push({x:px,y:PY,vx:rand(-3,3),vy:rand(-4,1),life:rand(25,50),col:'#ffffff',s:rand(2,4)});
+document.getElementById('finalScore').textContent=score;
+document.getElementById('gates').textContent=gatesPassed;
+if(score>hi){hi=score;try{localStorage.setItem(HIKEY,hi);}catch(e){}}
+document.getElementById('hiScore').textContent=hi;
+setTimeout(function(){document.getElementById('overScr').classList.remove('hidden');},450);}
+function update(){
+if(state!=='play'||paused)return;
+speed=Math.min(9,3+dist*.0011);
+dist+=speed;
+// 滑雪者水平
+px+=tilt*2.4;tilt*=.94;
+px=Math.max(16,Math.min(W-16,px));
+// 雪花
+snow.forEach(function(s){s.y+=s.v+speed*.3;if(s.y>H){s.y=-6;s.x=Math.random()*W;}});
+// 树与旗门下移
+trees.forEach(function(t){t.y+=speed;});
+gatesArr.forEach(function(g){g.y+=speed;});
+// 移除出界并补行
+if(trees.length&&trees[0].y>H+40){trees=trees.filter(function(t){return t.y<H+60;});
+gatesArr=gatesArr.filter(function(g){return g.y<H+60;});
+var topY=Math.min.apply(null,trees.concat(gatesArr).map(function(o){return o.y;}).concat([0]));
+spawnRow(topY-150);}
+// 碰撞：树
+for(var i=0;i<trees.length;i++){var t=trees[i];
+if(Math.hypot(t.x-px,t.y-PY)<20*t.s){gameOver();return;}}
+// 旗门
+for(var j=0;j<gatesArr.length;j++){var g=gatesArr[j];
+if(!g.passed&&g.y>PY-4&&g.y<PY+10){
+if(px>g.x1&&px<g.x2){g.passed=true;gatesPassed++;score+=10;
+document.getElementById('score').textContent=score;
+floats.push({x:px,y:PY-40,t:'+10',life:40,vy:-1.2});sGate();}
+else if(g.y>=PY+10){g.passed=true;}}}
+for(var p=parts.length-1;p>=0;p--){var pt=parts[p];pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=.15;pt.life--;if(pt.life<=0)parts.splice(p,1);}
+for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.y+=fl.vy;fl.life--;if(fl.life<=0)floats.splice(f,1);}
+}
+function drawTree(t){
+ctx.save();ctx.translate(t.x,t.y);ctx.scale(t.s,t.s);
+ctx.fillStyle='#5d4037';ctx.fillRect(-3,4,6,10);
+ctx.fillStyle='#2e7d32';
+ctx.beginPath();ctx.moveTo(0,-22);ctx.lineTo(13,-2);ctx.lineTo(-13,-2);ctx.closePath();ctx.fill();
+ctx.fillStyle='#388e3c';
+ctx.beginPath();ctx.moveTo(0,-14);ctx.lineTo(11,4);ctx.lineTo(-11,4);ctx.closePath();ctx.fill();
+ctx.fillStyle='rgba(255,255,255,.7)';
+ctx.beginPath();ctx.moveTo(0,-22);ctx.lineTo(7,-10);ctx.lineTo(-7,-10);ctx.closePath();ctx.fill();
+ctx.restore();}
+function draw(){
+ctx.clearRect(0,0,W,H);
+// 雪坡纹理
+ctx.fillStyle='rgba(144,164,174,.18)';
+for(var i=0;i<8;i++){var yy=(i*173+dist*.5)%(H+80)-40;
+ctx.beginPath();ctx.ellipse(W*.5,yy,W*.7,10,0,0,6.28);ctx.fill();}
+// 雪花
+ctx.fillStyle='rgba(255,255,255,.85)';
+snow.forEach(function(s){ctx.fillRect(s.x,s.y,s.s,s.s);});
+// 旗门
+gatesArr.forEach(function(g){
+ctx.strokeStyle=g.passed?'rgba(66,165,245,.35)':'#1565c0';ctx.lineWidth=5;
+ctx.beginPath();ctx.moveTo(g.x1,g.y);ctx.lineTo(g.x1,g.y-34);ctx.moveTo(g.x2,g.y);ctx.lineTo(g.x2,g.y-34);ctx.stroke();
+ctx.fillStyle=g.passed?'rgba(66,165,245,.35)':'#42a5f5';
+ctx.beginPath();ctx.moveTo(g.x1,g.y-34);ctx.lineTo(g.x1+16,g.y-30);ctx.lineTo(g.x1,g.y-26);ctx.closePath();ctx.fill();
+ctx.beginPath();ctx.moveTo(g.x2,g.y-34);ctx.lineTo(g.x2+16,g.y-30);ctx.lineTo(g.x2,g.y-26);ctx.closePath();ctx.fill();});
+// 树
+trees.forEach(drawTree);
+// 滑雪者
+if(state==='play'){
+ctx.save();ctx.translate(px,PY);ctx.rotate(tilt*.5);
+ctx.strokeStyle='#212121';ctx.lineWidth=3;
+ctx.beginPath();ctx.moveTo(-12,10);ctx.lineTo(12,10);ctx.stroke(); // 雪板
+ctx.fillStyle='#e53935';ctx.fillRect(-6,-12,12,20); // 身体
+ctx.fillStyle='#ffcc80';ctx.beginPath();ctx.arc(0,-18,7,0,6.28);ctx.fill(); // 头
+ctx.fillStyle='#e53935';ctx.beginPath();ctx.arc(0,-20,7,Math.PI,0);ctx.fill(); // 帽
+ctx.restore();
+// 速度线
+ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=2;
+for(var k=0;k<4;k++){var lx=Math.random()*W,ly=Math.random()*H;
+ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(lx,ly+speed*4);ctx.stroke();}}
+parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/50);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,6.28);ctx.fill();});ctx.globalAlpha=1;
+ctx.font='bold 16px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/40);ctx.fillStyle='#0288d1';ctx.fillText(f.t,f.x-10,f.y);});ctx.globalAlpha=1;
+}
+function loop(){update();draw();requestAnimationFrame(loop);}
+loop();
+function posOf(e){var r=cv.getBoundingClientRect();var t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
+function tStart(e){e.preventDefault();if(state!=='play'||paused)return;
+dragging=true;lastTX=posOf(e).x;}
+function tMove(e){e.preventDefault();if(!dragging)return;
+var p=posOf(e);var dx=p.x-lastTX;lastTX=p.x;
+px+=dx;tilt=Math.max(-3,Math.min(3,tilt+dx*.06));
+px=Math.max(16,Math.min(W-16,px));}
+function tEnd(e){if(e)e.preventDefault();dragging=false;tilt=0;}
+cv.addEventListener('touchstart',tStart,{passive:false});
+cv.addEventListener('touchmove',tMove,{passive:false});
+cv.addEventListener('touchend',tEnd,{passive:false});
+cv.addEventListener('touchcancel',tEnd,{passive:false});
+cv.addEventListener('mousedown',tStart);
+cv.addEventListener('mousemove',tMove);
+document.addEventListener('mouseup',tEnd);
+document.getElementById('startBtn').onclick=function(){ac();startGame();};
+document.getElementById('retryBtn').onclick=function(){startGame();};
+document.getElementById('pauseBtn').onclick=function(){if(state!=='play')return;paused=true;document.getElementById('pauseScr').classList.remove('hidden');};
+document.getElementById('resumeBtn').onclick=function(){paused=false;document.getElementById('pauseScr').classList.add('hidden');};
+document.addEventListener('visibilitychange',function(){if(document.hidden&&state==='play'&&!paused){paused=true;document.getElementById('pauseScr').classList.remove('hidden');}});
+</script>
+</body>
+</html>

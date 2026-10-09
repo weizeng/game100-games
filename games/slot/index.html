@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>拉霸</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.topbar b{color:#FFD54F;font-size:22px}
+.iconbtn{background:#1e1e1e;border:1px solid #333;color:#fff;font-size:18px;min-width:40px;height:40px;border-radius:10px;cursor:pointer}
+.iconbtn:active{transform:scale(.92)}
+canvas{background:linear-gradient(180deg,#1c1610 0%,#121212 70%);border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px;border:1px solid #222}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9}
+.btn{background:linear-gradient(135deg,#FFD54F,#FF8F00);border:none;color:#4e2b00;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;box-shadow:0 4px 14px rgba(255,213,79,.35)}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;box-shadow:none;color:#fff}
+.hint{color:#888;font-size:13px;text-align:center;line-height:1.7}
+.rowbtns{display:flex;gap:12px}
+.pay{width:100%;background:#1a1a1a;border-radius:10px;padding:8px 12px;font-size:12.5px;color:#aaa;line-height:1.8}
+.pay b{color:#FFD54F}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🎰 拉霸</span><span>🪙 <b id="coins">100</b></span><span><button class="iconbtn" id="pauseBtn">⏸</button> <button class="iconbtn" id="soundBtn">🔊</button></span></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<div class="pay">💰 每次下注 <b>10</b> 币 ｜ <b>7️⃣7️⃣7️⃣</b>=100倍 ｜ 三同=25倍 ｜ 顺子=10倍 ｜ 一对=4倍</div>
+<p class="hint">点击「开始」转动三个转盘<br>转盘会依次停下，拼出好运！</p>
+</div>
+<div class="overlay" id="startScr"><h1>🎰 拉霸</h1><p>初始 100 游戏币，每次下注 10 币<br>点击开始，三个转盘滚动后依次停下<br>🏆 7️⃣7️⃣7️⃣：100 倍<br>🥇 三个相同：25 倍<br>🥈 三个顺子：10 倍<br>🥉 任意一对：4 倍<br>币用完则结算，可随时重来</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">币用完了！</h1><p id="overText"></p><button class="btn" id="restartBtn">再来 100 币</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d'),W=400,H=560;
+let AC=null,soundOn=true;try{soundOn=localStorage.getItem('g100_sound')!=='0';}catch(e){}
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,d,type,vol,when){if(!soundOn)return;const a=ac();if(!a)return;type=type||'sine';vol=vol||0.13;when=when||0;const t=a.currentTime+when;const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}
+function sTick(){tone(700+Math.random()*300,0.05,'square',0.05);}
+function sReelStop(){tone(440,0.12,'triangle',0.14);tone(660,0.12,'triangle',0.12,0.08);}
+function sWin(){[523,659,784,1047,1319].forEach((f,i)=>tone(f,0.2,'triangle',0.14,i*0.09));}
+function sBigWin(){[523,659,784,1047,784,1047,1319,1568].forEach((f,i)=>tone(f,0.22,'triangle',0.15,i*0.1));}
+function sLose(){tone(220,0.25,'sine',0.08);}
+function getBest(k){try{return parseInt(localStorage.getItem(k)||'0',10)||0;}catch(e){return 0;}}
+function setBest(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+const BESTK='g100_slot_best';
+const SYM=['🍒','🍋','🔔','⭐','💎','7️⃣'];
+const BET=10;
+let reels,coins,spinning,state,paused,parts,floats,raf,best,msg,msgT,tickT;
+
+function reset(){reels=[{idx:0,pos:0,spd:0,stop:0},{idx:2,pos:0,spd:0,stop:0},{idx:4,pos:0,spd:0,stop:0}];coins=100;spinning=false;parts=[];floats=[];paused=false;msg='';msgT=0;$('coins').textContent=coins;}
+function startGame(){reset();state='play';hide('startScr');hide('overScr');hide('pauseScr');}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function burst(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=1+Math.random()*3.5;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:30+Math.random()*20,color});}}
+function multOf(a,b,c){if(a===5&&b===5&&c===5)return 100;if(a===b&&b===c)return 25;const s=[a,b,c].sort((x,y)=>x-y);if(s[1]===s[0]+1&&s[2]===s[1]+1)return 10;if(a===b||b===c||a===c)return 4;return 0;}
+function spin(){if(spinning||state!=='play'||paused)return;if(coins<BET){gameOver();return;}ac();coins-=BET;$('coins').textContent=coins;spinning=true;msg='';
+for(let i=0;i<3;i++){const r=reels[i];r.idx=(Math.random()*SYM.length)|0;r.pos=0;r.spd=0.32+Math.random()*0.08;r.stop=55+i*32;r.final=(Math.random()*SYM.length)|0;}}
+function settle(){spinning=false;const[a,b,c]=reels.map(r=>r.idx);const m=multOf(a,b,c);const win=m*BET;
+if(win>0){coins+=win;$('coins').textContent=coins;
+if(m>=25){msg='🏆 大奖 +'+win+'!';msgT=90;sBigWin();for(let i=0;i<3;i++)burst(70+i*130,220,'#ffd740',16);}
+else{msg='🎉 中奖 +'+win;msgT=70;sWin();burst(W/2,220,'#ffd740',10);}}
+else{msg='再接再厉~';msgT=50;sLose();}
+if(coins<BET&&win===0){setTimeout(()=>{if(state==='play')gameOver();},900);}}
+function gameOver(){if(state!=='play')return;state='over';const b=getBest(BESTK);let best=b;if(coins>best){best=coins;setBest(BESTK,coins);}$('overText').innerHTML='剩余币：<b style="color:#FFD54F">'+coins+'</b><br>历史最高币：'+best;show('overScr');}
+function ppos(e){const r=cv.getBoundingClientRect();const p=e.touches&&e.touches[0]?e.touches[0]:e;return{x:(p.clientX-r.left)/r.width*W,y:(p.clientY-r.top)/r.height*H};}
+function onTap(e){if(state!=='play'||paused)return;const p=ppos(e);if(p.y>400)spin();if(e.cancelable)e.preventDefault();}
+cv.addEventListener('touchstart',onTap,{passive:false});
+cv.addEventListener('mousedown',onTap);
+
+function draw(){ctx.clearRect(0,0,W,H);
+ctx.fillStyle='rgba(255,213,79,.06)';ctx.beginPath();ctx.arc(W/2,200,150,0,7);ctx.fill();
+ctx.fillStyle='#241d12';ctx.beginPath();ctx.roundRect(20,90,360,220,16);ctx.fill();
+ctx.strokeStyle='#FFD54F';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(20,90,360,220,16);ctx.stroke();
+for(let i=0;i<3;i++){const cx=70+i*130;const r=reels[i];
+ctx.fillStyle='#0d0b08';ctx.beginPath();ctx.roundRect(cx-52,110,104,180,10);ctx.fill();
+ctx.save();ctx.beginPath();ctx.rect(cx-52,110,104,180);ctx.clip();
+ctx.textAlign='center';
+const base=Math.floor(r.pos),frac=r.pos-base;
+for(let k=-2;k<=2;k++){const idx=((r.idx+base+k)%SYM.length+SYM.length)%SYM.length;const y=200+k*76+frac*76;ctx.font='52px sans-serif';if(k===0){ctx.shadowColor='#FFD54F';ctx.shadowBlur=r.spd>0?0:18;}ctx.fillText(SYM[idx],cx,y+18);ctx.shadowBlur=0;}
+ctx.restore();ctx.textAlign='left';}
+ctx.strokeStyle='rgba(255,213,79,.9)';ctx.lineWidth=2;ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(24,200);ctx.lineTo(376,200);ctx.stroke();ctx.setLineDash([]);
+ctx.fillStyle=spinning?'#5d4a1f':'#FFD54F';ctx.beginPath();ctx.roundRect(110,420,180,64,32);ctx.fill();
+ctx.fillStyle=spinning?'#8d7a4a':'#4e2b00';ctx.font='bold 24px sans-serif';ctx.textAlign='center';ctx.fillText(spinning?'转动中…':'🎰 开始',W/2,460);ctx.textAlign='left';
+ctx.fillStyle='#aaa';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('点击下方金色按钮开始（下注 10 币）',W/2,512);ctx.textAlign='left';
+if(msgT>0){ctx.globalAlpha=Math.min(1,msgT/30);ctx.fillStyle=msg.indexOf('大奖')>=0?'#ffd740':'#fff';ctx.font='bold 26px sans-serif';ctx.textAlign='center';const sc=1+Math.max(0,(msgT-60))*0.008;ctx.save();ctx.translate(W/2,360);ctx.scale(sc,sc);ctx.fillText(msg,0,0);ctx.restore();ctx.textAlign='left';ctx.globalAlpha=1;}
+for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/50);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/50);ctx.fillStyle='#ffd740';ctx.font='bold 20px sans-serif';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
+}
+function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){
+let allStopped=true;tickT++;
+for(const r of reels){if(r.spd>0){allStopped=false;r.pos+=r.spd;if(tickT%6===0)sTick();
+if(r.stop>0){r.stop--;if(r.stop===0){r.spd=0;r.pos=0;r.idx=r.final;sReelStop();}}}}
+if(spinning&&allStopped)settle();
+if(msgT>0)msgT--;
+for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life--;}parts=parts.filter(p=>p.life>0);}
+draw();}
+$('startBtn').onclick=()=>{ac();startGame();};
+$('restartBtn').onclick=()=>{ac();startGame();};
+$('restartBtn2').onclick=()=>{ac();startGame();};
+$('resumeBtn').onclick=()=>{paused=false;hide('pauseScr');};
+$('pauseBtn').onclick=()=>{if(state!=='play')return;paused=!paused;if(paused)show('pauseScr');else hide('pauseScr');};
+$('soundBtn').onclick=function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}this.textContent=soundOn?'🔊':'🔇';};
+$('soundBtn').textContent=soundOn?'🔊':'🔇';
+state='start';reset();loop();
+</script>
+</body>
+</html>

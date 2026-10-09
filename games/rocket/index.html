@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>火箭发射 - 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#050508;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#f0f0f5;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#060614 0%,#0a0a1c 55%,#141428 100%);overflow:hidden}
+canvas{display:block;width:100%;touch-action:none}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;z-index:5;background:linear-gradient(180deg,rgba(0,0,0,.6),transparent);pointer-events:none}
+#hud .t{font-size:14px;font-weight:700}
+#hud .s{font-size:13px;color:#ffb066;font-weight:700;margin-top:2px}
+#hud .btns{pointer-events:auto;display:flex;gap:8px}
+.ib{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ib:active{transform:scale(.9)}
+.ov{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,5,10,.94);padding:24px;text-align:center}
+.ov h1{font-size:30px;margin-bottom:4px}
+.ov h2{font-size:24px;margin-bottom:6px}
+.ov p{font-size:14px;color:#b9b9d1;line-height:1.8;margin:10px 0 18px;max-width:330px}
+.bb{font-size:17px;font-weight:700;color:#fff;border:none;border-radius:999px;padding:13px 44px;background:linear-gradient(135deg,#ff8c42,#ff3f6e);box-shadow:0 6px 20px rgba(255,140,66,.4);cursor:pointer;transition:transform .08s;margin:5px}
+.bb:active{transform:scale(.94)}
+.bb.ghost{background:linear-gradient(135deg,#4a4a5c,#33333f);box-shadow:none}
+.score{font-size:44px;font-weight:800;color:#ffb066;margin:4px 0}
+.best{font-size:13px;color:#9a9ab0;margin-top:10px}
+.hide{display:none!important}
+#tip{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-size:13px;color:#d8d8ea;z-index:4;pointer-events:none;text-shadow:0 1px 4px #000;padding:0 20px}
+#alt{position:absolute;top:64px;left:0;right:0;text-align:center;z-index:4;pointer-events:none}
+#alt .n{font-size:40px;font-weight:800;color:#fff;text-shadow:0 2px 12px rgba(255,140,66,.6)}
+#alt .u{font-size:13px;color:#ffb066}
+#igniteBtn{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);z-index:6;font-size:19px;font-weight:800;color:#fff;border:none;border-radius:999px;padding:15px 54px;background:linear-gradient(135deg,#ff3f6e,#ff8c42);box-shadow:0 8px 26px rgba(255,63,110,.5);cursor:pointer}
+#igniteBtn:active{transform:translateX(-50%) scale(.93)}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="360" height="540"></canvas>
+<div id="hud"><div><div class="t">🚀 火箭发射</div><div class="s" id="hs">等待点火</div></div><div class="btns"><button class="ib" id="snd">🔊</button><button class="ib" id="pz">⏸</button></div></div>
+<div id="alt" class="hide"><div class="n" id="altN">0</div><div class="u">米</div></div>
+<button id="igniteBtn" class="hide">🔥 点火发射</button>
+<div id="tip"></div>
+<div class="ov" id="ovStart"><h1>🚀 火箭发射</h1><p>火箭在发射台上左右摇摆<br>在它摆到最接近垂直时点击点火<br>越垂直飞得越高，挑战最高纪录！</p><button class="bb" id="btnStart">进入发射台</button><div class="best" id="bestStart"></div></div>
+<div class="ov hide" id="ovPause"><h2>⏸ 已暂停</h2><br><button class="bb" id="btnResume">继续</button><button class="bb ghost" id="btnRestart1">重新开始</button></div>
+<div class="ov hide" id="ovEnd"><h2 id="endTitle">🚀 发射完成！</h2><div class="score" id="endScore">0 米</div><div class="best" id="endBest"></div><div class="best" id="endDetail" style="margin-top:6px"></div><button class="bb" id="btnRestart2">再次发射</button></div>
+</div>
+<script>
+(function(){
+"use strict";
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),W=360,H=540;
+var $=function(id){return document.getElementById(id);};
+/* 音频 */
+var AC=null,soundOn=true,rumbleOsc=null,rumbleGain=null;
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,slide,delay){if(!soundOn)return;var a=ac();if(!a)return;try{var t0=a.currentTime+(delay||0);var o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t0);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t0+d);g.gain.setValueAtTime(v||.1,t0);g.gain.exponentialRampToValueAtTime(.001,t0+d);o.connect(g);g.connect(a.destination);o.start(t0);o.stop(t0+d+.03);}catch(e){}}
+var sfx={
+ click:function(){tone(620,.06,'square',.06);},
+ ignite:function(){tone(90,.8,'sawtooth',.16,60);tone(55,1.2,'square',.1,30);},
+ max:function(){var fs=[784,988,1175,1568];for(var i=0;i<fs.length;i++)tone(fs[i],.25,'triangle',.1,0,i*.09);},
+ win:function(){var fs=[523,659,784,1046];for(var i=0;i<fs.length;i++)tone(fs[i],.3,'triangle',.1,0,i*.1);}
+};
+function startRumble(){if(!soundOn)return;var a=ac();if(!a)return;try{stopRumble();rumbleOsc=a.createOscillator();rumbleGain=a.createGain();rumbleOsc.type='sawtooth';rumbleOsc.frequency.setValueAtTime(45,a.currentTime);rumbleGain.gain.setValueAtTime(0.05,a.currentTime);rumbleOsc.connect(rumbleGain);rumbleGain.connect(a.destination);rumbleOsc.start();}catch(e){}}
+function stopRumble(){try{if(rumbleOsc){rumbleOsc.stop();rumbleOsc.disconnect();rumbleGain.disconnect();rumbleOsc=null;}}catch(e){}}
+/* 最高分 */
+var KEY='game100_rocket_best';
+function getBest(){try{return parseInt(localStorage.getItem(KEY),10)||0;}catch(e){return 0;}}
+function setBest(v){try{localStorage.setItem(KEY,String(v));}catch(e){}}
+/* 状态 */
+var MAXA=0.52,SWAY_W=1.5,MAX_H=1200;
+var phase='menu',paused=false,swayT=0,angle=0;
+var rocket=null,camY=0,parts=[],stars=[],clouds=[],alt=0,finalH=0,fireAngle=0;
+function newGame(){
+ phase='pad';paused=false;swayT=Math.random()*6;angle=0;
+ rocket=null;camY=0;parts=[];alt=0;finalH=0;
+ stars=[];for(var i=0;i<70;i++)stars.push({x:Math.random()*W,y:Math.random()*H*3,r:Math.random()*1.6+0.4,tw:Math.random()*6});
+ clouds=[];
+ for(i=0;i<8;i++)clouds.push({x:Math.random()*W,y:400+i*260+Math.random()*120,w:60+Math.random()*70});
+ $('ovStart').classList.add('hide');$('ovEnd').classList.add('hide');$('ovPause').classList.add('hide');
+ $('igniteBtn').classList.remove('hide');$('alt').classList.add('hide');
+ $('hs').textContent='等待点火';tip('火箭摇摆中…在最接近垂直时点火！');
+ loop();
+}
+function tip(s){$('tip').textContent=s;}
+function ignite(){
+ if(phase!=='pad')return;
+ phase='fly';fireAngle=angle;
+ $('igniteBtn').classList.add('hide');$('alt').classList.remove('hide');
+ // 高度 = 完全垂直时 1200 米，按 cos² 衰减
+ var eff=Math.cos(Math.min(Math.abs(fireAngle),Math.PI/2));
+ finalH=Math.round(MAX_H*eff*eff);
+ var v0=11;
+ rocket={x:180,y:430,vx:Math.sin(fireAngle)*v0,vy:-Math.cos(fireAngle)*v0};
+ sfx.ignite();startRumble();
+ $('hs').textContent='飞行中…';
+ tip('');
+}
+function step(dt){
+ if(phase==='pad'){
+  swayT+=dt*SWAY_W;
+  angle=Math.sin(swayT)*MAXA;
+ }else if(phase==='fly'&&rocket){
+  // 尾焰粒子
+  for(var i=0;i<3;i++)parts.push({x:rocket.x+(Math.random()-0.5)*8,y:rocket.y+26,vx:(Math.random()-0.5)*1.5,vy:2+Math.random()*2,life:1,color:['#ffd76a','#ff8c42','#ff5f5f'][Math.floor(Math.random()*3)],r:2+Math.random()*3});
+  rocket.vy+=0.045; // 微弱重力（推力略大于重力感）
+  rocket.x+=rocket.vx;rocket.y+=rocket.vy;
+  rocket.vx*=0.999;
+  // 高度进度
+  var prog=Math.min(1,(430-rocket.y)/1400);
+  alt=Math.round(finalH*Math.pow(prog,0.85));
+  $('altN').textContent=alt;
+  camY=rocket.y-300;
+  if(prog>=1||rocket.vy>2){
+   alt=finalH;$('altN').textContent=alt;
+   phase='done';stopRumble();
+   for(var j=0;j<30;j++)parts.push({x:rocket.x,y:rocket.y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:1.2,color:'#ffd76a',r:2+Math.random()*3});
+   setTimeout(finish,900);
+  }
+ }
+ var k;
+ for(k=parts.length-1;k>=0;k--){var p=parts[k];p.x+=p.vx;p.y+=p.vy;p.life-=0.03;if(p.life<=0)parts.splice(k,1);}
+}
+function finish(){
+ phase='end';
+ var best=getBest(),isNew=finalH>best;
+ if(isNew)setBest(finalH);
+ var vert=Math.abs(fireAngle)<0.06;
+ if(vert)sfx.max();else sfx.win();
+ $('endScore').textContent=finalH+' 米';
+ $('endTitle').textContent=vert?'🌟 完美垂直发射！':(finalH>=1000?'🚀 接近完美！':'🚀 发射完成！');
+ $('endBest').textContent=(isNew?'🎉 新纪录！':'历史最高：'+best+' 米');
+ var deg=Math.round(Math.abs(fireAngle)*180/Math.PI);
+ $('endDetail').textContent='点火倾角 '+deg+'°'+(deg<=3?'（几乎完美）':'');
+ $('ovEnd').classList.remove('hide');
+ $('alt').classList.add('hide');
+}
+/* 绘制 */
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ var cam=Math.min(camY,0); // 镜头偏移（<=0），世界坐标转屏幕：SY(wy)=wy-cam
+ function SY(wy){return wy-cam;}
+ // 背景星空（随镜头微移）
+ var off=phase==='fly'?cam*0.25:0;
+ var g=ctx.createLinearGradient(0,0,0,H);
+ var top=Math.max(0,Math.min(1,-cam/1400));
+ g.addColorStop(0,mixc([6,6,20],[2,2,10],top));g.addColorStop(1,mixc([20,20,44],[6,6,18],top));
+ ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ var i;
+ ctx.fillStyle='#fff';
+ for(i=0;i<stars.length;i++){var s=stars[i];
+  var sy=((s.y-off)%H+H)%H;
+  ctx.globalAlpha=0.4+0.6*Math.abs(Math.sin(performance.now()/700+s.tw));
+  ctx.fillRect(s.x,sy,s.r,s.r);
+ }
+ ctx.globalAlpha=1;
+ // 云
+ for(i=0;i<clouds.length;i++){var c=clouds[i];
+  var cy=c.y-cam*0.85;
+  if(cy<-100||cy>H+100)continue;
+  ctx.fillStyle='rgba(200,200,220,.16)';
+  ctx.beginPath();ctx.ellipse(c.x,cy,c.w,c.w*0.32,0,0,7);ctx.fill();
+ }
+ // 地面 + 发射台
+ var gy=SY(470);
+ if(gy<H+60){
+  var gg=ctx.createLinearGradient(0,gy,0,gy+120);
+  gg.addColorStop(0,'#2a2f3a');gg.addColorStop(1,'#14161c');
+  ctx.fillStyle=gg;ctx.fillRect(0,gy,W,H-gy+400);
+  ctx.fillStyle='#3a3f4c';ctx.fillRect(140,gy-26,80,26); // 发射台
+  ctx.fillStyle='#4a5060';ctx.fillRect(150,gy-40,60,14);
+  ctx.fillStyle='rgba(255,80,80,.8)';ctx.font='12px sans-serif';ctx.textAlign='center';
+  ctx.fillText('LAUNCH PAD',180,gy-46);
+ }
+ // 火箭
+ var rx=phase==='pad'?180:(rocket?rocket.x:180),ry=phase==='pad'?430:(rocket?SY(rocket.y):430);
+ var ra=phase==='pad'?angle:fireAngle;
+ ctx.save();ctx.translate(rx,ry);ctx.rotate(ra);
+ // 机身
+ var rg=ctx.createLinearGradient(-10,0,10,0);
+ rg.addColorStop(0,'#c9ccd6');rg.addColorStop(0.5,'#f4f5f9');rg.addColorStop(1,'#a9adb9');
+ ctx.fillStyle=rg;
+ ctx.beginPath();ctx.moveTo(0,-34);ctx.quadraticCurveTo(11,-20,11,10);ctx.lineTo(11,22);ctx.lineTo(-11,22);ctx.lineTo(-11,10);ctx.quadraticCurveTo(-11,-20,0,-34);ctx.fill();
+ // 舷窗
+ ctx.fillStyle='#3fa9ff';ctx.beginPath();ctx.arc(0,-8,6,0,7);ctx.fill();
+ ctx.strokeStyle='#1c5f96';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,-8,6,0,7);ctx.stroke();
+ // 尾翼
+ ctx.fillStyle='#e0395f';
+ ctx.beginPath();ctx.moveTo(-11,8);ctx.lineTo(-20,24);ctx.lineTo(-11,24);ctx.closePath();ctx.fill();
+ ctx.beginPath();ctx.moveTo(11,8);ctx.lineTo(20,24);ctx.lineTo(11,24);ctx.closePath();ctx.fill();
+ // 尾焰
+ if(phase==='fly'){
+  var fl=26+Math.random()*14;
+  var fg2=ctx.createLinearGradient(0,22,0,22+fl);
+  fg2.addColorStop(0,'#fff');fg2.addColorStop(0.4,'#ffd76a');fg2.addColorStop(1,'rgba(255,63,110,0)');
+  ctx.fillStyle=fg2;
+  ctx.beginPath();ctx.moveTo(-8,22);ctx.lineTo(8,22);ctx.lineTo(0,22+fl);ctx.closePath();ctx.fill();
+ }
+ ctx.restore();
+ // 垂直参考线（pad 阶段）
+ if(phase==='pad'){
+  ctx.strokeStyle='rgba(255,215,106,.35)';ctx.setLineDash([6,6]);ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(180,430);ctx.lineTo(180,300);ctx.stroke();ctx.setLineDash([]);
+  var deg=Math.abs(angle)*180/Math.PI;
+  ctx.fillStyle=deg<4?'#9df0a8':'#ffd76a';ctx.font='bold 15px sans-serif';ctx.textAlign='center';
+  ctx.fillText('倾角 '+deg.toFixed(1)+'°',180,282);
+ }
+ // 粒子（世界坐标转屏幕）
+ for(i=0;i<parts.length;i++){var pt=parts[i];ctx.globalAlpha=Math.max(0,Math.min(1,pt.life));ctx.fillStyle=pt.color;ctx.beginPath();ctx.arc(pt.x,SY(pt.y),pt.r,0,7);ctx.fill();}
+ ctx.globalAlpha=1;
+}
+function mixc(a,b,t){return 'rgb('+Math.round(a[0]+(b[0]-a[0])*t)+','+Math.round(a[1]+(b[1]-a[1])*t)+','+Math.round(a[2]+(b[2]-a[2])*t)+')';}
+var lastT=0;
+function loop(){
+ if(paused)return;
+ var now=performance.now(),dt=Math.min((now-lastT)/1000,0.05)||0.016;lastT=now;
+ step(dt);draw();
+ requestAnimationFrame(loop);
+}
+/* 输入 */
+cv.addEventListener('touchstart',function(e){e.preventDefault();ac();},{passive:false});
+$('igniteBtn').addEventListener('click',function(){ac();ignite();});
+/* 按钮 */
+function togglePause(f){if(phase==='menu'||phase==='end')return;paused=(typeof f==='boolean')?f:!paused;$('ovPause').classList.toggle('hide',!paused);if(paused)stopRumble();else{lastT=performance.now();loop();}}
+$('pz').addEventListener('click',function(){sfx.click();togglePause();});
+$('snd').addEventListener('click',function(){soundOn=!soundOn;if(!soundOn)stopRumble();$('snd').textContent=soundOn?'🔊':'🔇';if(soundOn)sfx.click();});
+$('btnStart').addEventListener('click',function(){ac();sfx.click();newGame();});
+$('btnResume').addEventListener('click',function(){sfx.click();togglePause(false);});
+$('btnRestart1').addEventListener('click',function(){sfx.click();stopRumble();newGame();});
+$('btnRestart2').addEventListener('click',function(){sfx.click();newGame();});
+$('bestStart').textContent='历史最高：'+getBest()+' 米';
+draw();
+})();
+</script>
+</body>
+</html>
