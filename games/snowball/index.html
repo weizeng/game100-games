@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>雪球大战</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#050507;overflow:hidden;overscroll-behavior:none}
+body{display:flex;justify-content:center;align-items:center;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#fff;-webkit-user-select:none;user-select:none}
+#wrap{position:relative;width:min(100vw,60vh);aspect-ratio:3/5;max-height:100vh;background:#121212;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.8)}
+@media (max-aspect-ratio:3/5){#wrap{width:100vw;height:100vh;aspect-ratio:auto}}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:10px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,10,16,.62);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;backdrop-filter:blur(4px);white-space:nowrap}
+.hudl{display:flex;gap:8px}
+.hbtns{display:flex;gap:8px;pointer-events:auto}
+.icobtn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(10,10,16,.62);color:#fff;font-size:17px;cursor:pointer;transition:transform .08s}
+.icobtn:active{transform:scale(.88)}
+#overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(6,6,14,.84);backdrop-filter:blur(6px);padding:28px;text-align:center}
+#overlay h1{font-size:36px}
+#overlay .sub{font-size:14px;color:#b0bec5;line-height:1.8;max-width:330px}
+#overlay .best{font-size:14px;color:#ffd54f;font-weight:600}
+#overlay .bigscore{font-size:52px;font-weight:800;color:#4fc3f7}
+.btn{background:linear-gradient(135deg,#4fc3f7,#80deea);border:none;color:#0a2530;font-size:18px;font-weight:700;padding:14px 54px;border-radius:999px;cursor:pointer;box-shadow:0 6px 24px rgba(79,195,247,.4);transition:transform .1s}
+.btn:active{transform:scale(.93)}
+.btn2{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:15px;font-weight:600;padding:11px 34px;border-radius:999px;cursor:pointer;transition:transform .1s}
+.btn2:active{transform:scale(.93)}
+.row{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="hudl">
+    <div class="pill" id="scorePill">得分 0</div>
+    <div class="pill" id="timePill">⏱ 60</div>
+  </div>
+  <div class="hbtns">
+    <button class="icobtn" id="soundBtn">🔊</button>
+    <button class="icobtn" id="pauseBtn">⏸</button>
+  </div>
+</div>
+<div id="overlay"></div>
+</div>
+<script>
+'use strict';
+var W=480,H=800,LX=240,LY=700;
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+cv.width=W;cv.height=H;
+var AC=null,soundOn=true;
+function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}return AC;}
+function tone(f,d,type,vol,delay){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(vol||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function toGame(e){var r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
+var HSKEY='g100_snowball_hs';
+function getHS(){try{return parseInt(localStorage.getItem(HSKEY),10)||0;}catch(e){return 0;}}
+function setHS(v){try{localStorage.setItem(HSKEY,String(v));}catch(e){}}
+var parts=[],floats=[];
+function boom(x,y,color,n){n=n||16;for(var i=0;i<n;i++){var a=Math.random()*6.2832,s=40+Math.random()*200;parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-40,t:0,life:0.4+Math.random()*0.4,color:color,r:2+Math.random()*3});}}
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,t:0,color:color||'#fff'});}
+function updParts(dt){for(var i=parts.length-1;i>=0;i--){var p=parts[i];p.t+=dt;if(p.t>=p.life){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=380*dt;}}
+function drawParts(){for(var i=0;i<parts.length;i++){var p=parts[i];ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.2832);ctx.fill();}ctx.globalAlpha=1;}
+function updFloats(dt){for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.t+=dt;f.y-=46*dt;if(f.t>1)floats.splice(i,1);}}
+function drawFloats(){ctx.textAlign='center';ctx.font='bold 22px sans-serif';for(var i=0;i<floats.length;i++){var f=floats[i];ctx.globalAlpha=Math.max(0,1-f.t);ctx.fillStyle=f.color;ctx.fillText(f.txt,f.x,f.y);}ctx.globalAlpha=1;}
+/* ---------- 游戏状态 ---------- */
+var state='menu',score=0,timeLeft=60,elapsed=0,cool=0,spawnT=0;
+var balls=[],targets=[];
+var aiming=false,aimX=0,aimY=0;
+var TIERS=[{r:26,sp:90,pts:100,c:'#69f0ae'},{r:20,sp:150,pts:150,c:'#ffd740'},{r:14,sp:230,pts:250,c:'#ff5252'}];
+function reset(){score=0;timeLeft=60;elapsed=0;cool=0;spawnT=0.5;balls=[];targets=[];parts=[];floats=[];aiming=false;updHUD();}
+function updHUD(){document.getElementById('scorePill').textContent='得分 '+score;var t=Math.ceil(timeLeft);document.getElementById('timePill').textContent='⏱ '+t;document.getElementById('timePill').style.color=t<=10?'#ff5252':'#fff';}
+function spawnTarget(){
+  var tier=Math.random()<0.5?0:(Math.random()<0.6?1:2);
+  var T=TIERS[tier],dir=Math.random()<0.5?1:-1;
+  var mult=1+elapsed*0.012;
+  targets.push({x:dir>0?-40:W+40,y:120+Math.random()*440,vx:dir*T.sp*mult,r:T.r,pts:T.pts,c:T.c,ph:Math.random()*6});
+}
+function aimAngle(){var a=Math.atan2(aimY-LY,aimX-LX);if(a>-0.24)a=-0.24;if(a<-2.9)a=-2.9;return a;}
+function fire(){if(cool>0)return;cool=0.35;var a=aimAngle();balls.push({x:LX,y:LY-24,vx:Math.cos(a)*950,vy:Math.sin(a)*950});tone(700,0.08,'sine',0.1);tone(400,0.08,'sine',0.08,0.05);}
+function update(dt){
+  elapsed+=dt;timeLeft-=dt;cool-=dt;spawnT-=dt;updHUD();
+  if(timeLeft<=0){timeLeft=0;gameOver();return;}
+  if(spawnT<=0){spawnT=Math.max(0.35,0.95-elapsed*0.008);spawnTarget();}
+  var i,j;
+  for(i=balls.length-1;i>=0;i--){var b=balls[i];b.vy+=620*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;var hit=false;
+    for(j=targets.length-1;j>=0;j--){var tg=targets[j];
+      if(Math.hypot(b.x-tg.x,b.y-tg.y)<tg.r+9){hit=true;targets.splice(j,1);score+=tg.pts;updHUD();floatText(tg.x,tg.y,'+'+tg.pts,'#ffd54f');boom(tg.x,tg.y,'#ffffff',16);boom(tg.x,tg.y,tg.c,8);tone(880,0.12,'square',0.12);tone(1320,0.1,'square',0.08,0.06);break;}}
+    if(hit||b.x<-30||b.x>W+30||b.y<-30||b.y>H+30)balls.splice(i,1);}
+  for(i=targets.length-1;i>=0;i--){var t2=targets[i];t2.x+=t2.vx*dt;t2.ph+=dt*4;if((t2.vx>0&&t2.x>W+50)||(t2.vx<0&&t2.x<-50))targets.splice(i,1);}
+  updParts(dt);updFloats(dt);
+}
+function drawTarget(t){
+  ctx.save();ctx.translate(t.x,t.y+Math.sin(t.ph)*4);
+  ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(0,t.r*0.9,t.r*0.9,t.r*0.35,0,0,6.2832);ctx.fill();
+  ctx.fillStyle=t.c;ctx.beginPath();ctx.arc(0,0,t.r,0,6.2832);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.9)';ctx.beginPath();ctx.arc(0,0,t.r*0.62,0,6.2832);ctx.fill();
+  ctx.fillStyle=t.c;ctx.beginPath();ctx.arc(0,0,t.r*0.34,0,6.2832);ctx.fill();
+  ctx.restore();}
+function render(){
+  var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0b1526');g.addColorStop(0.6,'#12233d');g.addColorStop(1,'#1a2f4a');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.6)';
+  for(var i=0;i<60;i++){var sx=(i*89)%W,sy=(i*53)%H;ctx.fillRect(sx,sy,2,2);}
+  ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillRect(0,LY+34,W,H-LY-34);
+  ctx.fillStyle='#b3d9f2';ctx.fillRect(0,LY+34,W,4);
+  var j;
+  for(j=0;j<targets.length;j++)drawTarget(targets[j]);
+  ctx.fillStyle='#fff';
+  for(j=0;j<balls.length;j++){var b=balls[j];ctx.beginPath();ctx.arc(b.x,b.y,9,0,6.2832);ctx.fill();ctx.fillStyle='rgba(200,230,255,.7)';ctx.beginPath();ctx.arc(b.x-3,b.y-3,3.5,0,6.2832);ctx.fill();ctx.fillStyle='#fff';}
+  ctx.font='52px sans-serif';ctx.textAlign='center';
+  ctx.fillText('⛄',LX,LY+40);
+  if(aiming&&state==='playing'){var a=aimAngle();ctx.strokeStyle='rgba(255,255,255,.55)';ctx.setLineDash([8,8]);ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(LX,LY-24);ctx.lineTo(LX+Math.cos(a)*130,LY-24+Math.sin(a)*130);ctx.stroke();ctx.setLineDash([]);}
+  drawParts();drawFloats();
+}
+function gameOver(){state='over';var hs=getHS();if(score>hs)setHS(score);tone(440,0.15,'square',0.12);tone(660,0.2,'square',0.12,0.12);showEnd();}
+var ov=document.getElementById('overlay');
+function showMenu(){state='menu';ov.style.display='flex';ov.innerHTML='<h1>❄️</h1><h1 style="font-size:30px">雪球大战</h1><div class="sub">底部雪人发射雪球：<b>按住拖动瞄准，松手投掷</b>。<br>击中移动靶得分，红色小靶分最高！<br>限时 60 秒，靶子会越来越快。</div><div class="best">🏆 最高分 '+getHS()+'</div><button class="btn" id="startBtn">开始游戏</button>';
+  document.getElementById('startBtn').addEventListener('click',function(){ac();tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
+function showEnd(){var hs=getHS();ov.style.display='flex';ov.innerHTML='<h1>⏰</h1><h1 style="font-size:30px">时间到！</h1><div class="bigscore">'+score+'</div><div class="best">🏆 最高分 '+hs+'</div><button class="btn" id="againBtn">再来一局</button>';
+  document.getElementById('againBtn').addEventListener('click',function(){tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
+function pauseGame(){if(state!=='playing')return;state='paused';ov.style.display='flex';ov.innerHTML='<h1>⏸</h1><h1 style="font-size:28px">已暂停</h1><div class="sub">得分 '+score+' · 剩余 '+Math.ceil(timeLeft)+' 秒</div><div class="row"><button class="btn" id="resumeBtn">继续</button><button class="btn2" id="restartBtn">重来</button></div>';
+  document.getElementById('resumeBtn').addEventListener('click',function(){state='playing';ov.style.display='none';});
+  document.getElementById('restartBtn').addEventListener('click',function(){reset();state='playing';ov.style.display='none';});}
+/* 输入：拖动瞄准 / 松手发射 */
+var mouseAim=false;
+cv.addEventListener('touchstart',function(e){e.preventDefault();lastTouch=Date.now();if(state!=='playing')return;var p=toGame(e.touches[0]);aiming=true;aimX=p.x;aimY=p.y;},{passive:false});
+cv.addEventListener('touchmove',function(e){e.preventDefault();if(!aiming)return;var p=toGame(e.touches[0]);aimX=p.x;aimY=p.y;},{passive:false});
+cv.addEventListener('touchend',function(e){e.preventDefault();if(aiming&&state==='playing')fire();aiming=false;},{passive:false});
+cv.addEventListener('mousedown',function(e){if(Date.now()-lastTouch<800||state!=='playing')return;var p=toGame(e);aiming=true;mouseAim=true;aimX=p.x;aimY=p.y;});
+window.addEventListener('mousemove',function(e){if(!aiming||!mouseAim)return;var p=toGame(e);aimX=p.x;aimY=p.y;});
+window.addEventListener('mouseup',function(){if(aiming&&mouseAim&&state==='playing')fire();aiming=false;mouseAim=false;});
+document.getElementById('pauseBtn').addEventListener('click',function(){pauseGame();});
+document.getElementById('soundBtn').addEventListener('click',function(){soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)tone(660,0.08,'square',0.1);});
+var last=0;
+function loop(t){requestAnimationFrame(loop);var dt=(t-last)/1000;last=t;if(!(dt>0)||dt>0.05)dt=0.016;if(state==='playing')update(dt);render();}
+reset();showMenu();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

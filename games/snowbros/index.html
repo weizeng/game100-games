@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>雪人兄弟</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
+.hud{display:flex;gap:12px;align-items:center;font-size:14px}
+.hud b{color:#80DEEA;font-size:20px}
+.lives{font-size:15px}
+.iconbtn{background:#1f1f1f;border:1px solid #333;color:#fff;font-size:17px;width:40px;height:40px;border-radius:10px;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+#cv{background:linear-gradient(#0d1b2a,#132a3d);border-radius:12px;touch-action:none;width:100%;max-width:440px;height:auto;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.controls{display:flex;gap:14px;align-items:center;justify-content:center;width:100%}
+.cbtn{width:68px;height:68px;border-radius:16px;background:#1f1f1f;border:1px solid #444;color:#fff;font-size:24px;cursor:pointer;transition:transform .08s;touch-action:none}
+.cbtn:active{transform:scale(.9);background:#333}
+.actbtn{width:80px;height:80px;border-radius:50%;border:none;font-size:32px;cursor:pointer;transition:transform .08s;touch-action:none}
+.actbtn:active{transform:scale(.9)}
+#sprayBtn{background:linear-gradient(135deg,#4DD0E1,#0277BD);box-shadow:0 4px 18px rgba(77,208,225,.4)}
+#jumpBtn{background:linear-gradient(135deg,#90A4AE,#455A64);box-shadow:0 4px 18px rgba(144,164,174,.4)}
+.tip{font-size:12px;color:#888;text-align:center}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.87);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.hidden{display:none!important}
+.overlay h1{font-size:32px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9;max-width:380px}
+.btn{background:linear-gradient(135deg,#26C6DA,#0277BD);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;transition:transform .08s;box-shadow:0 4px 16px rgba(38,198,218,.35)}
+.btn:active{transform:scale(.94)}
+.big{font-size:44px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="hud">得分 <b id="score">0</b> <span class="lives" id="lives">❤❤❤</span> <span id="level">第1关</span></div>
+    <div>
+      <button class="iconbtn" id="pauseBtn">⏸</button>
+      <button class="iconbtn" id="sndBtn">🔊</button>
+    </div>
+  </div>
+  <canvas id="cv" width="400" height="440"></canvas>
+  <div class="controls">
+    <button class="cbtn" id="leftBtn">◀</button>
+    <button class="cbtn" id="rightBtn">▶</button>
+    <button class="actbtn" id="sprayBtn">❄</button>
+    <button class="actbtn" id="jumpBtn">⤴</button>
+  </div>
+  <div class="tip">◀ ▶ 移动 · ❄ 喷雪（多喷几次堆成雪球）<br>撞雪球把它推滚，碾过怪物连击加分 · ⤴ 跳跃</div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="big">⛄</div>
+  <h1>雪人兄弟</h1>
+  <p>对着怪物按 ❄ 喷雪，喷满 5 次<br>怪物变成大雪球！走过去一撞，<br>雪球滚起来碾过沿途所有怪物，<br>连击越高分越高。偶尔掉落道具：<br>🔵 加大雪量 · 🟡 加速移动。<br>5 关，3 条命，别被怪物碰到！</p>
+  <button class="btn" id="startBtn">开始游戏</button>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <h1>⏸ 已暂停</h1>
+  <button class="btn" id="resumeBtn">继续</button>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="big" id="endEmoji">⛄</div>
+  <h1 id="endTitle">游戏结束</h1>
+  <p id="endScore"></p>
+  <p style="color:#888;font-size:13px" id="endHs"></p>
+  <button class="btn" id="againBtn">重新开始</button>
+</div>
+
+<script>
+'use strict';
+// ============ 音效 ============
+let AC=null, soundOn=true;
+function tone(f,d,type,v,slide){ if(!soundOn)return; try{
+  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.type=type||'square'; o.frequency.value=f;
+  if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),AC.currentTime+d);
+  g.gain.setValueAtTime(v||0.05,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+d);
+  o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d);
+}catch(e){} }
+const sfx={
+  click(){tone(650,0.06);},
+  spray(){tone(1200,0.08,'sine',0.05,400);},
+  snowball(){tone(500,0.2,'triangle',0.08,300);},
+  roll(){tone(200,0.15,'triangle',0.05);},
+  crush(){tone(350,0.2,'square',0.08,-200);},
+  item(){tone(880,0.15,'sine',0.08,400);},
+  jump(){tone(300,0.12,'square',0.06,400);},
+  hit(){tone(140,0.3,'sawtooth',0.1,-60);},
+  win(){[523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,0.2,'triangle',0.08),i*120));},
+  lose(){[400,300,200,150].forEach((f,i)=>setTimeout(()=>tone(f,0.25,'sawtooth',0.08,-40),i*160));}
+};
+const HSKEY='g100_snowbros_hs';
+function getHS(){try{return +(localStorage.getItem(HSKEY)||0);}catch(e){return 0;}}
+function setHS(v){try{localStorage.setItem(HSKEY,v);}catch(e){}}
+// ============ 关卡 ============
+const W=400,H=440,GRAV=0.5;
+function buildLevel(lv){
+  // 平台
+  const plats=[
+    {x0:0,x1:W,y:400},{x0:40,x1:220,y:310},{x0:180,x1:360,y:310},
+    {x0:0,x1:180,y:220},{x0:220,x1:400,y:220},{x0:80,x1:320,y:130}
+  ];
+  const n=Math.min(2+lv,6);
+  const monsters=[];
+  const spots=[[60,360],[340,360],[120,270],[280,270],[90,180],[310,180],[200,90]];
+  for(let i=0;i<n;i++){
+    const s=spots[i%spots.length];
+    monsters.push({x:s[0],y:s[1],vx:(Math.random()<0.5?-1:1)*(0.6+lv*0.15),vy:0,
+      snow:0,ball:false,alive:true,dir:1,plat:-1,rollVx:0,chain:0});
+  }
+  return {plats,monsters,items:[],shots:[]};
+}
+// ============ 游戏状态 ============
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let started=false,over=false,paused=false;
+let L,player,keys={};
+let score=0,lives=3,level=1,chain=0;
+let particles=[],floaters=[],invuln=0,sprayCd=0;
+let snowPow=1,speedPow=1,powT=0;
+
+function startGame(){
+  score=0;lives=3;level=1;snowPow=1;speedPow=1;
+  document.getElementById('startOv').classList.add('hidden');
+  document.getElementById('endOv').classList.add('hidden');
+  document.getElementById('pauseOv').classList.add('hidden');
+  started=true;over=false;paused=false;
+  loadLevel(1);updateHUD();sfx.click();
+}
+function loadLevel(lv){
+  L=buildLevel(lv);
+  player={x:200,y:360,vx:0,vy:0,face:1,grounded:false,alive:true};
+  particles=[];floaters=[];invuln=0;chain=0;powT=0;snowPow=1;speedPow=1;
+  document.getElementById('level').textContent='第'+lv+'关 / 5';
+}
+function updateHUD(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('lives').textContent='❤'.repeat(Math.max(0,lives))+'🖤'.repeat(Math.max(0,3-lives));
+}
+function addScore(n,x,y){score+=n;floaters.push({x,y,txt:'+'+n,life:1});updateHUD();}
+function groundY(x,y){
+  // 返回脚下最近平台y（脚在平台上时）
+  let best=null;
+  for(const p of L.plats){
+    if(x>=p.x0-6&&x<=p.x1+6&&y<=p.y&&p.y-y<40)best=best===null?p.y:Math.min(best,p.y);
+  }
+  return best;
+}
+function hitPlayer(){
+  if(invuln>0||!player.alive||over)return;
+  lives--;updateHUD();sfx.hit();player.alive=false;
+  for(let i=0;i<14;i++)particles.push({x:player.x,y:player.y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4-2,life:1,color:'#B3E5FC'});
+  if(lives<=0){gameOver(false);return;}
+  setTimeout(()=>{if(over)return;
+    player={x:200,y:360,vx:0,vy:0,face:1,grounded:false,alive:true};invuln=2;
+  },1100);
+}
+function gameOver(win){
+  over=true;
+  if(score>getHS())setHS(score);
+  if(win)sfx.win();else sfx.lose();
+  setTimeout(()=>{
+    document.getElementById('endEmoji').textContent=win?'🏆':'⛄';
+    document.getElementById('endTitle').textContent=win?'全部通关！':'游戏结束';
+    document.getElementById('endScore').textContent='得分 '+score+' · 到达第 '+level+' 关';
+    document.getElementById('endHs').textContent='历史最高分：'+getHS();
+    document.getElementById('endOv').classList.remove('hidden');
+  },600);
+}
+// ============ 更新 ============
+function step(){
+  const dt=1;
+  if(powT>0){powT-=dt/60;if(powT<=0){snowPow=1;speedPow=1;}}
+  // --- 玩家 ---
+  if(player.alive){
+    const sp=2.6*speedPow;
+    if(keys.left){player.x-=sp*dt;player.face=-1;}
+    if(keys.right){player.x+=sp*dt;player.face=1;}
+    player.x=Math.max(14,Math.min(W-14,player.x));
+    if(keys.jump&&player.grounded){player.vy=-10.5;player.grounded=false;sfx.jump();keys.jump=false;}
+    player.vy+=GRAV*dt;player.y+=player.vy*dt;
+    const gy=groundY(player.x,player.y+14);
+    if(gy!==null&&player.vy>=0&&player.y+14>=gy-4){
+      player.y=gy-14;player.vy=0;player.grounded=true;
+    }else player.grounded=false;
+    if(player.y>H+30)hitPlayer();
+    if(invuln>0)invuln-=dt/60;
+    // 喷雪
+    sprayCd-=dt/60;
+    if(keys.spray&&sprayCd<=0){
+      sprayCd=0.22;sfx.spray();
+      L.shots.push({x:player.x+player.face*16,y:player.y,vx:player.face*7,life:40,dir:player.face});
+      for(let i=0;i<3;i++)particles.push({x:player.x+player.face*16,y:player.y,vx:player.face*(2+Math.random()*2),vy:(Math.random()-0.5)*2,life:0.5,color:'#E1F5FE'});
+    }
+  }
+  // --- 雪花子弹 ---
+  for(const s of L.shots){
+    s.x+=s.vx*dt;s.life-=dt;
+    for(const m of L.monsters){
+      if(!m.alive||m.ball)continue;
+      if(Math.hypot(s.x-m.x,s.y-m.y)<20){
+        m.snow+=snowPow;s.life=0;sfx.spray();
+        for(let i=0;i<4;i++)particles.push({x:m.x,y:m.y,vx:(Math.random()-0.5)*3,vy:-Math.random()*2,life:0.6,color:'#fff'});
+        if(m.snow>=5){
+          m.ball=true;m.rollVx=0;sfx.snowball();
+          floaters.push({x:m.x,y:m.y-20,txt:'雪球!',life:1});
+        }
+        break;
+      }
+    }
+  }
+  L.shots=L.shots.filter(s=>s.life>0&&s.x>0&&s.x<W);
+  // --- 怪物 ---
+  for(const m of L.monsters){
+    if(!m.alive)continue;
+    if(m.ball){
+      // 雪球：被推则滚动
+      if(m.rollVx===0){
+        // 玩家撞击推动
+        if(player.alive&&Math.hypot(player.x-m.x,player.y-m.y)<30){
+          m.rollVx=player.x<m.x?4.5:-4.5;
+          m.chain=0; // 本次滚动重新计连击
+          sfx.roll();
+        }
+        // 重力贴平台
+        const gy=groundY(m.x,m.y+14);
+        if(gy!==null&&m.y+14<gy-2){m.y+=3;}
+      }else{
+        m.x+=m.rollVx*dt;
+        // 碾压怪物（连击按本次滚动累计）
+        for(const o of L.monsters){
+          if(o===m||!o.alive||o.ball)continue;
+          if(Math.hypot(o.x-m.x,o.y-m.y)<28){
+            o.alive=false;m.chain++;
+            const pts=100*m.chain;
+            addScore(pts,o.x,o.y-10);sfx.crush();
+            floaters.push({x:o.x,y:o.y-26,txt:m.chain>1?('连击x'+m.chain+' +'+pts):('+'+pts),life:1.2});
+            for(let i=0;i<10;i++)particles.push({x:o.x,y:o.y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4-2,life:0.8,color:'#fff'});
+            // 掉道具
+            if(Math.random()<0.35)L.items.push({x:o.x,y:o.y,vy:-3,kind:Math.random()<0.5?'snow':'speed',life:600});
+          }
+        }
+        // 撞墙碎裂
+        if(m.x<16||m.x>W-16){
+          m.alive=false;sfx.crush();
+          for(let i=0;i<12;i++)particles.push({x:m.x,y:m.y,vx:(Math.random()-0.5)*5,vy:(Math.random()-0.5)*5-2,life:0.8,color:'#fff'});
+          addScore(50,m.x,m.y-10);
+        }
+        // 平台边缘掉落继续滚
+        const gy=groundY(m.x,m.y+16);
+        if(gy===null||m.y+16<gy-6)m.y+=4*dt;
+      }
+    }else{
+      // 普通怪物：平台上左右走
+      m.x+=m.vx*dt;
+      const gy=groundY(m.x,m.y+14);
+      if(gy!==null){m.y=gy-14;}
+      else{m.vx*=-1;m.x+=m.vx*2*dt;}
+      if(m.x<16||m.x>W-16)m.vx*=-1;
+      // 随机转向
+      if(Math.random()<0.005)m.vx*=-1;
+      // 碰玩家
+      if(player.alive&&invuln<=0&&Math.hypot(player.x-m.x,player.y-m.y)<24)hitPlayer();
+      // 雪球撞到普通怪（玩家推的雪球在上面已处理）
+    }
+  }
+  L.monsters=L.monsters.filter(m=>m.alive);
+  // --- 道具 ---
+  for(const it of L.items){
+    it.vy+=0.3*dt;it.y+=it.vy*dt;
+    const gy=groundY(it.x,it.y+8);
+    if(gy!==null&&it.y+8>=gy){it.y=gy-8;it.vy=0;}
+    it.life-=dt;
+    if(player.alive&&Math.hypot(player.x-it.x,player.y-it.y)<26){
+      it.life=0;sfx.item();
+      if(it.kind==='snow'){snowPow=2;powT=20;floaters.push({x:it.x,y:it.y-16,txt:'雪量加大!',life:1.2});}
+      else{speedPow=1.5;powT=20;floaters.push({x:it.x,y:it.y-16,txt:'加速!',life:1.2});}
+    }
+  }
+  L.items=L.items.filter(i=>i.life>0);
+  // --- 过关 ---
+  if(!L.monsters.length&&!over){
+    score+=300;updateHUD();sfx.win();
+    if(level>=5){gameOver(true);return;}
+    level++;
+    floaters.push({x:200,y:200,txt:'第'+level+'关 +300',life:2});
+    player.alive=false;
+    setTimeout(()=>{if(!over)loadLevel(level);},1200);
+  }
+  // 粒子
+  for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.vy+=0.06;p.life-=0.04;}
+  particles=particles.filter(p=>p.life>0);
+  for(const f of floaters){f.y-=0.6;f.life-=0.025;}
+  floaters=floaters.filter(f=>f.life>0);
+  if(score>getHS())setHS(score);
+}
+// ============ 绘制 ============
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 雪花背景
+  ctx.fillStyle='rgba(255,255,255,.3)';
+  const tt=Date.now()/50;
+  for(let i=0;i<24;i++){
+    const sx=(i*67)%W,sy=(i*97+tt*(1+i%3))%H;
+    ctx.fillRect(sx,sy,2,2);
+  }
+  // 平台（冰）
+  for(const p of L?L.plats:[]){
+    const g=ctx.createLinearGradient(0,p.y-8,0,p.y+6);
+    g.addColorStop(0,'#B3E5FC');g.addColorStop(1,'#4FC3F7');
+    ctx.fillStyle=g;
+    ctx.beginPath();
+    if(ctx.roundRect)ctx.roundRect(p.x0,p.y-8,p.x1-p.x0,14,6);else ctx.rect(p.x0,p.y-8,p.x1-p.x0,14);
+    ctx.fill();
+  }
+  if(!L)return;
+  // 道具
+  for(const it of L.items){
+    ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(it.kind==='snow'?'🔵':'🟡',it.x,it.y);
+  }
+  // 雪花子弹
+  for(const s of L.shots){
+    ctx.fillStyle='#E1F5FE';ctx.beginPath();ctx.arc(s.x,s.y,5,0,7);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('❄',s.x,s.y);
+  }
+  // 怪物
+  for(const m of L.monsters){
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    if(m.ball){
+      const roll=m.rollVx!==0?(Date.now()/60)%6.28:0;
+      ctx.save();ctx.translate(m.x,m.y);ctx.rotate(roll);
+      ctx.font='34px sans-serif';ctx.fillText('⛄',0,0);ctx.restore();
+    }else{
+      // 雪覆盖度
+      const cov=Math.min(1,m.snow/5);
+      ctx.font='26px sans-serif';
+      ctx.fillText('👺',m.x,m.y);
+      if(cov>0){
+        ctx.fillStyle='rgba(255,255,255,'+(cov*0.85)+')';
+        ctx.beginPath();ctx.arc(m.x,m.y-4,13*cov+4,0,7);ctx.fill();
+      }
+      // 雪量条
+      ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(m.x-14,m.y-24,28,5);
+      ctx.fillStyle='#4DD0E1';ctx.fillRect(m.x-14,m.y-24,28*cov,5);
+    }
+  }
+  // 玩家
+  if(player.alive){
+    if(!(invuln>0&&((Date.now()/150)|0)%2===0)){
+      ctx.save();ctx.translate(player.x,player.y);ctx.scale(player.face,1);
+      ctx.font='28px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('⛄',0,0);ctx.restore();
+      if(snowPow>1){ctx.fillStyle='#4DD0E1';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('❄x2',player.x,player.y-24);}
+    }
+  }
+  // 粒子
+  for(const p of particles){
+    ctx.globalAlpha=Math.max(0,Math.min(1,p.life));ctx.fillStyle=p.color;
+    ctx.fillRect(p.x-2,p.y-2,4,4);
+  }
+  ctx.globalAlpha=1;
+  // 飘字
+  ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  for(const f of floaters){
+    ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle='#FFD54F';
+    ctx.fillText(f.txt,f.x,f.y);
+  }
+  ctx.globalAlpha=1;
+}
+function loop(){
+  if(started&&!paused&&!over)step();
+  draw();
+  requestAnimationFrame(loop);
+}
+// ============ 输入 ============
+function bindHold(el,down,up){
+  const on=e=>{if(e.cancelable)e.preventDefault();down();};
+  const off=e=>{if(e.cancelable)e.preventDefault();if(up)up();};
+  el.addEventListener('touchstart',on,{passive:false});
+  el.addEventListener('touchend',off,{passive:false});
+  el.addEventListener('touchcancel',off,{passive:false});
+  el.addEventListener('mousedown',on);
+  el.addEventListener('mouseup',off);
+  el.addEventListener('mouseleave',off);
+}
+bindHold(document.getElementById('leftBtn'),()=>{keys.left=true;},()=>{keys.left=false;});
+bindHold(document.getElementById('rightBtn'),()=>{keys.right=true;},()=>{keys.right=false;});
+bindHold(document.getElementById('sprayBtn'),()=>{keys.spray=true;},()=>{keys.spray=false;});
+bindHold(document.getElementById('jumpBtn'),()=>{keys.jump=true;},()=>{keys.jump=false;});
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;
+  if(e.key==='ArrowRight'||e.key==='d')keys.right=true;
+  if(e.key===' '||e.key==='j')keys.spray=true;
+  if(e.key==='ArrowUp'||e.key==='w'||e.key==='k'){e.preventDefault();keys.jump=true;}
+});
+document.addEventListener('keyup',e=>{
+  if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;
+  if(e.key==='ArrowRight'||e.key==='d')keys.right=false;
+  if(e.key===' '||e.key==='j')keys.spray=false;
+  if(e.key==='ArrowUp'||e.key==='w'||e.key==='k')keys.jump=false;
+});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('againBtn').addEventListener('click',startGame);
+document.getElementById('pauseBtn').addEventListener('click',()=>{
+  if(!started||over)return;paused=true;
+  document.getElementById('pauseOv').classList.remove('hidden');sfx.click();
+});
+document.getElementById('resumeBtn').addEventListener('click',()=>{
+  paused=false;document.getElementById('pauseOv').classList.add('hidden');sfx.click();
+});
+document.getElementById('sndBtn').addEventListener('click',function(){
+  soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)sfx.click();
+});
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

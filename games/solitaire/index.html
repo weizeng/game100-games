@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>纸牌接龙</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
+.hud{display:flex;gap:14px;align-items:center;font-size:14px;color:#bbb}
+.hud b{color:#CE93D8;font-size:20px}
+.iconbtn{background:#1f1f1f;border:1px solid #333;color:#fff;font-size:17px;width:40px;height:40px;border-radius:10px;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+#table{width:100%;background:linear-gradient(135deg,#1a3a24,#0e2416);border-radius:12px;padding:10px 8px;box-shadow:0 6px 24px rgba(0,0,0,.5);touch-action:none}
+.row{display:flex;justify-content:space-between;margin-bottom:10px}
+.pile{position:relative;width:56px;min-height:78px;border-radius:7px}
+.slot{width:56px;height:78px;border-radius:7px;border:2px dashed rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:22px;color:rgba(255,255,255,.35)}
+.slot.fill{border-style:solid}
+.card{position:absolute;width:56px;height:78px;border-radius:7px;background:linear-gradient(145deg,#ffffff,#e8e8e8);color:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4);transition:transform .08s;font-size:13px;line-height:1.25}
+.card:active{transform:scale(.95)}
+.card.red{color:#c62828}
+.card.back{background:linear-gradient(145deg,#5c2d91,#3a1c5e)}
+.card.back::after{content:'🃏';font-size:26px}
+.card .big{font-size:24px}
+.card.sel{outline:3px solid #69F0AE;outline-offset:1px;transform:translateY(-4px)}
+.card .corner{position:absolute;top:3px;left:5px;font-size:11px;text-align:center;line-height:1.1}
+#tabRow{display:flex;justify-content:space-between}
+.tip{font-size:12px;color:#888;min-height:16px;text-align:center}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.87);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.hidden{display:none!important}
+.overlay h1{font-size:32px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9;max-width:380px}
+.btn{background:linear-gradient(135deg,#AB47BC,#6A1B9A);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;transition:transform .08s;box-shadow:0 4px 16px rgba(171,71,188,.35)}
+.btn:active{transform:scale(.94)}
+.big{font-size:44px}
+#winFx{position:fixed;inset:0;pointer-events:none;z-index:30}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="hud">得分 <b id="score">0</b> ⏱ <span id="timer">0:00</span></div>
+    <div>
+      <button class="iconbtn" id="pauseBtn">⏸</button>
+      <button class="iconbtn" id="sndBtn">🔊</button>
+    </div>
+  </div>
+  <div id="table">
+    <div class="row">
+      <div class="pile" id="stockPile"></div>
+      <div class="pile" id="wastePile"></div>
+      <div class="pile" id="f0"></div>
+      <div class="pile" id="f1"></div>
+      <div class="pile" id="f2"></div>
+      <div class="pile" id="f3"></div>
+    </div>
+    <div id="tabRow">
+      <div class="pile" id="t0"></div><div class="pile" id="t1"></div>
+      <div class="pile" id="t2"></div><div class="pile" id="t3"></div>
+      <div class="pile" id="t4"></div><div class="pile" id="t5"></div>
+      <div class="pile" id="t6"></div>
+    </div>
+  </div>
+  <div class="tip" id="tip">点牌堆翻牌 · 点选牌再点目标列移动 · 双击牌自动收牌</div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="big">🃏</div>
+  <h1>纸牌接龙</h1>
+  <p>标准 Klondike 单人玩法。<br>7 列牌堆红黑交替降序接龙，<br>四色收牌区同花色 A→K。<br>点牌堆翻牌，点选牌再点目标移动，<br>双击牌可自动送去收牌区。</p>
+  <button class="btn" id="startBtn">开始游戏</button>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <h1>⏸ 已暂停</h1>
+  <button class="btn" id="resumeBtn">继续</button>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="big" id="endEmoji">🏆</div>
+  <h1 id="endTitle">通关！</h1>
+  <p id="endScore"></p>
+  <p style="color:#888;font-size:13px" id="endHs"></p>
+  <button class="btn" id="againBtn">再来一局</button>
+</div>
+<canvas id="winFx"></canvas>
+
+<script>
+'use strict';
+// ============ 音效 ============
+let AC=null, soundOn=true;
+function tone(f,d,type,v,slide){ if(!soundOn)return; try{
+  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.type=type||'square'; o.frequency.value=f;
+  if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),AC.currentTime+d);
+  g.gain.setValueAtTime(v||0.06,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+d);
+  o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d);
+}catch(e){} }
+const sfx={
+  click(){tone(650,0.05);},
+  flip(){tone(420,0.06,'triangle',0.07);},
+  move(){tone(520,0.07,'triangle',0.07);},
+  good(){tone(880,0.1,'sine',0.09,200);},
+  bad(){tone(150,0.15,'sawtooth',0.07,-60);},
+  win(){[523,659,784,1046,1318].forEach((f,i)=>setTimeout(()=>tone(f,0.25,'triangle',0.09),i*140));}
+};
+const HSKEY='g100_solitaire_hs';
+function getHS(){try{return +(localStorage.getItem(HSKEY)||0);}catch(e){return 0;}}
+function setHS(v){try{localStorage.setItem(HSKEY,v);}catch(e){}}
+// ============ 核心逻辑 ============
+const SUITS=['♠','♥','♦','♣'];
+const RED={ '♥':1,'♦':1 };
+function newDeck(rng){
+  rng=rng||Math.random;
+  const d=[];
+  for(const s of SUITS)for(let r=1;r<=13;r++)d.push({s,r,up:false});
+  for(let i=d.length-1;i>0;i--){const j=(rng()*(i+1))|0;[d[i],d[j]]=[d[j],d[i]];}
+  return d;
+}
+// deal: tableau 7列(1..7张，仅顶张朝上)，stock 24张
+function deal(deck){
+  const tab=[[],[],[],[],[],[],[]];
+  let k=0;
+  for(let c=0;c<7;c++)for(let i=0;i<=c;i++){const cd=deck[k++];cd.up=(i===c);tab[c].push(cd);}
+  const stock=deck.slice(k); // 24张
+  return {tab,stock,waste:[],found:[[],[],[],[]]};
+}
+function rankName(r){return r===1?'A':r===11?'J':r===12?'Q':r===13?'K':String(r);}
+function isRed(c){return !!RED[c.s];}
+// 牌能否放在tableau列顶
+function canTableau(card,col){
+  if(!col.length)return card.r===13;
+  const t=col[col.length-1];
+  return t.up&&isRed(t)!==isRed(card)&&t.r===card.r+1;
+}
+// 牌能否放在收牌区（同花色升序）
+function canFoundation(card,pile){
+  if(!pile.length)return card.r===1;
+  const t=pile[pile.length-1];
+  return t.s===card.s&&card.r===t.r+1;
+}
+// 从某来源取可移动的牌叠（tableau列中从idx起全朝上）
+function movableStack(tab,colIdx,cardIdx){
+  const col=tab[colIdx];
+  for(let i=cardIdx;i<col.length;i++)if(!col[i].up)return null;
+  return col.slice(cardIdx);
+}
+function autoFoundation(state){
+  // 找所有可自动收牌的顶牌
+  const cands=[];
+  const w=state.waste;
+  if(w.length)cands.push({from:'waste',card:w[w.length-1]});
+  state.tab.forEach((col,ci)=>{if(col.length&&col[col.length-1].up)cands.push({from:'tab',ci,card:col[col.length-1]});});
+  return cands;
+}
+if(typeof window!=='undefined')window.__SOLITAIRE__={newDeck,deal,canTableau,canFoundation,movableStack,SUITS,rankName};
+// ============ 游戏状态 ============
+let S=null,score=0,sec=0,timerId=null,over=false,paused=false,started=false;
+let sel=null; // {from:'waste'|'tab'|'found', ci, idx}
+const $=id=>document.getElementById(id);
+
+function startGame(){
+  const deck=newDeck();
+  S=deal(deck);score=0;sec=0;over=false;paused=false;started=true;sel=null;
+  stopTimer();startTimer();
+  $('startOv').classList.add('hidden');$('endOv').classList.add('hidden');$('pauseOv').classList.add('hidden');
+  updateHUD();render();sfx.click();
+}
+function startTimer(){stopTimer();timerId=setInterval(()=>{if(!paused&&!over){sec++;updateHUD();}},1000);}
+function stopTimer(){if(timerId){clearInterval(timerId);timerId=null;}}
+function updateHUD(){
+  $('score').textContent=score;
+  $('timer').textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
+}
+function cardEl(card,idx,extra){
+  const d=document.createElement('div');
+  d.className='card'+(card.up?(isRed(card)?' red':''):' back')+(extra||'');
+  if(card.up){
+    d.innerHTML='<div class="corner">'+rankName(card.r)+'<br>'+card.s+'</div><div class="big">'+card.s+'</div>';
+  }
+  d.style.top=(idx*22)+'px';d.style.zIndex=idx;
+  return d;
+}
+function render(){
+  if(!S)return;
+  // stock
+  const sp=$('stockPile');sp.innerHTML='';
+  if(S.stock.length){const d=cardEl({up:false},0);d.style.position='relative';sp.appendChild(d);}
+  else{const s=document.createElement('div');s.className='slot';s.textContent='↻';s.style.position='relative';sp.appendChild(s);}
+  // waste
+  const wp=$('wastePile');wp.innerHTML='';
+  if(S.waste.length){const w=S.waste,show=w.slice(-3);
+    show.forEach((c,i)=>{const d=cardEl(c,0);d.style.position='relative';d.style.marginLeft=(i>0?'-38px':'0');wp.appendChild(d);
+      if(i===show.length-1)bindWaste(d);});
+  }else{const s=document.createElement('div');s.className='slot';s.style.position='relative';wp.appendChild(s);}
+  // foundations
+  for(let f=0;f<4;f++){
+    const p=$('f'+f);p.innerHTML='';
+    const pile=S.found[f];
+    if(pile.length){const d=cardEl(pile[pile.length-1],0);d.style.position='relative';p.appendChild(d);bindFound(d,f);}
+    else{const s=document.createElement('div');s.className='slot';s.textContent=SUITS[f];s.style.position='relative';p.appendChild(s);}
+  }
+  // tableau
+  for(let c=0;c<7;c++){
+    const p=$('t'+c);p.innerHTML='';
+    const col=S.tab[c];
+    if(!col.length){const s=document.createElement('div');s.className='slot';s.textContent='K';s.style.position='relative';p.appendChild(s);}
+    col.forEach((card,i)=>{
+      const d=cardEl(card,i,sel&&sel.from==='tab'&&sel.ci===c&&i>=sel.idx?' sel':'');
+      bindTab(d,c,i,card);p.appendChild(d);
+    });
+  }
+}
+function stockTap(){
+  if(over||paused||!started)return;
+  if(S.stock.length){
+    const c=S.stock.pop();c.up=true;S.waste.push(c);sfx.flip();
+  }else if(S.waste.length){
+    // 回收
+    while(S.waste.length){const c=S.waste.pop();c.up=false;S.stock.push(c);}
+    score=Math.max(0,score-20);sfx.flip();
+  }else{sfx.bad();return;}
+  sel=null;updateHUD();render();
+}
+function bindWaste(d){
+  d.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(sel&&sel.from==='waste'){sel=null;render();return;}
+    sel={from:'waste'};sfx.click();render();
+  });
+  d.addEventListener('dblclick',e=>{e.stopPropagation();tryAutoFoundation({from:'waste'});});
+}
+function bindFound(d,f){
+  d.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(sel){tryMoveTo({type:'found',fi:f});}
+  });
+}
+function bindTab(d,c,i,card){
+  d.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(over||paused||!started)return;
+    if(sel){
+      // 目标是列
+      if(sel.from==='tab'&&sel.ci===c){sel=null;render();return;}
+      tryMoveTo({type:'tab',ci:c});
+      return;
+    }
+    if(!card.up){sfx.bad();return;}
+    const st=movableStack(S.tab,c,i);
+    if(!st){sfx.bad();return;}
+    sel={from:'tab',ci:c,idx:i};sfx.click();render();
+  });
+  d.addEventListener('dblclick',e=>{
+    e.stopPropagation();
+    const col=S.tab[c];
+    if(i===col.length-1)tryAutoFoundation({from:'tab',ci:c,idx:i}); // 仅顶牌可双击收牌
+  });
+}
+// 空牌位点击：牌堆容器级委托（卡片点击已stopPropagation，不会重复触发）
+for(let f=0;f<4;f++){
+  (function(fi){
+    $('f'+fi).addEventListener('click',e=>{
+      e.stopPropagation();
+      if(sel&&!over&&!paused&&started)tryMoveTo({type:'found',fi});
+    });
+  })(f);
+}
+for(let c=0;c<7;c++){
+  (function(ci){
+    $('t'+ci).addEventListener('click',()=>{
+      if(sel&&!over&&!paused&&started){
+        if(sel.from==='tab'&&sel.ci===ci){sel=null;render();return;}
+        tryMoveTo({type:'tab',ci});
+      }
+    });
+  })(c);
+}
+function takeSelected(){
+  if(!sel)return null;
+  if(sel.from==='waste'){
+    if(!S.waste.length)return null;
+    return {cards:S.waste.slice(-1),remove(){S.waste.pop();}};
+  }
+  if(sel.from==='tab'){
+    const col=S.tab[sel.ci];
+    const cards=col.slice(sel.idx);
+    if(!cards.length||!cards[0].up)return null;
+    return {cards,remove(){col.length=sel.idx;flipTop(S.tab[sel.ci]);}};
+  }
+  return null;
+}
+function flipTop(col){
+  if(col.length&&!col[col.length-1].up){col[col.length-1].up=true;score+=5;}
+}
+function tryMoveTo(target){
+  const tk=takeSelected();
+  if(!tk){sel=null;render();return;}
+  const moving=tk.cards[0];
+  let ok=false;
+  if(target.type==='tab'){
+    const col=S.tab[target.ci];
+    if(canTableau(moving,col)){tk.remove();col.push(...tk.cards);score+=5;ok=true;}
+  }else{
+    if(tk.cards.length===1){
+      const pile=S.found[target.fi];
+      if(canFoundation(moving,pile)){tk.remove();pile.push(tk.cards[0]);score+=10;ok=true;sfx.good();}
+    }
+  }
+  if(ok){sfx.move();checkWin();}
+  else sfx.bad();
+  sel=null;updateHUD();render();
+}
+function tryAutoFoundation(src){
+  if(over||paused||!started)return;
+  let card;
+  if(src.from==='waste'){if(!S.waste.length)return;card=S.waste[S.waste.length-1];}
+  else{const col=S.tab[src.ci];if(!col.length||!col[col.length-1].up)return;card=col[col.length-1];}
+  for(let f=0;f<4;f++){
+    if(canFoundation(card,S.found[f])){
+      if(src.from==='waste')S.waste.pop();
+      else{const col=S.tab[src.ci];col.pop();flipTop(col);}
+      S.found[f].push(card);score+=10;sfx.good();
+      sel=null;updateHUD();render();checkWin();return;
+    }
+  }
+  sfx.bad();
+}
+function checkWin(){
+  const n=S.found.reduce((a,p)=>a+p.length,0);
+  if(n===52&&!over){
+    over=true;stopTimer();sfx.win();winFx();
+    const bonus=Math.max(0,600-sec);score+=bonus;
+    if(score>getHS())setHS(score);
+    updateHUD();
+    setTimeout(()=>{
+      $('endEmoji').textContent='🏆';$('endTitle').textContent='通关！';
+      $('endScore').textContent='得分 '+score+'（含时间奖励 +'+bonus+'）· 用时 '+Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');
+      $('endHs').textContent='历史最高分：'+getHS();
+      $('endOv').classList.remove('hidden');
+    },1200);
+  }
+}
+// 通关撒花
+function winFx(){
+  const c=$('winFx'),x=c.getContext('2d');
+  c.width=innerWidth;c.height=innerHeight;
+  const ps=[];const colors=['#FFD54F','#69F0AE','#FF8A80','#90CAF9','#CE93D8'];
+  for(let i=0;i<120;i++)ps.push({x:Math.random()*c.width,y:-20,vx:(Math.random()-0.5)*3,vy:2+Math.random()*3,c:colors[i%5],r:3+Math.random()*4,a:1});
+  let frames=0;
+  (function anim(){
+    x.clearRect(0,0,c.width,c.height);
+    for(const p of ps){p.x+=p.vx;p.y+=p.vy;p.a-=0.008;x.globalAlpha=Math.max(0,p.a);x.fillStyle=p.c;x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill();}
+    x.globalAlpha=1;
+    if(++frames<220)requestAnimationFrame(anim);else x.clearRect(0,0,c.width,c.height);
+  })();
+}
+// 事件
+$('stockPile').addEventListener('click',stockTap);
+$('stockPile').addEventListener('touchstart',e=>{e.preventDefault();stockTap();},{passive:false});
+document.getElementById('table').addEventListener('click',e=>{
+  // 点空白处取消选择
+  if(e.target.id==='table'||e.target.id==='tabRow'){sel=null;render();}
+});
+$('startBtn').addEventListener('click',startGame);
+$('againBtn').addEventListener('click',startGame);
+$('pauseBtn').addEventListener('click',()=>{
+  if(!started||over)return;paused=true;
+  $('pauseOv').classList.remove('hidden');sfx.click();
+});
+$('resumeBtn').addEventListener('click',()=>{
+  paused=false;$('pauseOv').classList.add('hidden');sfx.click();
+});
+$('sndBtn').addEventListener('click',function(){
+  soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)sfx.click();
+});
+render();
+</script>
+</body>
+</html>
