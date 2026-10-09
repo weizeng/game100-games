@@ -1,0 +1,100 @@
+name: 构建 App APK
+# android/ 或 games/ 有更新时：云端编译 APK（与作者本机同一 debug 签名）、
+# 发布到 releases/、更新 app.json（App 内自升级用）、刷新 CDN
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'games/**'
+      - '.github/workflows/build-apk.yml'
+      - 'android-debug.keystore.b64'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 安装 Android SDK 组件
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: 安装 Gradle
+        run: |
+          curl -sL https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          echo "/tmp/gradle-8.7/bin" >> "$GITHUB_PATH"
+
+      - name: 还原 debug 签名（与作者本机一致，保证可覆盖安装）
+        run: |
+          mkdir -p ~/.android
+          base64 -d android-debug.keystore.b64 > ~/.android/debug.keystore
+
+      - name: 打包内置游戏资源
+        run: |
+          mkdir -p android/app/src/main/assets/bundled
+          for d in games/*/; do
+            id="$(basename "$d")"
+            [ -f "$d/index.html" ] && [ -f "$d/meta.json" ] || continue
+            (cd "$d" && zip -qr "../../android/app/src/main/assets/bundled/$id.zip" index.html meta.json)
+          done
+          ls android/app/src/main/assets/bundled | wc -l
+
+      - name: 编译 APK
+        run: |
+          cd android
+          gradle assembleDebug -x lint --offline=false
+
+      - name: 发布 APK 并更新 app.json
+        env:
+          BASE: https://cdn.jsdelivr.net/gh/weizeng/game100-games@main
+        run: |
+          set -e
+          AAPT="$ANDROID_HOME/build-tools/34.0.0/aapt"
+          APK="$(ls android/app/build/outputs/apk/debug/*.apk | head -1)"
+          VC="$("$AAPT" dump badging "$APK" | grep -oP "versionCode='\K[0-9]+")"
+          VN="$("$AAPT" dump badging "$APK" | grep -oP "versionName='\K[^']+')"
+          echo "versionCode=$VC versionName=$VN"
+          mkdir -p releases
+          # 只保留最新版 APK
+          rm -f releases/*.apk
+          APK_NAME="game100-v${VN}.apk"
+          cp "$APK" "releases/$APK_NAME"
+          CHANGELOG="$(git log -1 --pretty=%s -- android/ | head -1)"
+          python3 - "$VC" "$VN" "$APK_NAME" "$CHANGELOG" <<'EOF'
+          import json, sys, datetime
+          vc, vn, apk_name, changelog = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] or "版本更新"
+          base = "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main"
+          info = {
+              "versionCode": int(vc),
+              "versionName": vn,
+              "apkUrl": f"{base}/releases/{apk_name}",
+              "changelog": changelog,
+              "updated": datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+          }
+          json.dump(info, open('app.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+          print(json.dumps(info, ensure_ascii=False))
+          EOF
+          git config user.name "game100-bot"
+          git config user.email "game100-bot@users.noreply.github.com"
+          git pull --rebase origin main || true
+          git add -A
+          if git diff --cached --quiet; then echo "无变化"; exit 0; fi
+          git commit -m "发布 App v${VN} [skip ci]"
+          git push
+
+      - name: 刷新 CDN 缓存
+        run: |
+          curl -s "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/app.json" -o /dev/null || true
+          for f in releases/*.apk; do
+            curl -s "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/$f" -o /dev/null || true
+          done
