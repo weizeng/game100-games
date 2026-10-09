@@ -30,6 +30,9 @@ body{background:linear-gradient(160deg,#2b1a4d 0%,#121212 55%,#0a0a0a 100%);colo
 .cell:active{transform:scale(.92)}
 .cell.on{background:linear-gradient(135deg,#fbbf24,#f59e0b);box-shadow:0 0 18px rgba(251,191,36,.55);color:#3a2503}
 .cell.off{background:rgba(255,255,255,.06);color:#555}
+.cell.hint{outline:3px solid #4ade80;outline-offset:2px;animation:hintpulse .6s ease-in-out infinite}
+@keyframes hintpulse{50%{box-shadow:0 0 22px rgba(74,222,128,.9);transform:scale(1.08)}}
+.hintbar{min-height:20px;font-size:13px;color:#ffd76a;text-align:center}
 .toolbar{display:flex;gap:10px}
 .best{color:#ffd76a;font-size:14px}
 #fx{position:fixed;inset:0;pointer-events:none;z-index:50}
@@ -46,7 +49,7 @@ body{background:linear-gradient(160deg,#2b1a4d 0%,#121212 55%,#0a0a0a 100%);colo
   <div class="topbar">
     <span class="title">💡 熄灯</span>
     <span class="stat">步数 <b id="moves">0</b></span>
-    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
+    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="hintBtn" title="提示">💡</button><button class="tbtn" id="pauseBtn">⏸</button></span>
   </div>
   <div class="screen on" id="s-start">
     <div class="card">
@@ -57,6 +60,7 @@ body{background:linear-gradient(160deg,#2b1a4d 0%,#121212 55%,#0a0a0a 100%);colo
   </div>
   <div class="screen" id="s-game">
     <div id="grid"></div>
+    <div class="hintbar" id="hintbar"></div>
     <div class="toolbar">
       <button class="ghostbtn" id="btnUndo">↩ 悔一步</button>
       <button class="ghostbtn" id="btnNew">🎲 新题目</button>
@@ -87,6 +91,8 @@ function burst(x,y,color,n){for(var i=0;i<(n||14);i++)parts.push({x:x,y:y,vx:(Ma
 function floatTxt(txt,x,y,color){var d=document.createElement("div");d.className="float";d.textContent=txt;d.style.left=x+"px";d.style.top=y+"px";d.style.color=color||"#ffd76a";document.body.appendChild(d);setTimeout(function(){d.remove()},1150)}
 /* ---------- 题目：从全灭随机逆操作生成，必可解 ---------- */
 var N=5,grid,hist,moves;
+var hintCell=null,hintTimer=null;
+function clearLoHint(){hintCell=null;if(hintTimer){clearTimeout(hintTimer);hintTimer=null}var hb=$("hintbar");if(hb)hb.textContent=""}
 function flip(g,r,c,silent){var d=[[0,0],[1,0],[-1,0],[0,1],[0,-1]];d.forEach(function(o){var nr=r+o[1],nc=c+o[0];if(nr>=0&&nr<N&&nc>=0&&nc<N)g[nr][nc]^=1})}
 function newPuzzle(){grid=[];for(var i=0;i<N;i++){grid.push([]);for(var j=0;j<N;j++)grid[i].push(0)}
  // 随机做 14~24 次逆操作
@@ -95,19 +101,55 @@ function newPuzzle(){grid=[];for(var i=0;i<N;i++){grid.push([]);for(var j=0;j<N;
  // 偶数次按同一格会抵消：若全灭则重来（极小概率）
  var lit=0;for(var a=0;a<N;a++)for(var b=0;b<N;b++)lit+=grid[a][b];
  if(lit===0)return newPuzzle();
- hist=[];moves=0;$("moves").textContent=0;render()}
-function render(){var g=$("grid");g.innerHTML="";for(var r=0;r<N;r++)for(var c=0;c<N;c++){var d=document.createElement("div");d.className="cell "+(grid[r][c]?"on":"off");d.textContent=grid[r][c]?"💡":"";(function(rr,cc,el){var press=function(e){if(e)e.preventDefault();doFlip(rr,cc,el)};el.addEventListener("touchstart",press,{passive:false});el.addEventListener("mousedown",press)})(r,c,d);g.appendChild(d)}}
-function doFlip(r,c,el){var rc=el.getBoundingClientRect();flip(grid,r,c);hist.push([r,c]);moves++;$("moves").textContent=moves;
+ hist=[];moves=0;$("moves").textContent=0;clearLoHint();render()}
+function render(){var g=$("grid");g.innerHTML="";for(var r=0;r<N;r++)for(var c=0;c<N;c++){var d=document.createElement("div");d.className="cell "+(grid[r][c]?"on":"off");if(hintCell&&hintCell[0]===r&&hintCell[1]===c)d.className+=" hint";d.textContent=grid[r][c]?"💡":"";(function(rr,cc,el){var press=function(e){if(e)e.preventDefault();doFlip(rr,cc,el)};el.addEventListener("touchstart",press,{passive:false});el.addEventListener("mousedown",press)})(r,c,d);g.appendChild(d)}}
+function doFlip(r,c,el){clearLoHint();var rc=el.getBoundingClientRect();flip(grid,r,c);hist.push([r,c]);moves++;$("moves").textContent=moves;
  var lit=0;for(var a=0;a<N;a++)for(var b=0;b<N;b++)lit+=grid[a][b];
  if(grid[r][c])sOn();else sOff();
  render();
  if(lit===0)win();else if(lit<=3)floatTxt("还剩 "+lit+" 盏",rc.left,rc.top-8,"#fbbf24")}
-function undo(){if(!hist.length){sClick();return}var m=hist.pop();flip(grid,m[0],m[1]);moves=Math.max(0,moves-1);$("moves").textContent=moves;sClick();render()}
+function undo(){clearLoHint();if(!hist.length){sClick();return}var m=hist.pop();flip(grid,m[0],m[1]);moves=Math.max(0,moves-1);$("moves").textContent=moves;sClick();render()}
 function win(){sWin();var lit=0;for(var i=0;i<5;i++)setTimeout(function(){burst(innerWidth/2+(Math.random()-.5)*260,innerHeight/3+(Math.random()-.5)*160,["#ffd76a","#fbbf24","#c4b5fd"][i%3],24)},i*120);
  var score=Math.max(50,Math.round(3000/(1+moves*.35)));
  var best=store.get("best",null),nb=false;if(best==null||score>best){store.set("best",score);nb=true}
  setTimeout(function(){$("endInfo").textContent="用了 "+moves+" 步 · 得分 "+score;$("endBest").textContent=nb?"🏆 新纪录！":"历史最高 "+best;show("s-end")},600)}
 function show(id){["s-start","s-game","s-end"].forEach(function(s){$(s).classList.toggle("on",s===id)})}
+/* ---------- 提示：mod 2 高斯消元求解，高亮下一步该按的格 ---------- */
+function solveLO(){
+ var n=N*N,A=[];
+ for(var i=0;i<n;i++){var row=new Array(n+1);for(var j=0;j<=n;j++)row[j]=0;A.push(row)}
+ for(var r=0;r<N;r++)for(var c=0;c<N;c++){
+  var j=r*N+c,cells=[[r,c],[r+1,c],[r-1,c],[r,c+1],[r,c-1]];
+  for(var k=0;k<cells.length;k++){var nr=cells[k][0],nc=cells[k][1];
+   if(nr>=0&&nr<N&&nc>=0&&nc<N)A[nr*N+nc][j]=1}
+  A[j][n]=grid[r][c];
+ }
+ var where=new Array(n).fill(-1),rw=0;
+ for(var col=0;col<n&&rw<n;col++){
+  var sel=-1;
+  for(var i=rw;i<n;i++)if(A[i][col]){sel=i;break}
+  if(sel<0)continue;
+  var tmp=A[sel];A[sel]=A[rw];A[rw]=tmp;where[col]=rw;
+  for(var i=0;i<n;i++)if(i!==rw&&A[i][col]){for(var j=col;j<=n;j++)A[i][j]^=A[rw][j]}
+  rw++;
+ }
+ var x=new Array(n).fill(0);
+ for(var i=0;i<n;i++)if(where[i]>=0)x[i]=A[where[i]][n];
+ return x;
+}
+function loHint(){
+ if(!$("s-game").classList.contains("on"))return;
+ sClick();clearLoHint();
+ var x=solveLO(),cell=-1;
+ for(var j=0;j<x.length;j++)if(x[j]){cell=j;break}
+ if(cell<0){$("hintbar").textContent="💡 灯已经全灭了！";return}
+ var r=(cell/N)|0,c=cell%N;
+ hintCell=[r,c];
+ $("hintbar").textContent="💡 提示：按第 "+(r+1)+" 行第 "+(c+1)+" 列这盏灯（消元法算出的关键一步）";
+ render();
+ hintTimer=setTimeout(function(){clearLoHint();render()},2600);
+}
+$("hintBtn").onclick=function(){loHint()};
 $("btnStart").onclick=function(){sClick();newPuzzle();show("s-game")};
 $("btnNew").onclick=function(){sClick();newPuzzle()};
 $("btnUndo").onclick=function(){undo()};

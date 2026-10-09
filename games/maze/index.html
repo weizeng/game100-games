@@ -37,6 +37,11 @@ body{background:linear-gradient(160deg,#0f3b2e 0%,#121212 55%,#0a0a0a 100%);colo
 #pauseov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px)}
 #pauseov.on{display:flex}
 .pausecard{background:#1c1c22;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:28px 36px;text-align:center;display:flex;flex-direction:column;gap:12px}
+#hintov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px);padding:24px}
+#hintov.on{display:flex}
+.hintcard{background:#1c1c22;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:26px 28px;text-align:center;display:flex;flex-direction:column;gap:12px;max-width:380px}
+.hintcard h2{font-size:22px}
+.hintcard p{color:#bfe9d4;font-size:14px;line-height:1.9}
 </style>
 </head>
 <body>
@@ -45,7 +50,7 @@ body{background:linear-gradient(160deg,#0f3b2e 0%,#121212 55%,#0a0a0a 100%);colo
   <div class="topbar">
     <span class="title">🌀 迷宫</span>
     <span class="stat">⏱<b id="tm">0s</b> · 步数<b id="steps">0</b></span>
-    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
+    <span><button class="tbtn" id="hintBtn" title="提示">💡</button><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
   </div>
   <div class="screen on" id="s-start">
     <div class="card">
@@ -74,6 +79,7 @@ body{background:linear-gradient(160deg,#0f3b2e 0%,#121212 55%,#0a0a0a 100%);colo
   </div>
 </div>
 <div id="pauseov"><div class="pausecard"><h2>⏸ 已暂停</h2><button class="bigbtn" id="btnResume">继续</button><button class="ghostbtn" id="btnQuit">退出</button></div></div>
+<div id="hintov"><div class="hintcard"><h2>💡 提示</h2><p id="hintText"></p><button class="ghostbtn" id="hintClose">知道了</button></div></div>
 <script>
 "use strict";
 var $=function(id){return document.getElementById(id)};
@@ -89,6 +95,29 @@ function burst(x,y,color,n){for(var i=0;i<(n||14);i++)parts.push({x:x,y:y,vx:(Ma
 function floatTxt(txt,x,y,color){var d=document.createElement("div");d.className="float";d.textContent=txt;d.style.left=x+"px";d.style.top=y+"px";d.style.color=color||"#ffd76a";document.body.appendChild(d);setTimeout(function(){d.remove()},1150)}
 /* ---------- 迷宫生成（DFS 回溯，完美迷宫） ---------- */
 var N=15,cells,px,py,steps,secs,timer=null,paused=false,anim=0;
+var hintPath=null,hintT=0,hintOpen=false; // 提示：BFS最短路闪烁
+/* ---------- BFS 求玩家到出口的最短路 ---------- */
+function bfsPath(){
+  var dirs=[[0,-1,0],[1,0,1],[0,1,2],[-1,0,3]]; // dx,dy,墙下标(上右下左)
+  var seen={},prev={},q=[[px,py]];
+  seen[px+","+py]=1;
+  while(q.length){
+    var cur=q.shift(),x=cur[0],y=cur[1];
+    if(x===N-1&&y===N-1)break;
+    var w=cells[y][x].w;
+    for(var i=0;i<4;i++){
+      if(w[dirs[i][2]])continue; // 有墙
+      var nx=x+dirs[i][0],ny=y+dirs[i][1],k=nx+","+ny;
+      if(nx<0||ny<0||nx>=N||ny>=N||seen[k])continue;
+      seen[k]=1;prev[k]=[x,y];q.push([nx,ny]);
+    }
+  }
+  var ek=(N-1)+","+(N-1);
+  if(!seen[ek])return [];
+  var path=[],k=ek;
+  while(k){var c=k.split(",");path.unshift([+c[0],+c[1]]);var p=prev[k];k=p?p[0]+","+p[1]:null;}
+  return path;
+}
 function genMaze(){cells=[];var i,j;for(i=0;i<N;i++){cells.push([]);for(j=0;j<N;j++)cells[i].push({v:false,w:[true,true,true,true]})} // w:上右下左
  var stack=[[0,0]];cells[0][0].v=true;
  var dirs=[[0,-1,0,2],[1,0,1,3],[0,1,2,0],[-1,0,3,1]]; // dx,dy,wall,opp
@@ -121,7 +150,16 @@ function draw(){var s=cv.width;ctx.clearRect(0,0,s,s);
   if(c.w[2]){ctx.moveTo(X,Y+cellPx);ctx.lineTo(X+cellPx,Y+cellPx)}
   if(c.w[3]){ctx.moveTo(X,Y);ctx.lineTo(X,Y+cellPx)}
   ctx.stroke()}
- ctx.strokeStyle="rgba(255,215,106,.7)";ctx.lineWidth=3;ctx.strokeRect(1.5,1.5,s-3,s-3)}
+ ctx.strokeStyle="rgba(255,215,106,.7)";ctx.lineWidth=3;ctx.strokeRect(1.5,1.5,s-3,s-3);
+ // 提示：最短路闪烁 2 秒
+ if(hintPath&&hintPath.length&&Date.now()-hintT<2000){
+  var a=0.22+0.2*Math.abs(Math.sin(Date.now()/160));
+  ctx.fillStyle="rgba(52,211,153,"+a.toFixed(3)+")";
+  for(var hi=0;hi<hintPath.length;hi++){
+   ctx.fillRect(hintPath[hi][0]*cellPx+2,hintPath[hi][1]*cellPx+2,cellPx-4,cellPx-4);
+  }
+ }
+}
 function show(id){["s-start","s-game","s-end"].forEach(function(s){$(s).classList.toggle("on",s===id)})}
 function tryMove(dx,dy){var nx=px+dx,ny=py+dy;if(nx<0||ny<0||nx>=N||ny>=N){sWall();return}
  var w=cells[py][px].w; // 上右下左
@@ -133,7 +171,7 @@ function win(){clearInterval(timer);sWin();var r=cv.getBoundingClientRect();for(
  var nb=false;if(best==null||score>best){store.set("best",score);nb=true}
  var rank=secs<=60&&steps<=N*3?"⚡ 传奇探险家":secs<=120?"🥇 迷宫大师":secs<=240?"🥈 熟练旅者":"🥉 坚持就是胜利";
  setTimeout(function(){$("endInfo").textContent="用时 "+secs+"s · 步数 "+steps+" · 得分 "+score;$("endRank").textContent=rank;$("endBest").textContent=nb?"🏆 新纪录！":"历史最高 "+best;show("s-end")},700)}
-function startGame(){genMaze();px=0;py=0;steps=0;secs=0;$("steps").textContent=0;$("tm").textContent="0s";paused=false;sizeCv();show("s-game");clearInterval(timer);timer=setInterval(function(){if(!paused){secs++;$("tm").textContent=secs+"s"}},1000)}
+function startGame(){genMaze();px=0;py=0;steps=0;secs=0;hintPath=null;hintOpen=false;$("steps").textContent=0;$("tm").textContent="0s";paused=false;sizeCv();show("s-game");clearInterval(timer);timer=setInterval(function(){if(!paused&&!hintOpen){secs++;$("tm").textContent=secs+"s"}},1000)}
 /* ---------- 输入 ---------- */
 document.querySelectorAll(".pbtn").forEach(function(b){b.addEventListener("click",function(){sClick();var d=b.dataset.d;if(d==="up")tryMove(0,-1);else if(d==="down")tryMove(0,1);else if(d==="left")tryMove(-1,0);else tryMove(1,0)})});
 document.addEventListener("keydown",function(e){if(!$("s-game").classList.contains("on")||paused)return;var k=e.key;if(k==="ArrowUp"){tryMove(0,-1);e.preventDefault()}else if(k==="ArrowDown"){tryMove(0,1);e.preventDefault()}else if(k==="ArrowLeft"){tryMove(-1,0);e.preventDefault()}else if(k==="ArrowRight"){tryMove(1,0);e.preventDefault()}});
@@ -151,6 +189,19 @@ $("btnHome").onclick=function(){sClick();show("s-start")};
 $("sndBtn").onclick=function(){soundOn=!soundOn;store.set("sound",soundOn);$("sndBtn").textContent=soundOn?"🔊":"🔇";if(soundOn)sClick()};
 $("sndBtn").textContent=soundOn?"🔊":"🔇";
 $("pauseBtn").onclick=function(){if(!$("s-game").classList.contains("on"))return;sClick();paused=true;$("pauseov").classList.add("on")};
+$("hintBtn").onclick=function(){
+  if(!$("s-game").classList.contains("on")||paused)return;
+  sClick();
+  hintPath=bfsPath();hintOpen=true;
+  $("hintText").innerHTML="试试<b style='color:#fff'>右手法则</b>：走迷宫时让右手一直贴着墙走，绝不会迷路！<br>点「知道了」后，绿色闪烁的就是从你当前位置到终点的最短路线，跟着走就行。";
+  $("hintov").classList.add("on");
+};
+$("hintClose").onclick=function(){
+  sClick();
+  $("hintov").classList.remove("on");
+  hintOpen=false;hintT=Date.now(); // 关闭后闪烁 2 秒
+  draw();
+};
 $("btnResume").onclick=function(){sClick();paused=false;$("pauseov").classList.remove("on")};
 $("btnQuit").onclick=function(){sClick();paused=false;$("pauseov").classList.remove("on");clearInterval(timer);show("s-start")};
 setInterval(function(){if($("s-game").classList.contains("on")&&!paused)draw()},120);

@@ -33,6 +33,9 @@ body{background:linear-gradient(160deg,#3d2b12 0%,#121212 55%,#0a0a0a 100%);colo
 .hole.peg{background:radial-gradient(circle at 35% 30%,#fde68a,#d97706 70%,#92400e);box-shadow:0 3px 8px rgba(0,0,0,.5)}
 .hole.sel{outline:3px solid #ffd76a;outline-offset:2px}
 .hole.target{outline:3px dashed #4ade80;outline-offset:2px}
+.hole.hint{outline:3px solid #ffd76a;outline-offset:2px;animation:hintpulse .55s ease-in-out infinite}
+@keyframes hintpulse{50%{box-shadow:0 0 18px #ffd76a;transform:scale(1.14)}}
+.hintbar{min-height:20px;font-size:13px;color:#ffd76a;text-align:center}
 .toolbar{display:flex;gap:10px}
 .best{color:#ffd76a;font-size:14px}
 #fx{position:fixed;inset:0;pointer-events:none;z-index:50}
@@ -49,7 +52,7 @@ body{background:linear-gradient(160deg,#3d2b12 0%,#121212 55%,#0a0a0a 100%);colo
   <div class="topbar">
     <span class="title">♟ 孔明棋</span>
     <span class="stat">剩余 <b id="left">32</b> 子</span>
-    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
+    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="hintBtn" title="提示">💡</button><button class="tbtn" id="pauseBtn">⏸</button></span>
   </div>
   <div class="screen on" id="s-start">
     <div class="card">
@@ -60,6 +63,7 @@ body{background:linear-gradient(160deg,#3d2b12 0%,#121212 55%,#0a0a0a 100%);colo
   </div>
   <div class="screen" id="s-game">
     <div id="board"></div>
+    <div class="hintbar" id="hintbar"></div>
     <div class="toolbar">
       <button class="ghostbtn" id="btnUndo">↩ 悔一步</button>
       <button class="ghostbtn" id="btnReset">🔄 重来</button>
@@ -90,13 +94,16 @@ function burst(x,y,color,n){for(var i=0;i<(n||14);i++)parts.push({x:x,y:y,vx:(Ma
 /* ---------- 棋盘：英式 7x7，四角 2x2 挖空 ---------- */
 function valid(r,c){if(r<0||r>6||c<0||c>6)return false;var corner=(r<2||r>4)&&(c<2||c>4);return !corner}
 var board,sel,hist,over;
-function init(){board=[];for(var r=0;r<7;r++){board.push([]);for(var c=0;c<7;c++){board[r].push(!valid(r,c)?-1:((r===3&&c===3)?0:1))}}sel=null;hist=[];over=false;$("left").textContent=32;render()}
+var hintCells=null,hintTimer=null;
+function clearPegHint(){hintCells=null;if(hintTimer){clearTimeout(hintTimer);hintTimer=null}var hb=$("hintbar");if(hb)hb.textContent=""}
+function init(){clearPegHint();board=[];for(var r=0;r<7;r++){board.push([]);for(var c=0;c<7;c++){board[r].push(!valid(r,c)?-1:((r===3&&c===3)?0:1))}}sel=null;hist=[];over=false;$("left").textContent=32;render()}
 function movesFrom(r,c){var m=[],d=[[0,2],[0,-2],[2,0],[-2,0]];for(var i=0;i<4;i++){var nr=r+d[i][0],nc=c+d[i][1],mr=r+d[i][0]/2,mc=c+d[i][1]/2;if(valid(nr,nc)&&board[nr][nc]===0&&board[mr][mc]===1)m.push([nr,nc,mr,mc])}return m}
 function anyMove(){for(var r=0;r<7;r++)for(var c=0;c<7;c++)if(board[r][c]===1&&movesFrom(r,c).length)return true;return false}
 function count(){var n=0;for(var r=0;r<7;r++)for(var c=0;c<7;c++)if(board[r][c]===1)n++;return n}
 function render(){var b=$("board");b.innerHTML="";for(var r=0;r<7;r++)for(var c=0;c<7;c++){var v=board[r][c],d=document.createElement("div");if(v<0){d.className="hole void"}else{d.className="hole "+(v?"peg":"empty");if(sel&&sel[0]===r&&sel[1]===c)d.classList.add("sel");if(sel&&v===0){var ms=movesFrom(sel[0],sel[1]);for(var i=0;i<ms.length;i++)if(ms[i][0]===r&&ms[i][1]===c)d.classList.add("target")}
+ if(hintCells)for(var hi=0;hi<hintCells.length;hi++)if(hintCells[hi][0]===r&&hintCells[hi][1]===c)d.classList.add("hint");
  (function(rr,cc){var press=function(e){if(e)e.preventDefault();tap(rr,cc)};d.addEventListener("touchstart",press,{passive:false});d.addEventListener("mousedown",press)})(r,c)}b.appendChild(d)}}
-function tap(r,c){if(over)return;var v=board[r][c];if(v<0)return;
+function tap(r,c){if(over)return;clearPegHint();var v=board[r][c];if(v<0)return;
  if(sel){var ms=movesFrom(sel[0],sel[1]),ok=null;for(var i=0;i<ms.length;i++)if(ms[i][0]===r&&ms[i][1]===c)ok=ms[i];
   if(ok){hist.push([sel[0],sel[1],r,c]);board[sel[0]][sel[1]]=0;board[ok[2]][ok[3]]=0;board[r][c]=1;sel=null;sJump();
    var el=$("board").children[r*7+c],rc=el.getBoundingClientRect();burst(rc.left+rc.width/2,rc.top+rc.height/2,"#fbbf24",12);
@@ -104,12 +111,32 @@ function tap(r,c){if(over)return;var v=board[r][c];if(v<0)return;
    if(!anyMove())finish();return}}
  if(v===1){if(!movesFrom(r,c).length){sErr();return}sel=[r,c];sClick();render()}
  else{sel=null;sClick();render()}}
-function undo(){if(!hist.length||over){sClick();return}var m=hist.pop();board[m[0]][m[1]]=1;board[(m[0]+m[2])/2][(m[1]+m[3])/2]=1;board[m[2]][m[3]]=0;sel=null;$("left").textContent=count();sClick();render()}
+function undo(){clearPegHint();if(!hist.length||over){sClick();return}var m=hist.pop();board[m[0]][m[1]]=1;board[(m[0]+m[2])/2][(m[1]+m[3])/2]=1;board[m[2]][m[3]]=0;sel=null;$("left").textContent=count();sClick();render()}
 function finish(){over=true;var n=count();sWin();for(var i=0;i<6;i++)setTimeout(function(){burst(innerWidth/2+(Math.random()-.5)*260,innerHeight/3+(Math.random()-.5)*160,["#ffd76a","#fbbf24","#4ade80"][i%3],24)},i*120);
  var score=Math.max(0,Math.round((33-n)*100-(n>1?(n-1)*300:0)));
  var best=store.get("best",null),nb=false;if(best==null||score>best){store.set("best",score);nb=true}
  setTimeout(function(){$("endTitle").textContent=n===1?"🎉 完美收官！只剩 1 子！":"🏁 对弈结束";$("endInfo").textContent="剩余 "+n+" 枚棋子 · 得分 "+score;$("endBest").textContent=nb?"🏆 新纪录！":"历史最高 "+best;show("s-end")},700)}
 function show(id){["s-start","s-game","s-end"].forEach(function(s){$(s).classList.toggle("on",s===id)})}
+/* ---------- 提示：找一个合法跳吃，优先落点靠近中央 ---------- */
+function pegHint(){
+ if(!$("s-game").classList.contains("on")||over)return;
+ sClick();clearPegHint();
+ var best=null,bestScore=-1e9;
+ for(var r=0;r<7;r++)for(var c=0;c<7;c++){
+  if(board[r][c]!==1)continue;
+  var ms=movesFrom(r,c);
+  for(var i=0;i<ms.length;i++){
+   var score=-(Math.abs(ms[i][0]-3)+Math.abs(ms[i][1]-3));
+   if(score>bestScore){bestScore=score;best={fr:r,fc:c,tr:ms[i][0],tc:ms[i][1]}}
+  }}
+ if(!best){$("hintbar").textContent="💡 暂无可走的跳吃";return}
+ hintCells=[[best.fr,best.fc],[best.tr,best.tc]];
+ $("hintbar").textContent="💡 提示：跳吃这枚高亮棋子到另一处高亮空位（落点越靠近中央越稳）";
+ render();
+ hintTimer=setTimeout(clearPegHint,2600);
+ setTimeout(render,2650);
+}
+$("hintBtn").onclick=function(){pegHint()};
 $("btnStart").onclick=function(){sClick();init();show("s-game")};
 $("btnReset").onclick=function(){sClick();init()};
 $("btnUndo").onclick=function(){undo()};

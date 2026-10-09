@@ -32,6 +32,8 @@ body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFo
 @keyframes floatUp{to{transform:translate(-50%,-160%);opacity:0}}
 #pauseOv{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
 #pauseOv .btn{font-size:15px;padding:11px 34px}
+#hintOv{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;text-align:center}
+#hintOv .btn{font-size:15px;padding:11px 34px}
 .endstats{font-size:15px;line-height:2.1;color:#ddd}
 .endstats b{color:#ffd76a;font-size:22px}
 canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-action:none}
@@ -45,6 +47,7 @@ canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-acti
   <div class="topbar">
     <div class="tb-title">✏️ 一笔画</div>
     <div class="tb-right">
+      <div class="iconbtn hidden" id="hintBtn" title="提示">💡</div>
       <div class="iconbtn" id="soundBtn">🔊</div>
       <div class="iconbtn hidden" id="pauseBtn">⏸</div>
     </div>
@@ -81,6 +84,11 @@ canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-acti
     <button class="btn" id="resumeBtn">继续</button>
     <button class="btn ghost" id="restartBtn">重新开始</button>
   </div>
+  <div id="hintOv" class="hidden">
+    <div style="font-size:24px;font-weight:800">💡 提示</div>
+    <div class="howto" id="hintText" style="max-width:340px"></div>
+    <button class="btn" id="hintClose">知道了</button>
+  </div>
   <canvas id="fx"></canvas>
 </div>
 <script>
@@ -111,6 +119,22 @@ function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
 soundBtn.textContent=soundOn?'🔊':'🔇';
 soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
 pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('hintBtn').addEventListener('click',function(){
+  if(!playing||paused) return;
+  sClick();
+  const L=LEVELS[lvl];
+  const odds=eulerOdds(L);
+  const start=odds.length?odds[0]:0;
+  const trail=eulerTrail(L,start);
+  hintHL=trail.slice(0,3);
+  draw(performance.now());
+  const tip=odds.length
+    ? '秘诀：一笔画要从“奇点”（连着奇数条边的顶点）出发，本关的奇点就是它！选对起点，成功一半。'
+    : '本关每个顶点都连着偶数条边，从任意点出发都能一笔画成，推荐从 ⭐ 处开始！';
+  $('hintText').innerHTML='<b style="color:#fff">第 '+(lvl+1)+' 关 · '+L.name+'</b><br>推荐从标 ⭐ 的顶点起笔，沿绿色高亮的两条边走。<br>'+tip;
+  $('hintOv').classList.remove('hidden');
+});
+$('hintClose').addEventListener('click',function(){ sClick(); $('hintOv').classList.add('hidden'); });
 $('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
 /* ===== 游戏：一笔画（8关均有欧拉路，已验证） ===== */
 const LEVELS=[
@@ -120,17 +144,40 @@ const LEVELS=[
  {name:'五角星',pts:[[0.5,0.12],[0.8614,0.3826],[0.7234,0.8074],[0.2766,0.8074],[0.1386,0.3826]],edges:[[0,2],[2,4],[4,1],[1,3],[3,0]]},
  {name:'蝴蝶结',pts:[[0.2,0.2],[0.2,0.8],[0.5,0.5],[0.8,0.2],[0.8,0.8]],edges:[[0,1],[1,2],[2,0],[2,3],[3,4],[4,2]]},
  {name:'信封',pts:[[0.2,0.7],[0.8,0.7],[0.8,0.3],[0.2,0.3],[0.5,0.12]],edges:[[0,1],[1,2],[2,3],[3,0],[0,2],[1,3],[2,4],[4,3]]},
- {name:'双正方形',pts:[[0.15,0.3],[0.5,0.3],[0.5,0.7],[0.15,0.7],[0.85,0.3],[0.85,0.7]],edges:[[0,1],[1,2],[2,3],[3,0],[1,4],[4,5],[5,2],[1,2]]},
+ {name:'双正方形',pts:[[0.15,0.3],[0.5,0.3],[0.5,0.7],[0.15,0.7],[0.85,0.3],[0.85,0.7]],edges:[[0,1],[1,2],[2,3],[3,0],[1,4],[4,5],[5,2]]},
  {name:'双三角',pts:[[0.35,0.25],[0.1,0.75],[0.6,0.75],[0.85,0.25]],edges:[[0,1],[1,2],[2,0],[0,3],[3,2]]}
 ];
 const cv=$('cv'), ctx=cv.getContext('2d');
 let lvl=0, drawn=new Set(), path=[], cur=-1, playing=false, undos=0, levelDone=false;
+let hintHL=null; // 提示高亮：[起点, 经点1, 经点2]
+/* ===== 欧拉路：算出推荐起笔点及前两条边 ===== */
+function eulerOdds(L){
+  const deg=new Array(L.pts.length).fill(0);
+  L.edges.forEach(function(e){ deg[e[0]]++; deg[e[1]]++; });
+  const odds=[];
+  for(let i=0;i<deg.length;i++) if(deg[i]%2===1) odds.push(i);
+  return odds;
+}
+function eulerTrail(L,start){
+  const adj=L.pts.map(function(){return[];});
+  L.edges.forEach(function(e,i){ adj[e[0]].push({to:e[1],id:i}); adj[e[1]].push({to:e[0],id:i}); });
+  const used={}, stack=[start], trail=[];
+  while(stack.length){
+    const v=stack[stack.length-1];
+    let e=null;
+    while(adj[v].length){ const c=adj[v].pop(); if(!used[c.id]){ e=c; break; } }
+    if(e){ used[e.id]=1; stack.push(e.to); }
+    else trail.push(stack.pop());
+  }
+  trail.reverse();
+  return trail;
+}
 function sizeCanvas(){ const w=Math.min(400,document.getElementById('app').clientWidth-36); cv.width=w; cv.height=w; cv.style.width=w+'px'; cv.style.height=w+'px'; }
 window.addEventListener('resize',function(){ sizeCanvas(); if(playing) draw(performance.now()); });
 function ekey(a,b){ return a<b?a+'_'+b:b+'_'+a; }
 function hasEdge(a,b){ const E=LEVELS[lvl].edges; for(let i=0;i<E.length;i++) if(ekey(E[i][0],E[i][1])===ekey(a,b)) return true; return false; }
 function loadLevel(i){
-  drawn=new Set(); path=[]; cur=-1; levelDone=false;
+  drawn=new Set(); path=[]; cur=-1; levelDone=false; hintHL=null;
   $('lvl').textContent=i+1; $('lname').textContent=LEVELS[i].name;
   $('prog').textContent='0/'+LEVELS[i].edges.length;
   $('msg').textContent='点击任意顶点开始';
@@ -139,6 +186,7 @@ function loadLevel(i){
 function newGame(){
   lvl=0; undos=0; playing=true;
   setPaused(false); pauseBtn.classList.remove('hidden');
+  $('hintBtn').classList.remove('hidden');
   show(scrGame); loadLevel(0);
 }
 function vxy(i){ const w=cv.width, p=LEVELS[lvl].pts[i]; return [p[0]*w,p[1]*w]; }
@@ -153,7 +201,7 @@ function tapVertex(e){
     if(d<bd){ bd=d; best=i; }
   }
   if(best===-1) return;
-  if(cur===-1){ cur=best; path=[best]; sClick(); $('msg').textContent='从这里出发，点相邻顶点连线'; draw(performance.now()); return; }
+  if(cur===-1){ cur=best; path=[best]; hintHL=null; sClick(); $('msg').textContent='从这里出发，点相邻顶点连线'; draw(performance.now()); return; }
   if(best===cur){ $('msg').textContent='已经在这里了，点别的顶点'; return; }
   const k=ekey(cur,best);
   if(!hasEdge(cur,best)){ $('msg').textContent='这两点之间没有边'; sBad(); shakeEl(cv); return; }
@@ -186,7 +234,7 @@ function undo(){
   draw(performance.now());
 }
 function endGame(){
-  playing=false; pauseBtn.classList.add('hidden'); setPaused(false);
+  playing=false; pauseBtn.classList.add('hidden'); $('hintBtn').classList.add('hidden'); setPaused(false);
   const key='g100_onestroke_hs';
   let nb=false, raw=null;
   try{ raw=localStorage.getItem(key); }catch(e){}
@@ -233,13 +281,25 @@ function draw(t){
       ctx.beginPath(); ctx.arc(p[0],p[1],pr,0,7); ctx.stroke();
     }
   }
+  // 提示高亮：推荐起点 ⭐ + 前两条边（绿色）
+  if(hintHL&&hintHL.length>=3){
+    const ha=vxy(hintHL[0]), hb=vxy(hintHL[1]), hc=vxy(hintHL[2]);
+    ctx.save();
+    ctx.strokeStyle='rgba(126,226,168,.92)'; ctx.lineWidth=9; ctx.lineCap='round';
+    ctx.shadowColor='rgba(126,226,168,.8)'; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.moveTo(ha[0],ha[1]); ctx.lineTo(hb[0],hb[1]); ctx.lineTo(hc[0],hc[1]); ctx.stroke();
+    ctx.restore();
+    const pr=20+5*Math.sin(t/220);
+    ctx.font='26px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('⭐', ha[0], ha[1]-pr-10);
+  }
 }
 cv.addEventListener('pointerdown',function(e){ e.preventDefault(); tapVertex(e); },{passive:false});
 $('undoBtn').addEventListener('click',function(){ undo(); });
 $('resetBtn').addEventListener('click',function(){ if(!playing||paused||levelDone) return; sClick(); loadLevel(lvl); });
 $('startBtn').addEventListener('click',function(){ audio(); sClick(); newGame(); });
 $('againBtn').addEventListener('click',function(){ sClick(); newGame(); });
-$('backBtn').addEventListener('click',function(){ sClick(); playing=false; pauseBtn.classList.add('hidden'); show(scrStart); refreshStartHs(); });
+$('backBtn').addEventListener('click',function(){ sClick(); playing=false; pauseBtn.classList.add('hidden'); $('hintBtn').classList.add('hidden'); show(scrStart); refreshStartHs(); });
 $('restartBtn').addEventListener('click',function(){ sClick(); newGame(); });
 function refreshStartHs(){ let txt=''; try{ const raw=localStorage.getItem('g100_onestroke_hs'); if(raw!==null) txt='🏅 最少悔步 '+raw+' 次'; }catch(e){} $('startHs').textContent=txt; }
 try{ refreshStartHs(); }catch(e){}
