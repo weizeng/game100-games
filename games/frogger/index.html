@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>青蛙过河</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:16px}
+.topbar b{color:#8BC34A;font-size:22px}
+.timebar{width:100%;height:8px;background:#2a2a2a;border-radius:4px;overflow:hidden}
+.timebar i{display:block;height:100%;background:#8BC34A;width:100%}
+canvas{background:#1e1e1e;border-radius:12px;touch-action:none;width:100%;height:auto;max-width:468px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.8}
+.btn{background:#8BC34A;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🐸 青蛙过河</span><span>过关 <b id="succ">0</b>/5</span><span>⏱️<b id="time">30</b>s</span><span>❤️<b id="lives">3</b></span></div>
+<div class="timebar"><i id="timefill"></i></div>
+<canvas id="cv" width="468" height="396"></canvas>
+<p class="hint">点击相邻格或滑动跳一格（方向键也行）<br>马路躲汽车，河流踩木头，30 秒内到达对岸</p>
+</div>
+<div class="overlay" id="startScr"><h1>🐸 青蛙过河</h1><p>点击青蛙旁边的格子，或向目标方向滑动<br>即可跳一格（也可用方向键/WASD）<br>下半马路：躲开左右行驶的汽车<br>上半河流：必须站在漂移的木头上，落水就扣命<br>到达对岸 +1，累计 5 次过关胜利<br>每次限时 30 秒，超时/被撞/落水扣 1 条命，共 3 条</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function vibrate(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);}catch(e){}}
+function setHUD(){
+  $('succ').textContent=succ;$('lives').textContent=Math.max(0,lives);
+  $('time').textContent=Math.ceil(timer/60);
+  $('timefill').style.width=(timer/(30*60)*100)+'%';
+}
+
+const cv=$('cv'),ctx=cv.getContext('2d');
+const COLS=13,ROWS=11,CELL=36,W=468,H=396;
+const GOAL_ROW=0,RIVER_TOP=1,RIVER_BOT=4,MID_ROW=5,ROAD_TOP=6,ROAD_BOT=9,START_ROW=10;
+const TIME_LIMIT=30*60;
+
+let fx,fy,succ,lives,timer,raf,state,cars,logs;
+
+function speedMul(){return 1+succ*0.18;}
+function reset(){
+  succ=0;lives=3;
+  buildTraffic();
+  resetFrog();
+  setHUD();
+}
+function resetFrog(){
+  fx=6;fy=START_ROW;timer=TIME_LIMIT;setHUD();
+}
+function buildTraffic(){
+  cars=[];logs=[];
+  const roadCfg=[
+    {row:6,dir:1,sp:1.6,n:3},{row:7,dir:-1,sp:2.1,n:3},
+    {row:8,dir:1,sp:2.6,n:2},{row:9,dir:-1,sp:1.4,n:3}
+  ];
+  const carColors=['#F44336','#FF9800','#9C27B0','#2196F3'];
+  roadCfg.forEach((c,ri)=>{
+    for(let i=0;i<c.n;i++){
+      cars.push({row:c.row,x:(i*(W/c.n)+(ri*97)%W)%W,w:CELL*1.7,dir:c.dir,sp:c.sp,c:carColors[(ri+i)%4]});
+    }
+  });
+  const riverCfg=[
+    {row:1,dir:-1,sp:1.1,n:3},{row:2,dir:1,sp:1.5,n:2},
+    {row:3,dir:-1,sp:1.9,n:3},{row:4,dir:1,sp:1.3,n:2}
+  ];
+  riverCfg.forEach((c,ri)=>{
+    for(let i=0;i<c.n;i++){
+      logs.push({row:c.row,x:(i*(W/c.n)+(ri*131)%W)%W,w:CELL*(2.4+((ri+i)%2)*0.8),dir:c.dir,sp:c.sp});
+    }
+  });
+}
+function px(){return fx*CELL;}
+function py(){return fy*CELL;}
+function loseLife(reason){
+  lives--;vibrate(150);setHUD();
+  if(lives<=0)gameOver(false,reason+'\n3 条命用完了！');
+  else resetFrog();
+}
+function reachGoal(){
+  succ++;vibrate(60);setHUD();
+  if(succ>=5)gameOver(true,'5 次成功到达对岸！🎉');
+  else resetFrog();
+}
+function gameOver(win,text){
+  if(state!=='play')return;
+  state='over';
+  cancelAnimationFrame(raf);
+  $('overTitle').textContent=win?'🏆 过关胜利！':'💥 游戏结束';
+  $('overText').textContent=text+'\n成功过河 '+succ+' 次';
+  $('overScr').classList.remove('hidden');
+}
+function jump(dx,dy){
+  if(state!=='play')return;
+  const bx=Math.round(fx);
+  const nx=bx+dx,ny=fy+dy;
+  if(nx<0||nx>=COLS||ny<0||ny>=ROWS)return;
+  fx=nx;fy=ny;vibrate(10);
+  if(fy===GOAL_ROW)reachGoal();
+}
+function frogOnLog(){
+  const cx=px()+CELL/2;
+  for(const l of logs){
+    if(l.row===fy&&cx>=l.x&&cx<=l.x+l.w)return l;
+  }
+  return null;
+}
+function update(){
+  const m=speedMul();
+  // 车辆移动（含回绕）
+  for(const c of cars){
+    c.x+=c.dir*c.sp*m;
+    if(c.dir>0&&c.x>W)c.x=-c.w;
+    if(c.dir<0&&c.x<-c.w)c.x=W;
+  }
+  for(const l of logs){
+    l.x+=l.dir*l.sp*m;
+    if(l.dir>0&&l.x>W)l.x=-l.w;
+    if(l.dir<0&&l.x<-l.w)l.x=W;
+  }
+  // 倒计时
+  timer--;
+  if(timer<=0){loseLife('⏱️ 超时了！');return;}
+  // 河流：必须在木头上，且随木头漂移
+  if(fy>=RIVER_TOP&&fy<=RIVER_BOT){
+    const l=frogOnLog();
+    if(!l){loseLife('🌊 掉进河里了！');return;}
+    const newX=px()+l.dir*l.sp*m;
+    if(newX<-CELL/2||newX>W-CELL/2){loseLife('🪵 被木头带出画面了！');return;}
+    fx=newX/CELL; // 浮点保留，保证连续漂移
+  }
+  // 马路：碰撞检测
+  if(fy>=ROAD_TOP&&fy<=ROAD_BOT){
+    const fr={x:px()+6,y:py()+6,w:CELL-12,h:CELL-12};
+    for(const c of cars){
+      if(c.row===fy){
+        const cr={x:c.x+4,y:c.row*CELL+4,w:c.w-8,h:CELL-8};
+        if(fr.x<cr.x+cr.w&&fr.x+fr.w>cr.x&&fr.y<cr.y+cr.h&&fr.y+fr.h>cr.y){
+          loseLife('🚗 被汽车撞了！');return;
+        }
+      }
+    }
+  }
+  setHUD();
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  for(let r=0;r<ROWS;r++){
+    if(r===GOAL_ROW){ctx.fillStyle='#2e7d32';}
+    else if(r>=RIVER_TOP&&r<=RIVER_BOT){ctx.fillStyle='#1565c0';}
+    else if(r===MID_ROW||r===START_ROW){ctx.fillStyle='#33691e';}
+    else{ctx.fillStyle='#3a3a3a';}
+    ctx.fillRect(0,r*CELL,W,CELL);
+  }
+  // 河流波纹
+  ctx.strokeStyle='rgba(255,255,255,.15)';ctx.lineWidth=1;
+  for(let r=RIVER_TOP;r<=RIVER_BOT;r++)
+    for(let i=0;i<6;i++){
+      const x=((i*97+r*53)%W);
+      ctx.beginPath();ctx.moveTo(x,r*CELL+18);ctx.lineTo(x+18,r*CELL+18);ctx.stroke();
+    }
+  // 马路分道线
+  ctx.fillStyle='#ffeb3b';
+  for(let r=ROAD_TOP;r<=ROAD_BOT;r++)
+    for(let x=0;x<W;x+=44)ctx.fillRect(x,r*CELL+CELL/2-1,22,2);
+  // 木头
+  for(const l of logs){
+    ctx.fillStyle='#8d6e63';
+    ctx.beginPath();ctx.roundRect(l.x,l.row*CELL+5,l.w,CELL-10,8);ctx.fill();
+    ctx.fillStyle='#6d4c41';
+    for(let x=l.x+12;x<l.x+l.w-8;x+=26)ctx.fillRect(x,l.row*CELL+8,4,CELL-16);
+  }
+  // 汽车
+  for(const c of cars){
+    const y=c.row*CELL+4;
+    ctx.fillStyle=c.c;
+    ctx.beginPath();ctx.roundRect(c.x,y,c.w,CELL-8,7);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.35)';
+    ctx.beginPath();ctx.roundRect(c.x+8,y+6,c.w-16,10,4);ctx.fill();
+    ctx.fillStyle='#ffeb3b';
+    if(c.dir>0){ctx.fillRect(c.x+c.w-6,y+CELL/2-8,5,5);ctx.fillRect(c.x+c.w-6,y+CELL/2+3,5,5);}
+    else{ctx.fillRect(c.x+1,y+CELL/2-8,5,5);ctx.fillRect(c.x+1,y+CELL/2+3,5,5);}
+  }
+  // 终点旗
+  ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  for(let i=0;i<COLS;i+=2)ctx.fillText('🏁',i*CELL+CELL/2,CELL/2);
+  // 青蛙
+  ctx.font='26px sans-serif';
+  ctx.fillText('🐸',px()+CELL/2,py()+CELL/2+1);
+}
+function loop(){
+  if(state!=='play')return;
+  update();
+  if(state!=='play')return;
+  draw();
+  raf=requestAnimationFrame(loop);
+}
+function startGame(){
+  cancelAnimationFrame(raf);
+  $('overScr').classList.add('hidden');
+  $('startScr').classList.add('hidden');
+  reset();
+  state='play';
+  loop();
+}
+// 输入：滑动 / 点击相邻格 / 鼠标 / 键盘
+let tS=null;
+cv.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];tS={x:t.clientX,y:t.clientY,time:Date.now()};},{passive:false});
+cv.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(!tS)return;
+  const t=e.changedTouches[0];
+  const dx=t.clientX-tS.x,dy=t.clientY-tS.y;
+  if(Math.hypot(dx,dy)>24){
+    if(Math.abs(dx)>Math.abs(dy))jump(dx>0?1:-1,0);
+    else jump(0,dy>0?1:-1);
+  }else{
+    const r=cv.getBoundingClientRect();
+    const gx=(((t.clientX-r.left)/r.width*W)/CELL)|0,gy=(((t.clientY-r.top)/r.height*H)/CELL)|0;
+    const bx=Math.round(fx);
+    if(Math.abs(gx-bx)+Math.abs(gy-fy)===1)jump(gx-bx,gy-fy);
+  }
+  tS=null;
+});
+let mD=null;
+cv.addEventListener('mousedown',e=>{mD={x:e.clientX,y:e.clientY};});
+cv.addEventListener('mouseup',e=>{
+  if(!mD)return;
+  const dx=e.clientX-mD.x,dy=e.clientY-mD.y;
+  if(Math.hypot(dx,dy)>24){
+    if(Math.abs(dx)>Math.abs(dy))jump(dx>0?1:-1,0);
+    else jump(0,dy>0?1:-1);
+  }else{
+    const r=cv.getBoundingClientRect();
+    const gx=(((e.clientX-r.left)/r.width*W)/CELL)|0,gy=(((e.clientY-r.top)/r.height*H)/CELL)|0;
+    const bx=Math.round(fx);
+    if(Math.abs(gx-bx)+Math.abs(gy-fy)===1)jump(gx-bx,gy-fy);
+  }
+  mD=null;
+});
+document.addEventListener('keydown',e=>{
+  const m={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],W:[0,-1],S:[0,1],A:[-1,0],D:[1,0]};
+  if(m[e.key]){e.preventDefault();jump(m[e.key][0],m[e.key][1]);}
+});
+$('startBtn').addEventListener('click',startGame);
+$('restartBtn').addEventListener('click',startGame);
+reset();draw();
+</script>
+</body>
+</html>

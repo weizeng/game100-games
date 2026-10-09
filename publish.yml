@@ -1,0 +1,68 @@
+name: 发布游戏资源
+# games/ 或本 workflow 有更新时：打包 zip、生成 manifest.json、刷新 CDN
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'games/**'
+      - '.github/workflows/publish.yml'
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 打包 zip 并生成 manifest.json
+        run: |
+          python3 - <<'EOF'
+          import json, os, zipfile, datetime
+          BASE = "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main"
+          # 清理根目录旧 zip（全部由本流程管理）
+          for f in os.listdir('.'):
+              if f.endswith('.zip') and os.path.isfile(f):
+                  os.remove(f)
+          games = []
+          for gid in sorted(os.listdir('games')):
+              gdir = os.path.join('games', gid)
+              meta_p = os.path.join(gdir, 'meta.json')
+              idx_p = os.path.join(gdir, 'index.html')
+              if not (os.path.isdir(gdir) and os.path.isfile(meta_p) and os.path.isfile(idx_p)):
+                  continue
+              meta = json.load(open(meta_p, encoding='utf-8'))
+              zp = f'{gid}.zip'
+              with zipfile.ZipFile(zp, 'w', zipfile.ZIP_DEFLATED) as z:
+                  z.write(idx_p, 'index.html')
+                  z.write(meta_p, 'meta.json')
+              games.append({
+                  "id": gid,
+                  "name": meta.get('name', gid),
+                  "desc": meta.get('desc', ''),
+                  "version": meta.get('version', 1),
+                  "icon": meta.get('icon', '🎮'),
+                  "color": meta.get('color', '#607D8B'),
+                  "url": f"{BASE}/{zp}",
+                  "size": os.path.getsize(zp),
+              })
+          manifest = {
+              "updated": datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+              "games": games,
+          }
+          json.dump(manifest, open('manifest.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+          print(f"packed {len(games)} games")
+          EOF
+      - name: 提交 zip 与 manifest
+        run: |
+          git config user.name "game100-bot"
+          git config user.email "game100-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "无变化"; exit 0; fi
+          git commit -m "自动发布游戏资源 [skip ci]"
+          git push
+      - name: 刷新 CDN 缓存
+        run: |
+          curl -s "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/manifest.json" -o /dev/null || true
+          for f in *.zip; do
+            curl -s "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/$f" -o /dev/null || true
+          done
+          echo purged

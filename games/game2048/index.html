@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>2048</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:17px}
+.topbar b{color:#FF9800;font-size:22px}
+#board{background:#1e1e1e;border-radius:12px;touch-action:none;width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:8px;padding:8px}
+.tile{border-radius:8px;display:flex;justify-content:center;align-items:center;font-weight:700;font-size:26px;transition:background .1s}
+.tile.v0{background:#2a2a2a}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.7}
+.btn{background:#FF9800;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;margin:4px}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;border:1px solid #444}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🔢 2048</span><span>得分 <b id="score">0</b></span></div>
+<div id="board"></div>
+<p class="hint">在棋盘上滑动合并数字（也可用方向键）<br>合成 2048 即胜利，之后可继续挑战</p>
+</div>
+<div class="overlay" id="startScr"><h1>🔢 2048</h1><p>滑动让相同数字相撞合并<br>每次移动后生成 2 或 4<br>合成 2048 即胜利</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="winScr"><h1>🎉 达成2048！</h1><p>太强了！要继续向更高分数挑战吗？</p><button class="btn" id="continueBtn">继续挑战</button><button class="btn ghost" id="winRestartBtn">重新开始</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">重新开始</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function setScore(v){$('score').textContent=v;}
+function showOver(title,text){$('overTitle').textContent=title;$('overText').textContent=text;$('overScr').classList.remove('hidden');}
+
+const board=$('board');
+const COLORS={0:['#2a2a2a','#666'],2:['#eee4da','#776e65'],4:['#ede0c8','#776e65'],8:['#f2b179','#f9f6f2'],16:['#f59563','#f9f6f2'],32:['#f67c5f','#f9f6f2'],64:['#f65e3b','#f9f6f2'],128:['#edcf72','#f9f6f2'],256:['#edcc61','#f9f6f2'],512:['#edc850','#f9f6f2'],1024:['#edc53f','#f9f6f2'],2048:['#edc22e','#f9f6f2']};
+let grid,score,alive,won,winShown;
+const tiles=[];
+for(let i=0;i<16;i++){const d=document.createElement('div');d.className='tile v0';board.appendChild(d);tiles.push(d);}
+
+function colorOf(v){return COLORS[v]||['#3c3a32','#f9f6f2'];}
+function render(){
+  for(let y=0;y<4;y++)for(let x=0;x<4;x++){
+    const v=grid[y][x],t=tiles[y*4+x],c=colorOf(v);
+    t.textContent=v||'';
+    t.style.background=c[0];t.style.color=c[1];
+    t.style.fontSize=v>=1024?'21px':(v>=128?'23px':'26px');
+  }
+}
+function emptyCells(){
+  const r=[];
+  for(let y=0;y<4;y++)for(let x=0;x<4;x++)if(!grid[y][x])r.push([y,x]);
+  return r;
+}
+function addRandom(){
+  const e=emptyCells();
+  if(!e.length)return;
+  const c=e[(Math.random()*e.length)|0];
+  grid[c[0]][c[1]]=Math.random()<0.9?2:4;
+}
+// 滑动合并一条线（长度4数组），返回 {line, moved, gain}
+function slideLine(arr){
+  const nz=arr.filter(v=>v);
+  const out=[];let gain=0,i=0;
+  while(i<nz.length){
+    if(i+1<nz.length&&nz[i]===nz[i+1]){out.push(nz[i]*2);gain+=nz[i]*2;i+=2;}
+    else{out.push(nz[i]);i++;}
+  }
+  while(out.length<4)out.push(0);
+  return {line:out,moved:out.some((v,k)=>v!==arr[k]),gain:gain};
+}
+// dir: up/down/left/right
+function move(dir){
+  if(!alive)return;
+  let moved=false,total=0;
+  for(let i=0;i<4;i++){
+    let arr;
+    if(dir==='left')arr=[grid[i][0],grid[i][1],grid[i][2],grid[i][3]];
+    else if(dir==='right')arr=[grid[i][3],grid[i][2],grid[i][1],grid[i][0]];
+    else if(dir==='up')arr=[grid[0][i],grid[1][i],grid[2][i],grid[3][i]];
+    else arr=[grid[3][i],grid[2][i],grid[1][i],grid[0][i]];
+    const r=slideLine(arr);
+    if(r.moved)moved=true;
+    total+=r.gain;
+    for(let k=0;k<4;k++){
+      if(dir==='left')grid[i][k]=r.line[k];
+      else if(dir==='right')grid[i][3-k]=r.line[k];
+      else if(dir==='up')grid[k][i]=r.line[k];
+      else grid[3-k][i]=r.line[k];
+    }
+  }
+  if(!moved)return; // 无效移动：不生成新数字
+  score+=total;setScore(score);
+  addRandom();render();
+  if(!won&&grid.some(row=>row.includes(2048))){
+    won=true;
+    if(!winShown){winShown=true;$('winScr').classList.remove('hidden');}
+  }
+  if(isDead()){alive=false;showOver('游戏结束','本局得分：'+score+' 分');}
+}
+function canMerge(){
+  for(let y=0;y<4;y++)for(let x=0;x<4;x++){
+    const v=grid[y][x];
+    if(!v)return true;
+    if(x<3&&grid[y][x+1]===v)return true;
+    if(y<3&&grid[y+1][x]===v)return true;
+  }
+  return false;
+}
+function isDead(){return !canMerge();}
+function startGame(){
+  grid=Array.from({length:4},()=>[0,0,0,0]);
+  score=0;alive=true;won=false;winShown=false;
+  setScore(0);
+  addRandom();addRandom();render();
+}
+// 触屏滑动（阈值 24px）
+let sx=0,sy=0;
+function boardXY(t){
+  const r=board.getBoundingClientRect();
+  return {x:(t.clientX-r.left)*board.clientWidth/r.width,y:(t.clientY-r.top)*board.clientHeight/r.height};
+}
+board.addEventListener('touchstart',e=>{e.preventDefault();const p=boardXY(e.touches[0]);sx=p.x;sy=p.y;},{passive:false});
+board.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(!e.changedTouches)return;
+  const p=boardXY(e.changedTouches[0]);
+  const dx=p.x-sx,dy=p.y-sy;
+  if(Math.abs(dx)<24&&Math.abs(dy)<24)return;
+  move(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+},{passive:false});
+// 键盘
+document.addEventListener('keydown',e=>{
+  const d={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'}[e.key];
+  if(d){e.preventDefault();move(d);}
+});
+$('startBtn').addEventListener('click',()=>{$('startScr').classList.add('hidden');startGame();});
+$('restartBtn').addEventListener('click',()=>{$('overScr').classList.add('hidden');startGame();});
+$('continueBtn').addEventListener('click',()=>{$('winScr').classList.add('hidden');});
+$('winRestartBtn').addEventListener('click',()=>{$('winScr').classList.add('hidden');startGame();});
+</script>
+</body>
+</html>

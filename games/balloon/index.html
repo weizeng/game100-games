@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>打气球</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:16px}
+.topbar b{color:#00BCD4;font-size:22px}
+.timebar{width:100%;height:8px;background:#2a2a2a;border-radius:4px;overflow:hidden}
+.timebar i{display:block;height:100%;background:#00BCD4;width:100%}
+canvas{background:#16202a;border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px;cursor:crosshair}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.8}
+.btn{background:#00BCD4;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🎈 打气球</span><span>得分 <b id="score">0</b></span><span>⏱️<b id="time">60</b>s</span></div>
+<div class="timebar"><i id="timefill"></i></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<p class="hint">手指移动控制准星，轻点屏幕开火<br>气球 +10 分，千万别打中 💣（-20 分）</p>
+</div>
+<div class="overlay" id="startScr"><h1>🎈 打气球</h1><p>气球从底部不断升起<br>手指在屏幕上移动，准星跟随手指<br>轻点屏幕发射子弹，击碎准星处的气球<br>打中气球 +10 分，打中炸弹 💣 -20 分<br>限时 60 秒，时间到结算<br>越往后气球越多、炸弹也越多</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">时间到！</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function vibrate(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);}catch(e){}}
+function setHUD(){
+  $('score').textContent=score;
+  $('time').textContent=Math.ceil(timer/60);
+  $('timefill').style.width=(timer/(60*60)*100)+'%';
+}
+
+const cv=$('cv'),ctx=cv.getContext('2d');
+const W=400,H=560;
+const BCOLORS=['#F44336','#E91E63','#9C27B0','#3F51B5','#2196F3','#00BCD4','#4CAF50','#FF9800','#FFEB3B'];
+
+let items,parts,shots,cross,score,timer,raf,state,spawnT,elapsed;
+
+function reset(){
+  items=[];parts=[];shots=[];
+  cross={x:W/2,y:H/2};
+  score=0;timer=60*60;elapsed=0;spawnT=20;
+  setHUD();
+}
+function spawnInterval(){return Math.max(22,52-elapsed/60*1.1);}
+function bombChance(){return Math.min(0.22,0.10+elapsed/3600*0.12);}
+function riseSpeed(){return 1.4+Math.random()*1.6+elapsed/3600*1.2;}
+function spawn(){
+  const bomb=Math.random()<bombChance();
+  items.push({
+    x:30+Math.random()*(W-60),y:H+40,
+    vy:riseSpeed(),wob:Math.random()*Math.PI*2,
+    r:bomb?20:22+Math.random()*8,
+    bomb:bomb,c:BCOLORS[(Math.random()*BCOLORS.length)|0]
+  });
+}
+function pop(it){
+  if(it.bomb){
+    score-=20;vibrate(120);
+    boom(it.x,it.y,'#F44336',22);
+    flashMsg('-20',it.x,it.y,'#F44336');
+  }else{
+    score+=10;vibrate(25);
+    boom(it.x,it.y,it.c,12);
+    flashMsg('+10',it.x,it.y,'#8BC34A');
+  }
+  setHUD();
+}
+function boom(x,y,c,n){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,s=1+Math.random()*3.5;
+    parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:30,c:c});
+  }
+}
+function flashMsg(txt,x,y,c){
+  parts.push({x:x,y:y,vx:0,vy:-1.2,life:40,c:c,txt:txt});
+}
+function shoot(){
+  if(state!=='play')return;
+  vibrate(15);
+  shots.push({x:cross.x,y:cross.y,life:7});
+  // 命中判定：准星处半径内最上层（最后生成）的目标
+  let best=null;
+  for(const it of items){
+    const dx=it.x-cross.x,dy=it.y-cross.y;
+    if(Math.hypot(dx,dy)<it.r+16)best=it;
+  }
+  if(best){
+    items.splice(items.indexOf(best),1);
+    pop(best);
+  }
+}
+function update(){
+  elapsed++;timer--;
+  if(timer<=0){gameOver();return;}
+  spawnT--;
+  if(spawnT<=0){spawn();spawnT=spawnInterval();}
+  for(let i=items.length-1;i>=0;i--){
+    const it=items[i];
+    it.y-=it.vy;it.wob+=0.06;
+    it.x+=Math.sin(it.wob)*0.8;
+    if(it.y<-70)items.splice(i,1);
+  }
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];
+    p.x+=p.vx;p.y+=p.vy;p.life--;
+    if(p.life<=0)parts.splice(i,1);
+  }
+  for(let i=shots.length-1;i>=0;i--){
+    shots[i].life--;
+    if(shots[i].life<=0)shots.splice(i,1);
+  }
+  setHUD();
+}
+function drawBalloon(it){
+  const wobX=Math.sin(it.wob)*4;
+  if(it.bomb){
+    ctx.fillStyle='#263238';
+    ctx.beginPath();ctx.arc(it.x+wobX,it.y,it.r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#78909C';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(it.x+wobX+8,it.y-it.r+4);ctx.quadraticCurveTo(it.x+wobX+16,it.y-it.r-8,it.x+wobX+22,it.y-it.r-6);ctx.stroke();
+    ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('💣',it.x+wobX,it.y+1);
+  }else{
+    ctx.fillStyle=it.c;
+    ctx.beginPath();ctx.ellipse(it.x+wobX,it.y,it.r*0.82,it.r,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.35)';
+    ctx.beginPath();ctx.ellipse(it.x+wobX-it.r*0.3,it.y-it.r*0.35,it.r*0.22,it.r*0.32,-0.4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=it.c;
+    ctx.beginPath();ctx.moveTo(it.x+wobX-4,it.y+it.r);ctx.lineTo(it.x+wobX+4,it.y+it.r);ctx.lineTo(it.x+wobX,it.y+it.r+6);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(it.x+wobX,it.y+it.r+6);ctx.quadraticCurveTo(it.x+wobX+6,it.y+it.r+34,it.x+wobX-4,it.y+it.r+58);ctx.stroke();
+  }
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 云朵背景
+  ctx.fillStyle='rgba(255,255,255,.05)';
+  const t=elapsed*0.3;
+  for(let i=0;i<4;i++){
+    const cx=((i*173+t*(0.4+i*0.15))%(W+120))-60,cy=90+i*120;
+    ctx.beginPath();ctx.ellipse(cx,cy,44,16,0,0,Math.PI*2);ctx.fill();
+  }
+  for(const it of items)drawBalloon(it);
+  // 粒子
+  for(const p of parts){
+    ctx.globalAlpha=Math.min(1,p.life/20);
+    if(p.txt){
+      ctx.fillStyle=p.c;ctx.font='bold 18px sans-serif';ctx.textAlign='center';
+      ctx.fillText(p.txt,p.x,p.y);
+    }else{
+      ctx.fillStyle=p.c;ctx.fillRect(p.x-2,p.y-2,4,4);
+    }
+  }
+  ctx.globalAlpha=1;
+  // 开火弹道线
+  for(const s of shots){
+    ctx.globalAlpha=s.life/7;
+    ctx.strokeStyle='#ffeb3b';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(W/2,H);ctx.lineTo(s.x,s.y);ctx.stroke();
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(s.x,s.y,6,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  // 准星
+  ctx.strokeStyle='#00BCD4';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.arc(cross.x,cross.y,20,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cross.x-28,cross.y);ctx.lineTo(cross.x-12,cross.y);
+  ctx.moveTo(cross.x+12,cross.y);ctx.lineTo(cross.x+28,cross.y);
+  ctx.moveTo(cross.x,cross.y-28);ctx.lineTo(cross.x,cross.y-12);
+  ctx.moveTo(cross.x,cross.y+12);ctx.lineTo(cross.x,cross.y+28);
+  ctx.stroke();
+  ctx.fillStyle='#00BCD4';
+  ctx.beginPath();ctx.arc(cross.x,cross.y,3,0,Math.PI*2);ctx.fill();
+  // 底部炮台
+  ctx.fillStyle='#37474F';
+  ctx.beginPath();ctx.roundRect(W/2-26,H-26,52,26,8);ctx.fill();
+  ctx.fillStyle='#00BCD4';ctx.fillRect(W/2-5,H-44,10,22);
+}
+function loop(){
+  if(state!=='play')return;
+  update();
+  if(state!=='play')return;
+  draw();
+  raf=requestAnimationFrame(loop);
+}
+function gameOver(){
+  if(state!=='play')return;
+  state='over';
+  cancelAnimationFrame(raf);
+  const n=items.length;
+  $('overText').textContent='最终得分 '+score+' 分\n（剩余 '+n+' 个目标未击中）';
+  $('overScr').classList.remove('hidden');
+}
+function startGame(){
+  cancelAnimationFrame(raf);
+  $('overScr').classList.add('hidden');
+  $('startScr').classList.add('hidden');
+  reset();
+  state='play';
+  loop();
+}
+function setCross(clientX,clientY){
+  const r=cv.getBoundingClientRect();
+  cross.x=Math.max(10,Math.min(W-10,(clientX-r.left)/r.width*W));
+  cross.y=Math.max(10,Math.min(H-10,(clientY-r.top)/r.height*H));
+}
+let tS=null;
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  setCross(t.clientX,t.clientY);
+  tS={x:t.clientX,y:t.clientY,time:Date.now()};
+},{passive:false});
+cv.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  setCross(t.clientX,t.clientY);
+},{passive:false});
+cv.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(tS){
+    const t=e.changedTouches[0];
+    const moved=Math.hypot(t.clientX-tS.x,t.clientY-tS.y);
+    if(moved<14&&Date.now()-tS.time<400)shoot();
+  }
+  tS=null;
+});
+cv.addEventListener('mousedown',e=>{setCross(e.clientX,e.clientY);shoot();});
+cv.addEventListener('mousemove',e=>{if(state==='play')setCross(e.clientX,e.clientY);});
+$('startBtn').addEventListener('click',startGame);
+$('restartBtn').addEventListener('click',startGame);
+reset();draw();
+</script>
+</body>
+</html>

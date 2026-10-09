@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>打砖块</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:17px;background:#1e1e1e;border-radius:12px;padding:10px 16px}
+.topbar b{color:#00BCD4;font-size:20px}
+#cv{width:100%;height:auto;touch-action:none;background:#1e1e1e;border-radius:12px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.7}
+.btn{background:#00BCD4;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🏓 打砖块</span><b id="score">得分 0</b><span id="lives">❤❤❤</span></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<div class="hint">左右拖动挡板 · 球在挡板上时点一下发射 · 打光所有砖块获胜</div>
+</div>
+<div class="overlay" id="startScr"><h1>🏓 打砖块</h1><p>手指或鼠标左右拖动挡板反弹小球。<br>每块砖 10 分，球掉落扣一条命，共三条命。<br>打光 6x8 全部砖块即胜利！</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">重新开始</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function showOver(title,text){$('overTitle').textContent=title;$('overText').textContent=text;$('overScr').classList.remove('hidden');}
+const cv=$('cv'),ctx=cv.getContext('2d');
+const W=400,H=560;
+const ROWC=['#ef5350','#ff9800','#ffeb3b','#8bc34a','#00bcd4','#9c27b0'];
+let paddle,ball,bricks,score,lives,state,running,raf;
+function toGame(e,c){const r=c.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*c.width/r.width,y:(t.clientY-r.top)*c.height/r.height};}
+function startGame(){
+  paddle={x:W/2-40,w:80,h:12,y:H-40};
+  score=0;lives=3;state='ready';running=true;
+  buildBricks();resetBall();updateTop();
+  cancelAnimationFrame(raf);loop();
+}
+function buildBricks(){
+  bricks=[];const bw=W/8,bh=20;
+  for(let r=0;r<6;r++)for(let c=0;c<8;c++)bricks.push({x:c*bw+1,y:28+r*(bh+4),w:bw-2,h:bh,c:ROWC[r]});
+}
+function resetBall(){ball={x:paddle.x+paddle.w/2,y:paddle.y-8,r:8,vx:0,vy:0};state='ready';}
+function launch(){
+  if(state!=='ready')return;
+  const a=-Math.PI/2+(Math.random()*.5-.25);
+  ball.vx=5*Math.cos(a);ball.vy=5*Math.sin(a);state='play';
+}
+function updateTop(){$('score').textContent='得分 '+score;$('lives').textContent=lives>0?'❤'.repeat(lives):'💔';}
+function loop(){
+  if(!running)return;
+  update();draw();
+  raf=requestAnimationFrame(loop);
+}
+function update(){
+  if(state==='ready'){ball.x=paddle.x+paddle.w/2;ball.y=paddle.y-ball.r;return;}
+  ball.x+=ball.vx;ball.y+=ball.vy;
+  if(ball.x<ball.r){ball.x=ball.r;ball.vx*=-1;}
+  if(ball.x>W-ball.r){ball.x=W-ball.r;ball.vx*=-1;}
+  if(ball.y<ball.r){ball.y=ball.r;ball.vy*=-1;}
+  if(ball.vy>0&&ball.y+ball.r>=paddle.y&&ball.y+ball.r<=paddle.y+paddle.h+12&&ball.x>paddle.x-ball.r&&ball.x<paddle.x+paddle.w+ball.r){
+    ball.vy*=-1;
+    ball.vx+=(ball.x-(paddle.x+paddle.w/2))*0.06;
+    const sp=Math.hypot(ball.vx,ball.vy),k=5/sp;
+    ball.vx*=k;ball.vy=-Math.abs(ball.vy)*k;
+    ball.y=paddle.y-ball.r;
+  }
+  for(let i=0;i<bricks.length;i++){
+    const b=bricks[i];
+    if(ball.x>b.x&&ball.x<b.x+b.w&&ball.y>b.y&&ball.y<b.y+b.h){
+      bricks.splice(i,1);score+=10;ball.vy*=-1;updateTop();break;
+    }
+  }
+  if(bricks.length===0){running=false;showOver('🎉 胜利！','砖块全部清除，最终得分 '+score+'！');return;}
+  if(ball.y-ball.r>H){
+    lives--;updateTop();
+    if(lives<=0){running=false;showOver('💔 游戏结束','三条命用完了，最终得分 '+score+'。');}
+    else resetBall();
+  }
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  for(const b of bricks){ctx.fillStyle=b.c;ctx.fillRect(b.x,b.y,b.w,b.h);}
+  ctx.fillStyle='#00bcd4';
+  ctx.beginPath();ctx.roundRect(paddle.x,paddle.y,paddle.w,paddle.h,6);ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();
+  if(state==='ready'){
+    ctx.fillStyle='#888';ctx.font='18px sans-serif';ctx.textAlign='center';
+    ctx.fillText('👆 点击屏幕发射',W/2,H/2);
+  }
+}
+function movePaddle(e){const p=toGame(e,cv);paddle.x=Math.min(W-paddle.w,Math.max(0,p.x-paddle.w/2));}
+cv.addEventListener('touchmove',e=>{e.preventDefault();movePaddle(e);},{passive:false});
+cv.addEventListener('mousemove',movePaddle);
+cv.addEventListener('touchstart',()=>{if(state==='ready')launch();},{passive:true});
+cv.addEventListener('click',()=>launch());
+$('startBtn').addEventListener('click',()=>{$('startScr').classList.add('hidden');startGame();});
+$('restartBtn').addEventListener('click',()=>{$('overScr').classList.add('hidden');startGame();});
+</script>
+</body>
+</html>

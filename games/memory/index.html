@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>记忆翻牌</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:17px;background:#1e1e1e;border-radius:12px;padding:10px 16px}
+.topbar b{color:#E91E63;font-size:20px}
+#grid{width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.card{aspect-ratio:1;perspective:500px;cursor:pointer}
+.inner{position:relative;width:100%;height:100%;transition:transform .45s;transform-style:preserve-3d}
+.card.open .inner,.card.done .inner{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:36px;border-radius:12px;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.back{background:#2a2a2a}
+.front{background:#1e1e1e;border:2px solid #E91E63;transform:rotateY(180deg)}
+.card.done .front{opacity:.4;border-color:#555}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.7}
+.btn{background:#E91E63;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🃏 记忆翻牌</span><b id="steps">步数 0</b></div>
+<div id="grid"></div>
+<div class="hint">点击翻开卡牌，凑齐 8 对相同的水果，每翻两张计一步</div>
+</div>
+<div class="overlay" id="startScr"><h1>🃏 记忆翻牌</h1><p>4x4 牌桌，8 对水果全部打乱。<br>点击翻开卡牌，记住位置凑成对。<br>翻两张计一步，步数越少越厉害！</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">重新开始</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+function showOver(title,text){$('overTitle').textContent=title;$('overText').textContent=text;$('overScr').classList.remove('hidden');}
+const EMO=['🍎','🍌','🍇','🍉','🍒','🍑','🍍','🥝'];
+let deck,first,lock,steps,pairs;
+function startGame(){
+  deck=EMO.concat(EMO);
+  for(let i=deck.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;const t=deck[i];deck[i]=deck[j];deck[j]=t;}
+  first=null;lock=false;steps=0;pairs=0;
+  $('steps').textContent='步数 0';
+  const g=$('grid');g.innerHTML='';
+  deck.forEach((e,i)=>{
+    const d=document.createElement('div');d.className='card';
+    d.innerHTML='<div class="inner"><div class="face back">❓</div><div class="face front">'+e+'</div></div>';
+    d.addEventListener('click',()=>flip(d,i));
+    g.appendChild(d);
+  });
+}
+function flip(d,i){
+  if(lock||d.classList.contains('open'))return;
+  d.classList.add('open');
+  if(!first){first={d:d,i:i};return;}
+  steps++;$('steps').textContent='步数 '+steps;
+  const a=first;first=null;
+  if(deck[a.i]===deck[i]){
+    a.d.classList.add('done');d.classList.add('done');pairs++;
+    if(pairs===8)setTimeout(()=>showOver('🎉 胜利！','8 对水果全部配对，共用 '+steps+' 步！'),450);
+  }else{
+    lock=true;
+    setTimeout(()=>{a.d.classList.remove('open');d.classList.remove('open');lock=false;},700);
+  }
+}
+$('startBtn').addEventListener('click',()=>{$('startScr').classList.add('hidden');startGame();});
+$('restartBtn').addEventListener('click',()=>{$('overScr').classList.add('hidden');startGame();});
+</script>
+</body>
+</html>

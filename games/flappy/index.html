@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>笨鸟先飞</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#121212;color:#eee;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;touch-action:manipulation;overscroll-behavior:none}
+.wrap{width:100%;max-width:480px;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px 12px 18px}
+.hud{width:100%;max-width:380px;display:flex;align-items:center;justify-content:space-between;padding:6px 2px 10px;font-size:15px}
+.hud .best{color:#FFD54F;font-size:13px}
+.pause{background:#1e1e1e;color:#eee;border:1px solid #3a3a3a;border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer}
+.stage{position:relative;width:100%;max-width:380px}
+canvas{display:block;width:100%;height:auto;background:#0b0b0d;border-radius:14px;touch-action:none}
+.overlay{position:absolute;inset:0;border-radius:14px;background:rgba(8,8,10,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;z-index:10}
+.overlay h1{font-size:30px;margin-bottom:10px}
+.overlay h1 .ic{font-size:40px}
+.overlay p{font-size:14px;color:#bbb;line-height:1.8;max-width:300px}
+.overlay .big{font-size:52px;font-weight:800;color:#FFC107;margin:6px 0}
+.overlay .bestline{font-size:15px;color:#FFD54F}
+.btn{background:#FFC107;color:#3a2c00;border:none;border-radius:999px;padding:13px 40px;font-size:17px;font-weight:800;cursor:pointer;margin-top:16px}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;color:#eee;margin-top:10px}
+.hidden{display:none!important}
+.hint{margin-top:10px;font-size:12px;color:#666;text-align:center;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hud">
+    <span id="score">得分 0</span>
+    <span class="best" id="bestHud">最高 0</span>
+    <button class="pause" id="pauseBtn">⏸</button>
+  </div>
+  <div class="stage">
+    <canvas id="cv" width="360" height="560"></canvas>
+    <div class="overlay" id="menu">
+      <h1><span class="ic">🐤</span><br>笨鸟先飞</h1>
+      <p>点击屏幕任意处，小鸟向上跳一下<br>穿过一组水管 +1 分<br>撞到水管 / 地面 / 顶部即结束<br>水管会越来越快、缺口越来越小<br>最高分保存在本机</p>
+      <button class="btn" id="startBtn">开始游戏</button>
+    </div>
+    <div class="overlay hidden" id="pauseOv">
+      <h1>⏸ 已暂停</h1>
+      <button class="btn" id="resumeBtn">继续</button>
+      <button class="btn ghost" id="restartBtn">重新开始</button>
+    </div>
+    <div class="overlay hidden" id="over">
+      <h1>🐤 游戏结束</h1>
+      <div class="big" id="finalScore">0</div>
+      <p class="bestline" id="finalBest">最高分 0</p>
+      <button class="btn" id="againBtn">再来一局</button>
+    </div>
+  </div>
+  <p class="hint">点击屏幕上跳 · 穿越水管得分</p>
+</div>
+<script>
+(function(){
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=360,H=560,GROUND_H=84;
+var scoreEl=document.getElementById('score'),bestHud=document.getElementById('bestHud');
+var menuEl=document.getElementById('menu'),overEl=document.getElementById('over'),pauseEl=document.getElementById('pauseOv');
+var finalEl=document.getElementById('finalScore'),finalBestEl=document.getElementById('finalBest');
+var pauseBtn=document.getElementById('pauseBtn');
+var GRAV=1500,JUMP_V=-440,PIPE_W=64;
+var state='menu',rafId=null,lastT=0;
+var bird,pipes,spawnT,score,best,elapsed;
+
+function loadBest(){
+  try{
+    var v=parseInt(localStorage.getItem('flappy_best')||'0',10);
+    return isNaN(v)?0:v;
+  }catch(e){return 0;}
+}
+function saveBest(){
+  try{localStorage.setItem('flappy_best',String(best));}catch(e){}
+}
+function reset(){
+  bird={x:92,y:H/2-60,vy:0,r:13};
+  pipes=[];spawnT=1.2;score=0;elapsed=0;
+  updateHUD();
+}
+function updateHUD(){
+  scoreEl.textContent='得分 '+score;
+  bestHud.textContent='最高 '+best;
+}
+function cancelLoop(){if(rafId!==null){cancelAnimationFrame(rafId);rafId=null;}}
+function startGame(){
+  cancelLoop();reset();state='playing';
+  menuEl.classList.add('hidden');overEl.classList.add('hidden');pauseEl.classList.add('hidden');
+  pauseBtn.textContent='⏸';
+  lastT=performance.now();rafId=requestAnimationFrame(loop);
+}
+function pauseGame(){
+  if(state!=='playing')return;
+  state='paused';cancelLoop();
+  pauseEl.classList.remove('hidden');pauseBtn.textContent='▶';
+}
+function resumeGame(){
+  if(state!=='paused')return;
+  state='playing';pauseEl.classList.add('hidden');pauseBtn.textContent='⏸';
+  lastT=performance.now();rafId=requestAnimationFrame(loop);
+}
+function gameOver(){
+  if(state!=='playing')return;
+  state='over';cancelLoop();
+  if(score>best){best=score;saveBest();}
+  updateHUD();
+  finalEl.textContent=score;finalBestEl.textContent='最高分 '+best+(score>=best&&score>0?' 🏆新纪录!':'');
+  overEl.classList.remove('hidden');pauseBtn.textContent='⏸';
+}
+function loop(t){
+  var dt=(t-lastT)/1000;lastT=t;
+  if(dt>0.05)dt=0.05;if(dt<0)dt=0;
+  update(dt);draw();
+  if(state==='playing'){rafId=requestAnimationFrame(loop);}else{rafId=null;}
+}
+function flap(){
+  if(state!=='playing')return;
+  bird.vy=JUMP_V;
+}
+function pipeSpeed(){return 155+Math.min(score*4.5,150);}
+function pipeGap(){return Math.max(152-score*1.3,116);}
+function update(dt){
+  elapsed+=dt;
+  bird.vy+=GRAV*dt;
+  if(bird.vy>760)bird.vy=760;
+  bird.y+=bird.vy*dt;
+  if(bird.y-bird.r<=0){bird.y=bird.r;gameOver();return;}
+  if(bird.y+bird.r>=H-GROUND_H){bird.y=H-GROUND_H-bird.r;gameOver();return;}
+  var speed=pipeSpeed(),gap=pipeGap();
+  spawnT-=dt;
+  if(spawnT<=0){
+    spawnT=1.45;
+    var margin=64;
+    var gy=margin+gap/2+Math.random()*(H-GROUND_H-gap-2*margin);
+    pipes.push({x:W+12,gapY:gy,passed:false});
+  }
+  var i;
+  for(i=pipes.length-1;i>=0;i--){
+    var p=pipes[i];
+    p.x-=speed*dt;
+    if(p.x<-PIPE_W-10){pipes.splice(i,1);continue;}
+    if(!p.passed&&p.x+PIPE_W<bird.x-bird.r){p.passed=true;score++;updateHUD();}
+    if(bird.x+bird.r>p.x&&bird.x-bird.r<p.x+PIPE_W){
+      if(bird.y-bird.r<p.gapY-gap/2||bird.y+bird.r>p.gapY+gap/2){gameOver();return;}
+    }
+  }
+}
+function drawPipe(x,y,w,h){
+  ctx.fillStyle='#2E7D32';ctx.fillRect(x,y,w,h);
+  ctx.fillStyle='#43A047';ctx.fillRect(x,y,w,10);
+  ctx.fillStyle='#1B5E20';ctx.fillRect(x,y+h-8,w,8);
+  ctx.fillStyle='#66BB6A';ctx.fillRect(x+8,y,w-16,4);
+}
+function draw(){
+  ctx.fillStyle='#0b0b0d';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.05)';
+  var i;
+  for(i=0;i<5;i++){
+    var cx=((i*97+elapsed*12)%(W+80))-40;
+    ctx.beginPath();ctx.arc(cx,90+i*36,22,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(cx+22,94+i*36,16,0,7);ctx.fill();
+  }
+  var gap=pipeGap();
+  for(i=0;i<pipes.length;i++){
+    var p=pipes[i],gy=p.gapY;
+    drawPipe(p.x,0,PIPE_W,gy-gap/2);
+    drawPipe(p.x,gy+gap/2,PIPE_W,H-GROUND_H-(gy+gap/2));
+    ctx.fillStyle='#2E7D32';
+    ctx.fillRect(p.x-4,gy-gap/2-22,PIPE_W+8,22);
+    ctx.fillRect(p.x-4,gy+gap/2,PIPE_W+8,22);
+    ctx.fillStyle='#43A047';
+    ctx.fillRect(p.x-4,gy-gap/2-22,PIPE_W+8,8);
+    ctx.fillRect(p.x-4,gy+gap/2,PIPE_W+8,8);
+  }
+  ctx.fillStyle='#1b1b1e';ctx.fillRect(0,H-GROUND_H,W,GROUND_H);
+  ctx.fillStyle='#2c2c30';ctx.fillRect(0,H-GROUND_H,W,6);
+  ctx.fillStyle='#333';
+  var off=(elapsed*pipeSpeed())%36;
+  for(i=0;i<W/36+1;i++)ctx.fillRect(i*36-off,H-GROUND_H+34,18,5);
+  var tilt=Math.max(-0.4,Math.min(0.7,bird.vy/900));
+  ctx.save();ctx.translate(bird.x,bird.y);ctx.rotate(tilt);
+  ctx.fillStyle='#FFC107';
+  ctx.beginPath();ctx.arc(0,0,bird.r,0,7);ctx.fill();
+  ctx.fillStyle='#FFA000';
+  var wav=Math.sin(elapsed*22)*4;
+  ctx.beginPath();ctx.ellipse(-4,3,8,5+wav*0.4,-0.5,0,7);ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(5,-4,4.6,0,7);ctx.fill();
+  ctx.fillStyle='#111';
+  ctx.beginPath();ctx.arc(6.4,-4,2.2,0,7);ctx.fill();
+  ctx.fillStyle='#FF5722';
+  ctx.beginPath();ctx.moveTo(11,-1);ctx.lineTo(18,1.5);ctx.lineTo(11,4);ctx.closePath();ctx.fill();
+  ctx.restore();
+  ctx.fillStyle='rgba(255,255,255,.92)';
+  ctx.font='800 34px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(String(score),W/2,54);
+}
+cv.addEventListener('touchstart',function(ev){ev.preventDefault();flap();},{passive:false});
+cv.addEventListener('touchmove',function(ev){ev.preventDefault();},{passive:false});
+cv.addEventListener('touchend',function(ev){ev.preventDefault();},{passive:false});
+cv.addEventListener('mousedown',function(ev){ev.preventDefault();flap();});
+cv.addEventListener('contextmenu',function(ev){ev.preventDefault();});
+pauseBtn.addEventListener('touchstart',function(ev){ev.stopPropagation();},{passive:true});
+pauseBtn.addEventListener('mousedown',function(ev){ev.stopPropagation();});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('againBtn').addEventListener('click',startGame);
+document.getElementById('resumeBtn').addEventListener('click',resumeGame);
+document.getElementById('restartBtn').addEventListener('click',startGame);
+pauseBtn.addEventListener('click',function(){
+  if(state==='playing')pauseGame();else if(state==='paused')resumeGame();
+});
+best=loadBest();
+reset();draw();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>太空侵略者</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#121212;color:#eee;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;touch-action:manipulation;overscroll-behavior:none}
+.wrap{width:100%;max-width:480px;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px 12px 18px}
+.hud{width:100%;max-width:380px;display:flex;align-items:center;justify-content:space-between;padding:6px 2px 10px;font-size:15px}
+.hud .lives{color:#ff8a80;font-weight:700}
+.pause{background:#1e1e1e;color:#eee;border:1px solid #3a3a3a;border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer}
+.stage{position:relative;width:100%;max-width:380px}
+canvas{display:block;width:100%;height:auto;background:#0b0b0d;border-radius:14px;touch-action:none}
+.overlay{position:absolute;inset:0;border-radius:14px;background:rgba(8,8,10,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;z-index:10}
+.overlay h1{font-size:30px;margin-bottom:10px}
+.overlay h1 .ic{font-size:40px}
+.overlay p{font-size:14px;color:#bbb;line-height:1.8;max-width:300px}
+.overlay .big{font-size:44px;font-weight:800;color:#CE93D6;margin:8px 0}
+.btn{background:#9C27B0;color:#fff;border:none;border-radius:999px;padding:13px 40px;font-size:17px;font-weight:700;cursor:pointer;margin-top:16px}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;margin-top:10px}
+.hidden{display:none!important}
+.firebtn{width:100%;max-width:380px;margin-top:10px;background:#9C27B0;color:#fff;border:none;border-radius:14px;padding:16px;font-size:18px;font-weight:800;letter-spacing:4px;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none}
+.firebtn:active{background:#7B1FA2;transform:scale(.98)}
+.firebtn:disabled{background:#2a2a2a;color:#555}
+.hint{margin-top:10px;font-size:12px;color:#666;text-align:center;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hud">
+    <span id="score">得分 0</span>
+    <span id="wave">第 1 波</span>
+    <span class="lives" id="lives">❤❤❤</span>
+    <button class="pause" id="pauseBtn">⏸</button>
+  </div>
+  <div class="stage">
+    <canvas id="cv" width="360" height="520"></canvas>
+    <div class="overlay" id="menu">
+      <h1><span class="ic">👾</span><br>太空侵略者</h1>
+      <p>手指在屏幕上左右拖动，炮台跟随移动<br>点击下方「开火」按钮发射子弹<br>消灭 5×8 敌军阵列，敌军会左右移动并下压<br>敌机越少飞得越快，还会向下开火<br>共 3 条命，全灭敌军进入下一波（更快更多）</p>
+      <button class="btn" id="startBtn">开始游戏</button>
+    </div>
+    <div class="overlay hidden" id="pauseOv">
+      <h1>⏸ 已暂停</h1>
+      <button class="btn" id="resumeBtn">继续</button>
+      <button class="btn ghost" id="restartBtn">重新开始</button>
+    </div>
+    <div class="overlay hidden" id="over">
+      <h1>👾 游戏结束</h1>
+      <div class="big" id="finalScore">0</div>
+      <p id="finalWave">到达第 1 波</p>
+      <button class="btn" id="againBtn">再来一局</button>
+    </div>
+  </div>
+  <button class="firebtn" id="fireBtn" disabled>开 火</button>
+  <p class="hint">拖动移动炮台 · 点开火射击 · 别让敌军压下来</p>
+</div>
+<script>
+(function(){
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=360,H=520;
+var scoreEl=document.getElementById('score'),waveEl=document.getElementById('wave'),livesEl=document.getElementById('lives');
+var menuEl=document.getElementById('menu'),overEl=document.getElementById('over'),pauseEl=document.getElementById('pauseOv');
+var finalEl=document.getElementById('finalScore'),finalWaveEl=document.getElementById('finalWave');
+var pauseBtn=document.getElementById('pauseBtn'),fireBtn=document.getElementById('fireBtn');
+var COLS=8,EW=30,EH=22,GX=10,GY=14;
+var state='menu',rafId=null,lastT=0;
+var player,bullets,ebullets,foes,fx,fy,dir,wave,score,lives,fireT,elapsed;
+
+function buildWave(w){
+  foes=[];
+  var rows=Math.min(5+Math.floor((w-1)/2),7);
+  var tw=COLS*(EW+GX)-GX,ox=(W-tw)/2;
+  var r,c;
+  for(r=0;r<rows;r++)for(c=0;c<COLS;c++)
+    foes.push({ox:ox+c*(EW+GX),oy:56+r*(EH+GY),w:EW,h:EH,row:r,alive:true});
+  fx=0;fy=0;dir=1;fireT=1.4;
+}
+function aliveCount(){var n=0,i;for(i=0;i<foes.length;i++)if(foes[i].alive)n++;return n;}
+function reset(){
+  player={x:W/2,w:46,h:14,y:H-46,cool:0,inv:0};
+  bullets=[];ebullets=[];
+  wave=1;score=0;lives=3;elapsed=0;
+  buildWave(1);
+  updateHUD();
+}
+function updateHUD(){
+  scoreEl.textContent='得分 '+score;
+  waveEl.textContent='第 '+wave+' 波';
+  livesEl.textContent=lives>0?'❤'.repeat(lives):'';
+}
+function cancelLoop(){if(rafId!==null){cancelAnimationFrame(rafId);rafId=null;}}
+function startGame(){
+  cancelLoop();reset();state='playing';
+  menuEl.classList.add('hidden');overEl.classList.add('hidden');pauseEl.classList.add('hidden');
+  pauseBtn.textContent='⏸';fireBtn.disabled=false;
+  lastT=performance.now();rafId=requestAnimationFrame(loop);
+}
+function pauseGame(){
+  if(state!=='playing')return;
+  state='paused';cancelLoop();
+  pauseEl.classList.remove('hidden');pauseBtn.textContent='▶';fireBtn.disabled=true;
+}
+function resumeGame(){
+  if(state!=='paused')return;
+  state='playing';pauseEl.classList.add('hidden');pauseBtn.textContent='⏸';fireBtn.disabled=false;
+  lastT=performance.now();rafId=requestAnimationFrame(loop);
+}
+function gameOver(){
+  if(state!=='playing')return;
+  state='over';cancelLoop();fireBtn.disabled=true;
+  finalEl.textContent=score;finalWaveEl.textContent='到达第 '+wave+' 波';
+  overEl.classList.remove('hidden');pauseBtn.textContent='⏸';
+}
+function loop(t){
+  var dt=(t-lastT)/1000;lastT=t;
+  if(dt>0.05)dt=0.05;if(dt<0)dt=0;
+  update(dt);draw();
+  if(state==='playing'){rafId=requestAnimationFrame(loop);}else{rafId=null;}
+}
+function hitPlayer(){
+  if(player.inv>0||state!=='playing')return;
+  lives--;player.inv=1.6;ebullets.length=0;updateHUD();
+  if(lives<=0)gameOver();
+}
+function fire(){
+  if(state!=='playing'||player.cool>0)return;
+  player.cool=0.28;
+  bullets.push({x:player.x,y:player.y-16});
+}
+function update(dt){
+  elapsed+=dt;
+  var i,j;
+  if(player.cool>0)player.cool-=dt;
+  if(player.inv>0)player.inv-=dt;
+  var total=foes.length,alive=aliveCount();
+  var sp=(34+wave*14)*(1+(1-alive/total)*1.9);
+  fx+=dir*sp*dt;
+  var minX=1e9,maxX=-1e9;
+  for(i=0;i<foes.length;i++){
+    if(!foes[i].alive)continue;
+    if(foes[i].ox<minX)minX=foes[i].ox;
+    if(foes[i].ox>maxX)maxX=foes[i].ox;
+  }
+  if(alive>0){
+    if(dir>0&&fx+maxX+EW>W-10){dir=-1;fy+=17;}
+    else if(dir<0&&fx+minX<10){dir=1;fy+=17;}
+  }
+  fireT-=dt;
+  if(fireT<=0&&alive>0){
+    fireT=Math.max(1.15-wave*0.1,0.38);
+    var cols={};
+    for(i=0;i<foes.length;i++){
+      var f=foes[i];if(!f.alive)continue;
+      var c=Math.round((f.ox)/ (EW+GX));
+      if(!cols[c]||f.row>cols[c].row)cols[c]=f;
+    }
+    var keys=Object.keys(cols);
+    if(keys.length){
+      var pick=cols[keys[Math.floor(Math.random()*keys.length)]];
+      ebullets.push({x:fx+pick.ox+pick.w/2,y:fy+pick.oy+pick.h,vy:175+wave*24});
+    }
+  }
+  for(i=bullets.length-1;i>=0;i--){
+    var b=bullets[i];b.y-=470*dt;
+    if(b.y<-12){bullets.splice(i,1);continue;}
+    for(j=0;j<foes.length;j++){
+      var fo=foes[j];if(!fo.alive)continue;
+      var ex=fx+fo.ox,ey=fy+fo.oy;
+      if(b.x>ex&&b.x<ex+fo.w&&b.y>ey&&b.y<ey+fo.h){
+        fo.alive=false;bullets.splice(i,1);
+        score+=10;
+        if(aliveCount()===0){wave++;buildWave(wave);score+=50;}
+        updateHUD();break;
+      }
+    }
+  }
+  for(i=ebullets.length-1;i>=0;i--){
+    var eb=ebullets[i];eb.y+=eb.vy*dt;
+    if(eb.y>H+12){ebullets.splice(i,1);continue;}
+    if(player.inv<=0&&Math.abs(eb.x-player.x)<player.w/2+3&&eb.y>player.y-12&&eb.y<player.y+12){
+      ebullets.splice(i,1);hitPlayer();
+    }
+  }
+  for(i=0;i<foes.length;i++){
+    if(!foes[i].alive)continue;
+    if(fy+foes[i].oy+foes[i].h>=player.y-8){gameOver();return;}
+  }
+}
+var FOE_COLORS=['#E1BEE3','#CE93D6','#BA68C8','#AB47BC','#9C27B0','#8E24AA','#7B1FA2'];
+function drawFoe(x,y,w,h,row){
+  var c=FOE_COLORS[row%FOE_COLORS.length];
+  var wob=Math.sin(elapsed*8+x*0.1)*2;
+  ctx.fillStyle=c;
+  ctx.fillRect(x+3,y+7,w-6,h-11);
+  ctx.beginPath();ctx.arc(x+w/2,y+9,7.5,0,7);ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.fillRect(x+w/2-7,y+6,3.5,4.5);ctx.fillRect(x+w/2+3.5,y+6,3.5,4.5);
+  ctx.fillStyle='#111';
+  ctx.fillRect(x+w/2-6,y+7.5,2,2);ctx.fillRect(x+w/2+4.5,y+7.5,2,2);
+  ctx.fillStyle=c;
+  ctx.fillRect(x+4,y+h-5+wob*0.4,6,5);
+  ctx.fillRect(x+w-10,y+h-5-wob*0.4,6,5);
+  ctx.fillRect(x+w/2-1,y-2,2,5);
+}
+function draw(){
+  ctx.fillStyle='#0b0b0d';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#222';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,player?player.y+16:H-30);ctx.lineTo(W,player?player.y+16:H-30);ctx.stroke();
+  var i;
+  for(i=0;i<foes.length;i++){
+    var f=foes[i];if(!f.alive)continue;
+    drawFoe(fx+f.ox,fy+f.oy,f.w,f.h,f.row);
+  }
+  ctx.fillStyle='#FFD54F';
+  for(i=0;i<bullets.length;i++){var b=bullets[i];ctx.fillRect(b.x-2,b.y-10,4,12);}
+  ctx.fillStyle='#FF5252';
+  for(i=0;i<ebullets.length;i++){var eb=ebullets[i];ctx.beginPath();ctx.arc(eb.x,eb.y,3.6,0,7);ctx.fill();}
+  if(player){
+    var blink=player.inv>0&&Math.floor(elapsed*12)%2===0;
+    if(!blink){
+      ctx.fillStyle='#CE93D6';
+      ctx.fillRect(player.x-player.w/2,player.y,player.w,player.h);
+      ctx.fillRect(player.x-5,player.y-14,10,16);
+      ctx.fillStyle='#F3E5F5';
+      ctx.beginPath();ctx.arc(player.x,player.y+player.h/2,4,0,7);ctx.fill();
+    }
+  }
+}
+function toX(ev){
+  var t=(ev.touches&&ev.touches.length)?ev.touches[0]:ev;
+  var r=cv.getBoundingClientRect();
+  return (t.clientX-r.left)/r.width*W;
+}
+function clampPlayer(x){
+  player.x=Math.max(player.w/2+4,Math.min(W-player.w/2-4,x));
+}
+var dragging=false;
+cv.addEventListener('touchstart',function(ev){ev.preventDefault();dragging=true;clampPlayer(toX(ev));},{passive:false});
+cv.addEventListener('touchmove',function(ev){ev.preventDefault();if(dragging)clampPlayer(toX(ev));},{passive:false});
+cv.addEventListener('touchend',function(ev){ev.preventDefault();dragging=false;},{passive:false});
+cv.addEventListener('touchcancel',function(){dragging=false;});
+cv.addEventListener('mousedown',function(ev){dragging=true;clampPlayer(toX(ev));});
+window.addEventListener('mousemove',function(ev){if(dragging&&state==='playing')clampPlayer(toX(ev));});
+window.addEventListener('mouseup',function(){dragging=false;});
+cv.addEventListener('contextmenu',function(ev){ev.preventDefault();});
+fireBtn.addEventListener('touchstart',function(ev){ev.preventDefault();ev.stopPropagation();fire();},{passive:false});
+fireBtn.addEventListener('mousedown',function(ev){ev.stopPropagation();fire();});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('againBtn').addEventListener('click',startGame);
+document.getElementById('resumeBtn').addEventListener('click',resumeGame);
+document.getElementById('restartBtn').addEventListener('click',startGame);
+pauseBtn.addEventListener('click',function(){
+  if(state==='playing')pauseGame();else if(state==='paused')resumeGame();
+});
+reset();draw();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>水果合成</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:17px}
+.topbar b{color:#F44336;font-size:22px}
+canvas{background:#1e1e1e;border-radius:12px;touch-action:none;width:100%;height:auto}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.7}
+.btn{background:#F44336;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
+.btn:active{transform:scale(.95)}
+.hint{color:#888;font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🍉 水果合成</span><span>得分 <b id="score">0</b> · 下一个 <span id="nextFruit">🍒</span></span></div>
+<canvas id="cv" width="400" height="640"></canvas>
+<div class="hint">手指左右移动瞄准，松手落下水果</div>
+</div>
+<div class="overlay" id="startScr"><h1>🍉 水果合成</h1><p>手指左右移动瞄准，松手让水果落下。<br>相同水果相碰会合成更大的水果并得分。<br>水果堆过红色危险线超过 1.5 秒即结束！</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">重新开始</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+const W=400,H=640,DL=110,DT=1/60;
+const FRUITS=[
+  {r:16,c:'#ff5252',e:'🍒',s:10},
+  {r:22,c:'#ec407a',e:'🍓',s:20},
+  {r:30,c:'#ab47bc',e:'🍇',s:40},
+  {r:38,c:'#ffa726',e:'🍊',s:80},
+  {r:48,c:'#ef5350',e:'🍎',s:160},
+  {r:58,c:'#9ccc65',e:'🍐',s:320},
+  {r:70,c:'#ffee58',e:'🍍',s:640},
+  {r:82,c:'#66bb6a',e:'🍈',s:1280},
+  {r:94,c:'#43a047',e:'🍉',s:2560},
+  {r:106,c:'#fb8c00',e:'🎃',s:5120}
+];
+let fruits=[],score=0,cur=0,nextLvl=1,cooldownUntil=0,over=false,warnT=0;
+let lastT=0,acc=0,aimX=W/2,rafOn=false;
+function showOver(title,text){$('overTitle').textContent=title;$('overText').textContent=text;$('overScr').classList.remove('hidden');}
+function rndLvl(){return Math.floor(Math.random()*5);}
+function clampAim(x){
+  const r=FRUITS[cur].r;
+  return Math.max(r,Math.min(W-r,x));
+}
+function startGame(){
+  fruits=[];score=0;warnT=0;over=false;cooldownUntil=0;acc=0;
+  cur=rndLvl();nextLvl=rndLvl();aimX=W/2;
+  $('score').textContent='0';
+  $('nextFruit').textContent=FRUITS[nextLvl].e;
+  if(!rafOn){rafOn=true;lastT=performance.now();requestAnimationFrame(loop);}
+  else{lastT=performance.now();}
+}
+function drop(){
+  if(over||performance.now()<cooldownUntil)return;
+  fruits.push({x:aimX,y:50,vx:0,vy:0,lvl:cur,merged:false,dead:false});
+  cur=nextLvl;nextLvl=rndLvl();
+  $('nextFruit').textContent=FRUITS[nextLvl].e;
+  cooldownUntil=performance.now()+600;
+}
+function step(dt){
+  for(const f of fruits)f.merged=false;
+  for(const f of fruits){
+    f.vy+=1500*dt;
+    f.x+=f.vx*dt;f.y+=f.vy*dt;
+    const r=FRUITS[f.lvl].r;
+    if(f.x<r){f.x=r;f.vx=-f.vx*0.4;}
+    else if(f.x>W-r){f.x=W-r;f.vx=-f.vx*0.4;}
+    if(f.y>H-r){f.y=H-r;f.vy=-f.vy*0.35;f.vx*=0.98;}
+    f.vx*=0.995;
+  }
+  const born=[];
+  for(let i=0;i<fruits.length;i++){
+    const a=fruits[i];
+    if(a.dead)continue;
+    for(let j=i+1;j<fruits.length;j++){
+      const b=fruits[j];
+      if(b.dead)continue;
+      const ra=FRUITS[a.lvl].r,rb=FRUITS[b.lvl].r;
+      const dx=b.x-a.x,dy=b.y-a.y;
+      const d=Math.hypot(dx,dy)||0.001;
+      const min=ra+rb;
+      if(d<min){
+        if(a.lvl===b.lvl&&a.lvl<9&&!a.merged&&!b.merged){
+          a.merged=true;b.merged=true;a.dead=true;b.dead=true;
+          const nl=a.lvl+1;
+          born.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2,vx:0,vy:-150,lvl:nl,merged:true,dead:false});
+          score+=FRUITS[nl].s;
+          $('score').textContent=score;
+        }else{
+          const nx=dx/d,ny=dy/d,ov=(min-d)/2;
+          a.x-=nx*ov;a.y-=ny*ov;
+          b.x+=nx*ov;b.y+=ny*ov;
+          a.vx*=0.99;a.vy*=0.99;
+          b.vx*=0.99;b.vy*=0.99;
+        }
+      }
+    }
+  }
+  fruits=fruits.filter(f=>!f.dead).concat(born);
+  let danger=false;
+  for(const f of fruits){
+    const r=FRUITS[f.lvl].r;
+    if(Math.hypot(f.vx,f.vy)<40&&(f.y-r)<DL){danger=true;break;}
+  }
+  if(danger){
+    warnT+=dt;
+    if(warnT>1.5){over=true;rafOn=false;showOver('游戏结束','最终得分 '+score);}
+  }else warnT=0;
+}
+function drawFruit(x,y,F,alpha){
+  ctx.globalAlpha=alpha;
+  ctx.beginPath();ctx.arc(x,y,F.r,0,7);
+  ctx.fillStyle=F.c;ctx.fill();
+  ctx.font=(F.r*1.3)+'px serif';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(F.e,x,y+F.r*0.08);
+  ctx.globalAlpha=1;
+}
+function draw(now){
+  ctx.fillStyle='#1e1e1e';ctx.fillRect(0,0,W,H);
+  for(const f of fruits)drawFruit(f.x,f.y,FRUITS[f.lvl],1);
+  ctx.strokeStyle='#ff5252';ctx.setLineDash([8,6]);ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(0,DL);ctx.lineTo(W,DL);ctx.stroke();
+  ctx.setLineDash([]);
+  if(!over&&now>=cooldownUntil)drawFruit(clampAim(aimX),50,FRUITS[cur],0.9);
+  if(warnT>0){
+    ctx.fillStyle='rgba(255,82,82,'+(0.08+0.08*Math.sin(now/120))+')';
+    ctx.fillRect(0,0,W,DL);
+  }
+}
+function loop(t){
+  if(!rafOn)return;
+  let el=(t-lastT)/1000;lastT=t;
+  if(el>0.25)el=0.25;
+  acc+=el;
+  while(acc>=DT){step(DT);acc-=DT;if(!rafOn)return;}
+  draw(t);
+  requestAnimationFrame(loop);
+}
+function toGame(e,c){
+  const r=c.getBoundingClientRect();
+  const t=e.touches?e.touches[0]:e;
+  return {x:(t.clientX-r.left)*c.width/r.width,y:(t.clientY-r.top)*c.height/r.height};
+}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();aimX=clampAim(toGame(e,cv).x);});
+cv.addEventListener('pointermove',e=>{aimX=clampAim(toGame(e,cv).x);});
+cv.addEventListener('pointerup',e=>{e.preventDefault();aimX=clampAim(toGame(e,cv).x);drop();});
+cv.addEventListener('touchstart',e=>{e.preventDefault();},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();aimX=clampAim(toGame(e,cv).x);drop();},{passive:false});
+$('startBtn').addEventListener('click',()=>{$('startScr').classList.add('hidden');startGame();});
+$('restartBtn').addEventListener('click',()=>{$('overScr').classList.add('hidden');startGame();});
+</script>
+</body>
+</html>
