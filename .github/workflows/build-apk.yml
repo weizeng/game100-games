@@ -1,5 +1,5 @@
-name: 构建 App APK
-# android/ 或 games/ 有更新时：云端编译 APK（与作者本机同一 debug 签名）、
+name: 构建 App APK（release）
+# android/ 或 games/ 有更新时：云端编译 release APK（正式签名）、
 # 发布到 releases/、更新 app.json（App 内自升级用）、刷新 CDN
 on:
   push:
@@ -8,7 +8,7 @@ on:
       - 'android/**'
       - 'games/**'
       - '.github/workflows/build-apk.yml'
-      - 'android-debug.keystore.b64'
+      - 'android-release.keystore.b64'
   workflow_dispatch:
 permissions:
   contents: write
@@ -34,10 +34,10 @@ jobs:
           unzip -q /tmp/gradle.zip -d /tmp
           echo "/tmp/gradle-8.7/bin" >> "$GITHUB_PATH"
 
-      - name: 还原 debug 签名（与作者本机一致，保证可覆盖安装）
+      - name: 还原 release 签名密钥
         run: |
-          mkdir -p ~/.android
-          base64 -d android-debug.keystore.b64 > ~/.android/debug.keystore
+          base64 -d android-release.keystore.b64 > /tmp/release.keystore
+          echo "keystore 已还原"
 
       - name: 打包内置游戏资源
         run: |
@@ -49,25 +49,28 @@ jobs:
           done
           ls android/app/src/main/assets/bundled | wc -l
 
-      - name: 编译 APK
+      - name: 编译 release APK
+        env:
+          GAME100_RELEASE_STOREFILE: /tmp/release.keystore
+          GAME100_RELEASE_STOREPASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          GAME100_RELEASE_KEYALIAS: game100
+          GAME100_RELEASE_KEYPASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
         run: |
           cd android
-          gradle assembleDebug -x lint --offline=false
+          gradle assembleRelease -x lint
 
       - name: 发布 APK 并更新 app.json
-        env:
-          BASE: https://cdn.jsdelivr.net/gh/weizeng/game100-games@main
         run: |
           set -e
           AAPT="$ANDROID_HOME/build-tools/34.0.0/aapt"
-          APK="$(ls android/app/build/outputs/apk/debug/*.apk | head -1)"
+          APK="$(ls android/app/build/outputs/apk/release/*.apk | head -1)"
           VC="$("$AAPT" dump badging "$APK" | grep -oP "versionCode='\K[0-9]+")"
-          VN="$("$AAPT" dump badging "$APK" | grep -oP "versionName='\K[^']+')"
+          VN="$("$AAPT" dump badging "$APK" | grep -oP "versionName='\K[^']+")"
           echo "versionCode=$VC versionName=$VN"
           mkdir -p releases
           # 只保留最新版 APK
           rm -f releases/*.apk
-          APK_NAME="game100-v${VN}.apk"
+          APK_NAME="game100-v${VN}-release.apk"
           cp "$APK" "releases/$APK_NAME"
           CHANGELOG="$(git log -1 --pretty=%s -- android/ | head -1)"
           python3 - "$VC" "$VN" "$APK_NAME" "$CHANGELOG" <<'EOF'
@@ -95,6 +98,3 @@ jobs:
       - name: 刷新 CDN 缓存
         run: |
           curl -s "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/app.json" -o /dev/null || true
-          for f in releases/*.apk; do
-            curl -s "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/$f" -o /dev/null || true
-          done
