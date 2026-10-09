@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>纸飞机 - 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b0b10;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#f0f0f5;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#1b2a3a 0%,#101820 60%,#0c1218 100%);overflow:hidden}
+canvas{display:block;width:100%;touch-action:none}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;z-index:5;background:linear-gradient(180deg,rgba(0,0,0,.6),transparent);pointer-events:none}
+#hud .t{font-size:14px;font-weight:700}
+#hud .s{font-size:13px;color:#9fd8ff;font-weight:700;margin-top:2px}
+#hud .btns{pointer-events:auto;display:flex;gap:8px}
+.ib{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ib:active{transform:scale(.9)}
+.ov{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(6,9,13,.94);padding:24px;text-align:center}
+.ov h1{font-size:30px;margin-bottom:4px}
+.ov h2{font-size:24px;margin-bottom:6px}
+.ov p{font-size:14px;color:#b9c9d6;line-height:1.8;margin:10px 0 18px;max-width:330px}
+.bb{font-size:17px;font-weight:700;color:#fff;border:none;border-radius:999px;padding:13px 44px;background:linear-gradient(135deg,#3fa9ff,#7c5cff);box-shadow:0 6px 20px rgba(63,169,255,.4);cursor:pointer;transition:transform .08s;margin:5px}
+.bb:active{transform:scale(.94)}
+.bb.ghost{background:linear-gradient(135deg,#4a4a5c,#33333f);box-shadow:none}
+.score{font-size:46px;font-weight:800;color:#9fd8ff;margin:4px 0}
+.best{font-size:13px;color:#9a9ab0;margin-top:10px}
+.hide{display:none!important}
+#tip{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-size:13px;color:#d5e2ec;z-index:4;pointer-events:none;text-shadow:0 1px 4px #000;padding:0 20px}
+#dist{position:absolute;top:64px;left:0;right:0;text-align:center;z-index:4;pointer-events:none}
+#dist .n{font-size:38px;font-weight:800;color:#fff;text-shadow:0 2px 10px rgba(63,169,255,.6)}
+#dist .u{font-size:13px;color:#9fd8ff}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="360" height="540"></canvas>
+<div id="hud"><div><div class="t">🛩️ 纸飞机</div><div class="s" id="hs">准备挥出</div></div><div class="btns"><button class="ib" id="snd">🔊</button><button class="ib" id="pz">⏸</button></div></div>
+<div id="dist" class="hide"><div class="n" id="distN">0</div><div class="u">米</div></div>
+<div id="tip"></div>
+<div class="ov" id="ovStart"><h1>🛩️ 纸飞机</h1><p>从纸飞机位置向上滑动把它挥出去<br>飞行中手指上下拖动调整姿态<br>小心飞鸟！飞得越远分越高</p><button class="bb" id="btnStart">折好飞机</button><div class="best" id="bestStart"></div></div>
+<div class="ov hide" id="ovPause"><h2>⏸ 已暂停</h2><br><button class="bb" id="btnResume">继续</button><button class="bb ghost" id="btnRestart1">重新开始</button></div>
+<div class="ov hide" id="ovEnd"><h2 id="endTitle">🛬 着陆！</h2><div class="score" id="endScore">0 米</div><div class="best" id="endBest"></div><div class="best" id="endDetail" style="margin-top:6px"></div><button class="bb" id="btnRestart2">再飞一次</button></div>
+</div>
+<script>
+(function(){
+"use strict";
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),W=360,H=540;
+var $=function(id){return document.getElementById(id);};
+/* 音频 */
+var AC=null,soundOn=true;
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,slide,delay){if(!soundOn)return;var a=ac();if(!a)return;try{var t0=a.currentTime+(delay||0);var o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t0);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t0+d);g.gain.setValueAtTime(v||.1,t0);g.gain.exponentialRampToValueAtTime(.001,t0+d);o.connect(g);g.connect(a.destination);o.start(t0);o.stop(t0+d+.03);}catch(e){}}
+var sfx={
+ click:function(){tone(620,.06,'square',.06);},
+ throw:function(){tone(400,.25,'sine',.1,500);},
+ crash:function(){tone(200,.4,'sawtooth',.12,-150);},
+ land:function(){tone(600,.2,'triangle',.09,-200);},
+ win:function(){var fs=[523,659,784,1046];for(var i=0;i<fs.length;i++)tone(fs[i],.3,'triangle',.1,0,i*.1);}
+};
+/* 最高分 */
+var KEY='game100_paperfly_best';
+function getBest(){try{return parseInt(localStorage.getItem(KEY),10)||0;}catch(e){return 0;}}
+function setBest(v){try{localStorage.setItem(KEY,String(v));}catch(e){}}
+/* 状态 */
+var START_X=70,START_Y=400,GROUND_Y=492;
+var phase='menu',paused=false,plane=null,swipe=null,touchY=null;
+var birds=[],parts=[],floaters=[],clouds=[],camX=0,dist=0,birdT=0;
+function newGame(){
+ phase='throw';paused=false;
+ plane={x:START_X,y:START_Y,vx:0,vy:0,ang:0};
+ birds=[];parts=[];floaters=[];camX=0;dist=0;birdT=0;touchY=null;swipe=null;
+ clouds=[];for(var i=0;i<10;i++)clouds.push({x:Math.random()*1200,y:60+Math.random()*300,w:50+Math.random()*60});
+ $('ovStart').classList.add('hide');$('ovEnd').classList.add('hide');$('ovPause').classList.add('hide');
+ $('dist').classList.add('hide');
+ $('hs').textContent='准备挥出';tip('从纸飞机向上滑动，把它挥出去！');
+ loop();
+}
+function tip(s){$('tip').textContent=s;}
+function doThrow(dx,dy){
+ if(phase!=='throw')return;
+ if(dy<30){tip('力度太小，再用力向上滑！');return;}
+ var sp=Math.min(5+dy*0.035,12);
+ var ang=Math.atan2(-dy,Math.max(dx,10)); // 主要向上、略向前
+ plane.vx=Math.cos(ang)*sp*0.9+2;
+ plane.vy=Math.sin(ang)*sp;
+ if(plane.vy>-3)plane.vy=-3;
+ phase='fly';sfx.throw();
+ $('dist').classList.remove('hide');
+ $('hs').textContent='飞行中…';
+ tip('手指上下拖动调整姿态，躲开飞鸟！');
+ for(var i=0;i<8;i++)parts.push({x:plane.x,y:plane.y,vx:-1-Math.random()*2,vy:(Math.random()-0.5)*2,life:1,color:'#fff',r:1.5+Math.random()*2});
+}
+function step(dt){
+ if(phase==='fly'&&plane){
+  // 物理：重力 + 速度衰减
+  plane.vy+=0.11;
+  plane.vx*=0.9995;
+  // 手指控制：向手指高度靠拢，产生升力/俯冲
+  if(touchY!==null){
+   var dy=touchY-plane.y;
+   plane.vy+=dy*0.004;
+   plane.vy=Math.max(-6,Math.min(6,plane.vy));
+  }
+  plane.x+=plane.vx;plane.y+=plane.vy;
+  plane.ang=Math.atan2(plane.vy,plane.vx)*0.6;
+  dist=Math.max(dist,Math.round((plane.x-START_X)/8));
+  $('distN').textContent=dist;
+  camX=plane.x-140;
+  // 尾迹
+  if(Math.random()<0.5)parts.push({x:plane.x-14,y:plane.y,vx:-0.5,vy:0,life:0.7,color:'rgba(255,255,255,.7)',r:1.5});
+  // 飞鸟
+  birdT-=dt;
+  if(birdT<=0){birdT=1.1+Math.random()*1.2;
+   birds.push({x:plane.x+W+80,y:90+Math.random()*330,vx:-(2.2+Math.random()*1.6+dist/400),flap:Math.random()*6});
+  }
+  var i,b;
+  for(i=birds.length-1;i>=0;i--){b=birds[i];b.x+=b.vx;b.flap+=0.3;
+   if(b.x<plane.x-200)birds.splice(i,1);
+   else if(Math.hypot(b.x-plane.x,b.y-plane.y)<26){crash('撞上飞鸟了！🐦');return;}
+  }
+  // 上边界
+  if(plane.y<20){plane.y=20;plane.vy=Math.abs(plane.vy)*0.4;}
+  // 着陆
+  if(plane.y>=GROUND_Y-8){land();return;}
+  // 失速坠落
+  if(plane.vx<0.6&&plane.y>GROUND_Y-60){land();return;}
+ }
+ var k;
+ for(k=parts.length-1;k>=0;k--){var p=parts[k];p.x+=p.vx;p.y+=p.vy;p.life-=0.035;if(p.life<=0)parts.splice(k,1);}
+ for(k=floaters.length-1;k>=0;k--){var f=floaters[k];f.y-=0.7;f.life-=0.03;if(f.life<=0)floaters.splice(k,1);}
+}
+function crash(reason){
+ phase='done';sfx.crash();
+ for(var i=0;i<20;i++)parts.push({x:plane.x,y:plane.y,vx:(Math.random()-0.5)*5,vy:(Math.random()-0.5)*5,life:1.2,color:'#ff8a8a',r:2+Math.random()*3});
+ setTimeout(function(){finish(reason,'💥 '+reason);},900);
+}
+function land(){
+ phase='done';sfx.land();
+ for(var i=0;i<12;i++)parts.push({x:plane.x,y:GROUND_Y,vx:(Math.random()-0.5)*3,vy:-Math.random()*2,life:1,color:'#9fd8ff',r:1.5+Math.random()*2});
+ setTimeout(function(){finish('','🛬 平稳着陆！');},800);
+}
+function finish(crashReason,title){
+ phase='end';
+ var best=getBest(),isNew=dist>best;
+ if(isNew)setBest(dist);
+ $('endScore').textContent=dist+' 米';
+ $('endTitle').textContent=title||'🛬 着陆！';
+ $('endBest').textContent=(isNew?'🎉 新纪录！':'历史最远：'+best+' 米');
+ var lv=dist>=300?'🏆 传奇飞行员！':dist>=150?'👏 飞得很远！':dist>=60?'✈️ 还不错':'🐣 继续练习吧';
+ $('endDetail').textContent=lv;
+ $('ovEnd').classList.remove('hide');
+}
+/* 特效 */
+function addFloater(txt,x,y,color){floaters.push({txt:txt,x:x,y:y,life:1.4,color:color});}
+/* 绘制 */
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ var g=ctx.createLinearGradient(0,0,0,H);
+ g.addColorStop(0,'#20344a');g.addColorStop(0.7,'#121a26');g.addColorStop(1,'#0c1218');
+ ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ var cam=camX,i;
+ function SX(wx){return wx-cam;}
+ // 太阳
+ ctx.fillStyle='rgba(255,200,100,.85)';ctx.beginPath();ctx.arc(300-cam*0.05,80,26,0,7);ctx.fill();
+ // 云
+ ctx.fillStyle='rgba(255,255,255,.14)';
+ for(i=0;i<clouds.length;i++){var c=clouds[i];
+  var cx=((c.x-cam*0.6)%1400+1400)%1400-100;
+  ctx.beginPath();ctx.ellipse(cx,c.y,c.w,c.w*0.3,0,0,7);ctx.fill();
+ }
+ // 远山
+ ctx.fillStyle='rgba(60,90,110,.35)';
+ ctx.beginPath();ctx.moveTo(0,420);
+ for(i=0;i<=8;i++)ctx.lineTo(i*60-cam*0.3%60-60,380+Math.sin(i*2.1+cam*0.002)*40);
+ ctx.lineTo(W,540);ctx.lineTo(0,540);ctx.closePath();ctx.fill();
+ // 地面
+ var gg=ctx.createLinearGradient(0,GROUND_Y,0,H);
+ gg.addColorStop(0,'#2e7a44');gg.addColorStop(1,'#1c4f2a');
+ ctx.fillStyle=gg;ctx.fillRect(0,GROUND_Y,W,H-GROUND_Y);
+ ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(0,GROUND_Y,W,3);
+ // 距离标尺
+ ctx.fillStyle='rgba(255,255,255,.4)';ctx.font='11px sans-serif';ctx.textAlign='center';
+ for(var m=50;m<2000;m+=50){var mx=SX(START_X+m*8);if(mx>-20&&mx<W+20){ctx.fillRect(mx,GROUND_Y,2,10);ctx.fillText(m+'m',mx,GROUND_Y+22);}}
+ // 飞鸟
+ for(i=0;i<birds.length;i++){var b=birds[i],bx=SX(b.x);
+  if(bx<-30||bx>W+30)continue;
+  var w=Math.sin(b.flap)*8;
+  ctx.strokeStyle='#2b2b33';ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(bx-12,b.y+w);ctx.quadraticCurveTo(bx-4,b.y-4,bx,b.y);
+  ctx.quadraticCurveTo(bx+4,b.y-4,bx+12,b.y+w);ctx.stroke();
+  ctx.fillStyle='#2b2b33';ctx.beginPath();ctx.arc(bx,b.y,4,0,7);ctx.fill();
+ }
+ // 纸飞机
+ if(plane&&(phase==='throw'||phase==='fly'||phase==='done')){
+  var px=SX(plane.x);
+  if(px>-40&&px<W+40){
+   ctx.save();ctx.translate(px,plane.y);ctx.rotate(plane.ang||0);
+   var pg=ctx.createLinearGradient(-16,0,16,0);
+   pg.addColorStop(0,'#dfe6f2');pg.addColorStop(1,'#ffffff');
+   ctx.fillStyle=pg;
+   ctx.beginPath();ctx.moveTo(18,0);ctx.lineTo(-12,-10);ctx.lineTo(-6,0);ctx.lineTo(-12,10);ctx.closePath();ctx.fill();
+   ctx.strokeStyle='rgba(63,169,255,.6)';ctx.lineWidth=1.5;
+   ctx.beginPath();ctx.moveTo(18,0);ctx.lineTo(-6,0);ctx.stroke();
+   ctx.restore();
+  }
+ }
+ // 出手瞄准线
+ if(phase==='throw'&&swipe){
+  ctx.strokeStyle='rgba(159,216,255,.8)';ctx.setLineDash([6,6]);ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(START_X,START_Y);
+  ctx.lineTo(START_X+swipe.dx*1.2,START_Y-swipe.dy*1.2);ctx.stroke();ctx.setLineDash([]);
+ }
+ // 粒子
+ for(i=0;i<parts.length;i++){var pt=parts[i];ctx.globalAlpha=Math.max(0,Math.min(1,pt.life));ctx.fillStyle=pt.color;ctx.beginPath();ctx.arc(SX(pt.x),pt.y,pt.r,0,7);ctx.fill();}
+ ctx.globalAlpha=1;ctx.textAlign='center';
+ for(i=0;i<floaters.length;i++){var fl=floaters[i];ctx.globalAlpha=Math.max(0,Math.min(1,fl.life));ctx.fillStyle=fl.color;ctx.font='bold 17px sans-serif';ctx.fillText(fl.txt,SX(fl.x),fl.y);}
+ ctx.globalAlpha=1;
+}
+var lastT=0;
+function loop(){
+ if(paused)return;
+ var now=performance.now(),dt=Math.min((now-lastT)/1000,0.05)||0.016;lastT=now;
+ step(dt);draw();
+ requestAnimationFrame(loop);
+}
+/* 输入 */
+function cpos(e){var t=(e.touches&&e.touches.length)?e.touches[0]:(e.changedTouches&&e.changedTouches.length?e.changedTouches[0]:e);var r=cv.getBoundingClientRect();return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
+cv.addEventListener('touchstart',function(e){e.preventDefault();ac();var p=cpos(e);
+ if(phase==='throw'&&Math.hypot(p.x-START_X,p.y-START_Y)<90)swipe={sx:p.x,sy:p.y,dx:0,dy:0};
+ else if(phase==='fly')touchY=p.y;
+},{passive:false});
+cv.addEventListener('touchmove',function(e){e.preventDefault();var p=cpos(e);
+ if(swipe){swipe.dx=p.x-swipe.sx;swipe.dy=swipe.sy-p.y;}
+ else if(phase==='fly')touchY=p.y;
+},{passive:false});
+cv.addEventListener('touchend',function(e){e.preventDefault();
+ if(swipe){doThrow(swipe.dx,swipe.dy);swipe=null;}
+ else touchY=null;
+},{passive:false});
+var mD=false,mS=null;
+cv.addEventListener('mousedown',function(e){ac();var p=cpos(e);
+ if(phase==='throw'&&Math.hypot(p.x-START_X,p.y-START_Y)<90){mD=true;mS={sx:p.x,sy:p.y,dx:0,dy:0};swipe=mS;}
+ else if(phase==='fly'){mD=true;touchY=p.y;}
+});
+cv.addEventListener('mousemove',function(e){if(!mD)return;var p=cpos(e);
+ if(mS){mS.dx=p.x-mS.sx;mS.dy=mS.sy-p.y;}else if(phase==='fly')touchY=p.y;
+});
+cv.addEventListener('mouseup',function(){if(mD&&mS)doThrow(mS.dx,mS.dy);mD=false;mS=null;swipe=null;touchY=null;});
+/* 按钮 */
+function togglePause(f){if(phase==='menu'||phase==='end')return;paused=(typeof f==='boolean')?f:!paused;$('ovPause').classList.toggle('hide',!paused);if(!paused){lastT=performance.now();loop();}}
+$('pz').addEventListener('click',function(){sfx.click();togglePause();});
+$('snd').addEventListener('click',function(){soundOn=!soundOn;$('snd').textContent=soundOn?'🔊':'🔇';if(soundOn)sfx.click();});
+$('btnStart').addEventListener('click',function(){ac();sfx.click();newGame();});
+$('btnResume').addEventListener('click',function(){sfx.click();togglePause(false);});
+$('btnRestart1').addEventListener('click',function(){sfx.click();newGame();});
+$('btnRestart2').addEventListener('click',function(){sfx.click();newGame();});
+$('bestStart').textContent='历史最远：'+getBest()+' 米';
+draw();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>一笔画 · 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;justify-content:center;overscroll-behavior:none}
+#app{width:100%;max-width:480px;min-height:100vh;position:relative;display:flex;flex-direction:column;background:radial-gradient(900px 480px at 50% -8%,rgba(232,116,97,.12),transparent 60%),radial-gradient(700px 500px at 90% 110%,rgba(255,215,106,.08),transparent 60%),#121212;overflow:hidden}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;z-index:20}
+.tb-title{font-size:14px;font-weight:700;color:#cfcfcf;letter-spacing:1px}
+.tb-right{display:flex;gap:8px}
+.iconbtn{width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .1s}
+.iconbtn:active{transform:scale(.88)}
+.screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:12px;text-align:center;z-index:10}
+.hidden{display:none!important}
+.bigemoji{font-size:64px;filter:drop-shadow(0 6px 16px rgba(0,0,0,.5));animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.gamename{font-size:28px;font-weight:800;background:linear-gradient(135deg,#ffd76a,#e87461);-webkit-background-clip:text;background-clip:text;color:transparent}
+.howto{font-size:13.5px;line-height:1.8;color:#bdbdbd;max-width:350px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px 16px}
+.btn{background:linear-gradient(135deg,#e87461,#d35450);border:none;color:#fff;font-size:17px;font-weight:800;padding:13px 46px;border-radius:999px;cursor:pointer;box-shadow:0 8px 24px rgba(232,116,97,.35);transition:transform .1s;letter-spacing:2px}
+.btn:active{transform:scale(.93)}
+.btn.ghost{background:rgba(255,255,255,.08);box-shadow:none;border:1px solid rgba(255,255,255,.16)}
+.btn.small{font-size:14px;padding:9px 26px;letter-spacing:1px}
+.hsline{font-size:13px;color:#ffd76a}
+.hud{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+.pill{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700}
+#fx{position:absolute;inset:0;pointer-events:none;z-index:50}
+.float-txt{position:absolute;transform:translate(-50%,-50%);font-weight:800;font-size:20px;pointer-events:none;z-index:60;text-shadow:0 2px 8px rgba(0,0,0,.6);animation:floatUp 1.1s ease-out forwards}
+@keyframes floatUp{to{transform:translate(-50%,-160%);opacity:0}}
+#pauseOv{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#pauseOv .btn{font-size:15px;padding:11px 34px}
+.endstats{font-size:15px;line-height:2.1;color:#ddd}
+.endstats b{color:#ffd76a;font-size:22px}
+canvas.game{border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);touch-action:none}
+.msg{min-height:22px;font-size:13px;color:#ff9a9a}
+.shake{animation:shake .35s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="tb-title">✏️ 一笔画</div>
+    <div class="tb-right">
+      <div class="iconbtn" id="soundBtn">🔊</div>
+      <div class="iconbtn hidden" id="pauseBtn">⏸</div>
+    </div>
+  </div>
+  <div class="screen" id="scrStart">
+    <div class="bigemoji">✏️</div>
+    <div class="gamename">一笔画</div>
+    <div class="howto">点击一个顶点开始，再点击<strong style="color:#fff">相邻顶点</strong>连线。<br>每条边只能画<strong style="color:#fff">一次</strong>，画完所有边即过关。<br>共 <strong style="color:#ffd76a">8 关</strong>，卡住就悔一步试试！</div>
+    <button class="btn" id="startBtn">开始游戏</button>
+    <div class="hsline" id="startHs"></div>
+  </div>
+  <div class="screen hidden" id="scrGame" style="justify-content:flex-start;padding-top:6px">
+    <div class="hud">
+      <div class="pill">第 <span id="lvl" style="color:#ffd76a">1</span>/8 关 · <span id="lname" style="color:#fff">三角形</span></div>
+      <div class="pill">进度 <span id="prog" style="color:#7ee2a8">0/3</span></div>
+    </div>
+    <canvas class="game" id="cv" width="400" height="400"></canvas>
+    <div class="hud">
+      <button class="btn small ghost" id="undoBtn">↩ 悔一步</button>
+      <button class="btn small ghost" id="resetBtn">🔄 重画</button>
+    </div>
+    <div class="msg" id="msg">点击任意顶点开始</div>
+  </div>
+  <div class="screen hidden" id="scrEnd">
+    <div class="bigemoji" id="endEmoji">🏆</div>
+    <div class="gamename" id="endTitle">全部通关！</div>
+    <div class="endstats" id="endStats"></div>
+    <div class="hsline" id="endHs"></div>
+    <button class="btn" id="againBtn">再来一局</button>
+    <button class="btn ghost" id="backBtn">返回</button>
+  </div>
+  <div id="pauseOv" class="hidden">
+    <div style="font-size:24px;font-weight:800">⏸ 已暂停</div>
+    <button class="btn" id="resumeBtn">继续</button>
+    <button class="btn ghost" id="restartBtn">重新开始</button>
+  </div>
+  <canvas id="fx"></canvas>
+</div>
+<script>
+'use strict';
+let ACTX=null, soundOn=true;
+try{ soundOn=localStorage.getItem('g100_sound')!=='0'; }catch(e){}
+function audio(){ if(!ACTX){ try{ ACTX=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } } if(ACTX&&ACTX.state==='suspended'){ ACTX.resume().catch(function(){}); } return ACTX; }
+function tone(f,d,type,vol,delay){ if(!soundOn) return; try{ const c=audio(); if(!c) return; const t=c.currentTime+(delay||0); const o=c.createOscillator(),g=c.createGain(); o.type=type||'sine'; o.frequency.setValueAtTime(f,t); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.12,t+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t+d); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+d+0.05); }catch(e){} }
+function sClick(){ tone(720,0.05,'square',0.04); }
+function sDraw(){ tone(440+Math.random()*220,0.07,'triangle',0.07); }
+function sBad(){ tone(200,0.16,'sawtooth',0.07); }
+function sGood(){ tone(520,0.1,'sine',0.11); tone(780,0.14,'sine',0.11,0.09); }
+function sWin(){ const seq=[523,659,784,1046,1318]; for(let i=0;i<seq.length;i++) tone(seq[i],0.22,'triangle',0.11,i*0.11); }
+function hsGet(k){ try{ const v=parseInt(localStorage.getItem(k)||'0',10); return isNaN(v)?0:v; }catch(e){ return 0; } }
+function hsSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(e){} }
+const fxC=document.getElementById('fx'), fxX=fxC.getContext('2d');
+let P=[];
+function fxSize(){ const r=fxC.parentElement.getBoundingClientRect(); fxC.width=r.width; fxC.height=r.height; }
+window.addEventListener('resize',fxSize);
+function burst(x,y,n,cols){ for(let i=0;i<(n||24);i++){ const a=Math.random()*Math.PI*2,s=1+Math.random()*3.2; P.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.2,l:1,c:cols[i%cols.length],r:2+Math.random()*3}); } }
+function fxLoop(){ fxX.clearRect(0,0,fxC.width,fxC.height); P=P.filter(function(p){return p.l>0;}); for(let i=0;i<P.length;i++){ const p=P[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.06; p.l-=0.018; fxX.globalAlpha=Math.max(p.l,0); fxX.fillStyle=p.c; fxX.beginPath(); fxX.arc(p.x,p.y,p.r,0,7); fxX.fill(); } fxX.globalAlpha=1; requestAnimationFrame(fxLoop); }
+function shakeEl(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+const $=function(id){ return document.getElementById(id); };
+const scrStart=$('scrStart'), scrGame=$('scrGame'), scrEnd=$('scrEnd'), pauseOv=$('pauseOv'), pauseBtn=$('pauseBtn'), soundBtn=$('soundBtn');
+let paused=false;
+function show(el){ [scrStart,scrGame,scrEnd].forEach(function(s){ s.classList.add('hidden'); }); el.classList.remove('hidden'); fxSize(); }
+function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
+soundBtn.textContent=soundOn?'🔊':'🔇';
+soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
+pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
+/* ===== 游戏：一笔画（8关均有欧拉路，已验证） ===== */
+const LEVELS=[
+ {name:'三角形',pts:[[0.5,0.14],[0.14,0.8],[0.86,0.8]],edges:[[0,1],[1,2],[2,0]]},
+ {name:'方块斜线',pts:[[0.2,0.2],[0.8,0.2],[0.8,0.8],[0.2,0.8]],edges:[[0,1],[1,2],[2,3],[3,0],[0,2]]},
+ {name:'小房子',pts:[[0.25,0.75],[0.75,0.75],[0.75,0.35],[0.25,0.35],[0.5,0.12]],edges:[[0,1],[1,2],[2,3],[3,0],[2,4],[4,3]]},
+ {name:'五角星',pts:[[0.5,0.12],[0.8614,0.3826],[0.7234,0.8074],[0.2766,0.8074],[0.1386,0.3826]],edges:[[0,2],[2,4],[4,1],[1,3],[3,0]]},
+ {name:'蝴蝶结',pts:[[0.2,0.2],[0.2,0.8],[0.5,0.5],[0.8,0.2],[0.8,0.8]],edges:[[0,1],[1,2],[2,0],[2,3],[3,4],[4,2]]},
+ {name:'信封',pts:[[0.2,0.7],[0.8,0.7],[0.8,0.3],[0.2,0.3],[0.5,0.12]],edges:[[0,1],[1,2],[2,3],[3,0],[0,2],[1,3],[2,4],[4,3]]},
+ {name:'双正方形',pts:[[0.15,0.3],[0.5,0.3],[0.5,0.7],[0.15,0.7],[0.85,0.3],[0.85,0.7]],edges:[[0,1],[1,2],[2,3],[3,0],[1,4],[4,5],[5,2],[1,2]]},
+ {name:'双三角',pts:[[0.35,0.25],[0.1,0.75],[0.6,0.75],[0.85,0.25]],edges:[[0,1],[1,2],[2,0],[0,3],[3,2]]}
+];
+const cv=$('cv'), ctx=cv.getContext('2d');
+let lvl=0, drawn=new Set(), path=[], cur=-1, playing=false, undos=0, levelDone=false;
+function sizeCanvas(){ const w=Math.min(400,document.getElementById('app').clientWidth-36); cv.width=w; cv.height=w; cv.style.width=w+'px'; cv.style.height=w+'px'; }
+window.addEventListener('resize',function(){ sizeCanvas(); if(playing) draw(performance.now()); });
+function ekey(a,b){ return a<b?a+'_'+b:b+'_'+a; }
+function hasEdge(a,b){ const E=LEVELS[lvl].edges; for(let i=0;i<E.length;i++) if(ekey(E[i][0],E[i][1])===ekey(a,b)) return true; return false; }
+function loadLevel(i){
+  drawn=new Set(); path=[]; cur=-1; levelDone=false;
+  $('lvl').textContent=i+1; $('lname').textContent=LEVELS[i].name;
+  $('prog').textContent='0/'+LEVELS[i].edges.length;
+  $('msg').textContent='点击任意顶点开始';
+  sizeCanvas(); draw(performance.now());
+}
+function newGame(){
+  lvl=0; undos=0; playing=true;
+  setPaused(false); pauseBtn.classList.remove('hidden');
+  show(scrGame); loadLevel(0);
+}
+function vxy(i){ const w=cv.width, p=LEVELS[lvl].pts[i]; return [p[0]*w,p[1]*w]; }
+function tapVertex(e){
+  if(!playing||paused||levelDone) return;
+  const rect=cv.getBoundingClientRect();
+  const x=(e.clientX-rect.left)*(cv.width/rect.width), y=(e.clientY-rect.top)*(cv.width/rect.height);
+  let best=-1, bd=34*(cv.width/rect.width);
+  const pts=LEVELS[lvl].pts;
+  for(let i=0;i<pts.length;i++){
+    const p=vxy(i), d=Math.hypot(x-p[0],y-p[1]);
+    if(d<bd){ bd=d; best=i; }
+  }
+  if(best===-1) return;
+  if(cur===-1){ cur=best; path=[best]; sClick(); $('msg').textContent='从这里出发，点相邻顶点连线'; draw(performance.now()); return; }
+  if(best===cur){ $('msg').textContent='已经在这里了，点别的顶点'; return; }
+  const k=ekey(cur,best);
+  if(!hasEdge(cur,best)){ $('msg').textContent='这两点之间没有边'; sBad(); shakeEl(cv); return; }
+  if(drawn.has(k)){ $('msg').textContent='这条边已经画过了'; sBad(); shakeEl(cv); return; }
+  drawn.add(k); path.push(best); cur=best;
+  sDraw();
+  $('prog').textContent=drawn.size+'/'+LEVELS[lvl].edges.length;
+  draw(performance.now());
+  if(drawn.size===LEVELS[lvl].edges.length) onLevelClear();
+}
+function onLevelClear(){
+  levelDone=true; sGood();
+  const r=cv.getBoundingClientRect(), ar=$('app').getBoundingClientRect();
+  burst(r.left-ar.left+r.width/2, r.top-ar.top+r.height/2, 60, ['#e87461','#ffd76a','#7ee2a8','#fff']);
+  $('msg').textContent='🎉 一笔画成！';
+  setTimeout(function(){
+    if(lvl<LEVELS.length-1){ lvl++; loadLevel(lvl); }
+    else endGame();
+  },1100);
+}
+function undo(){
+  if(!playing||paused||levelDone||path.length<2) return;
+  const last=path.pop();
+  const prev=path[path.length-1];
+  drawn.delete(ekey(prev,last));
+  cur=prev; undos++;
+  sClick();
+  $('prog').textContent=drawn.size+'/'+LEVELS[lvl].edges.length;
+  $('msg').textContent='悔了一步';
+  draw(performance.now());
+}
+function endGame(){
+  playing=false; pauseBtn.classList.add('hidden'); setPaused(false);
+  const key='g100_onestroke_hs';
+  let nb=false, raw=null;
+  try{ raw=localStorage.getItem(key); }catch(e){}
+  if(raw===null||undos<parseInt(raw,10)){ hsSet(key,undos); nb=true; }
+  const shown=hsGet(key);
+  $('endStats').innerHTML='8 关全通<br>共悔步 <b>'+undos+'</b> 次'+(nb?'<br>🎉 新纪录！':'');
+  $('endHs').textContent='🏅 最少悔步：'+shown+' 次';
+  show(scrEnd); sWin();
+  const r=$('app').getBoundingClientRect(); burst(r.width/2,220,90,['#e87461','#ffd76a','#7ee2a8','#fff']);
+}
+function draw(t){
+  const w=cv.width;
+  ctx.clearRect(0,0,w,w);
+  const L=LEVELS[lvl];
+  // 未画的边
+  ctx.lineCap='round';
+  for(let i=0;i<L.edges.length;i++){
+    const k=ekey(L.edges[i][0],L.edges[i][1]);
+    if(drawn.has(k)) continue;
+    const a=vxy(L.edges[i][0]), b=vxy(L.edges[i][1]);
+    ctx.strokeStyle='rgba(255,255,255,.22)'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+  }
+  // 已画的边（发光）
+  ctx.shadowColor='rgba(232,116,97,.8)'; ctx.shadowBlur=10;
+  const g=ctx.createLinearGradient(0,0,w,w);
+  g.addColorStop(0,'#ffd76a'); g.addColorStop(1,'#e87461');
+  ctx.strokeStyle=g; ctx.lineWidth=7;
+  for(let i=1;i<path.length;i++){
+    const a=vxy(path[i-1]), b=vxy(path[i]);
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+  }
+  ctx.shadowBlur=0;
+  // 顶点
+  for(let i=0;i<L.pts.length;i++){
+    const p=vxy(i);
+    ctx.fillStyle=i===cur?'#ffd76a':'#2a3550';
+    ctx.strokeStyle=i===cur?'#fff':'rgba(255,255,255,.4)';
+    ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(p[0],p[1],14,0,7); ctx.fill(); ctx.stroke();
+    if(i===cur){
+      const pr=18+4*Math.sin(t/250);
+      ctx.strokeStyle='rgba(255,215,106,.7)';
+      ctx.beginPath(); ctx.arc(p[0],p[1],pr,0,7); ctx.stroke();
+    }
+  }
+}
+cv.addEventListener('pointerdown',function(e){ e.preventDefault(); tapVertex(e); },{passive:false});
+$('undoBtn').addEventListener('click',function(){ undo(); });
+$('resetBtn').addEventListener('click',function(){ if(!playing||paused||levelDone) return; sClick(); loadLevel(lvl); });
+$('startBtn').addEventListener('click',function(){ audio(); sClick(); newGame(); });
+$('againBtn').addEventListener('click',function(){ sClick(); newGame(); });
+$('backBtn').addEventListener('click',function(){ sClick(); playing=false; pauseBtn.classList.add('hidden'); show(scrStart); refreshStartHs(); });
+$('restartBtn').addEventListener('click',function(){ sClick(); newGame(); });
+function refreshStartHs(){ let txt=''; try{ const raw=localStorage.getItem('g100_onestroke_hs'); if(raw!==null) txt='🏅 最少悔步 '+raw+' 次'; }catch(e){} $('startHs').textContent=txt; }
+try{ refreshStartHs(); }catch(e){}
+fxSize(); fxLoop();
+(function anim(t){ requestAnimationFrame(anim); if(playing&&cur!==-1&&!paused) draw(t||performance.now()); })(performance.now());
+</script>
+</body>
+</html>

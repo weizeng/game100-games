@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>轨道躲避</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#050507;overflow:hidden;overscroll-behavior:none}
+body{display:flex;justify-content:center;align-items:center;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#fff;-webkit-user-select:none;user-select:none}
+#wrap{position:relative;width:min(100vw,60vh);aspect-ratio:3/5;max-height:100vh;background:#121212;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.8)}
+@media (max-aspect-ratio:3/5){#wrap{width:100vw;height:100vh;aspect-ratio:auto}}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:10px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,10,16,.62);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;backdrop-filter:blur(4px);white-space:nowrap}
+.hudl{display:flex;gap:8px}
+.hbtns{display:flex;gap:8px;pointer-events:auto}
+.icobtn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(10,10,16,.62);color:#fff;font-size:17px;cursor:pointer;transition:transform .08s}
+.icobtn:active{transform:scale(.88)}
+#overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,6,14,.84);backdrop-filter:blur(6px);padding:28px;text-align:center}
+#overlay h1{font-size:36px}
+#overlay .sub{font-size:14px;color:#b0bec5;line-height:1.8;max-width:330px}
+#overlay .best{font-size:14px;color:#ffd54f;font-weight:600}
+#overlay .bigscore{font-size:52px;font-weight:800;color:#ba68c8}
+.btn{background:linear-gradient(135deg,#ba68c8,#e1bee7);border:none;color:#2a0f33;font-size:18px;font-weight:700;padding:14px 54px;border-radius:999px;cursor:pointer;box-shadow:0 6px 24px rgba(186,104,200,.4);transition:transform .1s}
+.btn:active{transform:scale(.93)}
+.btn2{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:15px;font-weight:600;padding:11px 34px;border-radius:999px;cursor:pointer;transition:transform .1s}
+.btn2:active{transform:scale(.93)}
+.row{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="hudl">
+    <div class="pill" id="scorePill">得分 0</div>
+    <div class="pill" id="timePill">0.0s</div>
+  </div>
+  <div class="hbtns">
+    <button class="icobtn" id="soundBtn">🔊</button>
+    <button class="icobtn" id="pauseBtn">⏸</button>
+  </div>
+</div>
+<div id="overlay"></div>
+</div>
+<script>
+'use strict';
+var W=480,H=800,CX=240,CY=400,RIN=120,ROUT=205;
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+cv.width=W;cv.height=H;
+var AC=null,soundOn=true;
+function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}return AC;}
+function tone(f,d,type,vol,delay){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(vol||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function noise(d,vol){if(!soundOn)return;try{var c=ac();if(!c)return;var n=(c.sampleRate*d)|0;var b=c.createBuffer(1,n,c.sampleRate);var ch=b.getChannelData(0);for(var i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);var s=c.createBufferSource();s.buffer=b;var g=c.createGain();g.gain.value=vol||0.25;s.connect(g);g.connect(c.destination);s.start();}catch(e){}}
+function toGame(e){var r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
+var lastTouch=0;
+function bindDown(fn){cv.addEventListener('touchstart',function(e){e.preventDefault();lastTouch=Date.now();fn(toGame(e.touches[0]));},{passive:false});cv.addEventListener('mousedown',function(e){if(Date.now()-lastTouch<800)return;fn(toGame(e));});}
+var HSKEY='g100_orbit_hs';
+function getHS(){try{return parseInt(localStorage.getItem(HSKEY),10)||0;}catch(e){return 0;}}
+function setHS(v){try{localStorage.setItem(HSKEY,String(v));}catch(e){}}
+var parts=[],floats=[];
+function boom(x,y,color,n){n=n||20;for(var i=0;i<n;i++){var a=Math.random()*6.2832,s=60+Math.random()*260;parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:0,life:0.5+Math.random()*0.5,color:color,r:2+Math.random()*3.5});}}
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,t:0,color:color||'#fff'});}
+function updParts(dt){for(var i=parts.length-1;i>=0;i--){var p=parts[i];p.t+=dt;if(p.t>=p.life){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;}}
+function drawParts(){for(var i=0;i<parts.length;i++){var p=parts[i];ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.2832);ctx.fill();}ctx.globalAlpha=1;}
+function updFloats(dt){for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.t+=dt;f.y-=40*dt;if(f.t>1)floats.splice(i,1);}}
+function drawFloats(){ctx.textAlign='center';ctx.font='bold 20px sans-serif';for(var i=0;i<floats.length;i++){var f=floats[i];ctx.globalAlpha=Math.max(0,1-f.t);ctx.fillStyle=f.color;ctx.fillText(f.txt,f.x,f.y);}ctx.globalAlpha=1;}
+/* ---------- 游戏状态 ---------- */
+var state='menu',score=0,survive=0;
+var pAng,pR,pTargetR,pW,meteors,trail;
+function angDiff(a,b){var d=Math.abs(a-b)%6.2832;return d>3.1416?6.2832-d:d;}
+function reset(){score=0;survive=0;pAng=0;pR=RIN;pTargetR=RIN;pW=1.1;meteors=[];trail=[];parts=[];floats=[];
+  for(var i=0;i<5;i++)addMeteor();updHUD();}
+function addMeteor(){
+  var r=Math.random()<0.5?RIN:ROUT;
+  var a=Math.random()*6.2832,tries=0;
+  while(tries<30&&Math.abs(r-pR)<30&&angDiff(a,pAng)<1.6){a=Math.random()*6.2832;tries++;}
+  var frac=0.55+Math.random()*0.25;
+  meteors.push({r:r,ang:a,frac:frac,size:13+Math.random()*9,spin:Math.random()*6.28});
+}
+function updHUD(){document.getElementById('scorePill').textContent='得分 '+score;document.getElementById('timePill').textContent=survive.toFixed(1)+'s';}
+function switchOrbit(){pTargetR=(pTargetR===RIN?ROUT:RIN);tone(pTargetR===RIN?500:700,0.09,'sine',0.12);}
+function gameOver(){state='over';var hs=getHS();if(score>hs)setHS(score);var px=CX+Math.cos(pAng)*pR,py=CY+Math.sin(pAng)*pR;boom(px,py,'#ba68c8',40);boom(px,py,'#ffffff',20);noise(0.5,0.35);tone(160,0.5,'sawtooth',0.16);showEnd();}
+function update(dt){
+  survive+=dt;score=(survive*10)|0;
+  pW=Math.min(2.6,pW+dt*0.022);
+  pAng+=pW*dt;
+  pR+=(pTargetR-pR)*Math.min(1,dt*10);
+  trail.push({x:CX+Math.cos(pAng)*pR,y:CY+Math.sin(pAng)*pR,t:0});
+  if(trail.length>26)trail.shift();
+  for(var i=0;i<trail.length;i++)trail[i].t+=dt;
+  var i2;
+  for(i2=0;i2<meteors.length;i2++){var m=meteors[i2];m.ang+=m.frac*pW*dt;m.spin+=dt*2;
+    if(Math.abs(m.r-pR)<30&&angDiff(m.ang,pAng)<0.24){gameOver();return;}}
+  updHUD();updParts(dt);updFloats(dt);
+}
+function render(){
+  var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0a0a18');g.addColorStop(0.55,'#141428');g.addColorStop(1,'#0a0a12');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  for(var i=0;i<70;i++){ctx.fillRect((i*67)%W,(i*97)%H,2,2);}
+  ctx.strokeStyle=pTargetR===RIN?'rgba(186,104,200,.85)':'rgba(186,104,200,.28)';ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(CX,CY,RIN,0,6.2832);ctx.stroke();
+  ctx.strokeStyle=pTargetR===ROUT?'rgba(186,104,200,.85)':'rgba(186,104,200,.28)';
+  ctx.beginPath();ctx.arc(CX,CY,ROUT,0,6.2832);ctx.stroke();
+  var sg=ctx.createRadialGradient(CX,CY,4,CX,CY,44);sg.addColorStop(0,'#fff176');sg.addColorStop(0.6,'#ff9800');sg.addColorStop(1,'rgba(255,152,0,0)');
+  ctx.fillStyle=sg;ctx.beginPath();ctx.arc(CX,CY,44,0,6.2832);ctx.fill();
+  ctx.font='34px sans-serif';ctx.textAlign='center';ctx.fillText('☀️',CX,CY+12);
+  var j;
+  for(j=0;j<meteors.length;j++){var m=meteors[j];var mx=CX+Math.cos(m.ang)*m.r,my=CY+Math.sin(m.ang)*m.r;
+    ctx.save();ctx.translate(mx,my);ctx.rotate(m.spin);
+    ctx.fillStyle='#78909c';ctx.beginPath();
+    for(var k=0;k<7;k++){var aa=k/7*6.2832,rr=m.size*(0.8+((k*37)%30)/100);ctx.lineTo(Math.cos(aa)*rr,Math.sin(aa)*rr);}
+    ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(255,110,80,.9)';ctx.beginPath();ctx.arc(-m.size*0.3,-m.size*0.2,m.size*0.28,0,6.2832);ctx.fill();
+    ctx.restore();}
+  for(j=0;j<trail.length;j++){var tr=trail[j];ctx.globalAlpha=Math.max(0,0.5-tr.t*1.4);ctx.fillStyle='#e1bee7';ctx.beginPath();ctx.arc(tr.x,tr.y,7,0,6.2832);ctx.fill();}
+  ctx.globalAlpha=1;
+  var px=CX+Math.cos(pAng)*pR,py=CY+Math.sin(pAng)*pR;
+  var pg=ctx.createRadialGradient(px,py,2,px,py,20);pg.addColorStop(0,'#ffffff');pg.addColorStop(0.5,'#ce93d8');pg.addColorStop(1,'rgba(186,104,200,0)');
+  ctx.fillStyle=pg;ctx.beginPath();ctx.arc(px,py,20,0,6.2832);ctx.fill();
+  ctx.fillStyle='#f3e5f5';ctx.beginPath();ctx.arc(px,py,9,0,6.2832);ctx.fill();
+  drawParts();drawFloats();
+  if(state==='playing'&&survive>1){ctx.fillStyle='rgba(255,255,255,.35)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('点击切换内 / 外轨道',CX,H-90);}
+}
+var ov=document.getElementById('overlay');
+function showMenu(){state='menu';ov.style.display='flex';ov.innerHTML='<h1>🪐</h1><h1 style="font-size:30px">轨道躲避</h1><div class="sub">小球绕行星公转，<b>点击屏幕切换内 / 外轨道</b>，<br>躲避轨道上的陨石。<br>坚持越久速度越快，看看你能活多久！</div><div class="best">🏆 最高分 '+getHS()+'</div><button class="btn" id="startBtn">开始游戏</button>';
+  document.getElementById('startBtn').addEventListener('click',function(){ac();tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
+function showEnd(){var hs=getHS();ov.style.display='flex';ov.innerHTML='<h1>💥</h1><h1 style="font-size:30px">被陨石击中！</h1><div class="sub">存活 '+survive.toFixed(1)+' 秒</div><div class="bigscore">'+score+'</div><div class="best">🏆 最高分 '+hs+'</div><button class="btn" id="againBtn">再来一局</button>';
+  document.getElementById('againBtn').addEventListener('click',function(){tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
+function pauseGame(){if(state!=='playing')return;state='paused';ov.style.display='flex';ov.innerHTML='<h1>⏸</h1><h1 style="font-size:28px">已暂停</h1><div class="sub">得分 '+score+' · 存活 '+survive.toFixed(1)+'s</div><div class="row"><button class="btn" id="resumeBtn">继续</button><button class="btn2" id="restartBtn">重来</button></div>';
+  document.getElementById('resumeBtn').addEventListener('click',function(){state='playing';ov.style.display='none';});
+  document.getElementById('restartBtn').addEventListener('click',function(){reset();state='playing';ov.style.display='none';});}
+bindDown(function(){if(state==='playing')switchOrbit();});
+document.getElementById('pauseBtn').addEventListener('click',function(){pauseGame();});
+document.getElementById('soundBtn').addEventListener('click',function(){soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)tone(660,0.08,'square',0.1);});
+var last=0;
+function loop(t){requestAnimationFrame(loop);var dt=(t-last)/1000;last=t;if(!(dt>0)||dt>0.05)dt=0.016;if(state==='playing')update(dt);render();}
+reset();showMenu();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
