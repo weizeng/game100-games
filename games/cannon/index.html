@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>炮击堡垒</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d0d16;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#101a2e 0%,#0d0d16 60%,#141020 100%)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none;font-size:15px}
+.hud .left{font-weight:bold;text-shadow:0 0 8px #ff8a65}
+.hud .right{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{width:38px;height:38px;border-radius:50%;border:1px solid #ff8a6555;background:#1c1c2bd9;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,20,.88);backdrop-filter:blur(4px);z-index:10;text-align:center;padding:24px}
+.screen h1{font-size:38px;margin-bottom:6px;background:linear-gradient(135deg,#ff8a65,#ffd740);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.screen p{color:#aaa;font-size:14px;line-height:1.7;margin:12px 0 20px}
+.bigbtn{padding:14px 56px;font-size:18px;border:none;border-radius:30px;background:linear-gradient(135deg,#ff8a65,#ffd740);color:#fff;font-weight:bold;cursor:pointer;transition:transform .1s;box-shadow:0 4px 20px #ff8a6555}
+.bigbtn:active{transform:scale(.93)}
+.score{font-size:52px;font-weight:bold;background:linear-gradient(135deg,#ffd740,#ff8a65);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0}
+.hiscore{color:#888;font-size:14px;margin-bottom:20px}
+.hidden{display:none!important}
+.windtag{position:absolute;top:56px;left:0;right:0;text-align:center;font-size:13px;color:#80d8ff;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div class="hud">
+<div class="left">SCORE <span id="score">0</span> · 炮弹 <span id="shells">12</span> · 堡垒HP <span id="fhp">3</span></div>
+<div class="right"><button class="iconbtn" id="muteBtn">MUTE</button><button class="iconbtn" id="pauseBtn">II</button></div>
+</div>
+<div class="windtag" id="windTag"></div>
+<div class="screen" id="startScr">
+<h1>CANNON</h1>
+<p>手指按住屏幕蓄力（力度条涨落）<br>拖动调整炮管角度，松手开炮<br>注意随机风力影响弹道<br>12 发炮弹，炸毁对面堡垒获胜</p>
+<button class="bigbtn" id="startBtn">开战</button>
+</div>
+<div class="screen hidden" id="overScr">
+<h1 id="overTitle">胜利</h1>
+<div class="score" id="finalScore">0</div>
+<div class="hiscore">最高分：<span id="hiScore">0</span></div>
+<button class="bigbtn" id="retryBtn">再来一局</button>
+</div>
+<div class="screen hidden" id="pauseScr">
+<h1>已暂停</h1>
+<button class="bigbtn" id="resumeBtn">继续</button>
+</div>
+</div>
+<script>
+"use strict";
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),wrap=document.getElementById('wrap');
+var W,H,DPR,groundY;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=wrap.clientWidth;H=wrap.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);groundY=H-70;}
+window.addEventListener('resize',resize);
+var muted=false,AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+function sFire(){tone(120,.3,'sawtooth',.15,500);}
+function sBoom(){tone(80,.5,'sawtooth',.2,30);}
+function sWin(){[523,659,784,1046].forEach(function(f,i){setTimeout(function(){tone(f,.25,'sine',.12);},i*140);});}
+document.getElementById('muteBtn').onclick=function(e){e.stopPropagation();muted=!muted;this.textContent=muted?'OFF':'MUTE';};
+var HIKEY='g100_cannon_hi',hi=0;
+try{hi=parseInt(localStorage.getItem(HIKEY))||0;}catch(e){}
+var state='start',paused=false,score=0;
+var angle,charging,power,powerDir,shell,parts,floats,fort,fhp,shellsLeft,wind,shotCount,stars,endPending;
+var CX=54; // 炮座x
+function rand(a,b){return a+Math.random()*(b-a);}
+function newWind(){wind=Math.round(rand(-5,5));updateWindTag();}
+function updateWindTag(){var a=wind===0?'—':(wind>0?new Array(wind+1).join('→'):new Array(-wind+1).join('←'));
+document.getElementById('windTag').textContent='风力：'+(wind===0?'无风':(wind>0?'+':'')+wind+' '+a);}
+function startGame(){score=0;angle=Math.PI/4;charging=false;power=0;powerDir=1;shell=null;parts=[];floats=[];fhp=3;shellsLeft=12;shotCount=0;stars=[];
+for(var i=0;i<70;i++)stars.push({x:Math.random()*W,y:Math.random()*groundY*.8,s:rand(.5,1.8),p:rand(0,6.28)});
+fort={x:W-70,w:64,h:70};endPending=false;
+newWind();
+document.getElementById('score').textContent='0';
+document.getElementById('shells').textContent=shellsLeft;
+document.getElementById('fhp').textContent=fhp;
+document.getElementById('startScr').classList.add('hidden');document.getElementById('overScr').classList.add('hidden');document.getElementById('pauseScr').classList.add('hidden');
+state='play';paused=false;}
+function endGame(win){state='over';
+if(win){score+=shellsLeft*100;document.getElementById('score').textContent=score;sWin();
+document.getElementById('overTitle').textContent='堡垒攻陷！胜利';}
+else{document.getElementById('overTitle').textContent='炮弹耗尽…失败';}
+document.getElementById('finalScore').textContent=score;
+if(score>hi){hi=score;try{localStorage.setItem(HIKEY,hi);}catch(e){}}
+document.getElementById('hiScore').textContent=hi;
+document.getElementById('overScr').classList.remove('hidden');}
+function fire(){
+shellsLeft--;document.getElementById('shells').textContent=shellsLeft;
+shotCount++;if(shotCount%3===0)newWind();
+var sp=6+power/100*13;
+shell={x:CX+Math.cos(angle)*34,y:groundY-26-Math.sin(angle)*34,vx:Math.cos(angle)*sp,vy:-Math.sin(angle)*sp,trail:[]};
+sFire();}
+function explode(x,y){
+sBoom();
+parts.push({x:x,y:y,vx:0,vy:0,life:22,col:'#ffd740',s:4,boom:true,r:12,maxR:64});
+for(var i=0;i<18;i++){var a=rand(0,6.28),sp=rand(1,5);parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:rand(20,40),col:i%2?'#ff7043':'#8d6e63',s:rand(2,4)});}
+// 是否命中堡垒
+var fx=fort.x,hit=Math.abs(x-fx)<fort.w/2+40&&y>groundY-fort.h-40;
+if(hit){fhp--;document.getElementById('fhp').textContent=fhp;
+score+=200;document.getElementById('score').textContent=score;
+floats.push({x:fx,y:groundY-fort.h,t:'命中 +200',life:50,vy:-1});
+if(fhp<=0){setTimeout(function(){if(state==='play')endGame(true);},500);}}}
+function update(){
+if(state!=='play'||paused)return;
+stars.forEach(function(s){s.p+=.03;});
+if(charging){power+=powerDir*2.2;if(power>=100){power=100;powerDir=-1;}if(power<=0){power=0;powerDir=1;}}
+if(shell){var s=shell;
+s.vx+=wind*.006;
+s.vy+=.28;
+s.x+=s.vx;s.y+=s.vy;
+s.trail.push({x:s.x,y:s.y});if(s.trail.length>16)s.trail.shift();
+// 打中堡垒
+if(s.x>fort.x-fort.w/2-6&&s.x<fort.x+fort.w/2+6&&s.y>groundY-fort.h&&s.y<groundY+6){explode(s.x,s.y);shell=null;}
+else if(s.y>=groundY||s.x>W+20||s.x<-20){explode(Math.min(W,Math.max(0,s.x)),groundY);shell=null;}
+if(!shell&&fhp>0&&shellsLeft<=0&&!endPending&&parts.filter(function(p){return p.boom;}).length===0){endPending=true;setTimeout(function(){if(state==='play'&&shellsLeft<=0&&fhp>0)endGame(false);},700);}}
+for(var p=parts.length-1;p>=0;p--){var pt=parts[p];
+if(pt.boom){pt.r+=(pt.maxR-pt.r)*.25;pt.life--;}
+else{pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=.2;pt.life--;}
+if(pt.life<=0)parts.splice(p,1);}
+for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.y+=fl.vy;fl.life--;if(fl.life<=0)floats.splice(f,1);}
+}
+function draw(){
+ctx.clearRect(0,0,W,H);
+ctx.fillStyle='#fff';stars.forEach(function(s){ctx.globalAlpha=.25+.6*Math.abs(Math.sin(s.p));ctx.fillRect(s.x,s.y,s.s,s.s);});ctx.globalAlpha=1;
+// 地面
+var gg=ctx.createLinearGradient(0,groundY,0,H);gg.addColorStop(0,'#3a3226');gg.addColorStop(1,'#1d1812');
+ctx.fillStyle=gg;ctx.fillRect(0,groundY,W,H-groundY);
+// 堡垒
+var fx=fort.x;
+ctx.fillStyle='#5d4037';ctx.fillRect(fx-fort.w/2,groundY-fort.h,fort.w,fort.h);
+ctx.fillStyle='#8d6e63';ctx.fillRect(fx-fort.w/2,groundY-fort.h,fort.w,10);
+for(var i=0;i<3;i++)ctx.fillRect(fx-fort.w/2+6+i*20,groundY-fort.h-10,10,12); // 城垛
+ctx.fillStyle='#3e2723';ctx.fillRect(fx-10,groundY-26,20,26); // 门
+ctx.fillStyle='#ff5252';ctx.font='bold 13px sans-serif';ctx.fillText('HP'+fhp,fx-14,groundY-fort.h-16);
+// 大炮
+ctx.fillStyle='#455a64';ctx.fillRect(CX-16,groundY-18,32,18);
+ctx.save();ctx.translate(CX,groundY-26);ctx.rotate(-angle);
+var bg=ctx.createLinearGradient(0,0,40,0);bg.addColorStop(0,'#78909c');bg.addColorStop(1,'#37474f');
+ctx.fillStyle=bg;ctx.fillRect(0,-8,44,16);ctx.fillStyle='#263238';ctx.fillRect(38,-10,8,20);ctx.restore();
+ctx.fillStyle='#263238';ctx.beginPath();ctx.arc(CX,groundY-26,8,0,6.28);ctx.fill();
+// 弹道预览点
+if(state==='play'&&!shell){
+ctx.fillStyle='rgba(255,255,255,.25)';
+for(var t=0;t<14;t+=2){var tt=t*.09,sp=6+power/100*13;
+var px=CX+Math.cos(angle)*34+Math.cos(angle)*sp*tt*8;
+var py=groundY-26-Math.sin(angle)*34-Math.sin(angle)*sp*tt*8+.28*Math.pow(tt*8,2)/2;
+if(py<groundY)ctx.fillRect(px,py,3,3);}}
+// 力度条
+if(charging){
+ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(20,60,14,160);
+var hg=ctx.createLinearGradient(0,220,0,60);hg.addColorStop(0,'#66bb6a');hg.addColorStop(.6,'#ffd740');hg.addColorStop(1,'#ff5252');
+ctx.fillStyle=hg;ctx.fillRect(20,220-power*1.6,14,power*1.6);
+ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.fillText(Math.round(power)+'%',12,240);}
+// 炮弹
+if(shell){var s=shell;
+ctx.strokeStyle='rgba(255,213,79,.5)';ctx.lineWidth=2;ctx.beginPath();s.trail.forEach(function(t,i){i?ctx.lineTo(t.x,t.y):ctx.moveTo(t.x,t.y);});ctx.stroke();
+ctx.fillStyle='#212121';ctx.beginPath();ctx.arc(s.x,s.y,7,0,6.28);ctx.fill();
+ctx.fillStyle='#ff7043';ctx.beginPath();ctx.arc(s.x-2,s.y-2,2.5,0,6.28);ctx.fill();}
+parts.forEach(function(p){if(p.boom){ctx.globalAlpha=Math.max(0,p.life/22);var g=ctx.createRadialGradient(p.x,p.y,2,p.x,p.y,p.r);
+g.addColorStop(0,'#fff');g.addColorStop(.5,'#ff9800');g.addColorStop(1,'rgba(255,87,34,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.28);ctx.fill();}
+else{ctx.globalAlpha=Math.max(0,p.life/40);ctx.fillStyle=p.col;ctx.fillRect(p.x,p.y,p.s,p.s);}});ctx.globalAlpha=1;
+ctx.font='bold 15px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/50);ctx.fillStyle='#a5d6a7';ctx.fillText(f.t,f.x-26,f.y);});ctx.globalAlpha=1;
+ctx.fillStyle='#80d8ff';ctx.font='13px sans-serif';
+ctx.fillText('角度 '+Math.round(angle*180/Math.PI)+'°',20,H-16);
+}
+function loop(){update();draw();requestAnimationFrame(loop);}
+resize();loop();
+function posOf(e){var r=cv.getBoundingClientRect();var t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
+function tStart(e){e.preventDefault();if(state!=='play'||paused||shell||shellsLeft<=0)return;
+charging=true;power=0;powerDir=1;}
+function tMove(e){e.preventDefault();if(!charging)return;
+var p=posOf(e);var dx=p.x-CX,dy=(groundY-26)-p.y;
+if(dx>10&&dy>0){angle=Math.max(15*Math.PI/180,Math.min(85*Math.PI/180,Math.atan2(dy,dx)));}}
+function tEnd(e){if(e)e.preventDefault();if(!charging)return;
+charging=false;if(state==='play'&&!paused&&!shell&&shellsLeft>0)fire();power=0;}
+cv.addEventListener('touchstart',tStart,{passive:false});
+cv.addEventListener('touchmove',tMove,{passive:false});
+cv.addEventListener('touchend',tEnd,{passive:false});
+cv.addEventListener('touchcancel',function(e){charging=false;},{passive:false});
+cv.addEventListener('mousedown',tStart);
+cv.addEventListener('mousemove',tMove);
+document.addEventListener('mouseup',tEnd);
+document.getElementById('startBtn').onclick=function(){ac();startGame();};
+document.getElementById('retryBtn').onclick=function(){startGame();};
+document.getElementById('pauseBtn').onclick=function(){if(state!=='play')return;paused=true;charging=false;document.getElementById('pauseScr').classList.remove('hidden');};
+document.getElementById('resumeBtn').onclick=function(){paused=false;document.getElementById('pauseScr').classList.add('hidden');};
+document.addEventListener('visibilitychange',function(){if(document.hidden&&state==='play'&&!paused){paused=true;charging=false;document.getElementById('pauseScr').classList.remove('hidden');}});
+</script>
+</body>
+</html>

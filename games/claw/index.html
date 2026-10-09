@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抓娃娃</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.topbar b{color:#F06292;font-size:22px}
+.iconbtn{background:#1e1e1e;border:1px solid #333;color:#fff;font-size:18px;min-width:40px;height:40px;border-radius:10px;cursor:pointer}
+.iconbtn:active{transform:scale(.92)}
+canvas{background:linear-gradient(180deg,#1d1420 0%,#121212 70%);border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px;border:1px solid #222}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9}
+.btn{background:linear-gradient(135deg,#F06292,#AD1457);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;box-shadow:0 4px 14px rgba(240,98,146,.35)}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;box-shadow:none}
+.hint{color:#888;font-size:13px;text-align:center;line-height:1.7}
+.rowbtns{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🧸 抓娃娃</span><span>得分 <b id="score">0</b></span><span>剩余 <b id="left">10</b> 次</span><span><button class="iconbtn" id="pauseBtn">⏸</button> <button class="iconbtn" id="soundBtn">🔊</button></span></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<p class="hint">爪子自动左右移动，看准时机点击屏幕下抓<br>抓到娃娃送入右侧洞口得分，共 10 次机会</p>
+</div>
+<div class="overlay" id="startScr"><h1>🧸 抓娃娃</h1><p>爪子在顶部自动左右移动<br>👆 点击屏幕任意位置，爪子下抓<br>抓到娃娃会自动送往右侧洞口<br>✨ 金色娃娃价值 50 分，普通 20 分<br>共 10 次机会，用完结算</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">机会用完！</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d'),W=400,H=560;
+let AC=null,soundOn=true;try{soundOn=localStorage.getItem('g100_sound')!=='0';}catch(e){}
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,d,type,vol,when){if(!soundOn)return;const a=ac();if(!a)return;type=type||'sine';vol=vol||0.13;when=when||0;const t=a.currentTime+when;const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}
+function sDown(){tone(180,0.3,'sawtooth',0.06);}
+function sGrab(){[523,659,784].forEach((f,i)=>tone(f,0.14,'triangle',0.13,i*0.08));}
+function sMiss(){tone(220,0.2,'sine',0.1);}
+function sGold(){[784,988,1175,1568].forEach((f,i)=>tone(f,0.16,'triangle',0.13,i*0.07));}
+function getBest(k){try{return parseInt(localStorage.getItem(k)||'0',10)||0;}catch(e){return 0;}}
+function setBest(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+const BESTK='g100_claw_best';
+const EMOJI=['🧸','🐰','🐱','🐶','🦊','🐼','🐷','🐨'];
+const SHELFY=452,CLAW_TOP=118,CHUTE_X=356,HOLE_Y=492;
+let clawX,clawDir,clawY,phase,grabbed,plushes,score,left,state,paused,parts,floats,raf,best,dropP,spawnT;
+
+function newPlush(){const gold=Math.random()<0.12;return{e:gold?'🌟':EMOJI[(Math.random()*EMOJI.length)|0],x:60+Math.random()*250,gold:gold,pts:gold?50:20,pop:0};}
+function reset(){clawX=W/2;clawDir=1;clawY=CLAW_TOP;phase='move';grabbed=null;plushes=[];for(let i=0;i<6;i++)plushes.push(newPlush());score=0;left=10;parts=[];floats=[];paused=false;dropP=null;spawnT=0;$('score').textContent='0';$('left').textContent='10';}
+function startGame(){reset();state='play';hide('startScr');hide('overScr');hide('pauseScr');}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function burst(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=1+Math.random()*3;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:28+Math.random()*16,color});}}
+function gameOver(){if(state!=='play')return;state='over';const b=getBest(BESTK);let best=b;if(score>best){best=score;setBest(BESTK,score);}$('overText').innerHTML='得分：<b style="color:#F06292">'+score+'</b><br>最高分：'+best;show('overScr');}
+function onTap(e){if(state!=='play'||paused)return;ac();if(phase==='move'){phase='down';sDown();}if(e.cancelable)e.preventDefault();}
+cv.addEventListener('touchstart',onTap,{passive:false});
+cv.addEventListener('mousedown',onTap);
+
+function update(){const spd=2.4;
+if(phase==='move'){clawX+=clawDir*spd;if(clawX<56){clawX=56;clawDir=1;}if(clawX>344){clawX=344;clawDir=-1;}}
+else if(phase==='down'){clawY+=5;if(clawY>=SHELFY-8){let bi=-1,bd=1e9;for(let i=0;i<plushes.length;i++){const d=Math.abs(plushes[i].x-clawX);if(d<bd){bd=d;bi=i;}}
+if(bi>=0&&bd<34){grabbed=plushes.splice(bi,1)[0];phase='up';sGrab();}else{phase='up';sMiss();}}}
+else if(phase==='up'){clawY-=5;if(clawY<=CLAW_TOP){clawY=CLAW_TOP;phase='chute';}}
+else if(phase==='chute'){clawX+=Math.sign(CHUTE_X-clawX)*3.4;if(Math.abs(clawX-CHUTE_X)<4){clawX=CHUTE_X;left--;$('left').textContent=left;phase='drop';if(grabbed){dropP={e:grabbed.e,y:clawY+34,vy:0,pts:grabbed.pts,gold:grabbed.gold};}}}
+else if(phase==='drop'){if(dropP){dropP.vy+=0.6;dropP.y+=dropP.vy;if(dropP.y>=HOLE_Y){score+=dropP.pts;floats.push({x:CHUTE_X,y:HOLE_Y-30,t:'+'+dropP.pts,life:55,color:dropP.gold?'#ffd740':'#f8bbd0'});burst(CHUTE_X,HOLE_Y,dropP.gold?'#ffd740':'#f06292',14);if(dropP.gold)sGold();dropP=null;grabbed=null;$('score').textContent=score;spawnT=40;phase='back';if(left<=0){gameOver();return;}}}
+else{phase='back';if(left<=0){gameOver();return;}}}
+else if(phase==='back'){clawX+=Math.sign(W/2-clawX)*3.4;if(Math.abs(clawX-W/2)<4){clawX=W/2;phase='move';}}
+if(spawnT>0){spawnT--;if(spawnT===0&&plushes.length<6)plushes.push(newPlush());}
+for(const pl of plushes)if(pl.pop<1)pl.pop=Math.min(1,pl.pop+0.06);
+for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=0.12;p.life--;}parts=parts.filter(p=>p.life>0);
+for(const f of floats){f.y-=0.8;f.life--;}floats=floats.filter(f=>f.life>0);
+}
+function drawClaw(){ctx.strokeStyle='#90a4ae';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(0,86);ctx.lineTo(W,86);ctx.stroke();
+ctx.strokeStyle='#b0bec5';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(clawX,86);ctx.lineTo(clawX,clawY);ctx.stroke();
+ctx.fillStyle='#78909c';ctx.beginPath();ctx.roundRect(clawX-20,clawY-8,40,16,6);ctx.fill();
+const open=phase==='down'?1.4:1;ctx.strokeStyle='#cfd8dc';ctx.lineWidth=5;ctx.lineCap='round';
+for(const s of[-1,1]){ctx.beginPath();ctx.moveTo(clawX+s*14,clawY+6);ctx.lineTo(clawX+s*22*open,clawY+34);ctx.lineTo(clawX+s*10*open,clawY+44);ctx.stroke();}
+ctx.lineCap='butt';
+if(grabbed&&phase!=='drop'){ctx.font='30px sans-serif';ctx.textAlign='center';ctx.fillText(grabbed.e,clawX,clawY+66);ctx.textAlign='left';}}
+function draw(){ctx.clearRect(0,0,W,H);
+ctx.fillStyle='rgba(240,98,146,.08)';ctx.fillRect(24,100,W-48,H-140);
+ctx.strokeStyle='rgba(255,255,255,.15)';ctx.lineWidth=3;ctx.strokeRect(24,100,W-48,H-140);
+ctx.fillStyle='#3e2723';ctx.fillRect(24,SHELFY,W-48,14);
+ctx.fillStyle='#212121';ctx.beginPath();ctx.ellipse(CHUTE_X,HOLE_Y+6,26,10,0,0,7);ctx.fill();
+ctx.fillStyle='#F06292';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('兑奖口',CHUTE_X,HOLE_Y+34);ctx.textAlign='left';
+for(const pl of plushes){ctx.save();ctx.translate(pl.x,SHELFY-6);ctx.scale(pl.pop,pl.pop);ctx.font='34px sans-serif';ctx.textAlign='center';ctx.fillText(pl.e,0,0);ctx.textAlign='left';ctx.restore();
+if(pl.gold){ctx.fillStyle='#ffd740';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('+50',pl.x,SHELFY-44);ctx.textAlign='left';}}
+drawClaw();
+if(dropP){ctx.font='30px sans-serif';ctx.textAlign='center';ctx.fillText(dropP.e,CHUTE_X,dropP.y);ctx.textAlign='left';}
+for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/44);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/55);ctx.fillStyle=f.color;ctx.font='bold 20px sans-serif';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
+if(phase==='move'){ctx.fillStyle='rgba(255,255,255,.6)';ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('👆 点击屏幕下抓',W/2,H-24);ctx.textAlign='left';}
+}
+function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused)update();draw();}
+$('startBtn').onclick=()=>{ac();startGame();};
+$('restartBtn').onclick=()=>{ac();startGame();};
+$('restartBtn2').onclick=()=>{ac();startGame();};
+$('resumeBtn').onclick=()=>{paused=false;hide('pauseScr');};
+$('pauseBtn').onclick=()=>{if(state!=='play')return;paused=!paused;if(paused)show('pauseScr');else hide('pauseScr');};
+$('soundBtn').onclick=function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}this.textContent=soundOn?'🔊':'🔇';};
+$('soundBtn').textContent=soundOn?'🔊':'🔇';
+state='start';reset();loop();
+</script>
+</body>
+</html>
