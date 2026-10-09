@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>钢琴块</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.topbar b{color:#AB47BC;font-size:22px}
+.iconbtn{background:#1e1e1e;border:1px solid #333;color:#fff;font-size:18px;min-width:40px;height:40px;border-radius:10px;cursor:pointer}
+.iconbtn:active{transform:scale(.92)}
+canvas{background:linear-gradient(180deg,#14101c 0%,#121212 80%);border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px;border:1px solid #222}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9}
+.btn{background:linear-gradient(135deg,#AB47BC,#6A1B9A);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;box-shadow:0 4px 14px rgba(171,71,188,.35)}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;box-shadow:none}
+.hint{color:#888;font-size:13px;text-align:center;line-height:1.7}
+.rowbtns{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>🎹 钢琴块</span><span>得分 <b id="score">0</b></span><span><button class="iconbtn" id="pauseBtn">⏸</button> <button class="iconbtn" id="soundBtn">🔊</button></span></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<p class="hint">黑块落下前点击它，会弹出钢琴音<br>点错白块或漏掉黑块即结束，速度越来越快</p>
+</div>
+<div class="overlay" id="startScr"><h1>🎹 钢琴块</h1><p>4 列黑块不断下落<br>在黑块掉出屏幕前点击它<br>每次点击弹出一个钢琴音阶<br>⚠️ 点到白色区域立即结束<br>⚠️ 漏掉任何黑块也结束<br>速度随得分不断提升</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d'),W=400,H=560;
+let AC=null,soundOn=true;try{soundOn=localStorage.getItem('g100_sound')!=='0';}catch(e){}
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function pianoNote(semi){if(!soundOn)return;const a=ac();if(!a)return;const f=261.63*Math.pow(2,semi/12);const t=a.currentTime;const o=a.createOscillator(),g=a.createGain();o.type='triangle';o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.22,t+0.015);g.gain.exponentialRampToValueAtTime(0.0001,t+0.9);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+1);
+const o2=a.createOscillator(),g2=a.createGain();o2.type='sine';o2.frequency.value=f*2;g2.gain.setValueAtTime(0.0001,t);g2.gain.exponentialRampToValueAtTime(0.07,t+0.015);g2.gain.exponentialRampToValueAtTime(0.0001,t+0.5);o2.connect(g2);g2.connect(a.destination);o2.start(t);o2.stop(t+0.6);}
+function sBad(){if(!soundOn)return;const a=ac();if(!a)return;const t=a.currentTime;const o=a.createOscillator(),g=a.createGain();o.type='sawtooth';o.frequency.value=140;g.gain.setValueAtTime(0.2,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.5);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+0.55);}
+function getBest(k){try{return parseInt(localStorage.getItem(k)||'0',10)||0;}catch(e){return 0;}}
+function setBest(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+const BESTK='g100_piano_best';
+const COLS=4,CW=W/COLS,TILEH=150,GAP=150;
+const SCALE=[0,2,4,5,7,9,11,12,14,16,17,19,21,23,24,26,28,29,31,33,35,36];
+let tiles,score,state,paused,speed,parts,floats,raf,best,noteIdx,travel;
+
+function reset(){tiles=[];score=0;noteIdx=0;travel=0;parts=[];floats=[];paused=false;let y=-TILEH;for(let i=0;i<5;i++){tiles.push({col:(Math.random()*COLS)|0,y:y,hit:false,flash:0});y-=GAP;}$('score').textContent='0';}
+function curSpeed(){return Math.min(9.5,2.6+score*0.045);}
+function startGame(){reset();state='play';hide('startScr');hide('overScr');hide('pauseScr');}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function burst(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=1+Math.random()*3;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:28+Math.random()*16,color});}}
+function gameOver(reason){if(state!=='play')return;state='over';sBad();best=getBest(BESTK);if(score>best){best=score;setBest(BESTK,score);}$('overTitle').textContent=reason==='miss'?'漏掉了黑块！':'点错了！';$('overText').innerHTML='得分：<b style="color:#AB47BC">'+score+'</b><br>最高分：'+best;show('overScr');}
+function ppos(e){const r=cv.getBoundingClientRect();const p=e.touches&&e.touches[0]?e.touches[0]:e;return{x:(p.clientX-r.left)/r.width*W,y:(p.clientY-r.top)/r.height*H};}
+function onTap(e){if(state!=='play'||paused)return;ac();const p=ppos(e);const col=Math.max(0,Math.min(COLS-1,Math.floor(p.x/CW)));let cand=null;for(const t of tiles){if(t.col===col&&!t.hit&&t.y>-20&&t.y<H-40){if(!cand||t.y>cand.y)cand=t;}}
+if(cand){cand.hit=true;cand.flash=12;score++;noteIdx++;pianoNote(SCALE[(noteIdx-1)%SCALE.length]);burst(col*CW+CW/2,cand.y+TILEH/2,'#AB47BC',8);floats.push({x:col*CW+CW/2,y:cand.y+40,t:'+1',life:36});$('score').textContent=score;}
+else{gameOver('wrong');}
+if(e.cancelable)e.preventDefault();}
+cv.addEventListener('touchstart',onTap,{passive:false});
+cv.addEventListener('mousedown',onTap);
+
+function draw(){ctx.clearRect(0,0,W,H);
+ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+for(let i=1;i<COLS;i++){ctx.beginPath();ctx.moveTo(i*CW,0);ctx.lineTo(i*CW,H);ctx.stroke();}
+ctx.strokeStyle='rgba(171,71,188,.8)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,H-40);ctx.lineTo(W,H-40);ctx.stroke();
+ctx.fillStyle='rgba(171,71,188,.15)';ctx.fillRect(0,H-40,W,40);
+for(const t of tiles){const x=t.col*CW+4,y=t.y,w=CW-8,h=TILEH-8;
+if(t.hit){ctx.fillStyle='rgba(171,71,188,'+(0.25+t.flash*0.04)+')';}else{const g=ctx.createLinearGradient(0,y,0,y+h);g.addColorStop(0,'#2b2b3d');g.addColorStop(1,'#15151f');ctx.fillStyle=g;}
+ctx.beginPath();ctx.roundRect(x,y,w,h,10);ctx.fill();
+if(!t.hit){ctx.fillStyle='rgba(171,71,188,.5)';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('♪',x+w/2,y+h/2+5);ctx.textAlign='left';}}
+for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/44);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/36);ctx.fillStyle='#e1bee7';ctx.font='bold 18px sans-serif';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
+ctx.fillStyle='#888';ctx.font='12px sans-serif';ctx.fillText('速度 '+curSpeed().toFixed(1),10,20);
+}
+function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){speed=curSpeed();travel+=speed;for(const t of tiles){t.y+=speed;if(t.flash>0)t.flash--;}
+while(travel>=GAP){travel-=GAP;let minY=Infinity;for(const t of tiles)minY=Math.min(minY,t.y);tiles.push({col:(Math.random()*COLS)|0,y:minY-GAP,hit:false,flash:0});}
+tiles=tiles.filter(t=>t.y<H+60);
+for(const t of tiles){if(!t.hit&&t.y+TILEH>H-40){gameOver('miss');break;}}
+for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.life--;}parts=parts.filter(p=>p.life>0);
+for(const f of floats){f.y-=0.7;f.life--;}floats=floats.filter(f=>f.life>0);}
+draw();}
+$('startBtn').onclick=()=>{ac();startGame();};
+$('restartBtn').onclick=()=>{ac();startGame();};
+$('restartBtn2').onclick=()=>{ac();startGame();};
+$('resumeBtn').onclick=()=>{paused=false;hide('pauseScr');};
+$('pauseBtn').onclick=()=>{if(state!=='play')return;paused=!paused;if(paused)show('pauseScr');else hide('pauseScr');};
+$('soundBtn').onclick=function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}this.textContent=soundOn?'🔊':'🔇';};
+$('soundBtn').textContent=soundOn?'🔊':'🔇';
+state='start';reset();loop();
+</script>
+</body>
+</html>

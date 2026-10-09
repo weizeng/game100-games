@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>点球大战 - 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b0b10;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#f0f0f5;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#0e1c12 0%,#0b0f0c 60%,#0d1510 100%);overflow:hidden}
+canvas{display:block;width:100%;touch-action:none}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;z-index:5;background:linear-gradient(180deg,rgba(0,0,0,.6),transparent);pointer-events:none}
+#hud .t{font-size:14px;font-weight:700}
+#hud .s{font-size:13px;color:#a8e6a3;font-weight:700;margin-top:2px}
+#hud .btns{pointer-events:auto;display:flex;gap:8px}
+.ib{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ib:active{transform:scale(.9)}
+.ov{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,8,6,.94);padding:24px;text-align:center}
+.ov h1{font-size:30px;margin-bottom:4px}
+.ov h2{font-size:24px;margin-bottom:6px}
+.ov p{font-size:14px;color:#b9c9ba;line-height:1.8;margin:10px 0 18px;max-width:330px}
+.bb{font-size:17px;font-weight:700;color:#fff;border:none;border-radius:999px;padding:13px 44px;background:linear-gradient(135deg,#2fbf5f,#1a7f8f);box-shadow:0 6px 20px rgba(47,191,95,.35);cursor:pointer;transition:transform .08s;margin:5px}
+.bb:active{transform:scale(.94)}
+.bb.ghost{background:linear-gradient(135deg,#4a4a5c,#33333f);box-shadow:none}
+.score{font-size:40px;font-weight:800;color:#a8e6a3;margin:4px 0}
+.best{font-size:13px;color:#9a9ab0;margin-top:10px}
+.hide{display:none!important}
+#tip{position:absolute;bottom:86px;left:0;right:0;text-align:center;font-size:14px;font-weight:700;color:#fff;z-index:4;pointer-events:none;text-shadow:0 1px 4px #000;padding:0 20px}
+#diveBtns{position:absolute;bottom:16px;left:0;right:0;display:flex;justify-content:center;gap:14px;z-index:6}
+#diveBtns button{font-size:15px;font-weight:700;color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:12px;padding:10px 22px;background:rgba(255,255,255,.12);cursor:pointer}
+#diveBtns button:active{transform:scale(.92);background:rgba(255,255,255,.25)}
+#roundDots{position:absolute;top:64px;left:0;right:0;text-align:center;font-size:15px;z-index:4;pointer-events:none;letter-spacing:3px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="360" height="540"></canvas>
+<div id="hud"><div><div class="t">⚽ 点球大战</div><div class="s" id="hs">你 0 : 0 对手</div></div><div class="btns"><button class="ib" id="snd">🔊</button><button class="ib" id="pz">⏸</button></div></div>
+<div id="roundDots"></div>
+<div id="tip"></div>
+<div id="diveBtns" class="hide"><button data-z="0">⬅ 左扑</button><button data-z="2">中间</button><button data-z="4">右扑 ➡</button></div>
+<div class="ov" id="ovStart"><h1>⚽ 点球大战</h1><p>上半场你主罚：手指从球向上滑动射门<br>方向决定角度，速度决定球速<br>下半场你守门：看对方助跑方向选边扑救<br>各 5 轮，进球多者胜</p><button class="bb" id="btnStart">开球</button><div class="best" id="bestStart"></div></div>
+<div class="ov hide" id="ovPause"><h2>⏸ 已暂停</h2><br><button class="bb" id="btnResume">继续</button><button class="bb ghost" id="btnRestart1">重新开始</button></div>
+<div class="ov hide" id="ovEnd"><h2 id="endTitle">🏁 比赛结束</h2><div class="score" id="endScore">0 : 0</div><div class="best" id="endBest"></div><button class="bb" id="btnRestart2">再战一场</button></div>
+</div>
+<script>
+(function(){
+"use strict";
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),W=360,H=540;
+var $=function(id){return document.getElementById(id);};
+/* 音频 */
+var AC=null,soundOn=true;
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,slide,delay){if(!soundOn)return;var a=ac();if(!a)return;try{var t0=a.currentTime+(delay||0);var o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t0);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t0+d);g.gain.setValueAtTime(v||.1,t0);g.gain.exponentialRampToValueAtTime(.001,t0+d);o.connect(g);g.connect(a.destination);o.start(t0);o.stop(t0+d+.03);}catch(e){}}
+var sfx={
+ click:function(){tone(620,.06,'square',.06);},
+ kick:function(){tone(180,.15,'sawtooth',.12,-80);},
+ goal:function(){var fs=[523,659,784,1046];for(var i=0;i<fs.length;i++)tone(fs[i],.25,'triangle',.11,0,i*.08);},
+ save:function(){tone(300,.2,'square',.1,-150);},
+ post:function(){tone(900,.25,'square',.08,-200);},
+ whistle:function(){tone(2200,.4,'square',.07);tone(2200,.5,'square',.07,0,.5);},
+ win:function(){var fs=[523,659,784,1046,1318];for(var i=0;i<fs.length;i++)tone(fs[i],.3,'triangle',.11,0,i*.12);}
+};
+/* 战绩 */
+var KEY='game100_penalty_best';
+function getBest(){try{return localStorage.getItem(KEY)||'0胜0平0负';}catch(e){return '0胜0平0负';}}
+function setBest(v){try{localStorage.setItem(KEY,v);}catch(e){}}
+function parseRec(s){var m=/(\d+)胜(\d+)平(\d+)负/.exec(s||'');return m?[+m[1],+m[2],+m[3]]:[0,0,0];}
+/* 常量 */
+var GX0=70,GX1=290,GY0=110,GY1=200,BALL_Y=440;
+var ZONES=[85,135,180,225,275]; // 5 个扑救分区中心
+/* 状态 */
+var phase='menu',paused=false,half=0,round=0,myGoals=0,aiGoals=0,gameId=0;
+var ball=null,keeper={x:180,y:165,tx:180,ty:165},swipe=null,parts=[],floaters=[];
+var aiAimZone=2,defendLock=false,msgTimer=0;
+function newGame(){
+ gameId++;
+ half=0;round=0;myGoals=0;aiGoals=0;parts=[];floaters=[];paused=false;defendLock=false;
+ $('ovStart').classList.add('hide');$('ovEnd').classList.add('hide');$('ovPause').classList.add('hide');
+ $('diveBtns').classList.add('hide');
+ resetKick();phase='shootAim';hud();dots();tip('第 1 轮：向上滑动射门！');loop();
+}
+function resetKick(){ball={x:180,y:BALL_Y,vx:0,vy:0,tx:180,ty:150,t:0,fly:false};keeper.x=180;keeper.y=165;keeper.tx=180;keeper.ty=165;}
+function hud(){$('hs').textContent=(half===0?'🟢 你主罚':'🔴 你守门')+' · 你 '+myGoals+' : '+aiGoals+' 对手';}
+function dots(){
+ var s='';
+ for(var i=0;i<5;i++)s+=i<round?'✅':'⚪';
+ $('roundDots').textContent=(half===0?'主罚':'守门')+' '+s;
+}
+function tip(s){$('tip').textContent=s;}
+/* ---- 主罚 ---- */
+function doShoot(dx,dy){
+ if(phase!=='shootAim')return;
+ if(dy<30){tip('力度太小，再用力向上滑！');return;}
+ var tx=180+dx*1.15,ty=158-dy*0.55;
+ tx=Math.max(GX0+6,Math.min(GX1-6,tx));
+ ty=Math.max(GY0+8,Math.min(GY1-4,ty));
+ var sp=Math.min(6+dy*0.03,13);
+ ball.tx=tx;ball.ty=ty;ball.t=0;
+ ball.vx=(tx-ball.x)/28;ball.vy=(ty-ball.y)/28;
+ ball.fly=true;phase='shootFly';
+ // 门将 AI：40% 猜对方向，其余随机
+ var zone=nearestZone(tx);
+ var kz;
+ if(Math.random()<0.42)kz=zone;else kz=Math.floor(Math.random()*5);
+ // 球速越快门将越难扑远角
+ keeper.tx=ZONES[kz];keeper.ty=165+(ty>170?14:-6);
+ sfx.kick();tip('');
+}
+function nearestZone(x){
+ var best=0,bd=1e9;
+ for(var i=0;i<5;i++){var d=Math.abs(x-ZONES[i]);if(d<bd){bd=d;best=i;}}
+ return best;
+}
+function resolveShoot(){
+ // 是否被扑
+ var kd=Math.hypot(keeper.x-ball.tx,keeper.y-ball.ty);
+ var post=(ball.tx<GX0+14||ball.tx>GX1-14)&&Math.random()<0.3;
+ var res;
+ if(post){res='post';sfx.post();burst(ball.tx,GY0,10,'#ffd76a');addFloater('🟥 中柱！',180,260,'#ff8a8a');}
+ else if(kd<42){res='save';sfx.save();burst(keeper.x,keeper.y,10,'#7cc4ff');addFloater('🧤 被扑出！',180,260,'#7cc4ff');}
+ else{res='goal';myGoals++;sfx.goal();burst(ball.tx,ball.ty,22,'#a8e6a3');addFloater('⚽ GOAL！',180,260,'#a8e6a3');}
+ var gid=gameId;
+ setTimeout(function(){if(gid===gameId)nextRound();},1100);
+ phase='shootDone';hud();
+}
+function nextRound(){
+ round++;hud();dots();
+ if(round>=5){
+  if(half===0){half=1;round=0;startDefend();}
+  else{finish();return;}
+ }else{
+  if(half===0){resetKick();phase='shootAim';tip('第 '+(round+1)+' 轮：向上滑动射门！');}
+  else{startDefend();}
+ }
+}
+/* ---- 守门 ---- */
+function startDefend(){
+ resetKick();phase='defendWait';defendLock=false;
+ // AI 选择射门分区，70% 按助跑方向
+ aiAimZone=Math.floor(Math.random()*5);
+ var hintZone=Math.random()<0.7?aiAimZone:Math.floor(Math.random()*5);
+ ball.tx=ZONES[aiAimZone];ball.ty=130+Math.random()*55;
+ ball.hint=hintZone;
+ $('diveBtns').classList.remove('hide');
+ tip('看助跑方向，选边扑救！');
+ msgTimer=setTimeout(function(){
+  if(phase==='defendWait'){ // 超时未选，默认中间
+   defend(2,true);
+  }
+ },1600);
+ hud();dots();
+}
+function defend(z,auto){
+ if(phase!=='defendWait'||defendLock)return;
+ defendLock=true;clearTimeout(msgTimer);
+ $('diveBtns').classList.add('hide');
+ keeper.tx=ZONES[z];keeper.ty=165;
+ ball.vx=(ball.tx-ball.x)/26;ball.vy=(ball.ty-ball.y)/26;
+ ball.fly=true;phase='defendFly';
+ sfx.kick();tip(auto?'你慢了一步…':'');
+}
+function resolveDefend(){
+ var kd=Math.hypot(keeper.x-ball.tx,keeper.y-ball.ty);
+ var res;
+ if(kd<46){res='save';sfx.save();burst(keeper.x,keeper.y,12,'#7cc4ff');addFloater('🧤 扑出！',180,260,'#7cc4ff');}
+ else{res='goal';aiGoals++;sfx.goal();burst(ball.tx,ball.ty,20,'#ffb066');addFloater('⚽ 对手进球…',180,260,'#ffb066');}
+ var gid2=gameId;
+ setTimeout(function(){if(gid2===gameId)nextRound();},1100);
+ phase='defendDone';hud();
+}
+function finish(){
+ phase='end';$('diveBtns').classList.add('hide');
+ var rec=parseRec(getBest());
+ var title,sub;
+ if(myGoals>aiGoals){title='🏆 你赢了！';rec[0]++;sfx.win();}
+ else if(myGoals<aiGoals){title='😞 惜败…';rec[2]++;sfx.whistle();}
+ else{title='🤝 握手言和';rec[1]++;sfx.whistle();}
+ setBest(rec[0]+'胜'+rec[1]+'平'+rec[2]+'负');
+ $('endScore').textContent='你 '+myGoals+' : '+aiGoals+' 对手';
+ $('endTitle').textContent=title;
+ $('endBest').textContent='总战绩：'+rec[0]+'胜'+rec[1]+'平'+rec[2]+'负';
+ var gid3=gameId;
+ setTimeout(function(){if(gid3===gameId)$('ovEnd').classList.remove('hide');},700);
+}
+/* 特效 */
+function burst(x,y,n,color){for(var i=0;i<n;i++){var a=Math.random()*Math.PI*2,sp=1+Math.random()*2.6;parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,color:color,r:1.5+Math.random()*2.5});}}
+function addFloater(txt,x,y,color){floaters.push({txt:txt,x:x,y:y,life:1.5,color:color});}
+function fx(){var i;
+ for(i=parts.length-1;i>=0;i--){var p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.07;p.life-=0.03;if(p.life<=0)parts.splice(i,1);}
+ for(i=floaters.length-1;i>=0;i--){var f=floaters[i];f.y-=0.7;f.life-=0.025;if(f.life<=0)floaters.splice(i,1);}
+}
+/* 绘制 */
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ var g=ctx.createLinearGradient(0,0,0,H);
+ g.addColorStop(0,'#122716');g.addColorStop(1,'#0b0f0c');
+ ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ // 草地条纹
+ ctx.fillStyle='rgba(255,255,255,.04)';
+ for(var i=0;i<6;i++)ctx.fillRect(0,90+i*72,W,32);
+ // 球门
+ ctx.fillStyle='rgba(255,255,255,.08)';ctx.fillRect(GX0-16,GY0-24,GX1-GX0+32,GY1-GY0+30);
+ ctx.strokeStyle='#fff';ctx.lineWidth=5;
+ ctx.beginPath();ctx.moveTo(GX0,GY1);ctx.lineTo(GX0,GY0);ctx.lineTo(GX1,GY0);ctx.lineTo(GX1,GY1);ctx.stroke();
+ ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;
+ for(var nx=GX0+18;nx<GX1;nx+=18){ctx.beginPath();ctx.moveTo(nx,GY0);ctx.lineTo(nx,GY1);ctx.stroke();}
+ for(var ny=GY0+16;ny<GY1;ny+=16){ctx.beginPath();ctx.moveTo(GX0,ny);ctx.lineTo(GX1,ny);ctx.stroke();}
+ // 点球点
+ ctx.fillStyle='rgba(255,255,255,.6)';ctx.beginPath();ctx.arc(180,BALL_Y,3,0,7);ctx.fill();
+ // 门将
+ drawKeeper(keeper.x,keeper.y);
+ // 助跑方向提示（守门时）
+ if(phase==='defendWait'){
+  ctx.font='26px sans-serif';ctx.textAlign='center';
+  var arrow=ball.hint<2?'↙':(ball.hint>2?'↘':'⬆');
+  ctx.fillText(arrow,180,120);
+  ctx.font='12px sans-serif';ctx.fillStyle='#ffd76a';
+  ctx.fillText('对方助跑方向',180,142);ctx.fillStyle='#fff';
+ }
+ // 球
+ if(ball){
+  ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(ball.x+2,ball.y+3,10,4,0,0,7);ctx.fill();
+  var bg=ctx.createRadialGradient(ball.x-3,ball.y-3,2,ball.x,ball.y,11);
+  bg.addColorStop(0,'#ffffff');bg.addColorStop(1,'#b9bec6');
+  ctx.fillStyle=bg;ctx.beginPath();ctx.arc(ball.x,ball.y,10,0,7);ctx.fill();
+  ctx.fillStyle='#222';
+  ctx.beginPath();ctx.arc(ball.x,ball.y-3,3,0,7);ctx.fill();
+  ctx.beginPath();ctx.arc(ball.x-4,ball.y+3,2.4,0,7);ctx.fill();
+  ctx.beginPath();ctx.arc(ball.x+4,ball.y+3,2.4,0,7);ctx.fill();
+ }
+ // 瞄准虚线
+ if(phase==='shootAim'&&swipe){
+  ctx.strokeStyle='rgba(255,215,106,.7)';ctx.setLineDash([6,6]);ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(180,BALL_Y);
+  ctx.lineTo(180+swipe.dx*1.4,BALL_Y-swipe.dy*1.4);ctx.stroke();ctx.setLineDash([]);
+ }
+ // 粒子
+ for(var j=0;j<parts.length;j++){var pt=parts[j];ctx.globalAlpha=Math.max(0,pt.life);ctx.fillStyle=pt.color;ctx.beginPath();ctx.arc(pt.x,pt.y,pt.r,0,7);ctx.fill();}
+ ctx.globalAlpha=1;ctx.textAlign='center';
+ for(j=0;j<floaters.length;j++){var fl=floaters[j];ctx.globalAlpha=Math.max(0,Math.min(1,fl.life));ctx.fillStyle=fl.color;ctx.font='bold 22px sans-serif';ctx.fillText(fl.txt,fl.x,fl.y);}
+ ctx.globalAlpha=1;
+}
+function drawKeeper(x,y){
+ ctx.fillStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.ellipse(x,y+26,14,5,0,0,7);ctx.fill();
+ ctx.fillStyle='#e0395f'; // 衣服
+ ctx.fillRect(x-11,y-8,22,24);
+ ctx.fillStyle='#f2c89b';ctx.beginPath();ctx.arc(x,y-16,9,0,7);ctx.fill(); // 头
+ ctx.fillStyle='#222';ctx.beginPath();ctx.arc(x-9,y+2,5,0,7);ctx.fill();ctx.beginPath();ctx.arc(x+9,y+2,5,0,7);ctx.fill(); // 手套
+ ctx.fillStyle='#333';ctx.fillRect(x-9,y+16,7,12);ctx.fillRect(x+2,y+16,7,12);
+}
+function step(){
+ // 门将移动
+ keeper.x+=(keeper.tx-keeper.x)*0.16;
+ keeper.y+=(keeper.ty-keeper.y)*0.16;
+ if(ball&&ball.fly){
+  ball.x+=ball.vx;ball.y+=ball.vy;
+  var d=Math.hypot(ball.tx-ball.x,ball.ty-ball.y);
+  if(d<6||ball.y<GY0-10){ball.x=ball.tx;ball.y=ball.ty;ball.fly=false;
+   if(phase==='shootFly')resolveShoot();
+   else if(phase==='defendFly')resolveDefend();
+  }
+ }
+}
+function loop(){if(paused)return;step();fx();draw();requestAnimationFrame(loop);}
+/* 输入 */
+function cpos(e){var t=(e.touches&&e.touches.length)?e.touches[0]:(e.changedTouches&&e.changedTouches.length?e.changedTouches[0]:e);var r=cv.getBoundingClientRect();return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
+cv.addEventListener('touchstart',function(e){e.preventDefault();ac();var p=cpos(e);
+ if(phase==='shootAim'&&Math.hypot(p.x-180,p.y-BALL_Y)<80)swipe={sx:p.x,sy:p.y,dx:0,dy:0};
+},{passive:false});
+cv.addEventListener('touchmove',function(e){e.preventDefault();
+ if(swipe){var p=cpos(e);swipe.dx=p.x-swipe.sx;swipe.dy=swipe.sy-p.y;}
+},{passive:false});
+cv.addEventListener('touchend',function(e){e.preventDefault();
+ if(swipe){doShoot(swipe.dx,swipe.dy);swipe=null;}
+},{passive:false});
+var mD=false,mS=null;
+cv.addEventListener('mousedown',function(e){ac();var p=cpos(e);
+ if(phase==='shootAim'&&Math.hypot(p.x-180,p.y-BALL_Y)<80){mD=true;mS={sx:p.x,sy:p.y,dx:0,dy:0};swipe=mS;}
+});
+cv.addEventListener('mousemove',function(e){if(mD&&mS){var p=cpos(e);mS.dx=p.x-mS.sx;mS.dy=mS.sy-p.y;}});
+cv.addEventListener('mouseup',function(){if(mD&&mS){doShoot(mS.dx,mS.dy);}mD=false;mS=null;swipe=null;});
+var dbtns=document.querySelectorAll('#diveBtns button');
+for(var bi=0;bi<dbtns.length;bi++){
+ (function(b){b.addEventListener('click',function(){ac();sfx.click();defend(parseInt(b.getAttribute('data-z'),10),false);});})(dbtns[bi]);
+}
+/* 按钮 */
+function togglePause(f){if(phase==='menu'||phase==='end')return;paused=(typeof f==='boolean')?f:!paused;$('ovPause').classList.toggle('hide',!paused);if(!paused)loop();}
+$('pz').addEventListener('click',function(){sfx.click();togglePause();});
+$('snd').addEventListener('click',function(){soundOn=!soundOn;$('snd').textContent=soundOn?'🔊':'🔇';if(soundOn)sfx.click();});
+$('btnStart').addEventListener('click',function(){ac();sfx.click();newGame();});
+$('btnResume').addEventListener('click',function(){sfx.click();togglePause(false);});
+$('btnRestart1').addEventListener('click',function(){sfx.click();newGame();});
+$('btnRestart2').addEventListener('click',function(){sfx.click();newGame();});
+$('bestStart').textContent='历史战绩：'+getBest();
+draw();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>戳泡泡</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.topbar b{color:#4DD0E1;font-size:22px}
+.iconbtn{background:#1e1e1e;border:1px solid #333;color:#fff;font-size:18px;min-width:40px;height:40px;border-radius:10px;cursor:pointer}
+.iconbtn:active{transform:scale(.92)}
+canvas{background:linear-gradient(180deg,#0e1a1e 0%,#121212 70%);border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px;border:1px solid #222}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.overlay h1{font-size:30px}
+.overlay p{color:#bbb;font-size:15px;line-height:1.9}
+.btn{background:linear-gradient(135deg,#4DD0E1,#00838F);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;box-shadow:0 4px 14px rgba(77,208,225,.35)}
+.btn:active{transform:scale(.95)}
+.btn.ghost{background:#2a2a2a;box-shadow:none}
+.hint{color:#888;font-size:13px;text-align:center;line-height:1.7}
+.rowbtns{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar"><span>💥 戳泡泡</span><span>得分 <b id="score">0</b></span><span>❤️<b id="miss">5</b></span><span><button class="iconbtn" id="pauseBtn">⏸</button> <button class="iconbtn" id="soundBtn">🔊</button></span></div>
+<canvas id="cv" width="400" height="560"></canvas>
+<p class="hint">彩色泡泡从底部上浮，点击戳破<br>连续戳破触发连击加成，漏掉 5 个结束<br>✨ 金色泡泡分值更高</p>
+</div>
+<div class="overlay" id="startScr"><h1>💥 戳泡泡</h1><p>彩色泡泡不断从底部上浮<br>👆 点击泡泡即可戳破<br>🔥 1 秒内连续戳破可累积连击<br>连击越高，每次得分越多<br>✨ 金色泡泡 = 5 倍分<br>漏掉 5 个泡泡则游戏结束<br>泡泡会越来越快、越来越多</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
+<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d'),W=400,H=560;
+let AC=null,soundOn=true;try{soundOn=localStorage.getItem('g100_sound')!=='0';}catch(e){}
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,d,type,vol,when){if(!soundOn)return;const a=ac();if(!a)return;type=type||'sine';vol=vol||0.13;when=when||0;const t=a.currentTime+when;const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}
+function sPop(combo){tone(500+Math.min(combo,20)*30,0.1,'triangle',0.14);tone(750+Math.min(combo,20)*30,0.08,'sine',0.08,0.03);}
+function sGold(){[880,1108,1318].forEach((f,i)=>tone(f,0.12,'triangle',0.13,i*0.05));}
+function sMiss(){tone(200,0.25,'sawtooth',0.1);}
+function getBest(k){try{return parseInt(localStorage.getItem(k)||'0',10)||0;}catch(e){return 0;}}
+function setBest(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+const BESTK='g100_pop_best';
+const BCOL=['#4dd0e1','#f06292','#ffd54f','#aed581','#ba68c8','#ff8a65'];
+let bubbles,score,miss,state,paused,combo,comboT,parts,floats,raf,best,elapsed,spawnT;
+
+function reset(){bubbles=[];score=0;miss=0;combo=0;comboT=0;parts=[];floats=[];paused=false;elapsed=0;spawnT=30;$('score').textContent='0';$('miss').textContent='5';}
+function startGame(){reset();state='play';hide('startScr');hide('overScr');hide('pauseScr');}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function burst(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=1+Math.random()*3;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:26+Math.random()*16,color});}}
+function gameOver(){if(state!=='play')return;state='over';const b=getBest(BESTK);let best=b;if(score>best){best=score;setBest(BESTK,score);}$('overText').innerHTML='得分：<b style="color:#4DD0E1">'+score+'</b><br>最高分：'+best;show('overScr');}
+function ppos(e){const r=cv.getBoundingClientRect();const p=e.touches&&e.touches[0]?e.touches[0]:e;return{x:(p.clientX-r.left)/r.width*W,y:(p.clientY-r.top)/r.height*H};}
+function onTap(e){if(state!=='play'||paused)return;ac();const p=ppos(e);let hit=null,hd=1e9;
+for(const b of bubbles){const d=Math.hypot(b.x-p.x,b.y-p.y);if(d<b.r+8&&d<hd){hd=d;hit=b;}}
+if(hit){bubbles.splice(bubbles.indexOf(hit),1);combo=comboT>0?combo+1:1;comboT=60;
+const gain=hit.gold?50+combo*5:10+combo*2;score+=gain;
+floats.push({x:hit.x,y:hit.y,t:'+'+gain+(combo>=3?' x'+combo:''),life:44,color:hit.gold?'#ffd740':'#fff'});
+burst(hit.x,hit.y,hit.gold?'#ffd740':hit.col,10);if(hit.gold)sGold();else sPop(combo);$('score').textContent=score;}
+if(e.cancelable)e.preventDefault();}
+cv.addEventListener('touchstart',onTap,{passive:false});
+cv.addEventListener('mousedown',onTap);
+
+function spawn(){const gold=Math.random()<0.1;const r=gold?26:20+Math.random()*14;
+bubbles.push({x:30+Math.random()*(W-60),y:H+30,r:r,vy:-(1.1+Math.random()*1.2+elapsed/3600*1.4),wob:Math.random()*6.28,wobS:0.02+Math.random()*0.03,gold:gold,col:BCOL[(Math.random()*BCOL.length)|0]});}
+function drawBubble(b){const g=ctx.createRadialGradient(b.x-6,b.y-8,3,b.x,b.y,b.r);const col=b.gold?'#ffd740':b.col;g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(0.3,col);g.addColorStop(1,col);ctx.fillStyle=g;ctx.globalAlpha=0.92;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();ctx.globalAlpha=1;
+ctx.fillStyle='rgba(255,255,255,.7)';ctx.beginPath();ctx.arc(b.x-b.r*0.35,b.y-b.r*0.4,b.r*0.22,0,7);ctx.fill();
+if(b.gold){ctx.fillStyle='#fff8e1';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText('★',b.x,b.y+5);ctx.textAlign='left';}}
+function draw(){ctx.clearRect(0,0,W,H);
+ctx.strokeStyle='rgba(244,67,54,.6)';ctx.lineWidth=2;ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(0,34);ctx.lineTo(W,34);ctx.stroke();ctx.setLineDash([]);
+ctx.fillStyle='rgba(244,67,54,.8)';ctx.font='12px sans-serif';ctx.fillText('漏掉警戒线',10,28);
+for(const b of bubbles)drawBubble(b);
+for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/42);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/44);ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
+if(comboT>0&&combo>=2){ctx.fillStyle='#ffab40';ctx.font='bold 22px sans-serif';ctx.textAlign='center';ctx.fillText('🔥 连击 x'+combo,W/2,64);ctx.textAlign='left';}
+}
+function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){elapsed++;spawnT--;
+if(spawnT<=0){spawn();spawnT=Math.max(16,52-elapsed/60*0.9);}
+for(const b of bubbles){b.y+=b.vy;b.wob+=b.wobS;b.x+=Math.sin(b.wob)*0.8;}
+for(let i=bubbles.length-1;i>=0;i--){const b=bubbles[i];if(b.y<24){bubbles.splice(i,1);miss++;combo=0;comboT=0;sMiss();$('miss').textContent=5-miss;floats.push({x:W/2,y:120,t:'漏掉一个!',life:40,color:'#f44336'});if(miss>=5){gameOver();break;}}}
+if(comboT>0){comboT--;if(comboT===0)combo=0;}
+for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.life--;}parts=parts.filter(p=>p.life>0);
+for(const f of floats){f.y-=0.8;f.life--;}floats=floats.filter(f=>f.life>0);}
+draw();}
+$('startBtn').onclick=()=>{ac();startGame();};
+$('restartBtn').onclick=()=>{ac();startGame();};
+$('restartBtn2').onclick=()=>{ac();startGame();};
+$('resumeBtn').onclick=()=>{paused=false;hide('pauseScr');};
+$('pauseBtn').onclick=()=>{if(state!=='play')return;paused=!paused;if(paused)show('pauseScr');else hide('pauseScr');};
+$('soundBtn').onclick=function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}this.textContent=soundOn?'🔊':'🔇';};
+$('soundBtn').textContent=soundOn?'🔊':'🔇';
+state='start';reset();loop();
+</script>
+</body>
+</html>
