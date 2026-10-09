@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>挖宝 - 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b0b10;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#f0f0f5;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#1d1610 0%,#100d0a 60%,#171009 100%);overflow:hidden;display:flex;flex-direction:column}
+#hud{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;z-index:5;background:linear-gradient(180deg,rgba(0,0,0,.6),transparent)}
+#hud .t{font-size:14px;font-weight:700}
+#hud .s{font-size:13px;color:#ffd76a;font-weight:700;margin-top:2px}
+#hud .btns{display:flex;gap:8px}
+.ib{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ib:active{transform:scale(.9)}
+#stats{display:flex;justify-content:center;gap:18px;padding:6px 0;font-size:14px;font-weight:700}
+#stats .st{background:rgba(255,255,255,.07);border-radius:10px;padding:6px 14px;border:1px solid rgba(255,255,255,.1)}
+#boardWrap{flex:1;display:flex;align-items:center;justify-content:center;padding:8px;position:relative}
+#board{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;width:min(92vw,400px);aspect-ratio:1}
+.cell{border:none;border-radius:8px;background:linear-gradient(145deg,#5a4128,#3d2c1a);color:#fff;font-size:19px;cursor:pointer;box-shadow:0 3px 0 #241a0e,inset 0 1px 0 rgba(255,255,255,.15);transition:transform .08s;display:flex;align-items:center;justify-content:center;min-height:0}
+.cell:active{transform:scale(.9)}
+.cell.open{background:linear-gradient(145deg,#2c2c38,#1c1c24);box-shadow:inset 0 2px 6px rgba(0,0,0,.6);cursor:default}
+.cell.open:active{transform:none}
+.cell.treasure{animation:pop .3s}
+.cell.trap{animation:shake .4s}
+.cell .v{font-size:10px;font-weight:800;color:#ffd76a;display:block}
+@keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.ov{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(8,6,4,.95);padding:24px;text-align:center}
+.ov h1{font-size:30px;margin-bottom:4px}
+.ov h2{font-size:24px;margin-bottom:6px}
+.ov p{font-size:14px;color:#c9bfae;line-height:1.8;margin:10px 0 18px;max-width:330px}
+.bb{font-size:17px;font-weight:700;color:#fff;border:none;border-radius:999px;padding:13px 44px;background:linear-gradient(135deg,#d99a3f,#a05f1f);box-shadow:0 6px 20px rgba(217,154,63,.4);cursor:pointer;transition:transform .08s;margin:5px}
+.bb:active{transform:scale(.94)}
+.bb.ghost{background:linear-gradient(135deg,#4a4a5c,#33333f);box-shadow:none}
+.score{font-size:46px;font-weight:800;color:#ffd76a;margin:4px 0}
+.best{font-size:13px;color:#9a9ab0;margin-top:10px}
+.hide{display:none!important}
+#tip{text-align:center;font-size:12px;color:#cbbfa8;padding:6px 16px 12px;min-height:34px}
+#floatLayer{position:absolute;inset:0;pointer-events:none;z-index:15;overflow:hidden}
+.fl{position:absolute;font-weight:800;font-size:20px;text-shadow:0 2px 6px #000;animation:rise 1.1s forwards}
+@keyframes rise{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-46px)}}
+</style>
+</head>
+<body>
+<div id="wrap">
+<div id="hud"><div><div class="t">💎 挖宝</div><div class="s" id="hs">0 分</div></div><div class="btns"><button class="ib" id="snd">🔊</button><button class="ib" id="pz">⏸</button></div></div>
+<div id="stats"><div class="st">⛏️ <span id="stSteps">20</span> 步</div><div class="st">❤️ <span id="stLives">3</span> 命</div><div class="st">💰 <span id="stFound">0</span>/12 宝</div></div>
+<div id="boardWrap"><div id="board"></div></div>
+<div id="tip"></div>
+<div id="floatLayer"></div>
+<div class="ov" id="ovStart"><h1>💎 挖宝</h1><p>8×8 沙地里藏着 12 件宝藏和 8 个陷阱<br>点击格子挖掘，宝藏得分、陷阱扣命<br>只有 20 步、3 条命，祝好运！</p><button class="bb" id="btnStart">开始挖掘</button><div class="best" id="bestStart"></div></div>
+<div class="ov hide" id="ovPause"><h2>⏸ 已暂停</h2><br><button class="bb" id="btnResume">继续</button><button class="bb ghost" id="btnRestart1">重新开始</button></div>
+<div class="ov hide" id="ovEnd"><h2 id="endTitle">🏁 挖掘结束</h2><div class="score" id="endScore">0</div><div class="best" id="endBest"></div><div class="best" id="endDetail" style="margin-top:6px"></div><button class="bb" id="btnRestart2">再挖一次</button></div>
+</div>
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id);};
+/* 音频 */
+var AC=null,soundOn=true;
+function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,slide,delay){if(!soundOn)return;var a=ac();if(!a)return;try{var t0=a.currentTime+(delay||0);var o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t0);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t0+d);g.gain.setValueAtTime(v||.1,t0);g.gain.exponentialRampToValueAtTime(.001,t0+d);o.connect(g);g.connect(a.destination);o.start(t0);o.stop(t0+d+.03);}catch(e){}}
+var sfx={
+ click:function(){tone(620,.06,'square',.06);},
+ dig:function(){tone(150,.12,'square',.09,-50);},
+ treasure:function(){var fs=[880,1174,1568];for(var i=0;i<fs.length;i++)tone(fs[i],.2,'triangle',.09,0,i*.07);},
+ trap:function(){tone(160,.35,'sawtooth',.11,-100);},
+ empty:function(){tone(320,.08,'triangle',.05,-60);},
+ win:function(){var fs=[523,659,784,1046,1318];for(var i=0;i<fs.length;i++)tone(fs[i],.3,'triangle',.1,0,i*.12);}
+};
+/* 最高分 */
+var KEY='game100_dig_best';
+function getBest(){try{return parseInt(localStorage.getItem(KEY),10)||0;}catch(e){return 0;}}
+function setBest(v){try{localStorage.setItem(KEY,String(v));}catch(e){}}
+/* 状态 */
+var N=8,TREASURES=12,TRAPS=8,STEPS=20,LIVES=3;
+var VALUES=[10,10,15,15,20,20,25,25,30,40,50,60];
+var grid=[],score=0,steps=0,lives=0,found=0,phase='menu',paused=false;
+function shuffled(n){var a=[];for(var i=0;i<n;i++)a.push(i);for(i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function newGame(){
+ var order=shuffled(N*N);
+ grid=[];
+ for(var i=0;i<N*N;i++)grid.push({type:'empty',value:0,open:false});
+ for(i=0;i<TREASURES;i++)grid[order[i]]={type:'treasure',value:VALUES[i],open:false};
+ for(i=0;i<TRAPS;i++)grid[order[TREASURES+i]]={type:'trap',value:0,open:false};
+ score=0;steps=STEPS;lives=LIVES;found=0;phase='play';paused=false;
+ $('floatLayer').innerHTML='';
+ $('ovStart').classList.add('hide');$('ovEnd').classList.add('hide');$('ovPause').classList.add('hide');
+ render();tip('点击格子开始挖掘，小心陷阱！');
+}
+function render(){
+ var b=$('board');b.innerHTML='';
+ for(var i=0;i<N*N;i++){
+  (function(idx){
+   var c=grid[idx],d=document.createElement('button');
+   d.className='cell'+(c.open?' open':'');
+   if(c.open){
+    if(c.type==='treasure'){d.classList.add('treasure');d.innerHTML='💎<span class="v">+'+c.value+'</span>';}
+    else if(c.type==='trap'){d.classList.add('trap');d.textContent='💥';}
+    else d.textContent='·';
+   }else d.textContent='🟫';
+   d.addEventListener('click',function(){dig(idx,d);});
+   b.appendChild(d);
+  })(i);
+ }
+ $('hs').textContent=score+' 分';
+ $('stSteps').textContent=steps;
+ $('stLives').textContent='❤'.repeat(Math.max(0,lives))||'0';
+ $('stFound').textContent=found;
+}
+function tip(s){$('tip').textContent=s;}
+function floatAt(el,txt,color){
+ var r=el.getBoundingClientRect(),w=$('wrap').getBoundingClientRect();
+ var d=document.createElement('div');d.className='fl';d.textContent=txt;d.style.color=color;
+ d.style.left=(r.left-w.left+r.width/2-20)+'px';d.style.top=(r.top-w.top-6)+'px';
+ $('floatLayer').appendChild(d);
+ setTimeout(function(){d.remove();},1150);
+}
+function dig(idx,el){
+ if(phase!=='play'||paused)return;
+ var c=grid[idx];
+ if(c.open)return;
+ ac();
+ c.open=true;steps--;
+ if(c.type==='treasure'){
+  score+=c.value;found++;sfx.treasure();
+  floatAt(el,'+'+c.value+' 💎','#ffd76a');
+  tip(found>=TREASURES?'全部宝藏都找到了！':pick(['挖到宝贝！','运气不错！','继续！还有宝藏…']));
+ }else if(c.type==='trap'){
+  lives--;sfx.trap();
+  floatAt(el,'-1 ❤️','#ff8a8a');
+  tip(lives>0?'踩到陷阱了！还剩 '+lives+' 条命':'最后一条命也没了…');
+ }else{
+  sfx.dig();
+  if(Math.random()<0.3)tip(pick(['这里什么都没有…','空的，换个地方试试','沙子，真多沙子…']));
+ }
+ render();
+ if(lives<=0){finish('💥 陷阱耗尽了生命…');return;}
+ if(steps<=0){finish(found>=TREASURES?'🎉 步数用尽，但宝藏全清！':'⛏️ 步数用完了！');return;}
+ if(found>=TREASURES){finish('🏆 所有宝藏都被你找到了！');return;}
+}
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+function finish(title){
+ phase='end';
+ var best=getBest(),isNew=score>best;
+ if(isNew)setBest(score);
+ sfx.win();
+ $('endScore').textContent=score+' 分';
+ $('endTitle').textContent=title;
+ $('endBest').textContent=(isNew?'🎉 新纪录！':'历史最高：'+best+' 分');
+ $('endDetail').textContent='找到宝藏 '+found+'/'+TREASURES+' · 剩余步数 '+steps+' · 剩余生命 '+lives;
+ setTimeout(function(){$('ovEnd').classList.remove('hide');},500);
+}
+/* 按钮 */
+function togglePause(f){if(phase==='menu'||phase==='end')return;paused=(typeof f==='boolean')?f:!paused;$('ovPause').classList.toggle('hide',!paused);}
+$('pz').addEventListener('click',function(){sfx.click();togglePause();});
+$('snd').addEventListener('click',function(){soundOn=!soundOn;$('snd').textContent=soundOn?'🔊':'🔇';if(soundOn)sfx.click();});
+$('btnStart').addEventListener('click',function(){ac();sfx.click();newGame();});
+$('btnResume').addEventListener('click',function(){sfx.click();togglePause(false);});
+$('btnRestart1').addEventListener('click',function(){sfx.click();newGame();});
+$('btnRestart2').addEventListener('click',function(){sfx.click();newGame();});
+$('bestStart').textContent='历史最高：'+getBest()+' 分';
+})();
+</script>
+</body>
+</html>

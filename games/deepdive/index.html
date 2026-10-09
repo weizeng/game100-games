@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>深潜</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#050507;overflow:hidden;overscroll-behavior:none}
+body{display:flex;justify-content:center;align-items:center;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#fff;-webkit-user-select:none;user-select:none}
+#wrap{position:relative;width:min(100vw,60vh);aspect-ratio:3/5;max-height:100vh;background:#121212;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.8)}
+@media (max-aspect-ratio:3/5){#wrap{width:100vw;height:100vh;aspect-ratio:auto}}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:10px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,10,16,.62);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;backdrop-filter:blur(4px);white-space:nowrap}
+.hudl{display:flex;gap:8px}
+.hbtns{display:flex;gap:8px;pointer-events:auto}
+.icobtn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(10,10,16,.62);color:#fff;font-size:17px;cursor:pointer;transition:transform .08s}
+.icobtn:active{transform:scale(.88)}
+#oxybar{position:absolute;top:58px;left:12px;right:12px;height:12px;background:rgba(255,255,255,.12);border-radius:6px;z-index:5;pointer-events:none;overflow:hidden}
+#oxyfill{height:100%;width:100%;border-radius:6px;background:linear-gradient(90deg,#4dd0e1,#18ffff);transition:width .2s}
+#overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(4,8,14,.86);backdrop-filter:blur(6px);padding:28px;text-align:center}
+#overlay h1{font-size:36px}
+#overlay .sub{font-size:14px;color:#b0bec5;line-height:1.8;max-width:340px}
+#overlay .best{font-size:14px;color:#ffd54f;font-weight:600}
+#overlay .bigscore{font-size:52px;font-weight:800;color:#4dd0e1}
+.btn{background:linear-gradient(135deg,#4dd0e1,#18ffff);border:none;color:#06333a;font-size:18px;font-weight:700;padding:14px 54px;border-radius:999px;cursor:pointer;box-shadow:0 6px 24px rgba(77,208,225,.4);transition:transform .1s}
+.btn:active{transform:scale(.93)}
+.btn2{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:15px;font-weight:600;padding:11px 34px;border-radius:999px;cursor:pointer;transition:transform .1s}
+.btn2:active{transform:scale(.93)}
+.row{display:flex;gap:12px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="hudl">
+    <div class="pill" id="scorePill">得分 0</div>
+    <div class="pill" id="depthPill">0m</div>
+    <div class="pill" id="lifePill">💙💙💙</div>
+  </div>
+  <div class="hbtns">
+    <button class="icobtn" id="soundBtn">🔊</button>
+    <button class="icobtn" id="pauseBtn">⏸</button>
+  </div>
+</div>
+<div id="oxybar"><div id="oxyfill"></div></div>
+<div id="overlay"></div>
+</div>
+<script>
+'use strict';
+var W=480,H=800;
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+cv.width=W;cv.height=H;
+var AC=null,soundOn=true;
+function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}return AC;}
+function tone(f,d,type,vol,delay){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(vol||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function noise(d,vol){if(!soundOn)return;try{var c=ac();if(!c)return;var n=(c.sampleRate*d)|0;var b=c.createBuffer(1,n,c.sampleRate);var ch=b.getChannelData(0);for(var i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);var s=c.createBufferSource();s.buffer=b;var g=c.createGain();g.gain.value=vol||0.25;s.connect(g);g.connect(c.destination);s.start();}catch(e){}}
+function toGame(e){var r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
+var HSKEY='g100_deepdive_hs';
+function getHS(){try{return parseInt(localStorage.getItem(HSKEY),10)||0;}catch(e){return 0;}}
+function setHS(v){try{localStorage.setItem(HSKEY,String(v));}catch(e){}}
+var parts=[],floats=[],bubbles=[];
+function boom(x,y,color,n){n=n||16;for(var i=0;i<n;i++){var a=Math.random()*6.2832,s=40+Math.random()*200;parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:0,life:0.4+Math.random()*0.5,color:color,r:2+Math.random()*3});}}
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,t:0,color:color||'#fff'});}
+function updParts(dt){for(var i=parts.length-1;i>=0;i--){var p=parts[i];p.t+=dt;if(p.t>=p.life){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;}}
+function drawParts(){for(var i=0;i<parts.length;i++){var p=parts[i];ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.2832);ctx.fill();}ctx.globalAlpha=1;}
+function updFloats(dt){for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.t+=dt;f.y-=44*dt;if(f.t>1)floats.splice(i,1);}}
+function drawFloats(){ctx.textAlign='center';ctx.font='bold 21px sans-serif';for(var i=0;i<floats.length;i++){var f=floats[i];ctx.globalAlpha=Math.max(0,1-f.t);ctx.fillStyle=f.color;ctx.fillText(f.txt,f.x,f.y);}ctx.globalAlpha=1;}
+/* ---------- 状态 ---------- */
+var state='menu',score=0,lives=3,oxygen=100;
+var dx=240,dy=0,camY=0,maxDepth=0,ascending=false,invuln=0,time=0;
+var pearls=[],jellies=[],sharks=[],nextSpawnY=200,bubT=0,warnT=0;
+function reset(){score=0;lives=3;oxygen=100;dx=240;dy=0;camY=-320;maxDepth=0;ascending=false;invuln=0;time=0;pearls=[];jellies=[];sharks=[];bubbles=[];parts=[];floats=[];nextSpawnY=250;updHUD();}
+function updHUD(){document.getElementById('scorePill').textContent='得分 '+score;document.getElementById('depthPill').textContent=Math.max(0,Math.round(maxDepth/10))+'m';document.getElementById('lifePill').textContent='💙'.repeat(Math.max(0,lives))||'💔';var of=document.getElementById('oxyfill');of.style.width=Math.max(0,oxygen)+'%';of.style.background=oxygen<25?'linear-gradient(90deg,#ff5252,#ff8a80)':'linear-gradient(90deg,#4dd0e1,#18ffff)';}
+function spawnAt(){
+  var y=nextSpawnY;nextSpawnY+=90+Math.random()*130;
+  var x=40+Math.random()*400,r=Math.random();
+  if(r<0.45)pearls.push({x:x,y:y,ph:Math.random()*6});
+  else if(r<0.75)jellies.push({x:x,y:y,vx:(Math.random()<0.5?-1:1)*(20+Math.random()*25),ph:Math.random()*6});
+  else if(y>500)sharks.push({x:x,y:y,dir:Math.random()<0.5?-1:1,ph:Math.random()*6});
+  else pearls.push({x:x,y:y,ph:Math.random()*6});
+}
+function hurt(){
+  if(invuln>0||ascending)return;
+  lives--;invuln=2;dy-=130;updHUD();boom(dx,dy,'#4dd0e1',24);noise(0.3,0.25);tone(180,0.3,'sawtooth',0.14);
+  if(lives<=0){finish('drown');}
+}
+function finish(reason){
+  if(state!=='playing')return;
+  var bonus=Math.round(maxDepth/10)*5;score+=bonus;
+  var hs=getHS();if(score>hs)setHS(score);
+  state='over';
+  if(reason==='surface'){tone(523,0.14,'square',0.12);tone(659,0.14,'square',0.12,0.12);tone(784,0.25,'square',0.12,0.24);}
+  else{tone(220,0.4,'sawtooth',0.14);}
+  showEnd(reason,bonus);
+}
+function update(dt){
+  time+=dt;invuln-=dt;
+  if(!ascending){
+    oxygen-=(1.5+maxDepth*0.0009)*dt;
+    if(oxygen<=0){oxygen=0;ascending=true;warnT=0;tone(440,0.2,'square',0.12);floatText(dx,dy-60,'氧气耗尽，上浮！','#ff8a80');}
+  }
+  var vy=ascending?-260:Math.min(170,72+dy*0.016);
+  dy+=vy*dt;
+  if(dy>maxDepth)maxDepth=dy;
+  if(ascending&&dy<=0){dy=0;finish('surface');return;}
+  camY=dy-330;
+  while(nextSpawnY<dy+950)spawnAt();
+  var i,sy;
+  bubT-=dt;if(bubT<=0){bubT=0.25;bubbles.push({x:dx+(Math.random()-0.5)*30,y:dy-20,r:2+Math.random()*4,vy:-60-Math.random()*40});}
+  for(i=bubbles.length-1;i>=0;i--){var bb=bubbles[i];bb.y+=bb.vy*dt;if(bb.y<camY-20)bubbles.splice(i,1);}
+  for(i=pearls.length-1;i>=0;i--){var pl=pearls[i];pl.ph+=dt*3;sy=pl.y-camY;
+    if(sy<-40||sy>H+40){pearls.splice(i,1);continue;}
+    if(!ascending&&Math.hypot(pl.x-dx,pl.y-dy)<34){pearls.splice(i,1);score+=50;updHUD();floatText(pl.x,sy,'+50','#e0f7fa');boom(pl.x,sy,'#ffffff',10);tone(1040,0.1,'sine',0.1);tone(1560,0.12,'sine',0.08,0.07);}}
+  for(i=jellies.length-1;i>=0;i--){var jf=jellies[i];jf.x+=jf.vx*dt;jf.ph+=dt*3;if(jf.x<20||jf.x>W-20)jf.vx*=-1;sy=jf.y-camY;
+    if(sy<-60||sy>H+60){jellies.splice(i,1);continue;}
+    if(!ascending&&invuln<=0&&Math.hypot(jf.x-dx,jf.y-dy)<38)hurt();}
+  for(i=sharks.length-1;i>=0;i--){var sk=sharks[i];sk.ph+=dt*5;
+    if(!ascending&&Math.abs(sk.y-dy)<260){var ddx=dx-sk.x;sk.dir=ddx>0?1:-1;sk.x+=sk.dir*115*dt;}
+    else sk.x+=sk.dir*55*dt;
+    if(sk.x<-60)sk.dir=1;if(sk.x>W+60)sk.dir=-1;sy=sk.y-camY;
+    if(sy<-80||sy>H+80){sharks.splice(i,1);continue;}
+    if(!ascending&&invuln<=0&&Math.hypot(sk.x-dx,sk.y-dy)<44)hurt();}
+  if(ascending){warnT+=dt;}
+  updHUD();updParts(dt);updFloats(dt);
+}
+function depthColor(d){
+  var t=Math.min(1,d/3000);
+  var r=Math.round(13+ (6-13)*t),g2=Math.round(60+(8-60)*t),b=Math.round(110+(20-110)*t);
+  return 'rgb('+r+','+g2+','+b+')';
+}
+function render(){
+  ctx.fillStyle=depthColor(Math.max(0,dy));ctx.fillRect(0,0,W,H);
+  var i,sy;
+  if(dy<700){ctx.fillStyle='rgba(120,220,255,'+Math.max(0,0.25-dy/2800)+')';
+    for(i=0;i<5;i++){var rx=60+i*90+Math.sin(time*0.7+i)*20;ctx.beginPath();ctx.moveTo(rx,-20);ctx.lineTo(rx+50,-20);ctx.lineTo(rx-40,H*0.6);ctx.lineTo(rx-90,H*0.6);ctx.closePath();ctx.fill();}}
+  ctx.fillStyle='rgba(255,255,255,.35)';
+  for(i=0;i<bubbles.length;i++){var bb=bubbles[i];ctx.beginPath();ctx.arc(bb.x,bb.y-camY,bb.r,0,6.2832);ctx.stroke();}
+  for(i=0;i<pearls.length;i++){var pl=pearls[i];sy=pl.y-camY;
+    ctx.save();ctx.shadowColor='#fff';ctx.shadowBlur=14;ctx.fillStyle='#f5f5f5';
+    ctx.beginPath();ctx.arc(pl.x,sy+Math.sin(pl.ph)*4,10,0,6.2832);ctx.fill();ctx.restore();
+    ctx.fillStyle='rgba(200,240,255,.9)';ctx.beginPath();ctx.arc(pl.x-3,sy-3+Math.sin(pl.ph)*4,3.5,0,6.2832);ctx.fill();}
+  ctx.textAlign='center';
+  for(i=0;i<jellies.length;i++){var jf=jellies[i];sy=jf.y-camY;ctx.font='38px sans-serif';ctx.fillText('🪼',jf.x,sy);}
+  for(i=0;i<sharks.length;i++){var sk=sharks[i];sy=sk.y-camY;ctx.save();ctx.translate(sk.x,sy);ctx.scale(sk.dir,1);ctx.font='52px sans-serif';ctx.fillText('🦈',0,18);ctx.restore();}
+  var py=dy-camY;
+  ctx.font='46px sans-serif';
+  if(invuln>0&&((time*10)|0)%2===0)ctx.globalAlpha=0.35;
+  ctx.fillText('🤿',dx,py+16);ctx.globalAlpha=1;
+  drawParts();drawFloats();
+  if(ascending){ctx.fillStyle='rgba(255,138,128,.9)';ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.fillText('⬆ 上浮中…',W/2,120);}
+  else if(state==='playing'&&time<4){ctx.fillStyle='rgba(255,255,255,.5)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('左右拖动移动，自动下潜',W/2,H-80);}
+}
+var ov=document.getElementById('overlay');
+function showMenu(){state='menu';ov.style.display='flex';ov.innerHTML='<h1>🤿</h1><h1 style="font-size:30px">深潜</h1><div class="sub">潜水员自动下潜，<b>左右拖动</b>躲避水母 🪼 和鲨鱼 🦈，<br>捡珍珠 +50 分，越深珍珠越多。<br>注意<b>氧气条</b>：耗尽自动上浮结算，深度也有加分！</div><div class="best">🏆 最高分 '+getHS()+'</div><button class="btn" id="startBtn">开始下潜</button>';
+  document.getElementById('startBtn').addEventListener('click',function(){ac();tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
+function showEnd(reason,bonus){var hs=getHS();ov.style.display='flex';
+  ov.innerHTML='<h1>'+(reason==='surface'?'⬆️':'💀')+'</h1><h1 style="font-size:30px">'+(reason==='surface'?'安全上浮！':'潜水员倒下了…')+'</h1><div class="sub">最大深度 '+Math.round(maxDepth/10)+'m · 深度奖励 +'+bonus+'</div><div class="bigscore">'+score+'</div><div class="best">🏆 最高分 '+hs+'</div><button class="btn" id="againBtn">再潜一次</button>';
+  document.getElementById('againBtn').addEventListener('click',function(){tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
+function pauseGame(){if(state!=='playing')return;state='paused';ov.style.display='flex';ov.innerHTML='<h1>⏸</h1><h1 style="font-size:28px">已暂停</h1><div class="sub">得分 '+score+' · 深度 '+Math.round(maxDepth/10)+'m</div><div class="row"><button class="btn" id="resumeBtn">继续</button><button class="btn2" id="restartBtn">重来</button></div>';
+  document.getElementById('resumeBtn').addEventListener('click',function(){state='playing';ov.style.display='none';});
+  document.getElementById('restartBtn').addEventListener('click',function(){reset();state='playing';ov.style.display='none';});}
+var lastTouch=0,lastX=0,dragging=false,mouseDrag=false;
+cv.addEventListener('touchstart',function(e){e.preventDefault();lastTouch=Date.now();if(state!=='playing')return;lastX=e.touches[0].clientX;dragging=true;},{passive:false});
+cv.addEventListener('touchmove',function(e){e.preventDefault();if(!dragging||state!=='playing')return;var x=e.touches[0].clientX;dx=Math.max(26,Math.min(454,dx+(x-lastX)*1.7));lastX=x;},{passive:false});
+cv.addEventListener('touchend',function(e){e.preventDefault();dragging=false;},{passive:false});
+cv.addEventListener('mousedown',function(e){if(Date.now()-lastTouch<800||state!=='playing')return;lastX=e.clientX;dragging=true;mouseDrag=true;});
+window.addEventListener('mousemove',function(e){if(!dragging||!mouseDrag||state!=='playing')return;dx=Math.max(26,Math.min(454,dx+(e.clientX-lastX)*1.7));lastX=e.clientX;});
+window.addEventListener('mouseup',function(){dragging=false;mouseDrag=false;});
+document.getElementById('pauseBtn').addEventListener('click',function(){pauseGame();});
+document.getElementById('soundBtn').addEventListener('click',function(){soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)tone(660,0.08,'square',0.1);});
+var last=0;
+function loop(t){requestAnimationFrame(loop);var dt=(t-last)/1000;last=t;if(!(dt>0)||dt>0.05)dt=0.016;if(state==='playing')update(dt);render();}
+reset();showMenu();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

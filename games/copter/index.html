@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>直升机</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d0d16;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#141428 0%,#0d0d16 60%,#101522 100%)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none;font-size:15px}
+.hud .left{font-weight:bold;text-shadow:0 0 8px #66bb6a}
+.hud .right{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{width:38px;height:38px;border-radius:50%;border:1px solid #66bb6a55;background:#1c1c2bd9;color:#fff;font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,20,.88);backdrop-filter:blur(4px);z-index:10;text-align:center;padding:24px}
+.screen h1{font-size:38px;margin-bottom:6px;background:linear-gradient(135deg,#66bb6a,#4fc3f7);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.screen p{color:#aaa;font-size:14px;line-height:1.7;margin:12px 0 20px}
+.bigbtn{padding:14px 56px;font-size:18px;border:none;border-radius:30px;background:linear-gradient(135deg,#66bb6a,#4fc3f7);color:#fff;font-weight:bold;cursor:pointer;transition:transform .1s;box-shadow:0 4px 20px #66bb6a55}
+.bigbtn:active{transform:scale(.93)}
+.score{font-size:52px;font-weight:bold;background:linear-gradient(135deg,#ffd740,#66bb6a);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0}
+.hiscore{color:#888;font-size:14px;margin-bottom:20px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div class="hud">
+<div class="left">HELI <span id="score">0</span>m</div>
+<div class="right"><button class="iconbtn" id="muteBtn">MUTE</button><button class="iconbtn" id="pauseBtn">II</button></div>
+</div>
+<div class="screen" id="startScr">
+<h1>HELI COPTER</h1>
+<p>按住屏幕上升，松开下降<br>穿越峡谷缺口，撞到山壁即坠毁<br>飞得越远分数越高，速度递增</p>
+<button class="bigbtn" id="startBtn">起飞</button>
+</div>
+<div class="screen hidden" id="overScr">
+<h1>坠毁了</h1>
+<div class="score"><span id="finalScore">0</span>m</div>
+<div class="hiscore">最高：<span id="hiScore">0</span>m</div>
+<button class="bigbtn" id="retryBtn">再飞一次</button>
+</div>
+<div class="screen hidden" id="pauseScr">
+<h1>已暂停</h1>
+<button class="bigbtn" id="resumeBtn">继续</button>
+</div>
+</div>
+<script>
+"use strict";
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),wrap=document.getElementById('wrap');
+var W,H,DPR;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=wrap.clientWidth;H=wrap.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+window.addEventListener('resize',resize);resize();
+var muted=false,AC=null,rotorOsc=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+function sCrash(){tone(150,.6,'sawtooth',.2,40);}
+function sPoint(){tone(880,.1,'sine',.09);}
+function rotorStart(){if(muted)return;var c=ac();if(!c||rotorOsc)return;try{rotorOsc=c.createOscillator();var g=c.createGain();rotorOsc.type='sawtooth';rotorOsc.frequency.value=70;g.gain.value=.03;rotorOsc.connect(g);g.connect(c.destination);rotorOsc.start();}catch(e){}}
+function rotorStop(){try{if(rotorOsc){rotorOsc.stop();rotorOsc=null;}}catch(e){rotorOsc=null;}}
+document.getElementById('muteBtn').onclick=function(e){e.stopPropagation();muted=!muted;this.textContent=muted?'OFF':'MUTE';if(muted)rotorStop();};
+var HIKEY='g100_copter_hi',hi=0;
+try{hi=parseInt(localStorage.getItem(HIKEY))||0;}catch(e){}
+var state='start',paused=false,score=0,dist=0;
+var y,vy,holding,walls,speed,wallT,parts,floats,clouds,rotorA=0;
+function rand(a,b){return a+Math.random()*(b-a);}
+function gapH(){return Math.max(120,200-dist*.02);}
+function spawnWall(x){var g=gapH(),gy=rand(g/2+30,H-g/2-30);walls.push({x:x,gapY:gy,gapH:g,w:46,passed:false});}
+function startGame(){dist=0;score=0;y=H*.45;vy=0;holding=false;walls=[];parts=[];floats=[];clouds=[];
+speed=2.6;wallT=0;rotorA=0;
+for(var i=0;i<6;i++)clouds.push({x:Math.random()*W,y:Math.random()*H*.7,s:rand(.6,1.4),v:rand(.2,.6)});
+spawnWall(W*.7);spawnWall(W*1.35);
+document.getElementById('score').textContent='0';
+document.getElementById('startScr').classList.add('hidden');document.getElementById('overScr').classList.add('hidden');document.getElementById('pauseScr').classList.add('hidden');
+state='play';paused=false;rotorStart();}
+function gameOver(){state='over';rotorStop();sCrash();
+for(var i=0;i<24;i++)parts.push({x:W*.25,y:y,vx:rand(-3,3),vy:rand(-4,2),life:rand(25,50),col:i%3?'#ff8a65':'#78909c',s:rand(2,4)});
+score=Math.floor(dist/10);
+document.getElementById('finalScore').textContent=score;
+if(score>hi){hi=score;try{localStorage.setItem(HIKEY,hi);}catch(e){}}
+document.getElementById('hiScore').textContent=hi;
+setTimeout(function(){document.getElementById('overScr').classList.remove('hidden');},450);}
+function update(){
+if(state!=='play'||paused)return;
+rotorA+=.5;
+speed=Math.min(6.5,2.6+dist*.00035);
+dist+=speed;score=Math.floor(dist/10);
+document.getElementById('score').textContent=score;
+vy+=holding?-.42:.32;
+vy=Math.max(-5.5,Math.min(6.5,vy));
+y+=vy;
+if(holding&&Math.random()<.5)parts.push({x:W*.25-16,y:y+8,vx:rand(-2,-.5),vy:rand(-1,1),life:20,col:'#90a4ae',s:2});
+clouds.forEach(function(c){c.x-=c.v*(speed/3);if(c.x<-80)c.x=W+80;});
+wallT--;if(wallT<=0){spawnWall(W+40);wallT=Math.max(52,Math.floor(100-speed*9));}
+var hx=W*.25,hr=13;
+for(var i=walls.length-1;i>=0;i--){var wl=walls[i];wl.x-=speed;
+if(wl.x+wl.w<-20){walls.splice(i,1);continue;}
+if(!wl.passed&&wl.x+wl.w<hx){wl.passed=true;floats.push({x:wl.x,y:wl.gapY,t:'+5',life:40,vy:-1});sPoint();}
+if(hx+hr>wl.x&&hx-hr<wl.x+wl.w&&(y-hr<wl.gapY-wl.gapH/2||y+hr>wl.gapY+wl.gapH/2)){gameOver();return;}}
+if(y-hr<0||y+hr>H){gameOver();return;}
+for(var p=parts.length-1;p>=0;p--){var pt=parts[p];pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=.1;pt.life--;if(pt.life<=0)parts.splice(p,1);}
+for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.y+=fl.vy;fl.life--;if(fl.life<=0)floats.splice(f,1);}
+}
+function draw(){
+ctx.clearRect(0,0,W,H);
+ctx.fillStyle='rgba(255,255,255,.07)';
+clouds.forEach(function(c){ctx.beginPath();ctx.ellipse(c.x,c.y,44*c.s,14*c.s,0,0,6.28);ctx.fill();});
+walls.forEach(function(wl){
+var th=wl.gapY-wl.gapH/2,bh=H-(wl.gapY+wl.gapH/2);
+var g1=ctx.createLinearGradient(wl.x,0,wl.x+wl.w,0);g1.addColorStop(0,'#37474f');g1.addColorStop(1,'#263238');
+ctx.fillStyle=g1;
+ctx.beginPath();ctx.moveTo(wl.x,0);ctx.lineTo(wl.x+wl.w,0);ctx.lineTo(wl.x+wl.w-8,th);ctx.lineTo(wl.x,th);ctx.closePath();ctx.fill();
+ctx.beginPath();ctx.moveTo(wl.x,H);ctx.lineTo(wl.x+wl.w,H);ctx.lineTo(wl.x+wl.w-8,H-bh);ctx.lineTo(wl.x,H-bh);ctx.closePath();ctx.fill();
+ctx.fillStyle='rgba(76,175,80,.45)';ctx.fillRect(wl.x,th-6,wl.w-4,6);ctx.fillRect(wl.x,H-bh,wl.w-4,6);});
+if(state==='play'){
+ctx.save();ctx.translate(W*.25,y);ctx.rotate(vy*.06);
+ctx.fillStyle='#66bb6a';ctx.fillRect(-16,-8,30,16);
+ctx.fillStyle='#a5d6a7';ctx.fillRect(-16,-8,30,6);
+ctx.fillStyle='#33691e';ctx.fillRect(6,-10,10,20);
+ctx.fillStyle='#c8e6c9';ctx.fillRect(-14,-11,12,7);
+ctx.strokeStyle='#eceff1';ctx.lineWidth=3;
+var r=Math.sin(rotorA)*22;
+ctx.beginPath();ctx.moveTo(-r,-14);ctx.lineTo(r,-14);ctx.stroke();
+ctx.restore();}
+parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/50);ctx.fillStyle=p.col;ctx.fillRect(p.x,p.y,p.s,p.s);});ctx.globalAlpha=1;
+ctx.font='bold 15px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/40);ctx.fillStyle='#a5d6a7';ctx.fillText(f.t,f.x,f.y);});ctx.globalAlpha=1;
+}
+function loop(){update();draw();requestAnimationFrame(loop);}
+loop();
+function press(e){e.preventDefault();if(state==='play'&&!paused){holding=true;rotorStart();}}
+function release(e){if(e)e.preventDefault();holding=false;}
+cv.addEventListener('touchstart',press,{passive:false});
+cv.addEventListener('touchend',release,{passive:false});
+cv.addEventListener('touchcancel',release,{passive:false});
+cv.addEventListener('mousedown',press);
+document.addEventListener('mouseup',release);
+document.getElementById('startBtn').onclick=function(){ac();startGame();};
+document.getElementById('retryBtn').onclick=function(){startGame();};
+document.getElementById('pauseBtn').onclick=function(){if(state!=='play')return;paused=true;rotorStop();document.getElementById('pauseScr').classList.remove('hidden');};
+document.getElementById('resumeBtn').onclick=function(){paused=false;rotorStart();document.getElementById('pauseScr').classList.add('hidden');};
+document.addEventListener('visibilitychange',function(){if(document.hidden&&state==='play'&&!paused){paused=true;rotorStop();document.getElementById('pauseScr').classList.remove('hidden');}});
+</script>
+</body>
+</html>
