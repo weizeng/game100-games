@@ -44,6 +44,7 @@ canvas{width:100%;height:auto;border-radius:16px;touch-action:none;box-shadow:0 
   <div class="topbar">
     <div class="title">🔧 水管工 <span id="lvlLabel" style="font-size:14px;color:#8fb0b5"></span></div>
     <div class="tbtns">
+      <button class="iconbtn" id="hintBtn" title="提示">💡</button>
       <button class="iconbtn" id="muteBtn" title="声音">🔊</button>
       <button class="iconbtn" id="pauseBtn" title="暂停">⏸</button>
     </div>
@@ -96,6 +97,12 @@ canvas{width:100%;height:auto;border-radius:16px;touch-action:none;box-shadow:0 
   <p>水管中途断开了<br>看看哪里在喷水，调整后再放水</p>
   <button class="btn primary" id="fixBtn">继续调整</button>
   <button class="btn ghost" id="failRetryBtn">重置本关</button>
+</div>
+
+<div class="overlay hidden" id="hintScr">
+  <h2>💡 提示</h2>
+  <p id="hintText"></p>
+  <button class="btn ghost" id="hintClose">知道了</button>
 </div>
 
 <script>
@@ -163,6 +170,18 @@ const LEVELS=[
   {n:7,fill:['I','L','T','X'],maxPath:18},
   {n:7,fill:['I','L','T','X'],maxPath:20},
   {n:7,fill:['I','L','T','X'],maxPath:22}
+];
+
+/* ============ 每关提示（解题思路，关卡随机生成，提示为通用策略） ============ */
+const HINTS=[
+"5x5 入门关：先把起和终旁边的管子转好，再从起点出发一路向终点连过去。直管转 2 次、弯管转 4 次就能试遍所有朝向。",
+"出现了 T 形管！T 形管有三个开口，先固定它的朝向，再连它两边的管子。分叉口是整条水路的关键。",
+"6x6 了：先在脑子里规划一条从起点到终点的最短路线，沿着这条线转管子。别被多余的干扰管子带偏，它们不用管！",
+"十字管登场：它四个方向都通，只有一个朝向不用转，是天然的枢纽。优先用它来转弯、走直线。",
+"7x7 干扰管子更多：先锁定起、终点两端的管子，再从两头向中间会合。两头对上了，中间自然就通了。",
+"思路同上：多利用十字管当枢纽，尽量走直线、少转弯。每转一次都想想——这段是主干道吗？",
+"路径更长了：优先保证主干道连通，分支上的管子先不管。放水验证时看哪里喷水，就调哪里。",
+"终极关：先整体观察 10 秒，在脑子里规划一条从起到终的大致路线再动手。磨刀不误砍柴工，能省很多步数！"
 ];
 
 /* ============ 关卡生成（保证有解） ============ */
@@ -377,6 +396,14 @@ $('flowBtn').addEventListener('click',()=>{
   }
 });
 $('resetBtn').addEventListener('click',()=>{if(!playing||paused)return;Snd.click();newGame(li);});
+
+/* ============ 提示 ============ */
+$('hintBtn').addEventListener('click',()=>{
+  Snd.ensure();Snd.click();
+  $('hintText').innerHTML='<b style="color:#fff">第 '+(li+1)+' 关 · '+G.n+'×'+G.n+'</b><br>'+HINTS[li];
+  $('hintScr').classList.remove('hidden');
+});
+$('hintClose').addEventListener('click',()=>{Snd.click();$('hintScr').classList.add('hidden');});
 
 function finishFlow(){
   const n=G.n,sz=480/n;

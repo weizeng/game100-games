@@ -35,6 +35,11 @@ body{background:linear-gradient(160deg,#3d1414 0%,#121212 55%,#0a0a0a 100%);colo
 #pauseov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px)}
 #pauseov.on{display:flex}
 .pausecard{background:#1c1c22;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:28px 36px;text-align:center;display:flex;flex-direction:column;gap:12px}
+#hintov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px);padding:24px}
+#hintov.on{display:flex}
+.hintcard{background:#1c1c22;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:26px 28px;text-align:center;display:flex;flex-direction:column;gap:12px;max-width:380px}
+.hintcard h2{font-size:22px}
+.hintcard p{color:#f0c4b4;font-size:14px;line-height:1.9}
 </style>
 </head>
 <body>
@@ -43,7 +48,7 @@ body{background:linear-gradient(160deg,#3d1414 0%,#121212 55%,#0a0a0a 100%);colo
   <div class="topbar">
     <span class="title">🏯 华容道</span>
     <span class="stat">步数 <b id="moves">0</b></span>
-    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
+    <span><button class="tbtn" id="hintBtn" title="提示">💡</button><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
   </div>
   <div class="screen on" id="s-start">
     <div class="card">
@@ -67,6 +72,7 @@ body{background:linear-gradient(160deg,#3d1414 0%,#121212 55%,#0a0a0a 100%);colo
   </div>
 </div>
 <div id="pauseov"><div class="pausecard"><h2>⏸ 已暂停</h2><button class="bigbtn" id="btnResume">继续</button><button class="ghostbtn" id="btnQuit">退出</button></div></div>
+<div id="hintov"><div class="hintcard"><h2>💡 提示</h2><p id="hintText"></p><button class="ghostbtn" id="hintClose">知道了</button></div></div>
 <script>
 "use strict";
 var $=function(id){return document.getElementById(id)};
@@ -95,6 +101,13 @@ function initPieces(){return[
 ]}
 var pieces,moves,sel,over;
 var cv=$("cv"),ctx=cv.getContext("2d"),CS=0,PAD=14;
+/* ---------- 三段式提示（按曹操所在行） ---------- */
+function hintText(){
+  var r=pieces[0].r; // 曹操行：0顶 → 3出口位
+  if(r<=0)return "<b style='color:#fff'>【开局】</b><br>先把四个小兵往下、往两边挪，腾出中间通道。关键是关羽（横着的那员大将）——想办法把它移到最下面一行，曹操才能下来。别让小兵堵在中间两列！";
+  if(r===1)return "<b style='color:#fff'>【中盘】</b><br>曹操下来一格了，继续！把挡在曹操下方的兵将挪到两侧，目标是让曹操一路下到第 4 行。四个竖将尽量往底行两边塞，中间留给曹操。";
+  return "<b style='color:#fff'>【残局】</b><br>曹操离出口很近了！检查底部中间两列是否畅通——把挡在曹操正下方的棋子移到两侧，曹操就能直下走出▼出口。一鼓作气！";
+}
 function show(id){["s-start","s-game","s-end"].forEach(function(s){$(s).classList.toggle("on",s===id)})}
 function startGame(){pieces=initPieces();moves=0;sel=null;over=false;$("moves").textContent=0;sizeCv();show("s-game")}
 function sizeCv(){var w=Math.min(400,innerWidth-28);CS=Math.floor((w-PAD*2)/COLS);cv.width=CS*COLS+PAD*2;cv.height=CS*ROWS+PAD*2+26;draw()}
@@ -164,6 +177,8 @@ $("btnHome").onclick=function(){sClick();show("s-start")};
 $("sndBtn").onclick=function(){soundOn=!soundOn;store.set("sound",soundOn);$("sndBtn").textContent=soundOn?"🔊":"🔇";if(soundOn)sClick()};
 $("sndBtn").textContent=soundOn?"🔊":"🔇";
 $("pauseBtn").onclick=function(){if(!$("s-game").classList.contains("on"))return;sClick();$("pauseov").classList.add("on")};
+$("hintBtn").onclick=function(){if(!$("s-game").classList.contains("on")||!pieces||over)return;sClick();$("hintText").innerHTML=hintText();$("hintov").classList.add("on")};
+$("hintClose").onclick=function(){sClick();$("hintov").classList.remove("on")};
 $("btnResume").onclick=function(){sClick();$("pauseov").classList.remove("on")};
 $("btnQuit").onclick=function(){sClick();$("pauseov").classList.remove("on");show("s-start")};
 addEventListener("resize",function(){if($("s-game").classList.contains("on"))sizeCv()});

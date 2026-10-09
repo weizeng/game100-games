@@ -57,6 +57,7 @@ body{background:linear-gradient(160deg,#2b1d12 0%,#1c130c 60%,#120c07 100%);colo
       <button class="tbtn" id="undoBtn" title="悔一步">↩️</button>
       <button class="tbtn" id="restartBtn" title="重来">🔄</button>
       <button class="tbtn" id="lvBtn" title="选关">🗺</button>
+      <button class="tbtn" id="hintBtn" title="提示">💡</button>
       <button class="tbtn" id="muteBtn">🔊</button>
       <button class="tbtn" id="pauseBtn">⏸</button>
     </span>
@@ -94,6 +95,12 @@ body{background:linear-gradient(160deg,#2b1d12 0%,#1c130c 60%,#120c07 100%);colo
     <button class="btn ghost" id="replayBtn">重玩</button>
     <button class="btn ghost" id="pickBtn">选关</button>
   </div>
+</div>
+
+<div class="overlay hidden" id="hintScr">
+  <h1>💡 提示</h1>
+  <p id="hintText"></p>
+  <button class="btn" id="hintClose">知道了</button>
 </div>
 
 <script>
@@ -146,6 +153,20 @@ var LEVELS=[
 var W=0,H=0,walls=[],goals=[],boxes=[],px=0,py=0;
 var lv=0,moves=0,undoStack=[],playing=false,paused=false,won=false,cell=40;
 var boxEls=[],playerEl=null,doneList=[];
+var hintOpen=false;
+/* ===== 每关提示（解题思路） ===== */
+var HINTS=[
+"把唯一的箱子向左推进圆圈就行，一步到位。记住：箱子只能推不能拉，别把它推过头！",
+"把箱子向左推进目标。小心：箱子一旦被推进墙角就再也拉不出来了，推之前先看好路线。",
+"两只箱子都在下方。先把它们逐一推到上面那一行，再分别推进左边的两个目标。千万别把箱子推到右上角死角！",
+"从右边把两只箱子逐一向左推进目标，先推离你近的那只。中间有柱子，别把箱子卡在柱子边上。",
+"上面的箱子直接从下方推入目标；下面的箱子先向右拉出一格，再绕到它下面把它推上去。千万别把箱子推进左下角！",
+"两只箱子各守一侧，分别向左、右推进相邻的目标。先处理离你近的那只，各个击破。",
+"左上的箱子从右侧向左推进左上目标；中间那只绕到它下方，向上推入右下目标。右下目标旁边是死胡同，别推过头！",
+"先绕到箱子左侧，从左向右推一段，再转到下方把它推入目标。小心别把箱子推到左上角死角。",
+"两只箱子都在上方：先把右边的箱子从右向左推进右侧目标，再把左边的推进左侧目标。顶行两角是死角，别碰！",
+"终极关！先推中间那只箱子——从下方把它推入中间目标，再处理左右两只。口诀：先中间、后两边，绝不把箱子推到顶行角落。"
+];
 try{doneList=JSON.parse(lsGet('sokoban_done')||'[]');}catch(e){doneList=[];}
 function saveDone(){lsSet('sokoban_done',JSON.stringify(doneList));}
 
@@ -218,7 +239,7 @@ function pushState(){
   if(undoStack.length>500)undoStack.shift();
 }
 function tryMove(dx,dy){
-  if(!playing||paused||won)return;
+  if(!playing||paused||won||hintOpen)return;
   var nx=px+dx,ny=py+dy;
   if(isWall(nx,ny)){sfx('block');return;}
   var bi=boxAt(nx,ny);
@@ -305,7 +326,7 @@ var swiping=false,ax=0,ay=0;
 var boardEl=$('board');
 function swipeStart(x,y){swiping=true;ax=x;ay=y;}
 function swipeMove(x,y){
-  if(!swiping||!playing||paused||won)return;
+  if(!swiping||!playing||paused||won||hintOpen)return;
   var dx=x-ax,dy=y-ay,adx=Math.abs(dx),ady=Math.abs(dy);
   var th=cell*0.45;
   if(Math.max(adx,ady)<th)return;
@@ -333,6 +354,18 @@ document.addEventListener('keydown',function(e){
 });
 
 /* ===== 按钮 ===== */
+$('hintBtn').addEventListener('click',function(){
+  if(hintOpen)return;
+  sfx('click');
+  hintOpen=true;
+  $('hintText').innerHTML='<b style="color:#fff">第 '+(lv+1)+' 关</b><br>'+HINTS[lv];
+  $('hintScr').classList.remove('hidden');
+});
+$('hintClose').addEventListener('click',function(){
+  sfx('click');
+  hintOpen=false;
+  $('hintScr').classList.add('hidden');
+});
 $('undoBtn').addEventListener('click',function(){undo();});
 $('restartBtn').addEventListener('click',function(){sfx('click');loadLevel(lv);});
 $('lvBtn').addEventListener('click',function(){sfx('click');paused=true;renderLvGrid();$('pauseScr').classList.add('hidden');$('startScr').classList.remove('hidden');playing=false;});

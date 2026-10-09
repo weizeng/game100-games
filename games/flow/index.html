@@ -40,6 +40,11 @@ body{background:linear-gradient(160deg,#0e2a4d 0%,#121212 55%,#0a0a0a 100%);colo
 #pauseov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px)}
 #pauseov.on{display:flex}
 .pausecard{background:#1c1c22;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:28px 36px;text-align:center;display:flex;flex-direction:column;gap:12px}
+#hintov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px);padding:24px}
+#hintov.on{display:flex}
+.hintcard{background:#1c1c22;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:26px 28px;text-align:center;display:flex;flex-direction:column;gap:12px;max-width:380px}
+.hintcard h2{font-size:22px}
+.hintcard p{color:#b8d4f0;font-size:14px;line-height:1.9}
 </style>
 </head>
 <body>
@@ -48,7 +53,7 @@ body{background:linear-gradient(160deg,#0e2a4d 0%,#121212 55%,#0a0a0a 100%);colo
   <div class="topbar">
     <span class="title">🌈 连连线</span>
     <span class="stat">第 <b id="lvl">1</b>/6 关 · 笔画 <b id="strokes">0</b></span>
-    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
+    <span><button class="tbtn" id="hintBtn" title="提示">💡</button><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="pauseBtn">⏸</button></span>
   </div>
   <div class="screen on" id="s-start">
     <div class="card">
@@ -74,6 +79,7 @@ body{background:linear-gradient(160deg,#0e2a4d 0%,#121212 55%,#0a0a0a 100%);colo
   </div>
 </div>
 <div id="pauseov"><div class="pausecard"><h2>⏸ 已暂停</h2><button class="bigbtn" id="btnResume">继续</button><button class="ghostbtn" id="btnQuit">退出</button></div></div>
+<div id="hintov"><div class="hintcard"><h2>💡 提示</h2><p id="hintText"></p><button class="ghostbtn" id="hintClose">知道了</button></div></div>
 <script>
 "use strict";
 var $=function(id){return document.getElementById(id)};
@@ -98,6 +104,15 @@ var LEVELS=[
 ];
 /* ---------- 状态 ---------- */
 var L=null,li=0,paths,owner,strokes,dragK,dragging,totalScore,doneList=store.get("done",[]);
+/* ---------- 每关提示（解题思路） ---------- */
+var HINTS=[
+"入门关：绿色两点紧挨着，先一笔画连好；红色从左上出发，贴着边缘绕一圈，把剩下的格子全部吃完再到右下角。",
+"三色关：三对点都是上下对应的——红色、绿色沿第 1、2 列直下，蓝色在右半区绕 S 形铺满所有空格。",
+"竖条关：红、绿两条横线先贴着上、下边缘连好，蓝色在下面三行里来回蛇形走满再到终点。",
+"五色框：四个角的颜色先贴边连成一个框（红左列、绿右列、黄上行、紫下行），蓝色最后在中间 3x3 里绕一圈。",
+"横条关：红、绿先贴左右两边直连，黄点紧挨着直接连，紫色从上到下在中间两列绕 S 形铺满。",
+"五彩关：先把短的几对连好（红走上行、绿走下行、蓝紫都是紧挨着），黄色最后在中间三行蛇形铺满全部空格。"
+];
 var cv=$("cv"),ctx=cv.getContext("2d"),CS=0;
 function show(id){["s-start","s-game","s-end"].forEach(function(s){$(s).classList.toggle("on",s===id)})}
 function renderLvls(){var g=$("lvlGrid");g.innerHTML="";LEVELS.forEach(function(l,i){var b=document.createElement("button");b.className="lvl"+(doneList.indexOf(i)>=0?" done":"");b.innerHTML=(doneList.indexOf(i)>=0?"✅ ":"")+(i+1)+'<span class="nc">'+l.name+" · "+l.terms.length+"色</span>";b.onclick=function(){sClick();startLevel(i)};g.appendChild(b)})}
@@ -166,6 +181,8 @@ $("btnHome").onclick=function(){sClick();renderLvls();show("s-start")};
 $("sndBtn").onclick=function(){soundOn=!soundOn;store.set("sound",soundOn);$("sndBtn").textContent=soundOn?"🔊":"🔇";if(soundOn)sClick()};
 $("sndBtn").textContent=soundOn?"🔊":"🔇";
 $("pauseBtn").onclick=function(){if(!$("s-game").classList.contains("on"))return;sClick();$("pauseov").classList.add("on")};
+$("hintBtn").onclick=function(){if(!$("s-game").classList.contains("on"))return;sClick();$("hintText").innerHTML="<b style='color:#fff'>第 "+(li+1)+" 关 · "+L.name+"</b><br>"+HINTS[li];$("hintov").classList.add("on")};
+$("hintClose").onclick=function(){sClick();$("hintov").classList.remove("on")};
 $("btnResume").onclick=function(){sClick();$("pauseov").classList.remove("on")};
 $("btnQuit").onclick=function(){sClick();$("pauseov").classList.remove("on");renderLvls();show("s-start")};
 renderLvls();totalScore=0;
