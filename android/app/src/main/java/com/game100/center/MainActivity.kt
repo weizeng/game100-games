@@ -167,9 +167,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // 从游戏/设置页返回时：用上次的远端列表重建，保留分类选择与列表内容
+        // 从游戏/设置页返回时：先确保内置游戏存在（设置页"清除"后需要恢复），
+        // 再用上次的远端列表重建，保留分类选择与列表内容
         refreshChips()
         lifecycleScope.launch(Dispatchers.IO) {
+            repo.ensureBundledGames()
             val items = repo.buildGameList(lastRemote)
             withContext(Dispatchers.Main) { showItems(items) }
         }

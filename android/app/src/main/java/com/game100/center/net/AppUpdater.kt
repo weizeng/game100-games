@@ -25,7 +25,12 @@ import java.net.URL
  * 有新版则下载 APK 并调起系统安装器。
  */
 object AppUpdater {
-    const val APP_INFO_URL = "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main/app.json"
+    // 主 + 备用：某个 CDN 节点抽风（403/超时）时自动换条路
+    private val APP_INFO_URLS = listOf(
+        "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main/app.json",
+        "https://fastly.jsdelivr.net/gh/weizeng/game100-games@main/app.json",
+        "https://raw.githubusercontent.com/weizeng/game100-games/main/app.json"
+    )
     private const val PREFS = "game100"
     private const val KEY_LAST_CHECK = "update_last_check"
     private const val CHECK_INTERVAL = 24 * 3600 * 1000L
@@ -51,7 +56,20 @@ object AppUpdater {
 
     @Throws(Exception::class)
     fun fetchInfo(): AppInfo? {
-        val conn = (URL(APP_INFO_URL).openConnection() as HttpURLConnection).apply {
+        var lastErr: Exception? = null
+        for (url in APP_INFO_URLS) {
+            try {
+                return fetchFrom(url)
+            } catch (e: Exception) {
+                lastErr = e
+            }
+        }
+        throw lastErr ?: IOException("版本服务不可用")
+    }
+
+    @Throws(Exception::class)
+    private fun fetchFrom(url: String): AppInfo? {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15000
             readTimeout = 15000
             setRequestProperty("User-Agent", "Game100/${BuildConfig.VERSION_NAME}")
