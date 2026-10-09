@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>忍者</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d0d16;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#1a0f1e 0%,#0d0d16 60%,#120e1a 100%)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none;font-size:15px}
+.hud .left{font-weight:bold;text-shadow:0 0 8px #ba68c8}
+.hud .right{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{width:38px;height:38px;border-radius:50%;border:1px solid #ba68c855;background:#1c1c2bd9;color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,20,.88);backdrop-filter:blur(4px);z-index:10;text-align:center;padding:24px}
+.screen h1{font-size:38px;margin-bottom:6px;background:linear-gradient(135deg,#ba68c8,#7c4dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.screen p{color:#aaa;font-size:14px;line-height:1.7;margin:12px 0 20px}
+.bigbtn{padding:14px 56px;font-size:18px;border:none;border-radius:30px;background:linear-gradient(135deg,#ba68c8,#7c4dff);color:#fff;font-weight:bold;cursor:pointer;transition:transform .1s;box-shadow:0 4px 20px #ba68c855}
+.bigbtn:active{transform:scale(.93)}
+.score{font-size:52px;font-weight:bold;background:linear-gradient(135deg,#ffd740,#ba68c8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0}
+.hiscore{color:#888;font-size:14px;margin-bottom:20px}
+.hidden{display:none!important}
+.hint{position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#ba68c8aa;font-size:12px;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv"></canvas>
+<div class="hud">
+<div class="left">HEIGHT <span id="score">0</span>m</div>
+<div class="right"><button class="iconbtn" id="muteBtn">MUTE</button><button class="iconbtn" id="pauseBtn">II</button></div>
+</div>
+<div class="hint" id="hint">点击跳向对面墙，躲开尖刺</div>
+<div class="screen" id="startScr">
+<h1>NINJA</h1>
+<p>忍者在两墙之间攀登<br>点击屏幕跳向对面墙蹬墙上跳<br>小心墙上的尖刺，碰到即坠落<br>爬得越高分数越高，尖刺越密</p>
+<button class="bigbtn" id="startBtn">开始攀登</button>
+</div>
+<div class="screen hidden" id="overScr">
+<h1>坠落了</h1>
+<div class="score"><span id="finalScore">0</span>m</div>
+<div class="hiscore">最高：<span id="hiScore">0</span>m</div>
+<button class="bigbtn" id="retryBtn">再爬一次</button>
+</div>
+<div class="screen hidden" id="pauseScr">
+<h1>已暂停</h1>
+<button class="bigbtn" id="resumeBtn">继续</button>
+</div>
+</div>
+<script>
+"use strict";
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),wrap=document.getElementById('wrap');
+var W,H,DPR;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=wrap.clientWidth;H=wrap.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+window.addEventListener('resize',resize);resize();
+var muted=false,AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+function sJump(){tone(300,.12,'square',.08,700);}
+function sLand(){tone(500,.06,'square',.06,300);}
+function sDie(){tone(200,.5,'sawtooth',.16,60);}
+document.getElementById('muteBtn').onclick=function(e){e.stopPropagation();muted=!muted;this.textContent=muted?'OFF':'MUTE';};
+var HIKEY='g100_ninja_hi',hi=0;
+try{hi=parseInt(localStorage.getItem(HIKEY))||0;}catch(e){}
+var state='start',paused=false,score=0;
+var ninja,jumping,jx,jy,vx,vy,camY,maxY,spikes,parts,floats,stars,deadT;
+var LW,RW; // 左右墙x
+function rand(a,b){return a+Math.random()*(b-a);}
+// 世界坐标：y 向上为负方向累计（camY 为镜头偏移）
+function spikeDensity(){return Math.min(.85,.28+maxY*.00012);}
+function genSpikesUpTo(worldY){ // worldY 为世界顶部边界（负数方向）
+while(spikesTop>worldY){
+spikesTop-=rand(70,130);
+var d=spikeDensity();
+if(Math.random()<d){var side=Math.random()<.5?0:1;
+spikes.push({x:side?RW:LW,y:spikesTop,side:side,len:rand(22,34)});}}}
+var spikesTop=0;
+function startGame(){score=0;maxY=0;camY=0;spikes=[];parts=[];floats=[];stars=[];
+LW=46;RW=W-46;
+ninja={side:0,wy:-H*.6}; // 世界y
+jumping=false;deadT=0;
+for(var i=0;i<60;i++)stars.push({x:Math.random()*W,y:Math.random()*H,s:rand(.5,1.6),p:rand(0,6.28)});
+spikesTop=0;genSpikesUpTo(-H*1.5);
+document.getElementById('score').textContent='0';
+document.getElementById('hint').style.display='block';
+document.getElementById('startScr').classList.add('hidden');document.getElementById('overScr').classList.add('hidden');document.getElementById('pauseScr').classList.add('hidden');
+state='play';paused=false;}
+function gameOver(){state='over';sDie();document.getElementById('hint').style.display='none';
+deadT=30;
+for(var i=0;i<20;i++)parts.push({x:W/2,y:H/2,vx:rand(-3,3),vy:rand(-3,3),life:rand(20,40),col:'#ba68c8',s:rand(2,4)});
+score=Math.floor(maxY/14);
+document.getElementById('finalScore').textContent=score;
+if(score>hi){hi=score;try{localStorage.setItem(HIKEY,hi);}catch(e){}}
+document.getElementById('hiScore').textContent=hi;
+setTimeout(function(){document.getElementById('overScr').classList.remove('hidden');},550);}
+function jump(){
+if(state!=='play'||paused||jumping)return;
+jumping=true;sJump();
+// 从当前墙跳向对面，带上升
+var fromX=ninja.side?RW:LW,toX=ninja.side?LW:RW;
+jx=fromX;jy=ninja.wy;
+vx=(toX-fromX)/34;vy=-7.5;
+ninja.side=1-ninja.side;}
+function w2s(y){return y-camY;} // 世界y转屏幕y
+function update(){
+if(state!=='play'||paused)return;
+stars.forEach(function(s){s.p+=.03;});
+if(jumping){
+jx+=vx;jy+=vy;vy+=.34;
+// 尖刺碰撞（飞行途中）
+for(var i=0;i<spikes.length;i++){var sp=spikes[i];
+if(Math.abs(jx-sp.x)<sp.len+8&&Math.abs(jy-sp.y)<16){gameOver();return;}}
+// 落墙
+if((jx<=LW+6&&vx<0)||(jx>=RW-6&&vx>0)){
+jumping=false;ninja.wy=jy;sLand();
+// 落点尖刺检查
+for(var j=0;j<spikes.length;j++){var sp2=spikes[j];
+if(sp2.side===ninja.side&&Math.abs(jy-sp2.y)<18){gameOver();return;}}
+parts.push({x:jx,y:w2s(jy),vx:vx>0?2:-2,vy:0,life:10,col:'#ce93d8',s:2});}
+if(jy>camY+H+100){gameOver();return;} // 掉出屏幕
+}
+else{
+// 贴墙滑落一点
+ninja.wy+=.35;
+if(ninja.wy>camY+H+60){gameOver();return;}}
+var curY=jumping?jy:ninja.wy;
+maxY=Math.max(maxY,-curY);
+// 贴墙滑落时经过尖刺也判定
+if(!jumping){
+for(var c=0;c<spikes.length;c++){var spc=spikes[c];
+if(spc.side===ninja.side&&Math.abs(ninja.wy-spc.y)<16){gameOver();return;}}}
+// 镜头跟随
+var focusY=jumping?jy:ninja.wy;
+var targetCam=focusY-H*.55;
+if(targetCam<camY)camY+=(targetCam-camY)*.12;
+genSpikesUpTo(camY-H);
+// 清理下方尖刺
+spikes=spikes.filter(function(s){return s.y<camY+H+80;});
+score=Math.floor(maxY/14);
+document.getElementById('score').textContent=score;
+for(var p=parts.length-1;p>=0;p--){var pt=parts[p];pt.x+=pt.vx;pt.y+=pt.vy;pt.life--;if(pt.life<=0)parts.splice(p,1);}
+for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.y+=fl.vy;fl.life--;if(fl.life<=0)floats.splice(f,1);}
+}
+function draw(){
+ctx.clearRect(0,0,W,H);
+ctx.fillStyle='#fff';stars.forEach(function(s){ctx.globalAlpha=.2+.5*Math.abs(Math.sin(s.p));ctx.fillRect(s.x,s.y,s.s,s.s);});ctx.globalAlpha=1;
+// 墙
+var g1=ctx.createLinearGradient(LW-20,0,LW+20,0);
+g1.addColorStop(0,'#2a2130');g1.addColorStop(1,'#3e2f47');
+ctx.fillStyle=g1;ctx.fillRect(0,0,LW,H);
+var g2=ctx.createLinearGradient(RW-20,0,RW+20,0);
+g2.addColorStop(0,'#3e2f47');g2.addColorStop(1,'#2a2130');
+ctx.fillStyle=g2;ctx.fillRect(RW,0,W-RW,H);
+ctx.fillStyle='#ba68c855';ctx.fillRect(LW-3,0,3,H);ctx.fillRect(RW,0,3,H);
+// 尖刺
+spikes.forEach(function(sp){
+var sy=w2s(sp.y);if(sy<-40||sy>H+40)return;
+ctx.fillStyle='#eceff1';
+var dir=sp.side?1:-1,bx=sp.side?RW-3:LW+3;
+ctx.beginPath();
+for(var k=0;k<3;k++){var ky=sy-16+k*16;
+ctx.moveTo(bx,ky);ctx.lineTo(bx-dir*sp.len,ky+8);ctx.lineTo(bx,ky+16);}
+ctx.fill();});
+// 忍者
+if(state==='play'){
+var nx,ny;
+if(jumping){nx=jx;ny=w2s(jy);}
+else{nx=ninja.side?RW-14:LW+14;ny=w2s(ninja.wy);}
+ctx.save();ctx.translate(nx,ny);
+if(jumping)ctx.rotate(vx>0?.5:-.5);
+ctx.fillStyle='#212121';
+ctx.beginPath();ctx.arc(0,-14,8,0,6.28);ctx.fill(); // 头
+ctx.fillStyle='#ff5252';ctx.fillRect(-8,-16,16,3); // 头带
+ctx.fillRect(jumping?6:-14,-17,10,2);
+ctx.fillStyle='#37474f';ctx.fillRect(-6,-8,12,18); // 身
+ctx.strokeStyle='#212121';ctx.lineWidth=4;
+var lp=jumping?6:2;
+ctx.beginPath();ctx.moveTo(-3,10);ctx.lineTo(-6,10+lp);ctx.moveTo(3,10);ctx.lineTo(6,10+lp);ctx.stroke();
+ctx.restore();}
+// 里程碑飘字
+parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/40);ctx.fillStyle=p.col;ctx.fillRect(p.x,p.y,p.s,p.s);});ctx.globalAlpha=1;
+ctx.font='bold 15px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/40);ctx.fillStyle='#ffd740';ctx.fillText(f.t,f.x,f.y);});ctx.globalAlpha=1;
+}
+function loop(){update();draw();requestAnimationFrame(loop);}
+loop();
+cv.addEventListener('touchstart',function(e){e.preventDefault();jump();},{passive:false});
+cv.addEventListener('mousedown',function(e){jump();});
+document.getElementById('startBtn').onclick=function(){ac();startGame();};
+document.getElementById('retryBtn').onclick=function(){startGame();};
+document.getElementById('pauseBtn').onclick=function(){if(state!=='play')return;paused=true;document.getElementById('pauseScr').classList.remove('hidden');};
+document.getElementById('resumeBtn').onclick=function(){paused=false;document.getElementById('pauseScr').classList.add('hidden');};
+document.addEventListener('visibilitychange',function(){if(document.hidden&&state==='play'&&!paused){paused=true;document.getElementById('pauseScr').classList.remove('hidden');}});
+</script>
+</body>
+</html>

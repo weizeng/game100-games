@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>24点 · 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;justify-content:center;overscroll-behavior:none}
+#app{width:100%;max-width:480px;min-height:100vh;position:relative;display:flex;flex-direction:column;background:radial-gradient(900px 480px at 50% -8%,rgba(230,126,34,.13),transparent 60%),radial-gradient(700px 500px at 90% 110%,rgba(255,215,106,.08),transparent 60%),#121212;overflow:hidden}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;z-index:20}
+.tb-title{font-size:14px;font-weight:700;color:#cfcfcf;letter-spacing:1px}
+.tb-right{display:flex;gap:8px}
+.iconbtn{width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .1s}
+.iconbtn:active{transform:scale(.88)}
+.screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:12px;text-align:center;z-index:10}
+.hidden{display:none!important}
+.bigemoji{font-size:64px;filter:drop-shadow(0 6px 16px rgba(0,0,0,.5));animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.gamename{font-size:28px;font-weight:800;background:linear-gradient(135deg,#ffd76a,#e67e22);-webkit-background-clip:text;background-clip:text;color:transparent}
+.howto{font-size:13.5px;line-height:1.8;color:#bdbdbd;max-width:350px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px 16px}
+.btn{background:linear-gradient(135deg,#e67e22,#d35400);border:none;color:#fff;font-size:17px;font-weight:800;padding:13px 46px;border-radius:999px;cursor:pointer;box-shadow:0 8px 24px rgba(230,126,34,.35);transition:transform .1s;letter-spacing:2px}
+.btn:active{transform:scale(.93)}
+.btn.ghost{background:rgba(255,255,255,.08);box-shadow:none;border:1px solid rgba(255,255,255,.16)}
+.btn.small{font-size:14px;padding:9px 26px;letter-spacing:1px}
+.hsline{font-size:13px;color:#ffd76a}
+.hud{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+.pill{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700}
+#fx{position:absolute;inset:0;pointer-events:none;z-index:50}
+.float-txt{position:absolute;transform:translate(-50%,-50%);font-weight:800;font-size:22px;pointer-events:none;z-index:60;text-shadow:0 2px 8px rgba(0,0,0,.6);animation:floatUp 1.1s ease-out forwards}
+@keyframes floatUp{to{transform:translate(-50%,-160%);opacity:0}}
+#pauseOv{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#pauseOv .btn{font-size:15px;padding:11px 34px}
+.endstats{font-size:15px;line-height:2.1;color:#ddd}
+.endstats b{color:#ffd76a;font-size:22px}
+.msg{min-height:22px;font-size:13px;color:#ff9a9a}
+.shake{animation:shake .35s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+#expr{min-height:64px;width:100%;max-width:400px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;letter-spacing:2px;padding:10px;color:#fff;word-break:break-all}
+#expr .eq{color:#7ee2a8}
+#numRow{display:flex;gap:10px;justify-content:center}
+.ncard{width:68px;height:68px;border-radius:16px;background:linear-gradient(135deg,#2c3a55,#1d2942);border:2px solid rgba(159,194,255,.4);color:#fff;font-size:28px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .1s,opacity .15s;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.ncard:active{transform:scale(.9)}
+.ncard.used{opacity:.25;pointer-events:none;transform:scale(.94)}
+#pad{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%;max-width:400px}
+.pkey{height:54px;border-radius:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
+.pkey:active{transform:scale(.9)}
+.pkey.op{background:rgba(230,126,34,.22);border-color:rgba(230,126,34,.5);color:#ffd76a}
+.pkey.eq{background:linear-gradient(135deg,#2ecc71,#27ae60);border:none;font-size:26px}
+.pkey.util{font-size:16px;color:#9fc2ff}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="tb-title">🧮 24点</div>
+    <div class="tb-right">
+      <div class="iconbtn" id="soundBtn">🔊</div>
+      <div class="iconbtn hidden" id="pauseBtn">⏸</div>
+    </div>
+  </div>
+  <div class="screen" id="scrStart">
+    <div class="bigemoji">🧮</div>
+    <div class="gamename">24点</div>
+    <div class="howto">给出 <strong style="color:#fff">4 个数字</strong>，用 <strong style="color:#ffd76a">+ − × ÷ ( )</strong> 算出 <strong style="color:#fff">24</strong>。<br>点数字卡填入算式，再点运算符组合，<br>按 <strong style="color:#7ee2a8">=</strong> 验证。每轮 10 题，答对得分+换题！</div>
+    <button class="btn" id="startBtn">开始游戏</button>
+    <div class="hsline" id="startHs"></div>
+  </div>
+  <div class="screen hidden" id="scrGame" style="justify-content:flex-start;padding-top:6px">
+    <div class="hud">
+      <div class="pill">第 <span id="qidx" style="color:#ffd76a">1</span>/10 题</div>
+      <div class="pill">得分 <span id="score" style="color:#7ee2a8">0</span></div>
+      <div class="pill">⏱ <span id="time">0</span>s</div>
+    </div>
+    <div id="numRow"></div>
+    <div id="expr"><span style="color:#666;font-size:16px">点数字卡开始组算式…</span></div>
+    <div id="pad">
+      <div class="pkey op" data-k="+">+</div>
+      <div class="pkey op" data-k="-">−</div>
+      <div class="pkey op" data-k="*">×</div>
+      <div class="pkey op" data-k="/">÷</div>
+      <div class="pkey" data-k="(">(</div>
+      <div class="pkey" data-k=")">)</div>
+      <div class="pkey util" data-k="back">⌫</div>
+      <div class="pkey util" data-k="clear">C</div>
+      <div class="pkey eq" data-k="=" style="grid-column:span 3">=</div>
+      <div class="pkey util" data-k="skip">跳过</div>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+  <div class="screen hidden" id="scrEnd">
+    <div class="bigemoji" id="endEmoji">🏆</div>
+    <div class="gamename" id="endTitle">挑战结束！</div>
+    <div class="endstats" id="endStats"></div>
+    <div class="hsline" id="endHs"></div>
+    <button class="btn" id="againBtn">再来一局</button>
+    <button class="btn ghost" id="backBtn">返回</button>
+  </div>
+  <div id="pauseOv" class="hidden">
+    <div style="font-size:24px;font-weight:800">⏸ 已暂停</div>
+    <button class="btn" id="resumeBtn">继续</button>
+    <button class="btn ghost" id="restartBtn">重新开始</button>
+  </div>
+  <canvas id="fx"></canvas>
+</div>
+<script>
+'use strict';
+let ACTX=null, soundOn=true;
+try{ soundOn=localStorage.getItem('g100_sound')!=='0'; }catch(e){}
+function audio(){ if(!ACTX){ try{ ACTX=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } } if(ACTX&&ACTX.state==='suspended'){ ACTX.resume().catch(function(){}); } return ACTX; }
+function tone(f,d,type,vol,delay){ if(!soundOn) return; try{ const c=audio(); if(!c) return; const t=c.currentTime+(delay||0); const o=c.createOscillator(),g=c.createGain(); o.type=type||'sine'; o.frequency.setValueAtTime(f,t); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.12,t+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t+d); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+d+0.05); }catch(e){} }
+function sClick(){ tone(700,0.05,'square',0.04); }
+function sGood(){ tone(660,0.1,'sine',0.11); tone(990,0.16,'sine',0.11,0.08); }
+function sBad(){ tone(200,0.18,'sawtooth',0.07); }
+function sWin(){ const seq=[523,659,784,1046,1318]; for(let i=0;i<seq.length;i++) tone(seq[i],0.22,'triangle',0.11,i*0.11); }
+function hsGet(k){ try{ const v=parseInt(localStorage.getItem(k)||'0',10); return isNaN(v)?0:v; }catch(e){ return 0; } }
+function hsSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(e){} }
+const fxC=document.getElementById('fx'), fxX=fxC.getContext('2d');
+let P=[];
+function fxSize(){ const r=fxC.parentElement.getBoundingClientRect(); fxC.width=r.width; fxC.height=r.height; }
+window.addEventListener('resize',fxSize);
+function burst(x,y,n,cols){ for(let i=0;i<(n||24);i++){ const a=Math.random()*Math.PI*2,s=1+Math.random()*3.2; P.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.2,l:1,c:cols[i%cols.length],r:2+Math.random()*3}); } }
+function fxLoop(){ fxX.clearRect(0,0,fxC.width,fxC.height); P=P.filter(function(p){return p.l>0;}); for(let i=0;i<P.length;i++){ const p=P[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.06; p.l-=0.018; fxX.globalAlpha=Math.max(p.l,0); fxX.fillStyle=p.c; fxX.beginPath(); fxX.arc(p.x,p.y,p.r,0,7); fxX.fill(); } fxX.globalAlpha=1; requestAnimationFrame(fxLoop); }
+function floatText(x,y,txt,color){ const s=document.createElement('div'); s.className='float-txt'; s.textContent=txt; s.style.left=x+'px'; s.style.top=y+'px'; s.style.color=color||'#ffd76a'; document.getElementById('app').appendChild(s); setTimeout(function(){ s.remove(); },1150); }
+function shakeEl(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+const $=function(id){ return document.getElementById(id); };
+const scrStart=$('scrStart'), scrGame=$('scrGame'), scrEnd=$('scrEnd'), pauseOv=$('pauseOv'), pauseBtn=$('pauseBtn'), soundBtn=$('soundBtn');
+let paused=false;
+function show(el){ [scrStart,scrGame,scrEnd].forEach(function(s){ s.classList.add('hidden'); }); el.classList.remove('hidden'); fxSize(); }
+function setPaused(p){ paused=p; pauseOv.classList.toggle('hidden',!p); }
+soundBtn.textContent=soundOn?'🔊':'🔇';
+soundBtn.addEventListener('click',function(){ soundOn=!soundOn; soundBtn.textContent=soundOn?'🔊':'🔇'; try{ localStorage.setItem('g100_sound',soundOn?'1':'0'); }catch(e){} if(soundOn) sClick(); });
+pauseBtn.addEventListener('click',function(){ sClick(); setPaused(true); });
+$('resumeBtn').addEventListener('click',function(){ sClick(); setPaused(false); });
+/* ===== 游戏：24点（20组题目已用程序验算可解） ===== */
+const BANK=[[4,4,10,10],[3,3,8,8],[5,5,5,1],[1,3,4,6],[1,2,3,4],[2,3,4,5],[3,4,5,6],[1,1,5,8],[2,2,3,9],[4,5,6,7],[1,4,5,6],[3,3,7,7],[4,4,7,7],[2,5,5,10],[3,5,7,9],[2,3,5,12],[6,6,6,6],[8,8,3,8],[1,1,11,11],[2,7,8,9]];
+const PER_ROUND=10;
+const OPSYM={'+':'+','-':'−','*':'×','/':'÷'};
+let questions=[], qi=0, nums=[], tokens=[], usedCards=[];
+let score=0, solved=0, playing=false, qStart=0, totalMs=0, timerId=null, lock=false;
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function newGame(){
+  questions=shuffle(BANK.slice()).slice(0,PER_ROUND);
+  qi=0; score=0; solved=0; totalMs=0; playing=true; lock=false;
+  setPaused(false); pauseBtn.classList.remove('hidden');
+  $('msg').textContent=''; $('score').textContent='0';
+  show(scrGame); loadQ();
+  clearInterval(timerId);
+  timerId=setInterval(function(){ if(!playing||paused) return; totalMs+=200; $('time').textContent=Math.floor(totalMs/1000); },200);
+}
+function loadQ(){
+  nums=questions[qi].slice();
+  tokens=[]; usedCards=[false,false,false,false]; lock=false;
+  qStart=Date.now();
+  $('qidx').textContent=qi+1; $('msg').textContent='';
+  const nr=$('numRow'); nr.innerHTML='';
+  nums.forEach(function(v,i){
+    const d=document.createElement('div');
+    d.className='ncard'; d.textContent=v; d.dataset.i=i;
+    d.addEventListener('pointerdown',function(e){ e.preventDefault(); addNum(i); },{passive:false});
+    nr.appendChild(d);
+  });
+  renderExpr();
+}
+function renderExpr(){
+  const ex=$('expr');
+  if(!tokens.length){ ex.innerHTML='<span style="color:#666;font-size:16px">点数字卡开始组算式…</span>'; return; }
+  let html='';
+  tokens.forEach(function(tk){
+    if(tk.t==='n') html+='<span style="color:#9fc2ff">'+tk.v+'</span>';
+    else if(tk.t==='o') html+='<span style="color:#ffd76a">'+OPSYM[tk.op]+'</span>';
+    else html+='<span style="color:#c39bd3">'+tk.v+'</span>';
+  });
+  ex.innerHTML=html+'<span class="eq"> = ?</span>';
+}
+function addNum(i){
+  if(!playing||paused||lock||usedCards[i]) return;
+  tokens.push({t:'n',v:nums[i],id:i}); usedCards[i]=true;
+  document.querySelector('.ncard[data-i="'+i+'"]').classList.add('used');
+  sClick(); renderExpr();
+}
+function addOp(op){
+  if(!playing||paused||lock) return;
+  const last=tokens[tokens.length-1];
+  if(!last||last.t==='o'||(last.t==='p'&&last.v==='(')){ $('msg').textContent='运算符位置不对'; return; }
+  tokens.push({t:'o',op:op}); sClick(); renderExpr();
+}
+function addParen(p){
+  if(!playing||paused||lock) return;
+  if(p==='('){ tokens.push({t:'p',v:'('}); }
+  else {
+    let bal=0; tokens.forEach(function(tk){ if(tk.t==='p') bal+=tk.v==='('?1:-1; });
+    const last=tokens[tokens.length-1];
+    if(bal<=0||!last||last.t==='o'||(last.t==='p'&&last.v==='(')){ $('msg').textContent='右括号位置不对'; return; }
+    tokens.push({t:'p',v:')'});
+  }
+  sClick(); renderExpr();
+}
+function backspace(){
+  if(!playing||paused||lock||!tokens.length) return;
+  const tk=tokens.pop();
+  if(tk.t==='n'){ usedCards[tk.id]=false; document.querySelector('.ncard[data-i="'+tk.id+'"]').classList.remove('used'); }
+  sClick(); renderExpr(); $('msg').textContent='';
+}
+function clearAll(){
+  if(!playing||paused||lock) return;
+  tokens=[]; usedCards=[false,false,false,false];
+  document.querySelectorAll('.ncard').forEach(function(d){ d.classList.remove('used'); });
+  sClick(); renderExpr(); $('msg').textContent='';
+}
+function evalTokens(toks){
+  const out=[], ops=[], prec={'+':1,'-':1,'*':2,'/':2};
+  for(let i=0;i<toks.length;i++){
+    const tk=toks[i];
+    if(tk.t==='n') out.push(tk.v);
+    else if(tk.t==='p'){
+      if(tk.v==='(') ops.push(tk);
+      else { let ok=false; while(ops.length){ const o=ops.pop(); if(o.t==='p'){ ok=true; break; } out.push(o.op); } if(!ok) throw 'paren'; }
+    } else {
+      while(ops.length&&ops[ops.length-1].t==='o'&&prec[ops[ops.length-1].op]>=prec[tk.op]) out.push(ops.pop().op);
+      ops.push(tk);
+    }
+  }
+  while(ops.length){ const o=ops.pop(); if(o.t==='p') throw 'paren'; out.push(o.op); }
+  const st=[];
+  for(let i=0;i<out.length;i++){
+    const x=out[i];
+    if(typeof x==='number'){ st.push(x); continue; }
+    if(st.length<2) throw 'expr';
+    const b=st.pop(), a=st.pop();
+    if(x==='+') st.push(a+b);
+    else if(x==='-') st.push(a-b);
+    else if(x==='*') st.push(a*b);
+    else { if(Math.abs(b)<1e-12) throw 'div0'; st.push(a/b); }
+  }
+  if(st.length!==1) throw 'expr';
+  return st[0];
+}
+function submit(){
+  if(!playing||paused||lock) return;
+  const nNums=tokens.filter(function(t){ return t.t==='n'; }).length;
+  if(nNums<4){ $('msg').textContent='要用完 4 个数字（还差 '+(4-nNums)+' 个）'; shakeEl($('expr')); sBad(); return; }
+  const last=tokens[tokens.length-1];
+  if(last.t==='o'||(last.t==='p'&&last.v==='(')){ $('msg').textContent='算式不完整'; shakeEl($('expr')); sBad(); return; }
+  let v;
+  try{ v=evalTokens(tokens); }
+  catch(e){
+    $('msg').textContent=e==='div0'?'❌ 除数不能为零':(e==='paren'?'❌ 括号不匹配':'❌ 算式不完整');
+    shakeEl($('expr')); sBad(); return;
+  }
+  if(Math.abs(v-24)<1e-6){
+    lock=true; solved++;
+    const secs=(Date.now()-qStart)/1000;
+    const pts=100+Math.max(0,Math.round((30-secs)*5));
+    score+=pts; $('score').textContent=score;
+    sGood();
+    const ex=$('expr').getBoundingClientRect(), ar=$('app').getBoundingClientRect();
+    burst(ex.left-ar.left+ex.width/2, ex.top-ar.top+ex.height/2, 50, ['#e67e22','#ffd76a','#7ee2a8','#fff']);
+    floatText(ex.left-ar.left+ex.width/2, ex.top-ar.top-6, '+'+pts, '#7ee2a8');
+    $('msg').style.color='#7ee2a8'; $('msg').textContent='🎉 正确！= 24';
+    setTimeout(function(){ $('msg').style.color=''; nextQ(); },900);
+  } else {
+    $('msg').textContent='❌ 结果是 '+Math.round(v*100)/100+'，不是 24，再试试';
+    shakeEl($('expr')); sBad();
+  }
+}
+function nextQ(){
+  qi++;
+  if(qi<PER_ROUND) loadQ();
+  else endGame();
+}
+$('pad').addEventListener('pointerdown',function(e){
+  const t=e.target.closest('.pkey'); if(!t) return;
+  e.preventDefault();
+  const k=t.dataset.k;
+  if(k==='=') submit();
+  else if(k==='back') backspace();
+  else if(k==='clear') clearAll();
+  else if(k==='skip'){ if(!playing||paused||lock) return; sClick(); $('msg').textContent='已跳过本题'; nextQ(); }
+  else if(k==='('||k===')') addParen(k);
+  else addOp(k);
+},{passive:false});
+function endGame(){
+  playing=false; clearInterval(timerId); pauseBtn.classList.add('hidden'); setPaused(false);
+  const key='g100_math24_hs', best=hsGet(key);
+  let nb=false;
+  if(score>best){ hsSet(key,score); nb=true; }
+  $('endEmoji').textContent=solved>=8?'🏆':(solved>=5?'👍':'💪');
+  $('endTitle').textContent='挑战结束！';
+  $('endStats').innerHTML='答对 <b>'+solved+'</b>/'+PER_ROUND+' 题<br>总用时 '+Math.floor(totalMs/1000)+'s · 得分 <b>'+score+'</b>'+(nb?'<br>🎉 新纪录！':'');
+  $('endHs').textContent='🏅 历史最高：'+Math.max(best,score)+' 分';
+  show(scrEnd);
+  if(solved>=5){ sWin(); const r=$('app').getBoundingClientRect(); burst(r.width/2,220,90,['#e67e22','#ffd76a','#7ee2a8','#fff']); }
+  else sBad();
+}
+$('startBtn').addEventListener('click',function(){ audio(); sClick(); newGame(); });
+$('againBtn').addEventListener('click',function(){ sClick(); newGame(); });
+$('backBtn').addEventListener('click',function(){ sClick(); playing=false; clearInterval(timerId); pauseBtn.classList.add('hidden'); show(scrStart); refreshStartHs(); });
+$('restartBtn').addEventListener('click',function(){ sClick(); newGame(); });
+function refreshStartHs(){ const b=hsGet('g100_math24_hs'); $('startHs').textContent=b>0?('🏅 历史最高 '+b+' 分'):''; }
+refreshStartHs(); fxSize(); fxLoop();
+</script>
+</body>
+</html>
