@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>叠叠乐</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b0e17;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+body{display:flex;justify-content:center}
+#wrap{width:100%;max-width:480px;height:100%;position:relative;background:radial-gradient(120% 100% at 50% 0%,#0e2a33 0%,#0b0e17 70%)}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block;cursor:pointer}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;z-index:5;pointer-events:none}
+.hud .score{font-size:22px;font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.hud .sub{font-size:12px;color:#9fb8c4}
+.hudbtns{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-size:18px;backdrop-filter:blur(6px);cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:10;background:rgba(5,8,16,.72);backdrop-filter:blur(4px)}
+.card{background:linear-gradient(160deg,#10333d,#0d1622);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:28px 26px;width:86%;max-width:360px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.card h1{font-size:30px;margin-bottom:6px}
+.card .sub{font-size:13px;color:#8fd0de}
+.card p{font-size:14px;color:#b9c0d8;line-height:1.8;margin:12px 0;text-align:left}
+.card p b{color:#4dd0e1}
+.btn{display:inline-block;margin-top:10px;padding:13px 40px;font-size:17px;font-weight:700;color:#04222a;background:linear-gradient(135deg,#4dd0e1,#26a69a);border:none;border-radius:14px;cursor:pointer;box-shadow:0 8px 24px rgba(77,208,225,.35);transition:transform .08s}
+.btn:active{transform:scale(.96)}
+.btn.ghost{background:rgba(255,255,255,.1);color:#fff;box-shadow:none;margin-left:8px}
+.best{margin-top:12px;font-size:13px;color:#8b94b8}
+.bigscore{font-size:52px;font-weight:800;color:#4dd0e1;text-shadow:0 4px 20px rgba(77,208,225,.35)}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+  <div class="hud">
+    <div class="hudbtns"><button class="iconbtn" id="pauseBtn">⏸</button></div>
+    <div><div class="score">🧱 <span id="scoreV">0</span> 分</div><div class="sub" id="speedV"></div></div>
+    <div class="hudbtns"><button class="iconbtn" id="muteBtn">🔊</button></div>
+  </div>
+
+  <div class="overlay" id="startOv">
+    <div class="card">
+      <h1>🧱 叠叠乐</h1>
+      <div class="sub">层层叠高，挑战极限</div>
+      <p>👉 悬浮方块左右移动，<b>点击屏幕</b>让它落下<br>📐 对准塔顶：超出部分会被<b>切掉</b>坠落<br>✨ 误差小于 4px 判<b>完美</b>，加分更多<br>💀 完全没叠上就结束，塔会越叠越高、越叠越快</p>
+      <button class="btn" id="startBtn">开始游戏</button>
+      <div class="best" id="startBest">历史最高：0 分</div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="pauseOv">
+    <div class="card">
+      <h1>⏸ 已暂停</h1>
+      <p style="text-align:center">塔身稳固，稍后再战…</p>
+      <button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn1">重来</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="overOv">
+    <div class="card">
+      <h1>🧱 塔倒了！</h1>
+      <div class="bigscore"><span id="finalScore">0</span> 分</div>
+      <div class="best" id="overBest">历史最高：0 分</div>
+      <div><button class="btn" id="restartBtn2">再来一局</button></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+'use strict';
+var cvs=document.getElementById('game'),ctx=cvs.getContext('2d'),wrap=document.getElementById('wrap');
+var W=0,H=0;
+function fit(){var r=wrap.getBoundingClientRect();var dpr=Math.min(2,window.devicePixelRatio||1);cvs.width=Math.round(r.width*dpr);cvs.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=r.height;if(mode==='ready')buildBase();}
+window.addEventListener('resize',fit);
+
+/* ---------- 音效 ---------- */
+var audioCtx=null;
+function ac(){if(!audioCtx){try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(audioCtx&&audioCtx.state==='suspended'){try{audioCtx.resume();}catch(e){}}return audioCtx;}
+var muted=false;try{muted=localStorage.getItem('stack_muted')==='1';}catch(e){}
+var muteBtn=document.getElementById('muteBtn');
+function refreshMute(){muteBtn.textContent=muted?'🔇':'🔊';}refreshMute();
+muteBtn.addEventListener('click',function(){muted=!muted;try{localStorage.setItem('stack_muted',muted?'1':'0');}catch(e){}refreshMute();});
+function tone(f,dur,type,vol,delay){if(muted)return;var a=ac();if(!a)return;var t=a.currentTime+(delay||0);var o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||0.18,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+dur+0.05);}
+function sndDrop(){tone(280,0.09,'square',0.14);tone(180,0.1,'triangle',0.12,0.02);}
+function sndPerfect(){tone(880,0.12,'triangle',0.18);tone(1318,0.16,'triangle',0.16,0.09);}
+function sndFail(){tone(200,0.3,'sawtooth',0.22);tone(130,0.4,'sawtooth',0.2,0.12);}
+function sndBest(){var n=[523,659,784,1047,1319];for(var i=0;i<n.length;i++)tone(n[i],0.16,'triangle',0.16,i*0.1);}
+function vib(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);}catch(e){}}
+
+/* ---------- 状态 ---------- */
+var BH=26;
+var mode='ready',rafId=0,last=0;
+var tower=[],mover=null,falling=[],pops=[];
+var level=0,score=0,best=0,camY=0,sideT=1,shakeT=0;
+try{best=parseInt(localStorage.getItem('stack_best')||'0',10)||0;}catch(e){}
+var scoreV=document.getElementById('scoreV'),speedV=document.getElementById('speedV');
+var startOv=document.getElementById('startOv'),pauseOv=document.getElementById('pauseOv'),overOv=document.getElementById('overOv');
+document.getElementById('startBest').textContent='历史最高：'+best+' 分';
+
+function hue(l){return (190+l*9)%360;}
+function buildBase(){var w0=Math.min(W*0.58,230);tower=[{x:(W-w0)/2,w:w0,y:H-90-BH,hue:hue(0)}];}
+buildBase();fit();
+
+function resetMover(){var prev=tower[tower.length-1];mover={w:prev.w,phase:sideT>0?Math.PI/2:-Math.PI/2,x:0,y:0};sideT*=-1;}
+function moverSpeed(){return Math.min(4.6,1.9+level*0.09);}
+
+/* ---------- 落块 ---------- */
+function drop(){
+  if(mode!=='playing')return;
+  var prev=tower[tower.length-1];
+  var mx=mover.x,mw=mover.w;
+  var L=Math.max(prev.x,mx),R=Math.min(prev.x+prev.w,mx+mw);
+  if(R-L<1){miss();return;}                       /* 完全没叠上 */
+  var off=mx-prev.x,nx,Lw,perfect=false;
+  if(Math.abs(off)<4){                            /* 完美判定 */
+    perfect=true;nx=prev.x;Lw=prev.w;
+  }else{
+    nx=L;Lw=R-L;
+    var cw=off>0?(mx+mw-R):(L-mx);                /* 被切掉的宽度 */
+    var cxp=off>0?R:mx;                           /* 被切掉块的左边缘 */
+    if(cw>0.5)falling.push({x:cxp,w:cw,y:prev.y-BH,vy:-50,vx:off>0?70:-70,rot:0,vr:off>0?2.5:-2.5,hue:hue(level),alpha:1});
+  }
+  tower.push({x:nx,w:Lw,y:prev.y-BH,hue:hue(level)});
+  level++;
+  score+=perfect?3:1;
+  scoreV.textContent=score;
+  speedV.textContent='高度 '+level+' 层 · 速度 Lv.'+(1+Math.floor(level/8));
+  if(perfect){addPop(prev.x+prev.w/2,prev.y-BH+camY,'完美! +3','#ffd54f',22);sndPerfect();vib(20);}
+  else sndDrop();
+  resetMover();
+}
+function miss(){
+  mode='over';stopLoop();sndFail();vib(120);shakeT=0.4;
+  var isBest=score>best;
+  if(isBest){best=score;try{localStorage.setItem('stack_best',String(best));}catch(e){}}
+  document.getElementById('finalScore').textContent=score;
+  document.getElementById('overBest').textContent='历史最高：'+best+' 分'+(isBest?' 🎉新纪录！':'');
+  setTimeout(function(){if(mode==='over')overOv.classList.remove('hidden');},450);
+  if(isBest)sndBest();
+}
+function addPop(x,y,text,color,size){pops.push({x:x,y:y,text:text,color:color,size:size||20,t:0});}
+
+/* ---------- 更新 ---------- */
+function update(dt){
+  var prev=tower[tower.length-1];
+  var cx=(W-mover.w)/2,amp=(W-mover.w)/2+26;
+  mover.phase+=dt*moverSpeed();
+  mover.x=cx+amp*Math.sin(mover.phase);
+  mover.y=prev.y-BH;
+  var topY=tower[tower.length-1].y;
+  var target=Math.max(0,H*0.38-topY);
+  camY+=(target-camY)*Math.min(1,dt*3.5);          /* 镜头缓动下移 */
+  for(var i=falling.length-1;i>=0;i--){var f=falling[i];f.vy+=2200*dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.rot+=f.vr*dt;f.alpha-=dt*0.5;if(f.y+camY>H+60||f.alpha<=0)falling.splice(i,1);}
+  for(i=pops.length-1;i>=0;i--){var q=pops[i];q.t+=dt;if(q.t>1.1)pops.splice(i,1);}
+  if(shakeT>0)shakeT-=dt;
+}
+
+/* ---------- 绘制 ---------- */
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawBlock(x,y,w,hueV,alpha,glow){
+  if(w<=0)return;ctx.save();ctx.globalAlpha=alpha==null?1:alpha;
+  if(glow){ctx.shadowColor='hsla('+hueV+',90%,65%,.8)';ctx.shadowBlur=18;}
+  var g=ctx.createLinearGradient(x,y,x,y+BH);g.addColorStop(0,'hsl('+hueV+',70%,56%)');g.addColorStop(1,'hsl('+hueV+',70%,40%)');
+  roundRect(x,y,w,BH,7);ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;ctx.stroke();
+  ctx.restore();
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.save();
+  if(shakeT>0){var s=9*Math.min(1,shakeT*3);ctx.translate((Math.random()*2-1)*s,(Math.random()*2-1)*s);}
+  /* 地面 */
+  ctx.fillStyle='rgba(255,255,255,.06)';ctx.fillRect(0,H-88,W,2);
+  var i,b;
+  for(i=0;i<tower.length;i++){b=tower[i];var y=b.y+camY;if(y>H+40||y<-60)continue;drawBlock(b.x,y,b.w,b.hue);}
+  if(mode==='playing'&&mover){drawBlock(mover.x,mover.y+camY,mover.w,hue(level),0.92,true);}
+  for(i=0;i<falling.length;i++){var f=falling[i];ctx.save();ctx.globalAlpha=Math.max(0,f.alpha);ctx.translate(f.x+f.w/2,f.y+camY+BH/2);ctx.rotate(f.rot);drawBlock(-f.w/2,-BH/2,f.w,f.hue,1);ctx.restore();}
+  ctx.textAlign='center';
+  for(i=0;i<pops.length;i++){var q=pops[i];ctx.globalAlpha=Math.max(0,1-q.t);ctx.font='800 '+q.size+'px sans-serif';ctx.fillStyle=q.color;ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=3;var yy=q.y-q.t*40;ctx.strokeText(q.text,q.x,yy);ctx.fillText(q.text,q.x,yy);}
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
+
+/* ---------- 主循环 ---------- */
+function loop(ts){rafId=requestAnimationFrame(loop);var dt=Math.min(0.033,last?(ts-last)/1000:0.016);last=ts;update(dt);draw();}
+function stopLoop(){if(rafId){cancelAnimationFrame(rafId);rafId=0;}}
+
+function start(){
+  stopLoop();buildBase();camY=0;level=0;score=0;falling=[];pops=[];shakeT=0;sideT=1;
+  scoreV.textContent='0';speedV.textContent='高度 0 层 · 速度 Lv.1';
+  resetMover();
+  startOv.classList.add('hidden');pauseOv.classList.add('hidden');overOv.classList.add('hidden');
+  mode='playing';last=0;rafId=requestAnimationFrame(loop);
+}
+function pause(){if(mode!=='playing')return;mode='paused';stopLoop();pauseOv.classList.remove('hidden');}
+function resume(){if(mode!=='paused')return;mode='playing';pauseOv.classList.add('hidden');last=0;rafId=requestAnimationFrame(loop);}
+
+cvs.addEventListener('pointerdown',function(e){e.preventDefault();if(mode==='playing')drop();},{passive:false});
+document.addEventListener('keydown',function(e){if(e.code==='Space'&&mode==='playing'){e.preventDefault();drop();}});
+cvs.addEventListener('contextmenu',function(e){e.preventDefault();});
+document.getElementById('startBtn').addEventListener('click',function(){ac();start();});
+document.getElementById('pauseBtn').addEventListener('click',pause);
+document.getElementById('resumeBtn').addEventListener('click',resume);
+document.getElementById('restartBtn1').addEventListener('click',start);
+document.getElementById('restartBtn2').addEventListener('click',start);
+document.addEventListener('visibilitychange',function(){if(document.hidden)pause();});
+})();
+</script>
+</body>
+</html>

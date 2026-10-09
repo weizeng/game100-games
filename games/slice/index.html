@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>切水果</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b0e17;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+body{display:flex;justify-content:center}
+#wrap{width:100%;max-width:480px;height:100%;position:relative;background:radial-gradient(120% 100% at 50% 0%,#231a2e 0%,#0b0e17 70%)}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;z-index:5;pointer-events:none}
+.hud .score{font-size:22px;font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.hud .lives{font-size:17px;letter-spacing:2px;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.hudbtns{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-size:18px;backdrop-filter:blur(6px);cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:10;background:rgba(5,8,16,.72);backdrop-filter:blur(4px)}
+.card{background:linear-gradient(160deg,#2a1a24,#14101d);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:28px 26px;width:86%;max-width:360px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.card h1{font-size:30px;margin-bottom:6px}
+.card .sub{font-size:13px;color:#c9a0b4}
+.card p{font-size:14px;color:#b9c0d8;line-height:1.8;margin:12px 0;text-align:left}
+.card p b{color:#ffd54f}
+.btn{display:inline-block;margin-top:10px;padding:13px 40px;font-size:17px;font-weight:700;color:#fff;background:linear-gradient(135deg,#f44336,#e91e63);border:none;border-radius:14px;cursor:pointer;box-shadow:0 8px 24px rgba(244,67,54,.4);transition:transform .08s}
+.btn:active{transform:scale(.96)}
+.btn.ghost{background:rgba(255,255,255,.1);box-shadow:none;margin-left:8px}
+.best{margin-top:12px;font-size:13px;color:#8b94b8}
+.bigscore{font-size:52px;font-weight:800;color:#ffd54f;text-shadow:0 4px 20px rgba(255,213,79,.35)}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+  <div class="hud">
+    <div class="hudbtns"><button class="iconbtn" id="pauseBtn">⏸</button></div>
+    <div class="score">🍉 <span id="scoreV">0</span></div>
+    <div class="lives" id="livesV">❤❤❤</div>
+    <div class="hudbtns"><button class="iconbtn" id="muteBtn">🔊</button></div>
+  </div>
+
+  <div class="overlay" id="startOv">
+    <div class="card">
+      <h1>🍉 切水果</h1>
+      <div class="sub">一刀两断，combo狂飙</div>
+      <p>👉 手指在屏幕上<b>快速滑动</b>，切开飞起的水果<br>💣 千万别切到<b>炸弹</b>，切到扣 1 命（共 3 命）<br>⚡ 一次滑动连切多刀触发 <b>combo 加成</b><br>🔥 时间越久水果越多、炸弹越密</p>
+      <button class="btn" id="startBtn">开始游戏</button>
+      <div class="best" id="startBest">历史最高：0</div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="pauseOv">
+    <div class="card">
+      <h1>⏸ 已暂停</h1>
+      <p style="text-align:center">水果们正在原地待命…</p>
+      <button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn1">重来</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="overOv">
+    <div class="card">
+      <h1>💥 游戏结束</h1>
+      <div class="bigscore" id="finalScore">0</div>
+      <div class="best" id="overBest">历史最高：0</div>
+      <div><button class="btn" id="restartBtn2">再来一局</button></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+'use strict';
+var cvs=document.getElementById('game'),ctx=cvs.getContext('2d'),wrap=document.getElementById('wrap');
+var W=0,H=0;
+function fit(){var r=wrap.getBoundingClientRect();var dpr=Math.min(2,window.devicePixelRatio||1);cvs.width=Math.round(r.width*dpr);cvs.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=r.height;}
+window.addEventListener('resize',fit);fit();
+
+/* ---------- 音效 ---------- */
+var audioCtx=null;
+function ac(){if(!audioCtx){try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(audioCtx&&audioCtx.state==='suspended'){try{audioCtx.resume();}catch(e){}}return audioCtx;}
+var muted=false;try{muted=localStorage.getItem('slice_muted')==='1';}catch(e){}
+var muteBtn=document.getElementById('muteBtn');
+function refreshMute(){muteBtn.textContent=muted?'🔇':'🔊';}refreshMute();
+muteBtn.addEventListener('click',function(){muted=!muted;try{localStorage.setItem('slice_muted',muted?'1':'0');}catch(e){}refreshMute();});
+function tone(f,dur,type,vol,delay){if(muted)return;var a=ac();if(!a)return;var t=a.currentTime+(delay||0);var o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||0.18,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+dur+0.05);}
+function sndCut(){tone(880+Math.random()*300,0.12,'triangle',0.20);tone(1500,0.07,'sine',0.10);}
+function sndBomb(){tone(150,0.4,'sawtooth',0.28);tone(90,0.5,'square',0.18,0.05);}
+function sndFail(){tone(220,0.25,'sawtooth',0.2);tone(160,0.35,'sawtooth',0.2,0.15);}
+function sndBest(){var n=[523,659,784,1047,1319];for(var i=0;i<n.length;i++)tone(n[i],0.16,'triangle',0.16,i*0.1);}
+function vib(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);}catch(e){}}
+
+/* ---------- 状态 ---------- */
+var FRUITS=['🍉','🍎','🍊','🍋','🍑','🍒','🍍','🥝','🍇'];
+var JUICE={'🍉':'#ff5f6d','🍎':'#ff8a80','🍊':'#ffb74d','🍋':'#fff176','🍑':'#ffab91','🍒':'#ef5350','🍍':'#ffe082','🥝':'#aed581','🍇':'#ce93d8'};
+var G=1500;
+var mode='ready',rafId=0,last=0;
+var score=0,lives=3,best=0;
+try{best=parseInt(localStorage.getItem('slice_best')||'0',10)||0;}catch(e){}
+var fruits=[],halves=[],parts=[],pops=[],trail=[];
+var spawnT=0,startTime=0,shakeT=0,flashT=0,cutTimes=[];
+var scoreV=document.getElementById('scoreV'),livesV=document.getElementById('livesV');
+var startOv=document.getElementById('startOv'),pauseOv=document.getElementById('pauseOv'),overOv=document.getElementById('overOv');
+document.getElementById('startBest').textContent='历史最高：'+best;
+
+function setScore(v){score=v;scoreV.textContent=v;}
+function setLives(v){lives=v;var s='';for(var i=0;i<3;i++)s+=i<v?'❤':'🖤';livesV.textContent=s;}
+
+/* ---------- 刀光轨迹 ---------- */
+var drawing=false;
+function addTrail(cx,cy){var r=cvs.getBoundingClientRect();trail.push({x:cx-r.left,y:cy-r.top,t:performance.now()});if(trail.length>42)trail.shift();}
+cvs.addEventListener('pointerdown',function(e){drawing=true;addTrail(e.clientX,e.clientY);ac();},{passive:true});
+cvs.addEventListener('pointermove',function(e){if(drawing)addTrail(e.clientX,e.clientY);},{passive:true});
+window.addEventListener('pointerup',function(){drawing=false;},{passive:true});
+cvs.addEventListener('pointercancel',function(){drawing=false;});
+cvs.addEventListener('contextmenu',function(e){e.preventDefault();});
+
+function segDist(px,py,ax,ay,bx,by){var dx=bx-ax,dy=by-ay;var l2=dx*dx+dy*dy;var t=l2?((px-ax)*dx+(py-ay)*dy)/l2:0;t=Math.max(0,Math.min(1,t));var cx=ax+dx*t,cy=ay+dy*t;return Math.hypot(px-cx,py-cy);}
+
+/* ---------- 生成 ---------- */
+function spawn(){var t=(performance.now()-startTime)/1000;
+  var bombRate=Math.min(0.22,0.045+t*0.0028);
+  var isBomb=Math.random()<bombRate;
+  var r=isBomb?26:24+Math.random()*14;
+  var x=40+Math.random()*(W-80);
+  var rise=H*(0.38+Math.random()*0.28);
+  fruits.push({x:x,y:H+50,vx:(Math.random()*2-1)*70,vy:-Math.sqrt(2*G*rise),r:r,
+    emoji:isBomb?'💣':FRUITS[(Math.random()*FRUITS.length)|0],bomb:isBomb,
+    rot:Math.random()*6.28,vr:(Math.random()*2-1)*4,dead:false});}
+
+function addPop(x,y,text,color,size){pops.push({x:x,y:y,text:text,color:color||'#fff',size:size||20,t:0});}
+function burst(x,y,color,n,spd){for(var i=0;i<n;i++){var a=Math.random()*6.28,s=spd*(0.3+Math.random());parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-120,life:0.7+Math.random()*0.4,color:color,size:2+Math.random()*4});}}
+
+/* ---------- 切 ---------- */
+function onCut(f){
+  var now=performance.now();
+  if(f.bomb){
+    setLives(lives-1);flashT=1;shakeT=0.4;vib(90);sndBomb();
+    burst(f.x,f.y,'#ff9800',26,420);burst(f.x,f.y,'#f44336',18,320);
+    addPop(f.x,f.y-10,'-1 ❤','#ff5252',26);
+    if(lives<=0){gameOver();}
+    return;
+  }
+  cutTimes.push(now);cutTimes=cutTimes.filter(function(t){return now-t<300;});
+  var n=cutTimes.length,gain=10;
+  if(n>=2){gain+=5*n;addPop(f.x,f.y-34,'x'+n+' 连击!','#ffd54f',26);vib(25);}
+  else vib(15);
+  setScore(score+gain);
+  addPop(f.x,f.y-8,'+'+gain,'#fff',20);
+  sndCut();
+  var juice=JUICE[f.emoji]||'#ff8a80';
+  burst(f.x,f.y,juice,16,380);
+  var sp=70+Math.random()*110;
+  halves.push({x:f.x,y:f.y,r:f.r,emoji:f.emoji,side:-1,vx:f.vx-sp,vy:f.vy*0.35-90,rot:f.rot,vr:-4-Math.random()*4,alpha:1});
+  halves.push({x:f.x,y:f.y,r:f.r,emoji:f.emoji,side:1,vx:f.vx+sp,vy:f.vy*0.35-90,rot:f.rot,vr:4+Math.random()*4,alpha:1});
+}
+
+/* ---------- 更新 ---------- */
+function update(dt){
+  var now=performance.now(),t=(now-startTime)/1000;
+  spawnT-=dt;
+  var interval=Math.max(0.34,0.95-t*0.009);
+  if(spawnT<=0){spawn();spawnT=interval*(0.7+Math.random()*0.6);}
+  var i,f;
+  for(i=fruits.length-1;i>=0;i--){f=fruits[i];f.vy+=G*dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.rot+=f.vr*dt;if(f.y>H+90)fruits.splice(i,1);}
+  for(i=halves.length-1;i>=0;i--){var h=halves[i];h.vy+=G*dt;h.x+=h.vx*dt;h.y+=h.vy*dt;h.rot+=h.vr*dt;h.alpha-=dt*0.9;if(h.alpha<=0||h.y>H+80)halves.splice(i,1);}
+  for(i=parts.length-1;i>=0;i--){var p=parts[i];p.vy+=G*0.7*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0)parts.splice(i,1);}
+  for(i=pops.length-1;i>=0;i--){var q=pops[i];q.t+=dt;q.y-=46*dt;if(q.t>1)pops.splice(i,1);}
+  /* 刀光切割判定：只用最近160ms的轨迹段 */
+  var pts=trail.filter(function(p){return now-p.t<160;});
+  if(pts.length>1){
+    for(i=fruits.length-1;i>=0;i--){f=fruits[i];
+      for(var j=1;j<pts.length;j++){
+        if(segDist(f.x,f.y,pts[j-1].x,pts[j-1].y,pts[j].x,pts[j].y)<f.r+9){f.dead=true;onCut(f);break;}
+      }
+    }
+    fruits=fruits.filter(function(x){return !x.dead;});
+  }
+  trail=trail.filter(function(p){return now-p.t<220;});
+  if(shakeT>0)shakeT-=dt;
+  if(flashT>0)flashT-=dt*2.2;
+}
+
+/* ---------- 绘制 ---------- */
+function drawHalf(h){
+  ctx.save();ctx.globalAlpha=Math.max(0,h.alpha);ctx.translate(h.x,h.y);ctx.rotate(h.rot);
+  ctx.beginPath();ctx.rect(h.side>0?0:-h.r,-h.r,h.r,h.r);ctx.clip();
+  ctx.font=(h.r*1.7)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(h.emoji,0,2);
+  ctx.restore();
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.save();
+  if(shakeT>0){var s=10*Math.min(1,shakeT*3);ctx.translate((Math.random()*2-1)*s,(Math.random()*2-1)*s);}
+  var i;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  for(i=0;i<fruits.length;i++){var f=fruits[i];ctx.save();ctx.translate(f.x,f.y);ctx.rotate(f.rot);ctx.font=(f.r*1.7)+'px serif';ctx.fillText(f.emoji,0,2);ctx.restore();}
+  for(i=0;i<halves.length;i++)drawHalf(halves[i]);
+  for(i=0;i<parts.length;i++){var p=parts[i];ctx.globalAlpha=Math.max(0,Math.min(1,p.life));ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,6.29);ctx.fill();}
+  ctx.globalAlpha=1;
+  for(i=0;i<pops.length;i++){var q=pops[i];var a=1-q.t;ctx.globalAlpha=Math.max(0,a);ctx.font='800 '+q.size+'px sans-serif';ctx.fillStyle=q.color;ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=3;ctx.strokeText(q.text,q.x,q.y);ctx.fillText(q.text,q.x,q.y);}
+  ctx.globalAlpha=1;
+  /* 刀光 */
+  if(trail.length>1){ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+    for(i=1;i<trail.length;i++){var al=i/trail.length;ctx.strokeStyle='rgba(170,225,255,'+(al*0.9)+')';ctx.lineWidth=2+11*al;ctx.shadowColor='#7fd4ff';ctx.shadowBlur=10;ctx.beginPath();ctx.moveTo(trail[i-1].x,trail[i-1].y);ctx.lineTo(trail[i].x,trail[i].y);ctx.stroke();}
+    ctx.restore();}
+  ctx.restore();
+  if(flashT>0){ctx.fillStyle='rgba(244,67,54,'+(Math.max(0,flashT)*0.32)+')';ctx.fillRect(0,0,W,H);}
+}
+
+/* ---------- 主循环 ---------- */
+function loop(ts){rafId=requestAnimationFrame(loop);var dt=Math.min(0.033,last?(ts-last)/1000:0.016);last=ts;update(dt);draw();}
+function stopLoop(){if(rafId){cancelAnimationFrame(rafId);rafId=0;}}
+
+function start(){
+  stopLoop();setScore(0);setLives(3);
+  fruits=[];halves=[];parts=[];pops=[];trail=[];cutTimes=[];
+  spawnT=0.4;shakeT=0;flashT=0;startTime=performance.now();last=0;
+  startOv.classList.add('hidden');pauseOv.classList.add('hidden');overOv.classList.add('hidden');
+  mode='playing';rafId=requestAnimationFrame(loop);
+}
+function pause(){if(mode!=='playing')return;mode='paused';stopLoop();pauseOv.classList.remove('hidden');}
+function resume(){if(mode!=='paused')return;mode='playing';pauseOv.classList.add('hidden');last=0;rafId=requestAnimationFrame(loop);}
+function gameOver(){
+  mode='over';stopLoop();
+  var isBest=score>best;
+  if(isBest){best=score;try{localStorage.setItem('slice_best',String(best));}catch(e){}}
+  document.getElementById('finalScore').textContent=score;
+  document.getElementById('overBest').textContent='历史最高：'+best+(isBest?' 🎉新纪录！':'');
+  overOv.classList.remove('hidden');
+  if(isBest)sndBest();else sndFail();
+  vib(120);
+}
+
+document.getElementById('startBtn').addEventListener('click',function(){ac();start();});
+document.getElementById('pauseBtn').addEventListener('click',pause);
+document.getElementById('resumeBtn').addEventListener('click',resume);
+document.getElementById('restartBtn1').addEventListener('click',start);
+document.getElementById('restartBtn2').addEventListener('click',start);
+document.addEventListener('visibilitychange',function(){if(document.hidden)pause();});
+})();
+</script>
+</body>
+</html>

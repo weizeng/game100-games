@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>记忆节拍</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b0e17;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+body{display:flex;justify-content:center}
+#wrap{width:100%;max-width:480px;height:100%;position:relative;display:flex;flex-direction:column;background:radial-gradient(120% 100% at 50% 0%,#10231a 0%,#0b0e17 70%)}
+.hud{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;z-index:5}
+.hud .round{font-size:22px;font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.hud .round small{font-size:13px;color:#9fb3a8;font-weight:400}
+.hudbtns{display:flex;gap:8px}
+.iconbtn{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-size:18px;backdrop-filter:blur(6px);cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+#status{text-align:center;font-size:15px;color:#b9d4c2;min-height:24px;padding:2px 0 8px;letter-spacing:1px}
+#pads{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:6px 22px 26px;max-width:420px;width:100%;margin:0 auto;align-content:center}
+.pad{border-radius:22px;background:var(--c);opacity:.42;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.45),inset 0 2px 6px rgba(255,255,255,.25);transition:transform .07s,opacity .07s,box-shadow .07s;touch-action:none;min-height:120px;display:flex;align-items:center;justify-content:center;font-size:34px}
+.pad:active{transform:scale(.96)}
+.pad.on{opacity:1;transform:scale(1.045);box-shadow:0 0 34px var(--c),inset 0 2px 8px rgba(255,255,255,.4)}
+.pad.wrong{opacity:1;box-shadow:0 0 34px #ff1744,inset 0 0 0 4px #ff1744}
+#prog{text-align:center;font-size:13px;color:#8fa89a;padding:0 0 14px;letter-spacing:2px;min-height:20px}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:10;background:rgba(5,8,16,.72);backdrop-filter:blur(4px)}
+.card{background:linear-gradient(160deg,#14301f,#0e1410);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:28px 26px;width:86%;max-width:360px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.card h1{font-size:30px;margin-bottom:6px}
+.card .sub{font-size:13px;color:#93c9a4}
+.card p{font-size:14px;color:#b9c0d8;line-height:1.8;margin:12px 0;text-align:left}
+.card p b{color:#81c784}
+.btn{display:inline-block;margin-top:10px;padding:13px 40px;font-size:17px;font-weight:700;color:#0b2313;background:linear-gradient(135deg,#81c784,#4caf50);border:none;border-radius:14px;cursor:pointer;box-shadow:0 8px 24px rgba(76,175,80,.4);transition:transform .08s}
+.btn:active{transform:scale(.96)}
+.btn.ghost{background:rgba(255,255,255,.1);color:#fff;box-shadow:none;margin-left:8px}
+.best{margin-top:12px;font-size:13px;color:#8b94b8}
+.bigscore{font-size:52px;font-weight:800;color:#81c784;text-shadow:0 4px 20px rgba(129,199,132,.35)}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="hud">
+    <div class="hudbtns"><button class="iconbtn" id="pauseBtn">⏸</button></div>
+    <div class="round">🎵 第 <span id="roundV">1</span> 轮<br><small>最高 <span id="bestV">0</span> 轮</small></div>
+    <div class="hudbtns"><button class="iconbtn" id="muteBtn">🔊</button></div>
+  </div>
+  <div id="status">准备…</div>
+  <div id="pads">
+    <div class="pad" data-i="0" style="--c:#e53935">🔴</div>
+    <div class="pad" data-i="1" style="--c:#43a047">🟢</div>
+    <div class="pad" data-i="2" style="--c:#1e88e5">🔵</div>
+    <div class="pad" data-i="3" style="--c:#fdd835">🟡</div>
+  </div>
+  <div id="prog"></div>
+
+  <div class="overlay" id="startOv">
+    <div class="card">
+      <h1>🎵 记忆节拍</h1>
+      <div class="sub">看听记，挑战记忆极限</div>
+      <p>👀 看<b>颜色闪烁</b>、听<b>不同音高</b>，记住序列<br>👉 序列播完后，<b>按同样顺序</b>点按色块<br>✅ 每轮序列 <b>+1</b>，速度越来越快<br>❌ 点错一次就结束，看看你能走多远</p>
+      <button class="btn" id="startBtn">开始挑战</button>
+      <div class="best" id="startBest">历史最高：0 轮</div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="pauseOv">
+    <div class="card">
+      <h1>⏸ 已暂停</h1>
+      <p style="text-align:center">节拍冻结中…</p>
+      <button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn1">重来</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="overOv">
+    <div class="card">
+      <h1>🎵 挑战结束</h1>
+      <div class="bigscore">第 <span id="finalScore">0</span> 轮</div>
+      <div class="best" id="overBest">历史最高：0 轮</div>
+      <div><button class="btn" id="restartBtn2">再来一局</button></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+'use strict';
+var pads=Array.prototype.slice.call(document.querySelectorAll('.pad'));
+var statusEl=document.getElementById('status'),progEl=document.getElementById('prog');
+var roundV=document.getElementById('roundV'),bestV=document.getElementById('bestV');
+var startOv=document.getElementById('startOv'),pauseOv=document.getElementById('pauseOv'),overOv=document.getElementById('overOv');
+
+/* ---------- 音效：四音阶 ---------- */
+var audioCtx=null;
+function ac(){if(!audioCtx){try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(audioCtx&&audioCtx.state==='suspended'){try{audioCtx.resume();}catch(e){}}return audioCtx;}
+var muted=false;try{muted=localStorage.getItem('simon_muted')==='1';}catch(e){}
+var muteBtn=document.getElementById('muteBtn');
+function refreshMute(){muteBtn.textContent=muted?'🔇':'🔊';}refreshMute();
+muteBtn.addEventListener('click',function(){muted=!muted;try{localStorage.setItem('simon_muted',muted?'1':'0');}catch(e){}refreshMute();});
+var FREQS=[261.63,329.63,392.0,523.25];   /* C4 E4 G4 C5 */
+function tone(f,dur,type,vol,delay){if(muted)return;var a=ac();if(!a)return;var t=a.currentTime+(delay||0);var o=a.createOscillator(),g=a.createGain();o.type=type||'triangle';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||0.22,t+0.015);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+dur+0.05);}
+function padTone(i){tone(FREQS[i],0.28,'triangle',0.24);}
+function sndFail(){tone(200,0.3,'sawtooth',0.22);tone(130,0.45,'sawtooth',0.2,0.12);}
+function sndRound(){tone(523.25,0.12,'triangle',0.18);tone(784,0.16,'triangle',0.18,0.1);}
+function sndBest(){var n=[523,659,784,1047,1319];for(var i=0;i<n.length;i++)tone(n[i],0.16,'triangle',0.18,i*0.1);}
+function vib(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);}catch(e){}}
+
+/* ---------- 状态 ---------- */
+var mode='ready';            /* ready | show | input | paused | over */
+var seq=[],idx=0,score=0,best=0,lock=true;
+var timers=[],pausedPhase='show';
+try{best=parseInt(localStorage.getItem('simon_best')||'0',10)||0;}catch(e){}
+bestV.textContent=best;
+document.getElementById('startBest').textContent='历史最高：'+best+' 轮';
+
+function later(fn,ms){var id=setTimeout(fn,ms);timers.push(id);return id;}
+function clearTimers(){for(var i=0;i<timers.length;i++)clearTimeout(timers[i]);timers=[];}
+function clearPads(){for(var i=0;i<pads.length;i++)pads[i].classList.remove('on','wrong');}
+
+function activate(i,holdMs){
+  clearPads();
+  pads[i].classList.add('on');padTone(i);
+  later(function(){pads[i].classList.remove('on');},holdMs);
+}
+function stepInterval(){return Math.max(260,640-seq.length*22);}  /* 随轮数加快 */
+
+/* ---------- 序列播放（锁定输入） ---------- */
+function playSeq(){
+  mode='show';lock=true;clearPads();
+  statusEl.textContent='👀 看好了…';
+  progEl.textContent='';
+  var i=0,iv=stepInterval(),hold=Math.round(iv*0.5);
+  function step(){
+    if(mode!=='show')return;
+    if(i>=seq.length){
+      mode='input';lock=false;idx=0;
+      statusEl.textContent='👉 轮到你，按顺序点按';
+      progEl.textContent='0 / '+seq.length;
+      return;
+    }
+    activate(seq[i],hold);
+    i++;
+    later(step,iv);
+  }
+  later(step,600);
+}
+
+/* ---------- 下一轮 ---------- */
+function nextRound(){
+  seq.push((Math.random()*4)|0);
+  roundV.textContent=seq.length;
+  playSeq();
+}
+
+/* ---------- 玩家点按 ---------- */
+function onPad(i){
+  if(mode!=='input'||lock)return;
+  activate(i,180);
+  if(i!==seq[idx]){
+    wrong(i);return;
+  }
+  idx++;
+  progEl.textContent=idx+' / '+seq.length;
+  if(idx>=seq.length){
+    lock=true;mode='show';score=seq.length;
+    if(score>best){best=score;try{localStorage.setItem('simon_best',String(best));}catch(e){}bestV.textContent=best;}
+    statusEl.textContent='✅ 正确！下一轮…';
+    progEl.textContent='';
+    sndRound();
+    later(nextRound,900);
+  }
+}
+function wrong(i){
+  lock=true;mode='over';
+  clearPads();pads[i].classList.add('wrong');
+  sndFail();vib(120);
+  statusEl.textContent='❌ 点错了！';
+  var done=seq.length-1;
+  var isBest=done>best;
+  if(isBest){best=done;try{localStorage.setItem('simon_best',String(done));}catch(e){}bestV.textContent=best;}
+  later(function(){
+    document.getElementById('finalScore').textContent=done;
+    document.getElementById('overBest').textContent='历史最高：'+best+' 轮'+(isBest&&done>0?' 🎉新纪录！':'');
+    overOv.classList.remove('hidden');
+    if(isBest&&done>0)sndBest();
+  },800);
+}
+
+/* ---------- 流程控制 ---------- */
+function start(){
+  clearTimers();clearPads();
+  seq=[];idx=0;score=0;lock=true;
+  startOv.classList.add('hidden');pauseOv.classList.add('hidden');overOv.classList.add('hidden');
+  nextRound();
+}
+function pause(){
+  if(mode!=='show'&&mode!=='input')return;
+  pausedPhase=mode;mode='paused';
+  clearTimers();clearPads();lock=true;
+  pauseOv.classList.remove('hidden');
+}
+function resume(){
+  if(mode!=='paused')return;
+  pauseOv.classList.add('hidden');
+  if(pausedPhase==='show'){playSeq();}          /* 重播当前轮序列 */
+  else{mode='input';lock=false;idx=0;statusEl.textContent='👉 轮到你，按顺序点按';progEl.textContent='0 / '+seq.length;}
+}
+
+for(var k=0;k<pads.length;k++)(function(k){
+  pads[k].addEventListener('pointerdown',function(e){e.preventDefault();onPad(k);},{passive:false});
+})(k);
+document.getElementById('startBtn').addEventListener('click',function(){ac();start();});
+document.getElementById('pauseBtn').addEventListener('click',pause);
+document.getElementById('resumeBtn').addEventListener('click',resume);
+document.getElementById('restartBtn1').addEventListener('click',start);
+document.getElementById('restartBtn2').addEventListener('click',start);
+document.addEventListener('visibilitychange',function(){if(document.hidden)pause();});
+})();
+</script>
+</body>
+</html>
