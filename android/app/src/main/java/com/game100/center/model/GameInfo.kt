@@ -33,7 +33,8 @@ data class GameItem(
     val color: String,
     val category: String,
     val installedVersion: Int,
-    val remote: RemoteGame?
+    val remote: RemoteGame?,
+    val isNew: Boolean = false
 ) {
     val installed: Boolean get() = installedVersion > 0
     val hasUpdate: Boolean get() = installed && remote != null && remote.version > installedVersion

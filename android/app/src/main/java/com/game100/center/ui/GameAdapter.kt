@@ -58,6 +58,7 @@ class GameAdapter(
         val badge: TextView = v.findViewById(R.id.badge)
         val dlBadge: TextView = v.findViewById(R.id.dl_badge)
         val catChip: TextView = v.findViewById(R.id.cat_chip)
+        val newBadge: TextView = v.findViewById(R.id.new_badge)
         val name: TextView = v.findViewById(R.id.name)
         val desc: TextView = v.findViewById(R.id.desc)
         val status: TextView = v.findViewById(R.id.status)
@@ -80,6 +81,7 @@ class GameAdapter(
 
         h.badge.visibility = if (item.hasUpdate) View.VISIBLE else View.GONE
         h.dlBadge.visibility = if (item.canDownload) View.VISIBLE else View.GONE
+        h.newBadge.visibility = if (item.isNew) View.VISIBLE else View.GONE
 
         val statusText = when {
             item.hasUpdate -> "v${item.installedVersion} → v${item.remote!!.version}"

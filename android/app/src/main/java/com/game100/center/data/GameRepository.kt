@@ -15,6 +15,8 @@ class GameRepository(private val context: Context) {
         const val DEFAULT_MANIFEST_URL = "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main/manifest.json"
         private const val PREFS = "game100"
         private const val KEY_URL = "manifest_url"
+        private const val KEY_SEEN = "seen_games"
+        private const val NEW_DAYS = 7L
     }
 
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -124,6 +126,44 @@ class GameRepository(private val context: Context) {
         return ManifestFetcher.fetch(url)
     }
 
+    /**
+     * 记录远端游戏的"首次出现时间"，用于 NEW 徽章。
+     * 首次调用时把当前所有 id 记为已见（不算新）；之后新出现的 id 记为新游戏。
+     */
+    fun updateSeenGames(remote: List<RemoteGame>) {
+        if (remote.isEmpty()) return
+        val seen = getSeenMap().toMutableMap()
+        val now = System.currentTimeMillis()
+        if (seen.isEmpty()) {
+            for (r in remote) seen[r.id] = 0L
+        } else {
+            for (r in remote) {
+                if (!seen.containsKey(r.id)) seen[r.id] = now
+            }
+        }
+        prefs.edit().putString(KEY_SEEN, JSONObject(seen as Map<*, *>).toString()).apply()
+    }
+
+    fun isNewGame(id: String): Boolean {
+        val ts = getSeenMap()[id] ?: return false
+        if (ts == 0L) return false
+        return System.currentTimeMillis() - ts < NEW_DAYS * 24 * 3600 * 1000L
+    }
+
+    private fun getSeenMap(): Map<String, Long> {
+        return try {
+            val s = prefs.getString(KEY_SEEN, null) ?: return emptyMap()
+            val o = JSONObject(s)
+            val map = mutableMapOf<String, Long>()
+            val keys = o.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                map[k] = o.optLong(k, 0L)
+            }
+            map
+        } catch (e: Exception) { emptyMap() }
+    }
+
     fun buildGameList(remote: List<RemoteGame>): List<GameItem> {
         val installed = loadInstalled().associateBy { it.id }
         val remoteById = remote.associateBy { it.id }
@@ -138,7 +178,8 @@ class GameRepository(private val context: Context) {
                     color = ins.color,
                     category = ins.category.ifBlank { "经典重温" },
                     installedVersion = ins.version,
-                    remote = remoteById[id]
+                    remote = remoteById[id],
+                    isNew = isNewGame(id)
                 )
             )
         }
@@ -153,7 +194,8 @@ class GameRepository(private val context: Context) {
                         color = r.color,
                         category = r.category.ifBlank { "休闲趣味" },
                         installedVersion = 0,
-                        remote = r
+                        remote = r,
+                        isNew = isNewGame(r.id)
                     )
                 )
             }

@@ -197,6 +197,7 @@ class MainActivity : AppCompatActivity() {
             }
             if (remote != null && remote.isNotEmpty()) {
                 lastRemote = remote
+                repo.updateSeenGames(remote)
                 val merged = repo.buildGameList(remote)
                 withContext(Dispatchers.Main) { showItems(merged) }
             }
@@ -211,7 +212,10 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 null
             }
-            if (remote != null) lastRemote = remote
+            if (remote != null) {
+                lastRemote = remote
+                repo.updateSeenGames(remote)
+            }
             val items = repo.buildGameList(remote ?: lastRemote)
             withContext(Dispatchers.Main) {
                 swipe.isRefreshing = false
