@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>披萨刀</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{height:100%;overflow:hidden;background:#0d0d1a;color:#f5f5f5;font-family:"PingFang SC","Microsoft YaHei",sans-serif;touch-action:manipulation}
+#app{max-width:480px;height:100%;margin:0 auto;display:flex;flex-direction:column;background:radial-gradient(ellipse at 50% -10%,#2e1f14 0%,#0d0d1a 65%)}
+header{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(0,0,0,.45);border-bottom:2px solid #e67e22}
+.hinfo{text-align:center;min-width:56px}
+.hinfo .lab{font-size:11px;color:#aaa}
+.hinfo .val{font-size:19px;font-weight:700;color:#ffb347;font-variant-numeric:tabular-nums}
+.hbtn{width:44px;height:44px;font-size:20px;background:#222;border:1px solid #555;border-radius:10px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.hbtn:active{transform:scale(.92)}
+#stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;position:relative}
+#cv{touch-action:none;border-radius:50%;cursor:crosshair}
+#lvlbar{font-size:15px;font-weight:700;color:#f5c86b;margin-bottom:4px;text-align:center}
+#msg{min-height:26px;font-size:14px;color:#ff9f43;font-weight:700;text-align:center;padding:2px 8px}
+#msg.shake{animation:shk .3s;color:#e74c3c}
+@keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+#controls{display:flex;gap:8px;padding:8px 12px 16px;background:rgba(0,0,0,.45);border-top:2px solid #e67e22}
+.cbtn{flex:1;height:52px;font-size:16px;font-weight:700;border:none;border-radius:12px;background:#2c2c44;color:#fff;cursor:pointer;border:1px solid #555}
+.cbtn:active{transform:scale(.95)}
+.cbtn.primary{background:linear-gradient(180deg,#e67e22,#c0392b);border:none;box-shadow:0 3px 0 #7b241c}
+.overlay{position:fixed;inset:0;background:rgba(5,5,15,.93);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.overlay.hidden{display:none}
+.panel{background:#1a1a2e;border:2px solid #e67e22;border-radius:18px;padding:26px 22px;max-width:400px;width:100%;text-align:center;box-shadow:0 0 30px rgba(230,126,34,.35)}
+.panel h1{font-size:34px;margin-bottom:6px}
+.panel h2{font-size:24px;margin-bottom:10px;color:#ffb347}
+.panel p{font-size:14px;color:#ccc;line-height:1.9;margin-bottom:12px;text-align:left}
+.panel .big{font-size:44px;font-weight:800;color:#f1c40f;margin:8px 0}
+.panel .formula{background:#0d0d1a;border:1px dashed #e67e22;border-radius:10px;padding:10px;font-size:15px;color:#f5c86b;margin:10px 0;line-height:1.8}
+.bigbtn{display:block;width:100%;height:54px;margin-top:10px;font-size:20px;font-weight:800;border:none;border-radius:14px;background:linear-gradient(180deg,#e67e22,#c0392b);color:#fff;cursor:pointer;box-shadow:0 4px 0 #7b241c}
+.bigbtn:active{transform:translateY(3px);box-shadow:none}
+.ghostbtn{display:block;width:100%;height:48px;margin-top:8px;font-size:16px;border-radius:12px;background:#2c2c44;color:#fff;border:1px solid #555;cursor:pointer}
+#passNum{font-size:52px;font-weight:800;color:#2ecc71;margin:6px 0;font-variant-numeric:tabular-nums}
+.tips{font-size:12px;color:#888;margin-top:10px;line-height:1.7}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button class="hbtn" id="muteBtn" aria-label="静音">🔊</button>
+    <div class="hinfo"><div class="lab">第几关</div><div class="val" id="lvl">1/5</div></div>
+    <div class="hinfo"><div class="lab">🍕块数</div><div class="val" id="pieces">1</div></div>
+    <div class="hinfo"><div class="lab">🔪剩刀</div><div class="val" id="left">1</div></div>
+    <button class="hbtn" id="hintBtn" aria-label="提示">💡</button>
+    <button class="hbtn" id="pauseBtn" aria-label="暂停">⏸</button>
+  </header>
+  <div id="stage">
+    <div id="lvlbar">第 1 关：1 刀切出 2 块</div>
+    <canvas id="cv"></canvas>
+    <div id="msg"></div>
+  </div>
+  <div id="controls">
+    <button class="cbtn" id="undoBtn">↩ 撤销</button>
+    <button class="cbtn" id="clearBtn">🔄 重切</button>
+    <button class="cbtn primary" id="doneBtn">✅ 切好了</button>
+  </div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="panel">
+    <h1>🍕 披萨刀</h1>
+    <p>👆 手指在披萨上<b>拖拽画直线</b>来切披萨！<br>
+    🔪 每关限定刀数：<b>第 N 关用 N 刀</b>，目标是切出<b>理论最大块数</b>。<br>
+    📐 规则：切线必须是直线、穿过披萨；不能与已有切痕重合；<b>每刀都要和已有切痕在披萨内相交</b>，否则不算数！<br>
+    🏆 5 关全过就是切披萨大师！卡住点右上角 💡 看思路。</p>
+    <button class="bigbtn" id="startBtn">开切！</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="hintOv">
+  <div class="panel">
+    <h2>💡 切披萨思路</h2>
+    <div class="formula">最大块数 = (N² + N + 2) / 2<br>1刀→2块　2刀→4块　3刀→7块<br>4刀→11块　5刀→16块</div>
+    <p>🎯 每切一刀，新增块数 = 1 + 这刀在披萨内穿过的已有切痕数。<br>
+    ✅ 每刀都穿过圆心附近，让它和<b>所有</b>已有切痕都在披萨内相交。<br>
+    ⚠️ 交点不要三线共点（别让三刀交于一点），也不要两刀平行。<br>
+    🧠 先在心里规划好所有刀的位置，再一刀一刀下手！</p>
+    <button class="bigbtn" id="hintClose">明白了！</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="passOv">
+  <div class="panel">
+    <h2 id="passTitle">🎉 第 1 关通过！</h2>
+    <div id="passNum">2</div>
+    <p style="text-align:center">块！正好是理论最大值 ✨</p>
+    <button class="bigbtn" id="nextBtn">下一关 →</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="failOv">
+  <div class="panel">
+    <h2>😅 还差一点</h2>
+    <p style="text-align:center" id="failTxt">只切出了 X 块，目标是 Y 块。<br>看看 💡 提示再试一次吧！</p>
+    <button class="bigbtn" id="retryBtn">再切一次</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pauseOv">
+  <div class="panel">
+    <h2>⏸ 已暂停</h2>
+    <p style="text-align:center">披萨还热着，慢慢来～</p>
+    <button class="bigbtn" id="resumeBtn">继续切！</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="winOv">
+  <div class="panel">
+    <h2>🏆 切披萨大师！</h2>
+    <p style="text-align:center">5 关全过，刀刀精准！</p>
+    <div class="big" id="winScore">40</div>
+    <p style="text-align:center">总分（各关目标块数之和）<br>🏅 历史最高：<b id="winBest">40</b></p>
+    <button class="bigbtn" id="againBtn">再来一轮！</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var cv=$('cv'),ctx=cv.getContext('2d');
+var W=0,R=0,cx=0,cy=0,DPR=1;
+var level=1,chords=[],pieces=1,drag=null,running=false,paused=false,animating=false;
+var score=0,best=0,muted=false,audioCtx=null,msgTimer=null;
+var HS_KEY='g100_pizzacut_hs';
+var TARGETS=[0,2,4,7,11,16];
+var toppings=[];
+muted=localStorage.getItem('g100_mute')==='1';
+best=parseInt(localStorage.getItem(HS_KEY)||'0',10)||0;
+
+function ac(){
+  if(!audioCtx){try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}
+  if(audioCtx&&audioCtx.state==='suspended'){audioCtx.resume();}
+  return audioCtx;
+}
+function tone(f,d,type,delay,slideTo){
+  if(muted)return;
+  var c=ac();if(!c)return;
+  var t=c.currentTime+(delay||0);
+  var o=c.createOscillator(),g=c.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,t);
+  if(slideTo){o.frequency.exponentialRampToValueAtTime(slideTo,t+d);}
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.22,t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+  o.connect(g);g.connect(c.destination);
+  o.start(t);o.stop(t+d+0.05);
+}
+function sfx(n){
+  if(muted)return;
+  if(n==='draw'){tone(300,0.15,'triangle',0,900);}
+  else if(n==='accept'){tone(660,0.1,'sine');tone(990,0.14,'sine',0.08);}
+  else if(n==='reject'){tone(180,0.25,'sawtooth',0,90);}
+  else if(n==='click'){tone(600,0.05,'sine');}
+  else if(n==='pass'){var f=[523,659,784,1047,1319];for(var i=0;i<f.length;i++){tone(f[i],0.2,'sine',i*0.11);}}
+  else if(n==='win'){var w=[523,659,784,1047,784,1047,1319,1568];for(var j=0;j<w.length;j++){tone(w[j],0.24,'triangle',j*0.15);}}
+}
+function vibrate(p){try{if(navigator.vibrate){navigator.vibrate(p);}}catch(e){}}
+function setMute(m){
+  muted=m;
+  localStorage.setItem('g100_mute',m?'1':'0');
+  $('muteBtn').textContent=m?'🔇':'🔊';
+}
+function showMsg(t,bad){
+  var m=$('msg');
+  m.textContent=t;
+  m.classList.remove('shake');void m.offsetWidth;
+  if(bad){m.classList.add('shake');}
+  if(msgTimer){clearTimeout(msgTimer);}
+  msgTimer=setTimeout(function(){m.textContent='';m.classList.remove('shake');},2200);
+}
+function targetFor(l){return Math.floor((l*l+l+2)/2);}
+
+function resize(){
+  var size=Math.min(window.innerWidth*0.92,400);
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  cv.style.width=size+'px';cv.style.height=size+'px';
+  cv.width=size*DPR;cv.height=size*DPR;
+  W=size;cx=size/2;cy=size/2;R=size/2-8;
+  draw();
+}
+function seedToppings(){
+  toppings=[];
+  var spots=[[0.35,0.3],[0.65,0.35],[0.5,0.55],[0.3,0.62],[0.68,0.65],[0.45,0.42]];
+  for(var i=0;i<spots.length;i++){
+    toppings.push({x:cx+(spots[i][0]-0.5)*2*R*0.72,y:cy+(spots[i][1]-0.5)*2*R*0.72,r:R*0.075});
+  }
+}
+function drawPizza(){
+  ctx.save();ctx.scale(DPR,DPR);
+  var g=ctx.createRadialGradient(cx-R*0.3,cy-R*0.3,R*0.1,cx,cy,R);
+  g.addColorStop(0,'#f7d794');g.addColorStop(0.75,'#f0b429');g.addColorStop(0.92,'#d97b29');g.addColorStop(1,'#a0522d');
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fill();
+  ctx.lineWidth=7;ctx.strokeStyle='#8b4513';
+  ctx.beginPath();ctx.arc(cx,cy,R-3,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='#c0392b';
+  for(var i=0;i<toppings.length;i++){
+    var t=toppings[i];
+    ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.18)';
+    ctx.beginPath();ctx.arc(t.x-t.r*0.3,t.y-t.r*0.3,t.r*0.4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#c0392b';
+  }
+  ctx.restore();
+}
+function drawChords(){
+  ctx.save();ctx.scale(DPR,DPR);
+  ctx.lineCap='round';
+  for(var i=0;i<chords.length;i++){
+    var c=chords[i];
+    ctx.strokeStyle='rgba(0,0,0,.25)';ctx.lineWidth=7;
+    ctx.beginPath();ctx.moveTo(c.x1,c.y1);ctx.lineTo(c.x2,c.y2);ctx.stroke();
+    ctx.strokeStyle='#5d1a0a';ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(c.x1,c.y1);ctx.lineTo(c.x2,c.y2);ctx.stroke();
+    var mx=(c.x1+c.x2)/2,my=(c.y1+c.y2)/2;
+    ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.beginPath();ctx.arc(mx,my,10,0,Math.PI*2);ctx.fillStyle='#e67e22';ctx.fill();
+    ctx.fillStyle='#fff';ctx.fillText(String(i+1),mx,my);
+  }
+  ctx.restore();
+}
+function drawDrag(){
+  if(!drag)return;
+  var ch=chordFromDrag(drag.x1,drag.y1,drag.x2,drag.y2);
+  ctx.save();ctx.scale(DPR,DPR);
+  ctx.setLineDash([10,7]);
+  ctx.lineWidth=4;ctx.lineCap='round';
+  if(ch){
+    ctx.strokeStyle='#fff';
+    ctx.beginPath();ctx.moveTo(ch.x1,ch.y1);ctx.lineTo(ch.x2,ch.y2);ctx.stroke();
+  }else{
+    ctx.strokeStyle='rgba(231,76,60,.8)';
+    ctx.beginPath();ctx.moveTo(drag.x1,drag.y1);ctx.lineTo(drag.x2,drag.y2);ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+function draw(){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  drawPizza();drawChords();drawDrag();
+}
+
+/* ---- 几何 ---- */
+function chordFromDrag(x1,y1,x2,y2){
+  var dx=x2-x1,dy=y2-y1;
+  var len=Math.sqrt(dx*dx+dy*dy);
+  if(len<4)return null;
+  dx/=len;dy/=len;
+  var ox=x1-cx,oy=y1-cy;
+  var b=2*(ox*dx+oy*dy),c=ox*ox+oy*oy-R*R;
+  var disc=b*b-4*c;
+  if(disc<0)return null;
+  var sq=Math.sqrt(disc);
+  var t1=(-b-sq)/2,t2=(-b+sq)/2;
+  return {x1:x1+dx*t1,y1:y1+dy*t1,x2:x1+dx*t2,y2:y1+dy*t2};
+}
+function chordNormal(ch){
+  var dx=ch.x2-ch.x1,dy=ch.y2-ch.y1;
+  var len=Math.sqrt(dx*dx+dy*dy)||1;
+  var nx=-dy/len,ny=dx/len;
+  var mx=(ch.x1+ch.x2)/2-cx,my=(ch.y1+ch.y2)/2-cy;
+  var off=nx*mx+ny*my;
+  var ang=Math.atan2(ny,nx);
+  if(ang<0)ang+=Math.PI;
+  return {ang:ang,off:off};
+}
+function coincident(a,b){
+  var na=chordNormal(a),nb=chordNormal(b);
+  var da=Math.abs(na.ang-nb.ang);
+  da=Math.min(da,Math.PI-da);
+  return da<0.07&&Math.abs(na.off-nb.off)<9;
+}
+function segInt(p1,p2,p3,p4){
+  var d=(p2.x-p1.x)*(p4.y-p3.y)-(p2.y-p1.y)*(p4.x-p3.x);
+  if(Math.abs(d)<1e-9)return null;
+  var t=((p3.x-p1.x)*(p4.y-p3.y)-(p3.y-p1.y)*(p4.x-p3.x))/d;
+  var u=((p3.x-p1.x)*(p2.y-p1.y)-(p3.y-p1.y)*(p2.x-p1.x))/d;
+  if(t>0.001&&t<0.999&&u>0.001&&u<0.999){
+    return {x:p1.x+t*(p2.x-p1.x),y:p1.y+t*(p2.y-p1.y)};
+  }
+  return null;
+}
+function interiorPoints(list){
+  var pts=[];
+  for(var i=0;i<list.length;i++){
+    for(var j=i+1;j<list.length;j++){
+      var p=segInt(
+        {x:list[i].x1,y:list[i].y1},{x:list[i].x2,y:list[i].y2},
+        {x:list[j].x1,y:list[j].y1},{x:list[j].x2,y:list[j].y2});
+      if(!p)continue;
+      var d=Math.sqrt((p.x-cx)*(p.x-cx)+(p.y-cy)*(p.y-cy));
+      if(d<R-5){
+        var dup=false;
+        for(var k=0;k<pts.length;k++){
+          var dd=Math.sqrt((pts[k].x-p.x)*(pts[k].x-p.x)+(pts[k].y-p.y)*(pts[k].y-p.y));
+          if(dd<12){dup=true;break;}
+        }
+        if(!dup)pts.push(p);
+      }
+    }
+  }
+  return pts;
+}
+function countPieces(list){
+  return 1+list.length+interiorPoints(list).length;
+}
+function newCutIntersections(ch){
+  var n=0;
+  for(var i=0;i<chords.length;i++){
+    var p=segInt({x:ch.x1,y:ch.y1},{x:ch.x2,y:ch.y2},
+                 {x:chords[i].x1,y:chords[i].y1},{x:chords[i].x2,y:chords[i].y2});
+    if(!p)continue;
+    var d=Math.sqrt((p.x-cx)*(p.x-cx)+(p.y-cy)*(p.y-cy));
+    if(d<R-5)n++;
+  }
+  return n;
+}
+
+/* ---- 交互 ---- */
+function canvasPos(e){
+  var r=cv.getBoundingClientRect();
+  return {x:e.clientX-r.left,y:e.clientY-r.top};
+}
+cv.addEventListener('pointerdown',function(e){
+  if(!running||paused||animating)return;
+  e.preventDefault();
+  var p=canvasPos(e);
+  drag={x1:p.x,y1:p.y,x2:p.x,y2:p.y};
+  try{cv.setPointerCapture(e.pointerId);}catch(err){}
+});
+cv.addEventListener('pointermove',function(e){
+  if(!drag||!running||paused||animating)return;
+  e.preventDefault();
+  var p=canvasPos(e);
+  drag.x2=p.x;drag.y2=p.y;
+  draw();
+});
+cv.addEventListener('pointerup',function(e){
+  if(!drag)return;
+  var d=drag;drag=null;
+  if(!running||paused||animating){draw();return;}
+  commitCut(d);
+});
+cv.addEventListener('pointercancel',function(){drag=null;draw();});
+
+function commitCut(d){
+  var len=Math.sqrt((d.x2-d.x1)*(d.x2-d.x1)+(d.y2-d.y1)*(d.y2-d.y1));
+  if(len<40){showMsg('👆 拖长一点再松手，画出一条直线',true);sfx('reject');draw();return;}
+  var ch=chordFromDrag(d.x1,d.y1,d.x2,d.y2);
+  if(!ch){showMsg('🔪 这刀没切到披萨上！',true);sfx('reject');draw();return;}
+  for(var i=0;i<chords.length;i++){
+    if(coincident(ch,chords[i])){showMsg('🔪 和已有切痕重合了，换个角度！',true);sfx('reject');draw();return;}
+  }
+  if(chords.length>0&&newCutIntersections(ch)===0){
+    showMsg('📐 这刀必须和已有切痕在披萨内相交！',true);sfx('reject');draw();return;
+  }
+  chords.push(ch);
+  pieces=countPieces(chords);
+  sfx('accept');vibrate(20);
+  updateHud();
+  draw();
+  if(chords.length===level){
+    setTimeout(judgeLevel,450);
+  }
+}
+function updateHud(){
+  $('lvl').textContent=level+'/5';
+  $('pieces').textContent=pieces;
+  $('left').textContent=Math.max(0,level-chords.length);
+  $('lvlbar').textContent='第 '+level+' 关：'+level+' 刀切出 '+targetFor(level)+' 块';
+}
+function judgeLevel(){
+  if(pieces===targetFor(level)){passLevel();}
+  else{
+    $('failTxt').innerHTML='只切出了 '+pieces+' 块，目标是 '+targetFor(level)+' 块。<br>看看 💡 提示再试一次吧！';
+    sfx('reject');vibrate([90,40,90]);
+    $('failOv').classList.remove('hidden');
+  }
+}
+function countUp(el,from,to,dur,cb){
+  animating=true;
+  var t0=null;
+  function step(ts){
+    if(!t0)t0=ts;
+    var k=Math.min(1,(ts-t0)/dur);
+    var e=1-Math.pow(1-k,3);
+    el.textContent=Math.round(from+(to-from)*e);
+    if(k<1){requestAnimationFrame(step);}
+    else{animating=false;if(cb)cb();}
+  }
+  requestAnimationFrame(step);
+}
+function passLevel(){
+  score+=targetFor(level);
+  $('passTitle').textContent='🎉 第 '+level+' 关通过！';
+  $('passOv').classList.remove('hidden');
+  $('nextBtn').textContent=level===5?'领取胜利 🏆':'下一关 →';
+  sfx('pass');vibrate(40);
+  countUp($('passNum'),pieces,targetFor(level),700);
+}
+function startLevel(l){
+  level=l;chords=[];pieces=1;drag=null;animating=false;
+  seedToppings();
+  updateHud();draw();
+  $('passOv').classList.add('hidden');
+  $('failOv').classList.add('hidden');
+}
+function winGame(){
+  running=false;
+  if(score>best){best=score;localStorage.setItem(HS_KEY,String(score));}
+  $('winScore').textContent=score;
+  $('winBest').textContent=best;
+  $('passOv').classList.add('hidden');
+  $('winOv').classList.remove('hidden');
+  sfx('win');vibrate([60,40,60,40,120]);
+}
+function startGame(){
+  score=0;running=true;paused=false;
+  $('startOv').classList.add('hidden');
+  $('winOv').classList.add('hidden');
+  $('failOv').classList.add('hidden');
+  $('passOv').classList.add('hidden');
+  $('pauseOv').classList.add('hidden');
+  ac();
+  startLevel(1);
+}
+$('startBtn').addEventListener('click',function(){sfx('click');startGame();});
+$('againBtn').addEventListener('click',function(){sfx('click');startGame();});
+$('retryBtn').addEventListener('click',function(){sfx('click');startLevel(level);});
+$('nextBtn').addEventListener('click',function(){
+  sfx('click');
+  if(level>=5){winGame();}
+  else{startLevel(level+1);}
+});
+$('undoBtn').addEventListener('click',function(){
+  if(!running||paused||animating||chords.length===0)return;
+  chords.pop();pieces=countPieces(chords);
+  sfx('click');updateHud();draw();
+});
+$('clearBtn').addEventListener('click',function(){
+  if(!running||paused||animating||chords.length===0)return;
+  chords=[];pieces=1;
+  sfx('click');updateHud();draw();showMsg('🧹 已清空，重新规划下刀吧');
+});
+$('doneBtn').addEventListener('click',function(){
+  if(!running||paused||animating)return;
+  if(chords.length<level){showMsg('🔪 还剩 '+(level-chords.length)+' 刀没切完',true);sfx('reject');return;}
+  judgeLevel();
+});
+$('hintBtn').addEventListener('click',function(){sfx('click');$('hintOv').classList.remove('hidden');});
+$('hintClose').addEventListener('click',function(){sfx('click');$('hintOv').classList.add('hidden');});
+$('pauseBtn').addEventListener('click',function(){
+  if(!running||paused)return;
+  paused=true;sfx('click');$('pauseOv').classList.remove('hidden');
+});
+$('resumeBtn').addEventListener('click',function(){
+  paused=false;sfx('click');$('pauseOv').classList.add('hidden');
+});
+$('muteBtn').addEventListener('click',function(){setMute(!muted);if(!muted)sfx('click');});
+setMute(muted);
+window.addEventListener('resize',resize);
+resize();
+seedToppings();draw();updateHud();
+</script>
+</body>
+</html>

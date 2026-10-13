@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>火锅涮</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d0b1a;color:#f5efe6;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;display:flex;flex-direction:column;position:relative;background:radial-gradient(120% 90% at 50% 0%,#1b1433 0%,#0d0b1a 70%)}
+#hud{display:flex;align-items:center;gap:6px;padding:10px 12px;font-size:14px;z-index:5}
+#hud .pill{background:#221c3f;border:1px solid #3a2f63;border-radius:999px;padding:6px 10px;white-space:nowrap}
+#hud .grow{flex:1}
+.btn{min-width:44px;min-height:44px;border-radius:12px;border:1px solid #4a3d78;background:#2b2350;color:#f5efe6;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.btn:active{transform:scale(.94)}
+#stage{position:relative;flex:1;touch-action:none;overflow:hidden}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+#dishTag{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(20,14,38,.75);border:1px solid #6b4fd8;border-radius:999px;padding:8px 16px;font-size:16px;z-index:3;pointer-events:none}
+#tip{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:14px;color:#cbb8ff;background:rgba(20,14,38,.6);padding:6px 14px;border-radius:999px;z-index:3;pointer-events:none;white-space:nowrap}
+#float{position:absolute;inset:0;pointer-events:none;z-index:4;overflow:hidden}
+.flo{position:absolute;font-weight:700;font-size:20px;animation:rise 1s ease-out forwards;text-shadow:0 2px 8px rgba(0,0,0,.7);white-space:nowrap}
+.flo.perfect{color:#7dff9a}.flo.raw{color:#ffd166}.flo.bad{color:#ff6b6b}
+@keyframes rise{0%{opacity:0;transform:translateY(10px) scale(.7)}20%{opacity:1;transform:translateY(0) scale(1.15)}100%{opacity:0;transform:translateY(-70px) scale(1)}}
+#barWrap{padding:10px 16px 4px;z-index:5}
+#bar{position:relative;height:26px;background:#1c1535;border:1px solid #4a3d78;border-radius:999px;overflow:hidden}
+#zone{position:absolute;top:0;bottom:0;background:linear-gradient(180deg,#3ddc74,#1d9e4b);opacity:.85;border-radius:0}
+#fill{position:absolute;top:0;bottom:0;left:0;width:0;background:linear-gradient(90deg,#ffb347,#ff6b35);transition:none}
+#needle{position:absolute;top:-2px;bottom:-2px;width:4px;background:#fff;border-radius:2px;box-shadow:0 0 8px #fff;left:0}
+#barLabel{display:flex;justify-content:space-between;font-size:12px;color:#9d8fd0;padding:4px 4px 0}
+#holdpad{margin:8px 16px 16px;min-height:64px;border-radius:18px;border:2px dashed #6b4fd8;background:rgba(107,79,216,.12);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#e6dcff;touch-action:none;z-index:5}
+#holdpad.holding{background:rgba(255,107,53,.25);border-color:#ff6b35;color:#ffd9c4}
+#ov{position:absolute;inset:0;background:rgba(10,7,24,.92);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+#ov.hidden{display:none}
+.card{background:#1c1535;border:1px solid #4a3d78;border-radius:20px;padding:28px 24px;max-width:380px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.card h1{font-size:32px;margin-bottom:8px}
+.card h2{font-size:24px;margin-bottom:12px}
+.card p{font-size:15px;line-height:1.8;color:#cbb8ff;margin-bottom:8px}
+.card .big{font-size:44px;font-weight:800;color:#ffd166;margin:10px 0}
+.card .row{display:flex;gap:10px;justify-content:center;margin-top:16px}
+.bigbtn{min-width:120px;min-height:52px;border-radius:14px;border:none;background:linear-gradient(180deg,#ff8c42,#e2571d);color:#fff;font-size:18px;font-weight:700;cursor:pointer}
+.bigbtn:active{transform:scale(.95)}
+.ghostbtn{min-width:120px;min-height:52px;border-radius:14px;border:1px solid #6b4fd8;background:transparent;color:#cbb8ff;font-size:16px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="pill">🍲 <b id="score">0</b>分</span>
+    <span class="pill">👑 <b id="high">0</b></span>
+    <span class="pill">⏱ <b id="time">60</b>s</span>
+    <span class="pill">❌ <b id="miss">0</b>/3</span>
+    <span class="grow"></span>
+    <button class="btn" id="muteBtn" aria-label="静音">🔊</button>
+    <button class="btn" id="pauseBtn" aria-label="暂停">⏸</button>
+  </div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="dishTag">🍲 准备上菜…</div>
+    <div id="tip">按住下方涮菜，绿色区内松手！</div>
+    <div id="float"></div>
+  </div>
+  <div id="barWrap">
+    <div id="bar"><div id="zone"></div><div id="fill"></div><div id="needle"></div></div>
+    <div id="barLabel"><span>🥶 夹生</span><span>🟩 完美火候区</span><span>🥵 煮老</span></div>
+  </div>
+  <div id="holdpad">👇 按住开始涮 👇</div>
+  <div id="ov"><div class="card" id="ovCard"></div></div>
+</div>
+<script>
+'use strict';
+(function(){
+  function $(id){return document.getElementById(id);}
+  var cv=$('cv'),ctx=cv.getContext('2d');
+  var ID='hotpot',HS_KEY='g100_'+ID+'_hs',MUTE_KEY='g100_mute';
+  var high=parseInt(localStorage.getItem(HS_KEY)||'0',10);
+  if(!(high>=0)){high=0;}
+  var muted=localStorage.getItem(MUTE_KEY)==='1';
+
+  var DISHES=[
+    {name:'毛肚',emoji:'🥩'},{name:'虾滑',emoji:'🦐'},
+    {name:'青菜',emoji:'🥬'},{name:'牛肉',emoji:'🍖'},
+    {name:'午餐肉',emoji:'🥓'},{name:'金针菇',emoji:'🍄'}
+  ];
+
+  var G={state:'start',score:0,miss:0,perfects:0,time:60,dishIdx:0,
+         prog:0,cooking:false,zoneStart:40,zoneW:20,speed:35,dish:null,t:0};
+  var bubbles=[],steam=[];
+
+  /* ---------- 音频 ---------- */
+  var AC=null;
+  function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+  function tone(f,dur,type,vol,when){
+    if(muted)return;var c=ac();if(!c)return;
+    var t0=c.currentTime+(when||0);
+    var o=c.createOscillator(),g=c.createGain();
+    o.type=type||'sine';o.frequency.setValueAtTime(f,t0);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(vol||0.2,t0+0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    o.connect(g);g.connect(c.destination);
+    o.start(t0);o.stop(t0+dur+0.05);
+  }
+  function sClick(){tone(520,0.08,'square',0.12);}
+  function sPerfect(){tone(660,0.12,'sine',0.22);tone(880,0.14,'sine',0.22,0.1);tone(1320,0.2,'sine',0.2,0.2);}
+  function sRaw(){tone(300,0.15,'triangle',0.18);tone(240,0.18,'triangle',0.15,0.1);}
+  function sOver(){tone(160,0.25,'sawtooth',0.2);tone(110,0.3,'sawtooth',0.2,0.12);}
+  function sWin(){var n=[523,659,784,1046,1318];for(var i=0;i<n.length;i++){tone(n[i],0.18,'triangle',0.2,i*0.12);}}
+  function sBubble(){if(muted)return;tone(180+Math.random()*220,0.07,'sine',0.05);}
+  function vib(p){try{if(navigator.vibrate){navigator.vibrate(p);}}catch(e){}}
+
+  /* ---------- UI ---------- */
+  function setMute(m){muted=m;localStorage.setItem(MUTE_KEY,m?'1':'0');$('muteBtn').textContent=m?'🔇':'🔊';}
+  $('muteBtn').textContent=muted?'🔇':'🔊';
+  $('muteBtn').addEventListener('click',function(){setMute(!muted);if(!muted){sClick();}});
+  function updHud(){$('score').textContent=G.score;$('high').textContent=high;$('time').textContent=Math.ceil(G.time);$('miss').textContent=G.miss;}
+  function floatText(txt,cls,x,y){
+    var d=document.createElement('div');d.className='flo '+cls;d.textContent=txt;
+    var st=$('stage').getBoundingClientRect();
+    d.style.left=(x!==undefined?x:st.width/2-60)+'px';
+    d.style.top=(y!==undefined?y:st.height*0.35)+'px';
+    $('float').appendChild(d);setTimeout(function(){d.remove();},1050);
+  }
+  function showOv(html){$('ovCard').innerHTML=html;$('ov').classList.remove('hidden');}
+  function hideOv(){$('ov').classList.add('hidden');}
+
+  function startScreen(){
+    G.state='start';
+    showOv('<h1>🍲 火锅涮</h1><p>菜品依次上桌，<b style="color:#7dff9a">按住涮菜</b>进度条上涨。<br>在<b style="color:#7dff9a">绿色完美火候区</b>内松手 = 恰到好处 +100分！<br>松太早 = 夹生 +10分，煮过头 = 煮老 ❌<br>累计 3 次煮老或 60 秒到 → 结算。<br>越往后完美区越窄、火越旺！</p><div class="row"><button class="bigbtn" id="startBtn">开涮！</button></div>');
+    $('startBtn').addEventListener('click',function(){sClick();startGame();});
+  }
+  function endScreen(reason){
+    G.state='over';
+    if(G.score>high){high=G.score;localStorage.setItem(HS_KEY,String(high));}
+    updHud();sWin();vib([80,60,80]);
+    showOv('<h2>🍲 涮完啦！</h2><p>'+(reason==='miss'?'煮老 3 次，火候还得练～':'时间到！')+'</p>'+
+      '<div class="big">'+G.score+' 分</div>'+
+      '<p>完美 '+G.perfects+' 次 ｜ 最高 '+high+' 分</p>'+
+      '<div class="row"><button class="bigbtn" id="againBtn">再来一锅</button></div>');
+    $('againBtn').addEventListener('click',function(){sClick();startGame();});
+  }
+
+  /* ---------- 游戏流程 ---------- */
+  function startGame(){
+    hideOv();
+    G.state='ready';G.score=0;G.miss=0;G.perfects=0;G.time=60;G.dishIdx=0;
+    G.prog=0;G.cooking=false;bubbles=[];steam=[];
+    updHud();nextDish();
+  }
+  function nextDish(){
+    if(G.state==='over'){return;}
+    G.dish=DISHES[Math.floor(Math.random()*DISHES.length)];
+    var n=G.dishIdx;
+    G.speed=34+n*3.2;
+    G.zoneW=Math.max(8,22-n*1.4);
+    G.zoneStart=28+Math.random()*(62-G.zoneW);
+    G.prog=0;G.cooking=false;G.state='ready';
+    $('dishTag').textContent=G.dish.emoji+' '+G.dish.name+' 上桌！按住开涮';
+    $('zone').style.left=G.zoneStart+'%';$('zone').style.width=G.zoneW+'%';
+    $('fill').style.width='0%';$('needle').style.left='0%';
+    $('tip').textContent='按住下方涮菜，绿色区内松手！';
+  }
+  function beginCook(){
+    if(G.state!=='ready'){return;}
+    ac();G.state='cooking';G.cooking=true;
+    $('holdpad').classList.add('holding');
+    $('holdpad').textContent='🔥 涮着呢…看准松手！';
+    $('tip').textContent='盯紧绿色区！';
+  }
+  function releaseCook(){
+    if(G.state!=='cooking'){return;}
+    G.cooking=false;
+    $('holdpad').classList.remove('holding');
+    $('holdpad').textContent='👇 按住开始涮 👇';
+    var p=G.prog,zs=G.zoneStart,ze=zs+G.zoneW;
+    G.state='result';
+    var st=$('stage').getBoundingClientRect();
+    if(p<zs){
+      G.score+=10;floatText('夹生 +10','raw',st.width/2-50,st.height*0.3);sRaw();vib(20);
+    }else if(p<=ze){
+      G.score+=100;G.perfects++;floatText('恰到好处！+100','perfect',st.width/2-90,st.height*0.3);
+      sPerfect();vib(35);burst(st.width/2,st.height*0.45);
+    }else{
+      doMiss('煮老了');
+      return;
+    }
+    G.dishIdx++;updHud();
+    (function tick(){setTimeout(function(){
+      if(G.state==='paused'){tick();return;}
+      if(G.state==='result'){nextDish();}
+    },850);})();
+  }
+  function doMiss(msg){
+    G.miss++;
+    var st=$('stage').getBoundingClientRect();
+    floatText(msg+' ❌','bad',st.width/2-50,st.height*0.3);
+    sOver();vib([70,40,70]);G.dishIdx++;updHud();
+    if(G.miss>=3){(function tick(){setTimeout(function(){if(G.state==='paused'){tick();return;}endScreen('miss');},900);})();}
+    else{(function tick(){setTimeout(function(){
+      if(G.state==='paused'){tick();return;}
+      if(G.state==='result'||G.state==='cooking'){G.state='result';nextDish();}
+    },900);})();}
+  }
+  function burst(x,y){
+    for(var i=0;i<16;i++){
+      bubbles.push({x:x+(Math.random()-0.5)*60,y:y,r:2+Math.random()*4,
+        vx:(Math.random()-0.5)*160,vy:-60-Math.random()*140,life:0.7,t:0,
+        c:['#7dff9a','#ffd166','#ff8c42','#fff'][i%4]});
+    }
+  }
+
+  /* ---------- 暂停 ---------- */
+  var prevState='ready';
+  function togglePause(){
+    if(G.state==='start'||G.state==='over'){return;}
+    if(G.state==='paused'){
+      G.state=prevState;hideOv();sClick();
+      $('pauseBtn').textContent='⏸';
+      if(G.state==='ready'&&!G.dish){nextDish();}
+    }else{
+      if(G.cooking){G.cooking=false;G.prog=0;G.state='ready';$('fill').style.width='0%';$('needle').style.left='0%';}
+      prevState=(G.state==='cooking')?'ready':G.state;
+      G.state='paused';$('pauseBtn').textContent='▶';
+      $('holdpad').classList.remove('holding');$('holdpad').textContent='👇 按住开始涮 👇';
+      showOv('<h2>⏸ 已暂停</h2><p>火锅还热着，回来继续涮～</p><div class="row"><button class="bigbtn" id="resumeBtn">继续</button><button class="ghostbtn" id="quitBtn">重开</button></div>');
+      $('resumeBtn').addEventListener('click',togglePause);
+      $('quitBtn').addEventListener('click',function(){sClick();$('pauseBtn').textContent='⏸';startGame();});
+    }
+  }
+  $('pauseBtn').addEventListener('click',function(){togglePause();});
+
+  /* ---------- 输入 ---------- */
+  var pad=$('holdpad');
+  pad.addEventListener('pointerdown',function(e){e.preventDefault();beginCook();});
+  window.addEventListener('pointerup',function(){releaseCook();});
+  window.addEventListener('pointercancel',function(){if(G.state==='cooking'){G.cooking=false;G.prog=0;G.state='ready';$('holdpad').classList.remove('holding');$('holdpad').textContent='👇 按住开始涮 👇';}});
+  document.addEventListener('contextmenu',function(e){e.preventDefault();});
+  document.addEventListener('dblclick',function(e){e.preventDefault();},{passive:false});
+
+  /* ---------- 主循环 ---------- */
+  function resize(){
+    var st=$('stage').getBoundingClientRect();
+    var dpr=Math.min(2,window.devicePixelRatio||1);
+    cv.width=st.width*dpr;cv.height=st.height*dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    G.w=st.width;G.h=st.height;
+  }
+  window.addEventListener('resize',resize);
+
+  var last=0,bubT=0;
+  function loop(ts){
+    requestAnimationFrame(loop);
+    if(!last){last=ts;}
+    var dt=Math.min(0.05,(ts-last)/1000);last=ts;
+    if(G.state==='paused'||G.state==='start'||G.state==='over'){return;}
+    G.t+=dt;
+    if(G.state!=='result'){
+      G.time-=dt;
+      if(G.time<=0){G.time=0;updHud();endScreen('time');return;}
+      if(Math.ceil(G.time)!==Math.ceil(G.time+dt)){updHud();}
+    }
+    if(G.cooking){
+      G.prog+=G.speed*dt;
+      bubT+=dt;
+      if(bubT>0.09){bubT=0;sBubble();spawnBubble();}
+      if(G.prog>=100){G.prog=100;releaseCook();return;}
+      $('fill').style.width=G.prog+'%';$('needle').style.left='calc('+G.prog+'% - 2px)';
+    }
+    updateFx(dt);
+    draw();
+  }
+  function spawnBubble(){
+    var cx=G.w/2;
+    bubbles.push({x:cx+(Math.random()-0.5)*150,y:G.h*0.62,r:3+Math.random()*6,
+      vx:(Math.random()-0.5)*20,vy:-50-Math.random()*70,life:1.1,t:0,c:'rgba(255,180,120,.55)'});
+    if(Math.random()<0.4){
+      steam.push({x:cx+(Math.random()-0.5)*120,y:G.h*0.4,r:6+Math.random()*8,t:0,life:1.4});
+    }
+  }
+  function updateFx(dt){
+    for(var i=bubbles.length-1;i>=0;i--){var b=bubbles[i];b.t+=dt;b.x+=b.vx*dt;b.y+=b.vy*dt;if(b.t>b.life){bubbles.splice(i,1);}}
+    for(var j=steam.length-1;j>=0;j--){var s=steam[j];s.t+=dt;s.y-=40*dt;s.r+=14*dt;if(s.t>s.life){steam.splice(j,1);}}
+  }
+  function draw(){
+    var w=G.w,h=G.h;if(!w){return;}
+    ctx.clearRect(0,0,w,h);
+    var cx=w/2,potY=h*0.62,potW=Math.min(w*0.78,340);
+    for(var j=0;j<steam.length;j++){var s=steam[j];var sa=0.25*(1-s.t/s.life);
+      ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fillStyle='rgba(200,190,220,'+sa.toFixed(3)+')';ctx.fill();}
+    ctx.fillStyle='#141021';
+    ctx.beginPath();ctx.ellipse(cx,potY+46,potW/2,26,0,0,7);ctx.fill();
+    var grd=ctx.createLinearGradient(0,potY-30,0,potY+50);
+    grd.addColorStop(0,'#3a2c1a');grd.addColorStop(1,'#171019');
+    ctx.fillStyle=grd;
+    ctx.beginPath();ctx.ellipse(cx,potY,potW/2,52,0,0,7);ctx.fill();
+    ctx.strokeStyle='#6b5a3e';ctx.lineWidth=6;
+    ctx.beginPath();ctx.ellipse(cx,potY-14,potW/2-8,44,0,0,7);ctx.stroke();
+    var wob=Math.sin(G.t*3)*3;
+    var soup=ctx.createRadialGradient(cx,potY-14,10,cx,potY-14,potW/2);
+    soup.addColorStop(0,'#ff7a3c');soup.addColorStop(0.6,'#d94f2b');soup.addColorStop(1,'#8e2f16');
+    ctx.fillStyle=soup;
+    ctx.beginPath();ctx.ellipse(cx,potY-14+wob*0.3,potW/2-14,38+wob,0,0,7);ctx.fill();
+    ctx.fillStyle='rgba(255,220,150,.35)';
+    for(var k=0;k<8;k++){
+      var bx=cx+Math.cos(G.t*2+k*0.8)*(potW/4-20)*Math.sin(k*1.7);
+      var by=potY-14+Math.sin(G.t*2.4+k)*(20)*Math.cos(k*2.1);
+      ctx.beginPath();ctx.arc(bx,by,3+2*Math.sin(G.t*4+k),0,7);ctx.fill();
+    }
+    for(var i=0;i<bubbles.length;i++){var b=bubbles[i];var ba=1-b.t/b.life;
+      ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fillStyle=b.c||('rgba(255,200,140,'+(0.6*ba).toFixed(3)+')');ctx.fill();}
+    if(G.dish&&(G.state==='ready'||G.state==='cooking'||G.state==='result')){
+      var dip=(G.state==='cooking')?G.prog/100:0;
+      var dy=-120+dip*95+Math.sin(G.t*4)*4;
+      ctx.font='64px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(G.dish.emoji,cx,potY-14+dy);
+      ctx.font='22px serif';
+      ctx.fillText('🥢',cx+52,potY-14+dy-34);
+    }
+    if(G.cooking){
+      ctx.font='20px serif';ctx.textAlign='center';
+      ctx.fillText('♨️',cx-70+Math.sin(G.t*9)*6,potY-80);
+      ctx.fillText('♨️',cx+70+Math.cos(G.t*8)*6,potY-80);
+    }
+  }
+
+  resize();updHud();startScreen();
+  setTimeout(resize,100);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
