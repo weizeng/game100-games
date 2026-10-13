@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>开心农场</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b1020;font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#e8ecff;user-select:none;-webkit-user-select:none}
+#wrap{position:fixed;inset:0;max-width:520px;margin:0 auto;display:flex;flex-direction:column;background:linear-gradient(180deg,#0e1a2e 0%,#0b1020 45%,#07130c 100%)}
+#hud{display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:6}
+.hudbox{background:rgba(10,20,14,.78);border:1px solid #2c5e43;border-radius:12px;padding:7px 12px;font-size:15px;white-space:nowrap}
+#timeBarWrap{flex:1;height:12px;background:#101a26;border-radius:8px;overflow:hidden;border:1px solid #2c5e43}
+#timeBar{height:100%;width:100%;background:linear-gradient(90deg,#f39c12,#f1c40f);border-radius:8px;transition:width .3s linear}
+.iconbtn{width:46px;height:46px;border-radius:12px;border:1px solid #2c5e43;background:rgba(10,20,14,.85);color:#e8ecff;font-size:22px;cursor:pointer;touch-action:manipulation}
+.iconbtn:active{transform:scale(.92)}
+#stage{position:relative;flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 12px 16px}
+#floatLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:5}
+.float{position:absolute;font-size:19px;font-weight:800;color:#ffe27a;text-shadow:0 0 8px #000,0 2px 2px #000;animation:floatUp 1.2s ease-out forwards;white-space:nowrap}
+@keyframes floatUp{0%{opacity:0;transform:translateY(8px) scale(.8)}15%{opacity:1;transform:translateY(0) scale(1.06)}100%{opacity:0;transform:translateY(-58px) scale(1)}}
+#grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:6px}
+.plot{position:relative;min-height:96px;border-radius:16px;border:2px solid #3a2c18;background:linear-gradient(180deg,#4a3520,#332412);cursor:pointer;touch-action:manipulation;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden;transition:transform .12s ease,border-color .2s}
+.plot:active{transform:scale(.94)}
+.plot .em{font-size:38px;line-height:1;transition:transform .25s cubic-bezier(.2,1.6,.4,1)}
+.plot.growing .em{transform:scale(.92)}
+.plot.done{border-color:#f1c40f;box-shadow:0 0 14px rgba(241,196,15,.55);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+.plot .nm{font-size:12px;color:#d9c9a8}
+.plot .pbar{position:absolute;left:8px;right:8px;bottom:7px;height:6px;background:rgba(0,0,0,.5);border-radius:4px;overflow:hidden}
+.plot .pfill{height:100%;width:0%;background:linear-gradient(90deg,#27ae60,#7bed6b);border-radius:4px;transition:width .25s linear}
+.plot .drop{position:absolute;top:4px;right:6px;font-size:15px}
+.plot .hint{font-size:26px;opacity:.45}
+#tipbar{margin-top:12px;background:rgba(8,14,10,.7);border:1px solid #2c5e43;border-radius:12px;padding:9px 12px;font-size:13px;color:#9fc7ab;line-height:1.7}
+.overlay{position:absolute;inset:0;background:rgba(4,8,6,.85);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:20;padding:20px}
+.overlay.hidden{display:none}
+.card{background:#0f1a26;border:1px solid #2ecc71;border-radius:20px;padding:26px 22px;max-width:400px;width:100%;text-align:center;box-shadow:0 0 32px rgba(46,204,113,.3);animation:pop .35s cubic-bezier(.2,1.4,.4,1);max-height:92%;overflow-y:auto}
+@keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.card h1{font-size:30px;margin-bottom:6px}
+.card h2{font-size:24px;margin-bottom:10px}
+.card p{font-size:15px;line-height:1.8;color:#b9c4e8;margin:8px 0;text-align:left}
+.card .big{font-size:22px;color:#ffe27a;text-align:center;margin:12px 0;font-weight:800}
+.bigbtn{display:inline-block;margin-top:12px;min-width:200px;min-height:54px;padding:14px 28px;font-size:19px;font-weight:700;color:#06220f;background:linear-gradient(180deg,#5be37e,#2ecc71);border:none;border-radius:16px;cursor:pointer;box-shadow:0 4px 0 #14532d;touch-action:manipulation}
+.bigbtn:active{transform:translateY(2px);box-shadow:0 2px 0 #14532d}
+.bigbtn.ghost{background:linear-gradient(180deg,#5a6a8a,#3a4560);color:#fff;box-shadow:0 4px 0 #20263c}
+.cropbtn{display:flex;align-items:center;gap:12px;width:100%;margin:8px 0;padding:12px 14px;min-height:64px;border-radius:14px;border:1px solid #2c5e43;background:#12241a;color:#e8ecff;font-size:15px;cursor:pointer;touch-action:manipulation;text-align:left}
+.cropbtn:active{transform:scale(.97);border-color:#2ecc71}
+.cropbtn .ce{font-size:34px}
+.cropbtn .cn{font-weight:700}
+.cropbtn .cd{font-size:13px;color:#9fc7ab;margin-top:2px}
+.rule{background:#0a1410;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:13.5px;color:#9fc7ab;text-align:left;line-height:1.8}
+table.crops{width:100%;border-collapse:collapse;margin:10px 0;font-size:13.5px}
+table.crops td,table.crops th{border:1px solid #2c5e43;padding:6px 4px;text-align:center;color:#cfe3d6}
+table.crops th{color:#7bed6b}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="hudbox">🪙 <span id="goldTxt">0</span></div>
+    <div id="timeBarWrap"><div id="timeBar"></div></div>
+    <div class="hudbox">⏱ <span id="timeTxt">3:00</span></div>
+    <div class="hudbox">🏆 <span id="bestTxt">0</span></div>
+    <button class="iconbtn" id="muteBtn" aria-label="静音">🔊</button>
+    <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
+  </div>
+  <div id="stage">
+    <div id="floatLayer"></div>
+    <div id="grid"></div>
+    <div id="tipbar">💡 点击空田播种 → 点击发芽田浇水（生长×2速、产量×1.5）→ 成熟发光后点击收获。不浇水的产量只有一半哦！</div>
+    <div class="overlay" id="startOv">
+      <div class="card">
+        <h1>🌱 开心农场</h1>
+        <p>👆 <b>点击空田</b>选择作物播种<br>
+        💧 <b>点击发芽的田浇水</b>：生长速度×2，产量×1.5<br>
+        🪙 作物成熟（金色发光）后<b>点击收获</b>换金币<br>
+        ⏱ <b>3 分钟</b>倒计时内尽量多赚金币！</p>
+        <table class="crops">
+          <tr><th>作物</th><th>成熟</th><th>基础价</th></tr>
+          <tr><td>🥬 青菜</td><td>20秒</td><td>10🪙</td></tr>
+          <tr><td>🥕 萝卜</td><td>40秒</td><td>25🪙</td></tr>
+          <tr><td>🌽 玉米</td><td>70秒</td><td>45🪙</td></tr>
+          <tr><td>🍉 西瓜</td><td>110秒</td><td>80🪙</td></tr>
+        </table>
+        <div class="rule">💡 规划建议：时间短多种快菜抢第一桶金，时间充裕再种西瓜。浇水性价比极高，别偷懒！</div>
+        <button class="bigbtn" id="startBtn">开始种田</button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="pickOv">
+      <div class="card">
+        <h2>🌱 选择作物</h2>
+        <div id="cropList"></div>
+        <button class="bigbtn ghost" id="cancelPick">取消</button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="pauseOv">
+      <div class="card">
+        <h2>⏸ 已暂停</h2>
+        <p class="big">作物暂停生长啦 🌙</p>
+        <button class="bigbtn" id="resumeBtn">继续</button><br>
+        <button class="bigbtn ghost" id="quitBtn">重新开始</button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="endOv">
+      <div class="card">
+        <h2>🧺 收成结算</h2>
+        <p class="big" id="endScore"></p>
+        <p class="big" id="endBest" style="font-size:16px;color:#9fc7ab"></p>
+        <p id="endDetail" style="text-align:center;font-size:14px"></p>
+        <button class="bigbtn" id="againBtn">再种一轮</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ============ 工具 ============ */
+const $=id=>document.getElementById(id);
+const CROPS=[
+  {e:'🥬',name:'青菜',time:20,price:10},
+  {e:'🥕',name:'萝卜',time:40,price:25},
+  {e:'🌽',name:'玉米',time:70,price:45},
+  {e:'🍉',name:'西瓜',time:110,price:80}
+];
+const GAME_LEN=180,HS_KEY='g100_farm_hs';
+
+/* ============ 音频（WebAudio 合成） ============ */
+let AC=null;
+let muted=localStorage.getItem('g100_mute')==='1';
+function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}catch(e){return null;}}
+function tone(f,d,type,g,delay){
+  if(muted)return;
+  const a=ac();if(!a)return;
+  try{
+    const o=a.createOscillator(),v=a.createGain();
+    o.type=type||'sine';o.frequency.value=f;
+    const t=a.currentTime+(delay||0);
+    v.gain.setValueAtTime(0.0001,t);
+    v.gain.exponentialRampToValueAtTime(g||0.18,t+0.015);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(v);v.connect(a.destination);
+    o.start(t);o.stop(t+d+0.06);
+  }catch(e){}
+}
+const sClick=()=>tone(620,0.06,'square',0.10);
+const sPlant=()=>{tone(440,0.09,'triangle',0.16);tone(560,0.1,'triangle',0.14,0.08);};
+const sWater=()=>{tone(740,0.1,'sine',0.16);tone(520,0.14,'sine',0.16,0.09);};
+const sReady=()=>tone(990,0.12,'sine',0.16);
+const sHarvest=()=>{tone(880,0.1,'square',0.13);tone(1320,0.14,'square',0.12,0.09);};
+const sTick=()=>tone(1050,0.05,'square',0.10);
+const sEnd=()=>{[523,659,784,1047,1319].forEach((f,i)=>tone(f,0.22,'triangle',0.16,i*0.13));};
+function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+
+/* ============ 游戏状态 ============ */
+let state='start';
+let plots=[],gold=0,timeLeft=GAME_LEN,lastTs=0,pickIdx=-1,harvests=0,lastTickSec=-1;
+function best(){return parseInt(localStorage.getItem(HS_KEY)||'0',10);}
+function resetGame(){
+  plots=new Array(12).fill(null);
+  gold=0;timeLeft=GAME_LEN;harvests=0;lastTickSec=-1;pickIdx=-1;
+  renderAll();
+  $('goldTxt').textContent='0';
+  $('bestTxt').textContent=String(best());
+  $('timeBar').style.width='100%';
+  $('timeTxt').textContent='3:00';
+}
+
+/* ============ 渲染 ============ */
+const grid=$('grid');
+function stageEmoji(p){
+  const c=CROPS[p.ci];
+  const r=p.prog/c.time;
+  if(r<0.4)return '🌱';
+  if(r<1)return '🌿';
+  return c.e;
+}
+function renderPlot(i){
+  const el=grid.children[i];
+  const p=plots[i];
+  if(!p){
+    el.className='plot';
+    el.innerHTML='<div class="hint">➕</div><div class="nm">空田</div>';
+    return;
+  }
+  const c=CROPS[p.ci];
+  const done=p.prog>=c.time;
+  el.className='plot'+(done?' done':' growing');
+  let html='<div class="em">'+stageEmoji(p)+'</div>';
+  html+='<div class="nm">'+c.name+'</div>';
+  if(p.watered)html+='<div class="drop">💧</div>';
+  if(!done)html+='<div class="pbar"><div class="pfill" style="width:'+Math.min(100,p.prog/c.time*100).toFixed(1)+'%"></div></div>';
+  el.innerHTML=html;
+}
+function renderAll(){for(let i=0;i<12;i++)renderPlot(i);}
+function floatText(txt,el){
+  const layer=$('floatLayer'),stage=$('stage');
+  const sr=stage.getBoundingClientRect();
+  const r=el.getBoundingClientRect();
+  const d=document.createElement('div');
+  d.className='float';d.textContent=txt;
+  d.style.left=Math.max(4,r.left-sr.left+r.width/2-46)+'px';
+  d.style.top=(r.top-sr.top-6)+'px';
+  layer.appendChild(d);
+  d.addEventListener('animationend',()=>d.remove());
+}
+function fmtTime(s){
+  s=Math.max(0,Math.ceil(s));
+  return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+}
+
+/* ============ 交互 ============ */
+function tapPlot(i){
+  if(state!=='play')return;
+  const el=grid.children[i];
+  const p=plots[i];
+  if(!p){openPicker(i);return;}
+  const c=CROPS[p.ci];
+  if(p.prog>=c.time){
+    const g=Math.max(1,Math.round(c.price*(p.watered?1.5:0.5)));
+    gold+=g;harvests++;
+    plots[i]=null;
+    renderPlot(i);
+    $('goldTxt').textContent=String(gold);
+    floatText('+'+g+'🪙',el);
+    sHarvest();buzz(40);
+    return;
+  }
+  if(!p.watered){
+    p.watered=true;
+    renderPlot(i);
+    floatText('💧 加速×2',el);
+    sWater();
+    return;
+  }
+  const rem=Math.ceil(c.time-p.prog);
+  floatText('还需 '+rem+'s',el);
+  sClick();
+}
+function openPicker(i){
+  pickIdx=i;state='pick';sClick();
+  const list=$('cropList');list.innerHTML='';
+  CROPS.forEach((c,ci)=>{
+    const b=document.createElement('button');
+    b.className='cropbtn';
+    b.innerHTML='<div class="ce">'+c.e+'</div><div><div class="cn">'+c.name+'</div>'+
+      '<div class="cd">⏱ '+c.time+'秒成熟 · 💰'+c.price+'金'+(ci>1?' · 适合长线':'')+'</div></div>';
+    b.addEventListener('click',()=>{
+      plots[pickIdx]={ci:ci,prog:0,watered:false};
+      renderPlot(pickIdx);
+      $('pickOv').classList.add('hidden');
+      state='play';lastTs=0;pickIdx=-1;
+      sPlant();
+    });
+    list.appendChild(b);
+  });
+  $('pickOv').classList.remove('hidden');
+}
+$('cancelPick').addEventListener('click',()=>{
+  sClick();$('pickOv').classList.add('hidden');
+  state='play';lastTs=0;pickIdx=-1;
+});
+
+/* ============ 更新 ============ */
+function update(dt){
+  timeLeft-=dt;
+  const sec=Math.ceil(timeLeft);
+  if(sec<=5&&sec>0&&sec!==lastTickSec){lastTickSec=sec;sTick();}
+  if(timeLeft<=0){gameOver();return;}
+  for(let i=0;i<12;i++){
+    const p=plots[i];
+    if(p){
+      const c=CROPS[p.ci];
+      const wasDone=p.prog>=c.time;
+      p.prog+=dt*(p.watered?2:1);
+      if(!wasDone&&p.prog>=c.time){renderPlot(i);sReady();}
+      else if(!wasDone){
+        const fill=grid.children[i].querySelector('.pfill');
+        if(fill)fill.style.width=Math.min(100,p.prog/c.time*100).toFixed(1)+'%';
+      }
+    }
+  }
+  $('timeTxt').textContent=fmtTime(timeLeft);
+  $('timeBar').style.width=Math.max(0,timeLeft/GAME_LEN*100)+'%';
+}
+
+/* ============ 流程 ============ */
+function showOv(id){
+  ['startOv','pickOv','pauseOv','endOv'].forEach(o=>$(o).classList.add('hidden'));
+  if(id)$(id).classList.remove('hidden');
+}
+function startGame(){
+  sClick();ac();
+  resetGame();showOv(null);state='play';lastTs=0;
+}
+function gameOver(){
+  state='over';
+  const hb=best(),nb=Math.max(hb,gold);
+  localStorage.setItem(HS_KEY,String(nb));
+  $('bestTxt').textContent=String(nb);
+  $('endScore').textContent='🪙 '+gold+' 金币';
+  $('endBest').textContent=(gold>hb?'🏆 新纪录！':'历史最佳 '+nb+' 金币');
+  $('endDetail').textContent='本局收获 '+harvests+' 次';
+  sEnd();buzz([60,40,60]);
+  showOv('endOv');
+}
+$('startBtn').addEventListener('click',startGame);
+$('againBtn').addEventListener('click',startGame);
+$('quitBtn').addEventListener('click',startGame);
+$('resumeBtn').addEventListener('click',()=>{sClick();showOv(null);state='play';lastTs=0;});
+$('pauseBtn').addEventListener('click',()=>{
+  if(state!=='play')return;
+  sClick();state='pause';showOv('pauseOv');
+});
+const muteBtn=$('muteBtn');
+function paintMute(){muteBtn.textContent=muted?'🔇':'🔊';}
+muteBtn.addEventListener('click',()=>{
+  muted=!muted;
+  localStorage.setItem('g100_mute',muted?'1':'0');
+  paintMute();sClick();
+});
+paintMute();
+for(let i=0;i<12;i++){
+  const b=document.createElement('button');
+  b.className='plot';
+  b.addEventListener('click',()=>tapPlot(i));
+  grid.appendChild(b);
+}
+resetGame();showOv('startOv');
+
+/* ============ 主循环 ============ */
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(!lastTs)lastTs=ts;
+  let dt=(ts-lastTs)/1000;lastTs=ts;
+  if(dt>0.05)dt=0.05;
+  if(dt<0)dt=0;
+  if(state==='play')update(dt);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
