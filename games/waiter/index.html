@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>平稳托盘</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b1020;font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#e8ecff;user-select:none;-webkit-user-select:none}
+#wrap{position:fixed;inset:0;max-width:520px;margin:0 auto;display:flex;flex-direction:column;background:radial-gradient(120% 90% at 50% 0%,#182450 0%,#0b1020 62%,#060a14 100%)}
+#hud{display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:6}
+.hudbox{background:rgba(10,16,36,.75);border:1px solid #2c3d6e;border-radius:12px;padding:7px 12px;font-size:15px;white-space:nowrap}
+#timeBarWrap{flex:1;height:12px;background:#141c38;border-radius:8px;overflow:hidden;border:1px solid #2c3d6e}
+#timeBar{height:100%;width:0%;background:linear-gradient(90deg,#27ae60,#2ecc71);border-radius:8px;transition:width .2s linear}
+.iconbtn{width:46px;height:46px;border-radius:12px;border:1px solid #2c3d6e;background:rgba(10,16,36,.8);color:#e8ecff;font-size:22px;cursor:pointer;touch-action:manipulation}
+.iconbtn:active{transform:scale(.92)}
+#stage{position:relative;flex:1;overflow:hidden}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#floatLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:5}
+.float{position:absolute;font-size:20px;font-weight:700;color:#ffe27a;text-shadow:0 0 8px #000,0 2px 2px #000;animation:floatUp 1.3s ease-out forwards;white-space:nowrap}
+@keyframes floatUp{0%{opacity:0;transform:translateY(6px) scale(.8)}15%{opacity:1;transform:translateY(0) scale(1.05)}100%{opacity:0;transform:translateY(-64px) scale(1)}}
+#controls{display:flex;gap:14px;padding:10px 16px 18px;z-index:6}
+.holdbtn{flex:1;height:64px;border-radius:16px;border:1px solid #3b5bff;background:linear-gradient(180deg,#2b3f8f,#1a2558);color:#fff;font-size:30px;cursor:pointer;touch-action:none;box-shadow:0 4px 0 #10163a}
+.holdbtn:active{transform:translateY(2px);box-shadow:0 2px 0 #10163a;background:linear-gradient(180deg,#3b5bff,#2b3f8f)}
+.overlay{position:absolute;inset:0;background:rgba(4,7,18,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:20;padding:20px}
+.overlay.hidden{display:none}
+.card{background:#101736;border:1px solid #3b5bff;border-radius:20px;padding:28px 24px;max-width:400px;width:100%;text-align:center;box-shadow:0 0 32px rgba(59,91,255,.35);animation:pop .35s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.card h1{font-size:30px;margin-bottom:6px}
+.card h2{font-size:24px;margin-bottom:10px}
+.card p{font-size:15px;line-height:1.7;color:#b9c4e8;margin:8px 0;text-align:left}
+.card .big{font-size:20px;color:#ffe27a;text-align:center;margin:12px 0}
+.bigbtn{display:inline-block;margin-top:14px;min-width:200px;min-height:54px;padding:14px 28px;font-size:19px;font-weight:700;color:#fff;background:linear-gradient(180deg,#3b5bff,#2740c9);border:none;border-radius:16px;cursor:pointer;box-shadow:0 4px 0 #141b4d;touch-action:manipulation}
+.bigbtn:active{transform:translateY(2px);box-shadow:0 2px 0 #141b4d}
+.rule{background:#0a0f24;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:13.5px;color:#9fb0dd;text-align:left;line-height:1.8}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="hudbox">⏱ <span id="timeTxt">60s</span></div>
+    <div id="timeBarWrap"><div id="timeBar"></div></div>
+    <div class="hudbox">🏆 <span id="bestTxt">0s</span></div>
+    <button class="iconbtn" id="muteBtn" aria-label="静音">🔊</button>
+    <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
+  </div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="floatLayer"></div>
+    <div class="overlay" id="startOv">
+      <div class="card">
+        <h1>🍽️ 平稳托盘</h1>
+        <p>👈👉 <b>左右拖动屏幕</b>，或按住下方 ◀ ▶ 按钮，扶正托盘<br>
+        💨 托盘会随机晃动，还有<b>阵风</b>偷袭<br>
+        🫨 <b>30 秒后</b>进入颠簸路段，上下抖动更难稳<br>
+        🍜 菜品会向倾斜方向滑动，<b>撑满 60 秒</b>即胜利<br>
+        ⚠️ 菜滑到托盘边缘会闪红预警，掉出一道菜就失败！</p>
+        <div class="rule">💡 小技巧：提前反向倾斜对冲阵风，别等菜滑到边了才救。</div>
+        <button class="bigbtn" id="startBtn">开始上菜</button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="pauseOv">
+      <div class="card">
+        <h2>⏸ 已暂停</h2>
+        <p class="big">托盘已稳住，深呼吸～</p>
+        <button class="bigbtn" id="resumeBtn">继续</button><br>
+        <button class="bigbtn" id="quitBtn" style="background:linear-gradient(180deg,#5a6a8a,#3a4560);box-shadow:0 4px 0 #20263c">重新开始</button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="endOv">
+      <div class="card">
+        <h2 id="endTitle">🎉 挑战成功！</h2>
+        <p class="big" id="endScore"></p>
+        <p class="big" id="endBest" style="font-size:16px;color:#9fb0dd"></p>
+        <button class="bigbtn" id="againBtn">再来一局</button>
+      </div>
+    </div>
+  </div>
+  <div id="controls">
+    <button class="holdbtn" id="btnL">◀</button>
+    <button class="holdbtn" id="btnR">▶</button>
+  </div>
+</div>
+<script>
+'use strict';
+/* ============ 工具 ============ */
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const cv=$('cv'),ctx=cv.getContext('2d');
+let W=0,H=0;
+function resize(){
+  const r=cv.getBoundingClientRect();
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  W=r.width;H=r.height;
+  cv.width=Math.max(1,Math.round(W*dpr));
+  cv.height=Math.max(1,Math.round(H*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',resize);
+window.addEventListener('load',resize);
+
+/* ============ 音频（WebAudio 合成） ============ */
+let AC=null;
+let muted=localStorage.getItem('g100_mute')==='1';
+function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}catch(e){return null;}}
+function tone(f,d,type,g,delay){
+  if(muted)return;
+  const a=ac();if(!a)return;
+  try{
+    const o=a.createOscillator(),v=a.createGain();
+    o.type=type||'sine';o.frequency.value=f;
+    const t=a.currentTime+(delay||0);
+    v.gain.setValueAtTime(0.0001,t);
+    v.gain.exponentialRampToValueAtTime(g||0.18,t+0.015);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(v);v.connect(a.destination);
+    o.start(t);o.stop(t+d+0.06);
+  }catch(e){}
+}
+const sClick=()=>tone(660,0.07,'square',0.12);
+const sWarn=()=>tone(920,0.09,'triangle',0.16);
+const sGust=()=>tone(120,0.28,'square',0.10);
+const sBump=()=>tone(200,0.15,'sawtooth',0.14);
+const sFail=()=>{tone(320,0.45,'sawtooth',0.22);tone(140,0.6,'sawtooth',0.18,0.12);};
+const sWin=()=>{[523,659,784,1047].forEach((f,i)=>tone(f,0.2,'sine',0.18,i*0.13));};
+function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+
+/* ============ 游戏状态 ============ */
+const GAME_LEN=60,BUMP_AT=30;
+const HS_KEY='g100_waiter_hs';
+let state='start';
+let t=0,lastTs=0;
+let pAngle=0,pTarget=0;      /* 玩家扶正角度（度） */
+let dAngle=0,dVel=0;         /* 扰动角度/角速度 */
+let gustImp=0,nextGust=5;
+let bumpWarned=false,warnCd=0,warnFlash=0;
+let dishes=[],parts=[];
+function best(){return parseFloat(localStorage.getItem(HS_KEY)||'0');}
+function trayHalf(){return Math.min(150,W*0.32);}
+function resetGame(){
+  t=0;pAngle=0;pTarget=0;dAngle=0;dVel=0;gustImp=0;
+  nextGust=4+Math.random()*3;
+  bumpWarned=false;warnCd=0;warnFlash=0;parts=[];
+  dishes=[
+    {e:'🍜',x:-62,v:0,mu:0.996},
+    {e:'🍔',x:0,v:0,mu:0.990},
+    {e:'🍰',x:62,v:0,mu:0.984}
+  ];
+  $('timeBar').style.width='0%';
+  $('timeTxt').textContent=GAME_LEN+'s';
+  $('bestTxt').textContent=best().toFixed(1)+'s';
+}
+
+/* ============ 飘字 & 粒子 ============ */
+function floatText(txt,x){
+  const layer=$('floatLayer');
+  const d=document.createElement('div');
+  d.className='float';d.textContent=txt;
+  d.style.left=clamp((x===undefined?W/2:x)-60,8,Math.max(8,W-140))+'px';
+  d.style.top=(H*0.28+Math.random()*40)+'px';
+  layer.appendChild(d);
+  d.addEventListener('animationend',()=>d.remove());
+}
+function spawnWind(dir){
+  for(let i=0;i<14;i++){
+    parts.push({x:dir>0?-20:W+20,y:Math.random()*H*0.7+H*0.1,
+      vx:dir*(300+Math.random()*260),vy:(Math.random()-0.5)*60,
+      r:2+Math.random()*2,life:0.9,max:0.9,c:'#9fd8ff',g:0});
+  }
+}
+function spawnConfetti(){
+  const cols=['#ffd93d','#ff6b6b','#6bcbff','#9dff6b','#c39bff'];
+  for(let i=0;i<70;i++){
+    parts.push({x:W/2+(Math.random()-0.5)*120,y:H*0.35,
+      vx:(Math.random()-0.5)*420,vy:-120-Math.random()*260,
+      r:2.5+Math.random()*3,life:1.4,max:1.4,c:cols[i%cols.length],g:520});
+  }
+}
+
+/* ============ 输入：拖动 + 按住按钮 ============ */
+let dragging=false,dragX0=0,pAngle0=0;
+cv.addEventListener('pointerdown',e=>{dragging=true;dragX0=e.clientX;pAngle0=pTarget;try{cv.setPointerCapture(e.pointerId);}catch(err){}});
+cv.addEventListener('pointermove',e=>{if(!dragging||W===0)return;pTarget=clamp(pAngle0+(e.clientX-dragX0)/W*55,-22,22);});
+const endDrag=()=>{dragging=false;};
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',endDrag);
+let holdDir=0;
+function bindHold(el,dir){
+  el.addEventListener('pointerdown',e=>{e.preventDefault();holdDir=dir;try{el.setPointerCapture(e.pointerId);}catch(err){}});
+  const off=()=>{if(holdDir===dir)holdDir=0;};
+  el.addEventListener('pointerup',off);
+  el.addEventListener('pointercancel',off);
+  el.addEventListener('lostpointercapture',off);
+}
+bindHold($('btnL'),-1);
+bindHold($('btnR'),1);
+
+/* ============ 更新 ============ */
+function dishFall(){
+  buzz(140);sFail();
+  for(let i=0;i<24;i++){
+    parts.push({x:W/2,y:H*0.42,vx:(Math.random()-0.5)*360,vy:-60-Math.random()*200,
+      r:2.5+Math.random()*3,life:1.0,max:1.0,c:'#ff6b6b',g:500});
+  }
+  gameOver(false);
+}
+function update(dt){
+  t+=dt;
+  if(holdDir!==0)pTarget=clamp(pTarget+holdDir*38*dt,-22,22);
+  pAngle+=(pTarget-pAngle)*Math.min(1,dt*9);          /* 缓动跟随 */
+  const sway=Math.sin(t*0.9)*2.2+Math.sin(t*0.43+1.7)*1.6;
+  dVel+=(sway+gustImp)*dt;
+  if(t>=BUMP_AT)dVel+=(Math.random()-0.5)*95*dt;       /* 颠簸 */
+  dVel*=Math.pow(0.55,dt);
+  gustImp*=Math.pow(0.05,dt);
+  dAngle+=dVel*dt;
+  if(dAngle>16){dAngle=16;dVel*=-0.25;}
+  if(dAngle<-16){dAngle=-16;dVel*=-0.25;}
+  if(t>=nextGust){
+    const dir=Math.random()<0.5?-1:1;
+    gustImp=dir*(26+Math.random()*22);
+    nextGust=t+4+Math.random()*5;
+    floatText('💨 阵风！');
+    sGust();spawnWind(dir);
+  }
+  if(t>=BUMP_AT&&!bumpWarned){bumpWarned=true;floatText('🫨 颠簸路段！');sBump();sWarn();buzz(60);}
+  const total=(pAngle+dAngle)*Math.PI/180;
+  const acc=Math.sin(total)*950;
+  const th=trayHalf();
+  let maxR=0;
+  for(const d of dishes){
+    d.v+=acc*dt;
+    d.v*=Math.pow(d.mu,dt*60);
+    d.x+=d.v*dt;
+    const r=Math.abs(d.x)/th;
+    if(r>maxR)maxR=r;
+    if(Math.abs(d.x)>th+6){dishFall();return;}
+  }
+  warnCd-=dt;warnFlash=Math.max(0,warnFlash-dt*3);
+  if(maxR>0.74&&warnCd<=0){warnCd=0.9;warnFlash=1;sWarn();}
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];p.life-=dt;
+    if(p.life<=0){parts.splice(i,1);continue;}
+    p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=p.g*dt;
+  }
+  if(t>=GAME_LEN){gameOver(true);return;}
+  $('timeBar').style.width=Math.min(100,t/GAME_LEN*100)+'%';
+  $('timeTxt').textContent=Math.max(0,GAME_LEN-t).toFixed(0)+'s';
+}
+
+/* ============ 绘制 ============ */
+function rr(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function draw(){
+  if(W===0)return;
+  ctx.clearRect(0,0,W,H);
+  /* 远处霓虹灯点 */
+  ctx.fillStyle='rgba(90,120,255,.25)';
+  for(let i=0;i<12;i++){
+    const sx=(i*97)%W,sy=(i*53)%(H*0.3);
+    ctx.beginPath();ctx.arc(sx,sy,2,0,7);ctx.fill();
+  }
+  const cx=W/2;
+  const bob=(t>=BUMP_AT&&state==='play')?Math.sin(t*22)*5:0;
+  const trayY=H*0.40+bob;
+  const total=(pAngle+dAngle)*Math.PI/180;
+  const th=trayHalf();
+  /* 托盘支柱 */
+  ctx.fillStyle='#232c4e';
+  rr(cx-9,trayY+8,18,H*0.6,8);ctx.fill();
+  /* 托盘 */
+  ctx.save();ctx.translate(cx,trayY);ctx.rotate(total);
+  ctx.fillStyle=warnFlash>0?'#8f2f3d':'#3b4a6b';
+  rr(-th,-11,th*2,22,11);ctx.fill();
+  ctx.fillStyle=warnFlash>0?'#c9505f':'#5a6f9e';
+  ctx.fillRect(-th,-11,th*2,6);
+  ctx.font='34px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  for(const d of dishes)ctx.fillText(d.e,d.x,-30);
+  ctx.restore();
+  /* 桌台 */
+  ctx.fillStyle='#141a33';
+  rr(0,H-46,W,46,0);ctx.fill();
+  ctx.fillStyle='#1f2748';
+  ctx.fillRect(0,H-46,W,4);
+  /* 粒子 */
+  for(const p of parts){
+    ctx.globalAlpha=Math.max(0,p.life/p.max);
+    ctx.fillStyle=p.c;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+/* ============ 流程控制 ============ */
+function showOv(id){
+  ['startOv','pauseOv','endOv'].forEach(o=>$(o).classList.add('hidden'));
+  if(id)$(id).classList.remove('hidden');
+}
+function startGame(){
+  sClick();ac();
+  resetGame();showOv(null);state='play';lastTs=0;
+}
+function gameOver(win){
+  state='over';
+  dragging=false;holdDir=0;
+  const sc=t;
+  const hb=best();
+  const nb=Math.max(hb,sc);
+  localStorage.setItem(HS_KEY,String(nb));
+  $('bestTxt').textContent=nb.toFixed(1)+'s';
+  if(win){sWin();spawnConfetti();$('endTitle').textContent='🎉 挑战成功！';}
+  else{$('endTitle').textContent='🍽️ 菜洒了…';}
+  $('endScore').textContent='坚持了 '+sc.toFixed(1)+' 秒'+(win?'（满分 60 秒！）':'');
+  $('endBest').textContent=(sc>=hb&&sc>0?'🏆 新纪录！':'历史最佳 '+nb.toFixed(1)+' 秒');
+  showOv('endOv');
+}
+$('startBtn').addEventListener('click',startGame);
+$('againBtn').addEventListener('click',startGame);
+$('quitBtn').addEventListener('click',startGame);
+$('resumeBtn').addEventListener('click',()=>{sClick();showOv(null);state='play';lastTs=0;});
+$('pauseBtn').addEventListener('click',()=>{
+  if(state!=='play')return;
+  dragging=false;holdDir=0;
+  sClick();state='pause';showOv('pauseOv');
+});
+const muteBtn=$('muteBtn');
+function paintMute(){muteBtn.textContent=muted?'🔇':'🔊';}
+muteBtn.addEventListener('click',()=>{
+  muted=!muted;
+  localStorage.setItem('g100_mute',muted?'1':'0');
+  paintMute();sClick();
+});
+paintMute();
+resetGame();showOv('startOv');resize();
+
+/* ============ 主循环 ============ */
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(!lastTs)lastTs=ts;
+  let dt=(ts-lastTs)/1000;lastTs=ts;
+  if(dt>0.05)dt=0.05;
+  if(dt<0)dt=0;
+  if(state==='play')update(dt);
+  draw();
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
