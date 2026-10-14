@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -15,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.game100.center.data.GameRepository
@@ -22,7 +24,9 @@ import com.game100.center.model.GameItem
 import com.game100.center.model.RemoteGame
 import com.game100.center.net.AppUpdater
 import com.game100.center.net.GameDownloader
+import com.game100.center.ui.FeaturedAdapter
 import com.game100.center.ui.GameAdapter
+import com.game100.center.ui.GameRowAdapter
 import com.game100.center.util.ZipUtils
 import com.google.android.material.appbar.MaterialToolbar
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +37,8 @@ import java.io.File
 class MainActivity : AppCompatActivity() {
 
     private lateinit var repo: GameRepository
-    private lateinit var adapter: GameAdapter
+    private lateinit var adapter: GameRowAdapter
+    private lateinit var featAdapter: FeaturedAdapter
     private lateinit var swipe: SwipeRefreshLayout
 
     private val categories = listOf("全部", "街机动作", "益智解谜", "休闲趣味", "经典重温")
@@ -67,12 +72,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         val recycler = findViewById<RecyclerView>(R.id.recycler)
-        recycler.layoutManager = GridLayoutManager(this, 3)
-        adapter = GameAdapter(
+        recycler.layoutManager = LinearLayoutManager(this)
+        adapter = GameRowAdapter(
             onClick = { onGameClick(it) },
+            onAction = { onGameAction(it) },
             onLongClick = { onGameLongClick(it) }
         )
         recycler.adapter = adapter
+
+        val featRecycler = findViewById<RecyclerView>(R.id.feat_recycler)
+        featRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        featAdapter = FeaturedAdapter(onClick = { onGameClick(it) })
+        featRecycler.adapter = featAdapter
 
         swipe = findViewById(R.id.swipe)
         swipe.setColorSchemeResources(R.color.brand, R.color.accent)
@@ -147,6 +158,18 @@ class MainActivity : AppCompatActivity() {
         applyFilter()
         findViewById<TextView>(R.id.tv_subtitle).text =
             getString(R.string.subtitle_games, items.size)
+        // 新上架轮播：取 NEW 游戏，最多 8 款
+        val newGames = items.filter { it.isNew }.take(8)
+        val featTitle = findViewById<TextView>(R.id.feat_title)
+        val featRecycler = findViewById<RecyclerView>(R.id.feat_recycler)
+        if (newGames.isNotEmpty()) {
+            featTitle.visibility = View.VISIBLE
+            featRecycler.visibility = View.VISIBLE
+            featAdapter.submit(newGames)
+        } else {
+            featTitle.visibility = View.GONE
+            featRecycler.visibility = View.GONE
+        }
     }
 
     // ---------- App 自升级 ----------
@@ -242,6 +265,16 @@ class MainActivity : AppCompatActivity() {
             }
             item.installed -> openGame(item.id)
             item.canDownload -> downloadGame(item)
+            else -> toast(item.desc.ifBlank { getString(R.string.not_installed) })
+        }
+    }
+
+    /** 列表右侧动作按钮：更新/下载/开始，直接执行不弹窗 */
+    private fun onGameAction(item: GameItem) {
+        when {
+            item.hasUpdate -> downloadGame(item)
+            item.canDownload -> downloadGame(item)
+            item.installed -> openGame(item.id)
             else -> toast(item.desc.ifBlank { getString(R.string.not_installed) })
         }
     }
