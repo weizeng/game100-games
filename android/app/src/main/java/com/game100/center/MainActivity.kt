@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
 
     private val categories = listOf("全部", "街机动作", "益智解谜", "休闲趣味", "经典重温")
     private var selectedCat = "全部"
+    private var searchQuery = ""
     private var allItems: List<GameItem> = emptyList()
     private var lastRemote: List<RemoteGame> = emptyList()
     private val chipViews = mutableListOf<TextView>()
@@ -90,6 +91,17 @@ class MainActivity : AppCompatActivity() {
         swipe.setOnRefreshListener { refreshRemote(silent = false) }
 
         buildCategoryChips()
+
+        val searchBar = findViewById<android.widget.EditText>(R.id.search_bar)
+        searchBar.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                searchQuery = s?.toString() ?: ""
+                applyFilter()
+            }
+        })
+
         loadLocal()
         checkAppUpdate()
     }
@@ -150,7 +162,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyFilter() {
-        adapter.submit(if (selectedCat == "全部") allItems else allItems.filter { it.category == selectedCat })
+        var filtered = if (selectedCat == "全部") allItems else allItems.filter { it.category == selectedCat }
+        if (searchQuery.isNotBlank()) {
+            val q = searchQuery.trim()
+            filtered = filtered.filter {
+                it.name.contains(q, ignoreCase = true) ||
+                it.desc.contains(q, ignoreCase = true) ||
+                it.id.contains(q, ignoreCase = true)
+            }
+        }
+        adapter.submit(filtered)
     }
 
     private fun showItems(items: List<GameItem>) {
