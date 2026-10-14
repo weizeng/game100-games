@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>太空电梯</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:#0b1020;color:#eaf0ff;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;user-select:none;-webkit-user-select:none;display:flex;flex-direction:column;align-items:center}
+#wrap{width:100%;max-width:520px;height:100%;display:flex;flex-direction:column;padding:10px}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:4px 2px}
+.topbar .title{font-size:17px;font-weight:700}
+.icobtn{width:44px;height:44px;border-radius:12px;border:1px solid #2a3a5f;background:#16203a;color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.icobtn:active{transform:scale(.93)}
+#cv{display:block;width:100%;aspect-ratio:480/720;border-radius:14px;background:#0b1020;border:1px solid #1c2947;touch-action:none}
+.sidebtns{display:flex;gap:12px;margin-top:10px}
+.sidebtn{flex:1;min-height:54px;border:none;border-radius:14px;background:linear-gradient(160deg,#2c3a63,#1a2340);color:#fff;font-size:18px;font-weight:700;cursor:pointer;border:1px solid #35487e}
+.sidebtn:active{transform:scale(.96);background:linear-gradient(160deg,#3b5bff,#2740c8)}
+.screen{position:absolute;inset:0;background:rgba(7,10,22,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;z-index:20}
+.screen h1{font-size:30px;margin-bottom:10px}
+.screen p{font-size:15px;color:#9fb2d8;line-height:1.8;margin-bottom:6px;max-width:430px}
+.bigbtn{min-width:200px;min-height:52px;border:none;border-radius:16px;background:linear-gradient(160deg,#3b5bff,#2740c8);color:#fff;font-size:19px;font-weight:700;cursor:pointer;margin-top:16px;box-shadow:0 6px 18px rgba(59,91,255,.4)}
+.bigbtn:active{transform:scale(.95)}
+.hs{font-size:14px;color:#8fa3c8;margin-top:12px}
+.hs b{color:#ffd76a}
+.hidden{display:none!important}
+#wrap{position:relative}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="topbar">
+    <button class="icobtn" id="pauseBtn" aria-label="暂停">⏸</button>
+    <div class="title">🛗 太空电梯</div>
+    <button class="icobtn" id="muteBtn" aria-label="静音">🔊</button>
+  </div>
+  <canvas id="cv" width="480" height="720"></canvas>
+  <div class="sidebtns">
+    <button class="sidebtn" id="leftBtn">⬅️ 放左侧</button>
+    <button class="sidebtn" id="rightBtn">放右侧 ➡️</button>
+  </div>
+
+  <div class="screen" id="startScreen">
+    <h1>🛗 太空电梯</h1>
+    <p>太空电梯载着货箱自动升空！<br>把传送带上的货箱 <b>拖</b> 到平台左半 / 右半<br>（或点一下选中，再按下方 ⬅️ ➡️ 按钮放入）<br>货箱重量 1~3，箱子越大越重。<br>配平仪表：倾斜 = 右重 − 左重，<b style="color:#7CFFB2">|倾斜|≤2 安全</b><br><b style="color:#ff6b6b">超限累计 3 秒 → 货箱滑落，任务失败！</b><br>共 3 个阶段 × 25 秒，货箱越出越快。</p>
+    <button class="bigbtn" id="startBtn">开始升空</button>
+    <div class="hs">最高分：<b id="hsStart">0</b></div>
+  </div>
+
+  <div class="screen hidden" id="pauseScreen">
+    <h1>⏸ 已暂停</h1>
+    <p>电梯悬停中……</p>
+    <button class="bigbtn" id="resumeBtn">继续</button>
+  </div>
+
+  <div class="screen hidden" id="endScreen">
+    <h1 id="endTitle">🎉 升空成功</h1>
+    <p id="endDesc"></p>
+    <button class="bigbtn" id="againBtn">再来一局</button>
+    <div class="hs">最高分：<b id="hsEnd">0</b></div>
+  </div>
+</div>
+<script>
+'use strict';
+var cv = document.getElementById('cv');
+var ctx = cv.getContext('2d');
+var HS_KEY = 'g100_spacelevator_hs';
+var MUTE_KEY = 'g100_mute';
+
+var STAGE_TIME = 25;
+var SPAWN_GAP = [2.2, 1.6, 1.1];
+var MAX_WAIT_SIDE = 3;
+var SLOTS = 5;
+var SLOT_DX = 40;
+var PLAT_Y0 = 610, PLAT_Y1 = 380;
+var PLAT_X0 = 145, PLAT_W = 190;
+var MID_X = 240;
+var SAFE_TILT = 2, LIMIT_T = 3;
+
+var state = 'start';
+var stage = 1, score = 0;
+var stageElapsed = 0, spawnT = 0;
+var platCrates = [];
+var waiting = [];
+var dragCrate = null, dragOffX = 0, dragOffY = 0, dragMoved = false, downX = 0, downY = 0;
+var selCrate = null;
+var tilt = 0, gaugeShow = 0, overtime = 0, warnSndT = 0;
+var shakeT = 0;
+var particles = [];
+var toastTxt = '', toastT = 0;
+var stageEndT = 0, stageGained = 0;
+var failAnimT = 0, fallCrates = [];
+var lastT = 0;
+var highScore = parseInt(localStorage.getItem(HS_KEY) || '0', 10) || 0;
+var muted = localStorage.getItem(MUTE_KEY) === '1';
+var muteBtn = document.getElementById('muteBtn');
+
+function refreshMuteBtn(){ muteBtn.textContent = muted ? '🔇' : '🔊'; }
+muteBtn.addEventListener('click', function(){
+  muted = !muted;
+  localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
+  refreshMuteBtn();
+  if(!muted) sfx('click');
+});
+refreshMuteBtn();
+
+var AC = null;
+function ac(){
+  if(!AC){
+    var C = window.AudioContext || window.webkitAudioContext;
+    if(C) AC = new C();
+  }
+  if(AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, dur, type, delay, slideTo){
+  if(muted) return;
+  try{
+    var c = ac(); if(!c) return;
+    var t = c.currentTime + (delay || 0);
+    var o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + dur + 0.05);
+  }catch(e){}
+}
+function sfx(kind){
+  if(kind === 'click'){ tone(900, 0.06, 'sine'); }
+  else if(kind === 'place'){ tone(660, 0.09, 'sine'); tone(880, 0.12, 'sine', 0.08); }
+  else if(kind === 'warn'){ tone(520, 0.14, 'square'); }
+  else if(kind === 'stage'){ var n=[523,659,784,1047,1319]; for(var i=0;i<n.length;i++) tone(n[i], 0.15, 'sine', i*0.1); }
+  else if(kind === 'fail'){ tone(300, 0.6, 'sawtooth', 0, 90); }
+}
+function buzz(ms){ if(navigator.vibrate){ try{ navigator.vibrate(ms); }catch(e){} } }
+
+function crateWH(w){ return { w: 22 + w * 10, h: 24 + w * 6 }; }
+function waitSlot(side, idx){
+  var x = side === 0 ? 40 + idx * 38 : 364 + idx * 38;
+  return { x: x, y: 672 };
+}
+function slotCount(side){
+  var n = 0;
+  for(var i = 0; i < platCrates.length; i++) if(platCrates[i].side === side) n++;
+  return n;
+}
+function recomputeTilt(){
+  var l = 0, r = 0;
+  for(var i = 0; i < platCrates.length; i++){
+    if(platCrates[i].side === 0) l += platCrates[i].w;
+    else r += platCrates[i].w;
+  }
+  tilt = r - l;
+}
+function platY(){
+  var p = Math.min(1, stageElapsed / STAGE_TIME);
+  p = p * p * (3 - 2 * p);
+  return PLAT_Y0 + (PLAT_Y1 - PLAT_Y0) * p;
+}
+function crateXY(c, py){
+  var cx = c.side === 0 ? MID_X - 47.5 : MID_X + 47.5;
+  var wh = crateWH(c.w);
+  return { x: cx, y: py - 8 - c.slot * SLOT_DX - wh.h / 2, w: wh.w, h: wh.h };
+}
+
+function spawnCrate(){
+  var order = Math.random() < 0.5 ? [0, 1] : [1, 0];
+  for(var k = 0; k < 2; k++){
+    var side = order[k];
+    var n = 0;
+    for(var i = 0; i < waiting.length; i++) if(waiting[i].side === side && waiting[i].state === 'wait') n++;
+    if(n >= MAX_WAIT_SIDE) continue;
+    var s = waitSlot(side, n);
+    waiting.push({ w: 1 + Math.floor(Math.random() * 3), side: side, slot: n, x: s.x, y: s.y + 90, tx: s.x, ty: s.y, state: 'in', t: 0, born: stageElapsed });
+    return;
+  }
+}
+
+function toast(txt){
+  toastTxt = txt; toastT = 1.6;
+}
+
+function placeCrate(c, side){
+  var wi = waiting.indexOf(c);
+  if(wi >= 0) waiting.splice(wi, 1);
+  if(selCrate === c) selCrate = null;
+  var py = platY();
+  var cr = { w: c.w, side: side, slot: slotCount(side), born: stageElapsed };
+  platCrates.push(cr);
+  recomputeTilt();
+  sfx('place'); buzz(20);
+  var p = crateXY(cr, py);
+  for(var i = 0; i < 10; i++){
+    particles.push({ x: p.x + (Math.random() - 0.5) * 40, y: p.y, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 3 - 1, life: 30 + Math.random() * 20, c: '#ffd76a', s: 2 + Math.random() * 3 });
+  }
+}
+
+function tryPlace(c, side){
+  if(slotCount(side) >= SLOTS){ toast(side === 0 ? '左侧已满' : '右侧已满'); sfx('click'); return; }
+  placeCrate(c, side);
+}
+
+function update(dt){
+  if(state !== 'play') return;
+  stageElapsed += dt;
+  spawnT -= dt;
+  if(spawnT <= 0){
+    spawnT = SPAWN_GAP[stage - 1];
+    spawnCrate();
+  }
+  for(var i = waiting.length - 1; i >= 0; i--){
+    var c = waiting[i];
+    c.t += dt;
+    if(c.state === 'in'){
+      var p = Math.min(1, c.t / 0.5);
+      var e = 1 + 2.2 * Math.pow(p - 1, 3) + 1.2 * Math.pow(p - 1, 2);
+      c.x = c.tx; c.y = c.ty + 90 * (1 - e);
+      if(p >= 1){ c.state = 'wait'; c.y = c.ty; }
+    } else if(c.state === 'wait'){
+      if(stageElapsed - c.born > 8){ c.state = 'leave'; c.t = 0; }
+    } else if(c.state === 'leave'){
+      c.y += dt * 300;
+      if(c.y > 780) waiting.splice(i, 1);
+    }
+  }
+  gaugeShow += (tilt - gaugeShow) * Math.min(1, dt * 5);
+  if(Math.abs(tilt) > SAFE_TILT){
+    overtime += dt;
+    warnSndT -= dt;
+    if(warnSndT <= 0){ warnSndT = 0.7; sfx('warn'); }
+    if(overtime >= LIMIT_T){
+      startFail();
+      return;
+    }
+  }
+  if(toastT > 0) toastT -= dt;
+  if(shakeT > 0) shakeT -= dt;
+  for(var j = particles.length - 1; j >= 0; j--){
+    var q = particles[j];
+    q.x += q.vx; q.y += q.vy; q.vy += 0.15; q.life -= dt * 60;
+    if(q.life <= 0) particles.splice(j, 1);
+  }
+  if(stageElapsed >= STAGE_TIME){
+    stageGained = platCrates.length * 10 * stage;
+    score += stageGained;
+    state = 'stageEnd';
+    stageEndT = 0;
+    dragCrate = null; selCrate = null;
+    sfx('stage'); buzz([40, 60, 40]);
+  }
+}
+
+function updateStageEnd(dt){
+  stageEndT += dt;
+  for(var j = particles.length - 1; j >= 0; j--){
+    var q = particles[j];
+    q.x += q.vx; q.y += q.vy; q.vy += 0.15; q.life -= dt * 60;
+    if(q.life <= 0) particles.splice(j, 1);
+  }
+  if(stageEndT > 1.8){
+    if(stage >= 3){ endGame(true); }
+    else {
+      stage++;
+      stageElapsed = 0; spawnT = 0.5;
+      platCrates = []; waiting = [];
+      tilt = 0; gaugeShow = 0; overtime = 0;
+      state = 'play';
+    }
+  }
+}
+
+function startFail(){
+  state = 'failAnim';
+  failAnimT = 0;
+  var py = platY();
+  fallCrates = [];
+  var dir = tilt > 0 ? 1 : -1;
+  for(var i = 0; i < platCrates.length; i++){
+    var p = crateXY(platCrates[i], py);
+    fallCrates.push({ x: p.x, y: p.y, w: platCrates[i].w, cw: p.w, ch: p.h, vx: dir * (60 + Math.random() * 80), vy: -40 - Math.random() * 60, rot: 0, vr: dir * (2 + Math.random() * 3) });
+  }
+  platCrates = [];
+  shakeT = 0.5;
+  sfx('fail'); buzz(90);
+}
+
+function updateFail(dt){
+  failAnimT += dt;
+  if(shakeT > 0) shakeT -= dt;
+  for(var i = 0; i < fallCrates.length; i++){
+    var c = fallCrates[i];
+    c.x += c.vx * dt; c.y += c.vy * dt; c.vy += 900 * dt; c.rot += c.vr * dt;
+  }
+  if(failAnimT > 1.4) endGame(false);
+}
+
+function saveHs(){
+  if(score > highScore){
+    highScore = score;
+    localStorage.setItem(HS_KEY, String(highScore));
+  }
+}
+function endGame(win){
+  state = 'over';
+  saveHs();
+  document.getElementById('endTitle').textContent = win ? '🎉 升空成功' : '📦 货箱滑落';
+  document.getElementById('endDesc').innerHTML =
+    (win ? '三阶段全部完成，货物平安抵达太空站！<br>' : '配平超限 ' + LIMIT_T + ' 秒，货箱滑落了……<br>') +
+    '本局得分：<b style="color:#ffd76a">' + score + '</b>';
+  document.getElementById('hsEnd').textContent = highScore;
+  document.getElementById('endScreen').classList.remove('hidden');
+}
+
+function rr(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawCrate(x, y, w, cw, ch, rot, alpha){
+  ctx.save();
+  ctx.translate(x, y);
+  if(rot) ctx.rotate(rot);
+  if(alpha !== undefined) ctx.globalAlpha = alpha;
+  var g = ctx.createLinearGradient(0, -ch / 2, 0, ch / 2);
+  g.addColorStop(0, '#c98f3d'); g.addColorStop(1, '#8a5a1e');
+  ctx.fillStyle = g;
+  rr(-cw / 2, -ch / 2, cw, ch, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#5e3c10'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = 'rgba(94,60,16,.6)';
+  ctx.beginPath(); ctx.moveTo(-cw / 2, 0); ctx.lineTo(cw / 2, 0); ctx.stroke();
+  ctx.font = Math.min(30, ch - 4) + 'px serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('📦', 0, -2);
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillStyle = '#1d1204';
+  ctx.beginPath(); ctx.arc(cw / 2 - 8, -ch / 2 + 8, 9, 0, 6.29); ctx.fill();
+  ctx.fillStyle = '#ffd76a';
+  ctx.fillText(String(w), cw / 2 - 8, -ch / 2 + 8.5);
+  ctx.restore();
+}
+
+function drawGauge(){
+  var cx = MID_X, cy = 118, R = 78;
+  ctx.save();
+  ctx.fillStyle = 'rgba(20,30,58,.85)';
+  ctx.beginPath(); ctx.arc(cx, cy, R + 12, Math.PI, 2 * Math.PI); ctx.closePath(); ctx.fill();
+  function ang(v){ return Math.PI + (Math.max(-8, Math.min(8, v)) + 8) / 16 * Math.PI; }
+  ctx.lineWidth = 14; ctx.lineCap = 'round';
+  ctx.strokeStyle = '#2fbf71';
+  ctx.beginPath(); ctx.arc(cx, cy, R, ang(-2), ang(2)); ctx.stroke();
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.beginPath(); ctx.arc(cx, cy, R, ang(-8), ang(-2)); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, R, ang(2), ang(8)); ctx.stroke();
+  ctx.fillStyle = '#9fb2d8'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  var marks = [-8, -4, 0, 4, 8];
+  for(var i = 0; i < marks.length; i++){
+    var a = ang(marks[i]);
+    ctx.fillText(String(marks[i]), cx + Math.cos(a) * (R - 24), cy + Math.sin(a) * (R - 24));
+  }
+  var na = ang(gaugeShow);
+  ctx.strokeStyle = Math.abs(tilt) > SAFE_TILT ? '#ff6b6b' : '#ffd76a';
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(na) * (R - 6), cy + Math.sin(na) * (R - 6)); ctx.stroke();
+  ctx.fillStyle = '#eaf0ff';
+  ctx.beginPath(); ctx.arc(cx, cy, 7, 0, 6.29); ctx.fill();
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillStyle = Math.abs(tilt) > SAFE_TILT ? '#ff6b6b' : '#eaf0ff';
+  ctx.fillText('倾斜 ' + (tilt > 0 ? '+' : '') + tilt, cx, cy + 30);
+  ctx.font = '12px sans-serif'; ctx.fillStyle = '#9fb2d8';
+  ctx.fillText('配平仪表', cx, cy - R - 16);
+  if(Math.abs(tilt) > SAFE_TILT){
+    var pw = 200;
+    var frac = Math.min(1, overtime / LIMIT_T);
+    ctx.fillStyle = '#3a1420';
+    rr(cx - pw / 2, cy + 44, pw, 12, 6); ctx.fill();
+    var blink = 0.6 + 0.4 * Math.sin(Date.now() / 120);
+    ctx.fillStyle = 'rgba(255,80,80,' + blink.toFixed(2) + ')';
+    if(frac > 0){ rr(cx - pw / 2, cy + 44, pw * frac, 12, 6); ctx.fill(); }
+    ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#ff6b6b';
+    ctx.fillText('⚠ 超限 ' + overtime.toFixed(1) + 's / ' + LIMIT_T + 's', cx, cy + 66);
+  }
+  ctx.restore();
+}
+
+function draw(){
+  ctx.save();
+  if(shakeT > 0){
+    ctx.translate((Math.random() - 0.5) * 10 * shakeT * 2, (Math.random() - 0.5) * 10 * shakeT * 2);
+  }
+  ctx.fillStyle = '#0b1020';
+  ctx.fillRect(-20, -20, 520, 760);
+  ctx.fillStyle = '#fff';
+  for(var s = 0; s < 70; s++){
+    var sx = (s * 97) % 480, sy = (s * 211) % 720;
+    ctx.globalAlpha = 0.15 + (s % 3) * 0.1;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#233257'; ctx.lineWidth = 3;
+  ctx.strokeRect(140, 150, 200, 470);
+  ctx.strokeStyle = '#16203a'; ctx.lineWidth = 1;
+  for(var gy = 170; gy < 620; gy += 40){
+    ctx.beginPath(); ctx.moveTo(140, gy); ctx.lineTo(340, gy); ctx.stroke();
+  }
+  ctx.fillStyle = '#16203a';
+  ctx.fillRect(140, 150, 200, 16);
+  ctx.fillStyle = '#9fb2d8'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('太 空 电 梯 竖 井', 240, 144);
+
+  var py = platY();
+  if(state === 'play' || state === 'stageEnd' || state === 'failAnim'){
+    ctx.fillStyle = '#16203a';
+    ctx.fillRect(10, 630, 120, 80);
+    ctx.fillRect(350, 630, 120, 80);
+    ctx.fillStyle = '#2a3a5f'; ctx.font = '11px sans-serif';
+    ctx.fillText('◀ 传送带', 70, 624);
+    ctx.fillText('传送带 ▶', 410, 624);
+    for(var w = 0; w < waiting.length; w++){
+      var c = waiting[w];
+      if(c === dragCrate) continue;
+      var wh = crateWH(c.w);
+      drawCrate(c.x, c.y, c.w, wh.w, wh.h, 0, c.state === 'in' ? Math.min(1, c.t * 2 + 0.3) : 1);
+      if(c === selCrate){
+        ctx.strokeStyle = '#ffd76a'; ctx.lineWidth = 3;
+        ctx.setLineDash([6, 4]);
+        rr(c.x - wh.w / 2 - 4, c.y - wh.h / 2 - 4, wh.w + 8, wh.h + 8, 8);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    ctx.fillStyle = '#233a6e';
+    rr(PLAT_X0, py - 8, PLAT_W, 16, 5); ctx.fill();
+    ctx.fillStyle = '#3b5bff';
+    rr(PLAT_X0, py - 8, PLAT_W, 6, 3); ctx.fill();
+    ctx.strokeStyle = '#35487e'; ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath(); ctx.moveTo(MID_X, py - 230); ctx.lineTo(MID_X, py - 8); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#9fb2d8'; ctx.font = 'bold 13px sans-serif';
+    ctx.fillText('左', MID_X - 70, py + 26);
+    ctx.fillText('右', MID_X + 70, py + 26);
+    for(var k = 0; k < platCrates.length; k++){
+      var pc = platCrates[k];
+      var pp = crateXY(pc, py);
+      drawCrate(pp.x, pp.y, pc.w, pp.w, pp.h, 0, 1);
+    }
+    if(dragCrate && state === 'play'){
+      var dwh = crateWH(dragCrate.w);
+      drawCrate(dragCrate.x, dragCrate.y, dragCrate.w, dwh.w, dwh.h, 0, 0.95);
+      var overPlat = dragCrate.x > PLAT_X0 && dragCrate.x < PLAT_X0 + PLAT_W && dragCrate.y > py - 240 && dragCrate.y < py + 20;
+      if(overPlat){
+        ctx.strokeStyle = dragCrate.x < MID_X ? '#7CFFB2' : '#8fb3ff';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 5]);
+        var hx = dragCrate.x < MID_X ? PLAT_X0 : MID_X;
+        ctx.strokeRect(hx + 3, py - 235, PLAT_W / 2 - 6, 250);
+        ctx.setLineDash([]);
+      }
+    }
+  }
+  if(state === 'failAnim'){
+    for(var f = 0; f < fallCrates.length; f++){
+      var fc = fallCrates[f];
+      drawCrate(fc.x, fc.y, fc.w, fc.cw, fc.ch, fc.rot, 1);
+    }
+  }
+  ctx.fillStyle = '#0b1020';
+  ctx.fillRect(0, 0, 480, 8);
+  drawGauge();
+  ctx.fillStyle = '#eaf0ff'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('第 ' + stage + '/3 阶段', 14, 26);
+  ctx.fillText('得分 ' + score, 14, 50);
+  ctx.textAlign = 'right';
+  var tleft = Math.max(0, Math.ceil(STAGE_TIME - stageElapsed));
+  ctx.fillStyle = tleft <= 5 ? '#ff6b6b' : '#eaf0ff';
+  ctx.fillText('⏱ ' + tleft + 's', 466, 26);
+  ctx.textAlign = 'left';
+  var tw = 120;
+  ctx.fillStyle = '#1a2542';
+  rr(346, 40, tw, 10, 5); ctx.fill();
+  ctx.fillStyle = '#3b5bff';
+  var tfr = Math.min(1, stageElapsed / STAGE_TIME);
+  if(tfr > 0){ rr(346, 40, tw * tfr, 10, 5); ctx.fill(); }
+  if(Math.abs(tilt) > SAFE_TILT && state === 'play'){
+    var bl = 0.12 + 0.08 * Math.sin(Date.now() / 150);
+    ctx.fillStyle = 'rgba(255,60,60,' + bl.toFixed(2) + ')';
+    ctx.fillRect(-20, -20, 520, 760);
+  }
+  for(var qi = particles.length - 1; qi >= 0; qi--){
+    var pq = particles[qi];
+    ctx.globalAlpha = Math.min(1, pq.life / 25);
+    ctx.fillStyle = pq.c;
+    ctx.fillRect(pq.x - pq.s / 2, pq.y - pq.s / 2, pq.s, pq.s);
+  }
+  ctx.globalAlpha = 1;
+  if(toastT > 0){
+    ctx.globalAlpha = Math.min(1, toastT);
+    ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffd76a';
+    ctx.fillText(toastTxt, 240, 330);
+    ctx.globalAlpha = 1;
+  }
+  if(state === 'stageEnd'){
+    ctx.fillStyle = 'rgba(7,10,22,.78)';
+    ctx.fillRect(-20, -20, 520, 760);
+    ctx.fillStyle = '#7CFFB2'; ctx.font = 'bold 34px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('第 ' + stage + ' 阶段完成！', 240, 330);
+    ctx.fillStyle = '#ffd76a'; ctx.font = 'bold 24px sans-serif';
+    ctx.fillText('+' + stageGained + ' 分', 240, 375);
+  }
+  ctx.restore();
+}
+
+function loop(t){
+  requestAnimationFrame(loop);
+  if(state !== 'play' && state !== 'stageEnd' && state !== 'failAnim'){
+    if(state === 'start' || state === 'over' || state === 'pause') { lastT = t; drawIdle(); return; }
+  }
+  var dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
+  lastT = t;
+  if(state === 'play') update(dt);
+  else if(state === 'stageEnd') updateStageEnd(dt);
+  else if(state === 'failAnim') updateFail(dt);
+  draw();
+}
+function drawIdle(){
+  ctx.fillStyle = '#0b1020';
+  ctx.fillRect(0, 0, 480, 720);
+  ctx.fillStyle = '#fff';
+  for(var s = 0; s < 70; s++){
+    ctx.globalAlpha = 0.15 + (s % 3) * 0.1;
+    ctx.fillRect((s * 97) % 480, (s * 211) % 720, 2, 2);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function cvPos(e){
+  var r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * 480, y: (e.clientY - r.top) / r.height * 720 };
+}
+function hitWaiting(p){
+  for(var i = waiting.length - 1; i >= 0; i--){
+    var c = waiting[i];
+    if(c.state !== 'wait') continue;
+    var wh = crateWH(c.w);
+    if(Math.abs(p.x - c.x) < wh.w / 2 + 8 && Math.abs(p.y - c.y) < wh.h / 2 + 8) return c;
+  }
+  return null;
+}
+cv.addEventListener('pointerdown', function(e){
+  if(state !== 'play') return;
+  var p = cvPos(e);
+  var c = hitWaiting(p);
+  if(c){
+    dragCrate = c; dragMoved = false;
+    downX = p.x; downY = p.y;
+    dragOffX = p.x - c.x; dragOffY = p.y - c.y;
+    cv.setPointerCapture(e.pointerId);
+  }
+});
+cv.addEventListener('pointermove', function(e){
+  if(!dragCrate || state !== 'play') return;
+  var p = cvPos(e);
+  if(Math.abs(p.x - downX) + Math.abs(p.y - downY) > 10) dragMoved = true;
+  if(dragMoved){
+    dragCrate.x = p.x - dragOffX;
+    dragCrate.y = p.y - dragOffY;
+  }
+});
+cv.addEventListener('pointerup', function(e){
+  if(!dragCrate || state !== 'play'){ dragCrate = null; return; }
+  var c = dragCrate;
+  dragCrate = null;
+  if(!dragMoved){
+    selCrate = (selCrate === c) ? null : c;
+    sfx('click');
+    return;
+  }
+  var py = platY();
+  if(c.x > PLAT_X0 && c.x < PLAT_X0 + PLAT_W && c.y > py - 240 && c.y < py + 20){
+    var side = c.x < MID_X ? 0 : 1;
+    tryPlace(c, side);
+  } else {
+    var s2 = waitSlot(c.side, c.slot);
+    c.x = s2.x; c.y = s2.y;
+  }
+});
+cv.addEventListener('pointercancel', function(){
+  if(dragCrate && state === 'play'){
+    var s = waitSlot(dragCrate.side, dragCrate.slot);
+    dragCrate.x = s.x; dragCrate.y = s.y;
+  }
+  dragCrate = null;
+});
+
+document.getElementById('leftBtn').addEventListener('click', function(){
+  if(state !== 'play' || !selCrate) { if(state === 'play') toast('先点选一个货箱'); return; }
+  tryPlace(selCrate, 0);
+});
+document.getElementById('rightBtn').addEventListener('click', function(){
+  if(state !== 'play' || !selCrate) { if(state === 'play') toast('先点选一个货箱'); return; }
+  tryPlace(selCrate, 1);
+});
+
+document.getElementById('startBtn').addEventListener('click', function(){
+  ac(); sfx('click');
+  document.getElementById('startScreen').classList.add('hidden');
+  resetGame();
+  state = 'play';
+});
+document.getElementById('againBtn').addEventListener('click', function(){
+  sfx('click');
+  document.getElementById('endScreen').classList.add('hidden');
+  resetGame();
+  state = 'play';
+});
+document.getElementById('pauseBtn').addEventListener('click', function(){
+  if(state !== 'play') return;
+  state = 'pause';
+  document.getElementById('pauseScreen').classList.remove('hidden');
+  sfx('click');
+});
+document.getElementById('resumeBtn').addEventListener('click', function(){
+  document.getElementById('pauseScreen').classList.add('hidden');
+  state = 'play';
+  lastT = performance.now();
+  sfx('click');
+});
+function resetGame(){
+  stage = 1; score = 0;
+  stageElapsed = 0; spawnT = 0.8;
+  platCrates = []; waiting = []; particles = [];
+  dragCrate = null; selCrate = null;
+  tilt = 0; gaugeShow = 0; overtime = 0; warnSndT = 0;
+  shakeT = 0; toastT = 0;
+}
+document.getElementById('hsStart').textContent = highScore;
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

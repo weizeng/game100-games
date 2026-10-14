@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>月相拼图</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:#0b1020;color:#eaf0ff;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;user-select:none;-webkit-user-select:none;display:flex;flex-direction:column;align-items:center}
+#wrap{width:100%;max-width:520px;height:100%;display:flex;flex-direction:column;padding:12px;position:relative}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 2px}
+.topbar .info{font-size:14px;color:#9fb2d8}
+.topbar .info b{color:#ffd76a;font-size:16px}
+.icobtn{width:44px;height:44px;border-radius:12px;border:1px solid #2a3a5f;background:#16203a;color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.icobtn:active{transform:scale(.93)}
+#prog{font-size:15px;text-align:center;color:#9fb2d8;margin:6px 0 2px}
+#prog b{color:#7CFFB2;font-size:18px}
+#board{flex:1;display:grid;grid-template-columns:repeat(8,1fr);gap:6px;align-content:center;padding:10px 0;min-height:120px}
+@media (max-width:560px){#board{grid-template-columns:repeat(4,1fr);gap:10px}}
+.tile{min-width:56px;min-height:64px;border-radius:14px;border:2px solid #2a3a5f;background:linear-gradient(160deg,#182544,#0f1830);font-size:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,background .18s ease}
+.tile:active{transform:scale(.92)}
+.tile.sel{border-color:#ffd76a;box-shadow:0 0 14px #ffd76a;background:linear-gradient(160deg,#3a2f10,#1c1608);transform:scale(1.06)}
+.tile.ok{border-color:#2fbf71}
+.screen{position:absolute;inset:0;background:rgba(7,10,22,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;z-index:20;border-radius:8px}
+.screen h1{font-size:30px;margin-bottom:10px}
+.screen p{font-size:15px;color:#9fb2d8;line-height:1.7;margin-bottom:8px;max-width:420px}
+.teach{font-size:30px;letter-spacing:4px;background:#131d36;border:1px solid #2a3a5f;border-radius:14px;padding:10px 14px;margin:10px 0 16px;line-height:1.6}
+.bigbtn{min-width:200px;min-height:52px;border:none;border-radius:16px;background:linear-gradient(160deg,#3b5bff,#2740c8);color:#fff;font-size:19px;font-weight:700;cursor:pointer;margin-top:14px;box-shadow:0 6px 18px rgba(59,91,255,.4);transition:transform .15s ease}
+.bigbtn:active{transform:scale(.95)}
+.hs{font-size:14px;color:#8fa3c8;margin-top:12px}
+.hs b{color:#ffd76a}
+#timerbar{height:6px;border-radius:3px;background:#1a2542;margin:4px 2px 0;overflow:hidden}
+#timerfill{height:100%;width:100%;border-radius:3px;background:linear-gradient(90deg,#7CFFB2,#ffd76a);transition:width .2s linear}
+#toast{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%) scale(.8);font-size:26px;font-weight:800;color:#ffd76a;opacity:0;pointer-events:none;z-index:30;text-shadow:0 2px 12px #000;transition:opacity .2s ease,transform .2s ease}
+#toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#confetti{position:absolute;inset:0;pointer-events:none;z-index:25}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="topbar">
+    <button class="icobtn" id="pauseBtn" aria-label="暂停">⏸</button>
+    <div class="info">第 <b id="roundLbl">1</b>/3 轮 · ⏱ <b id="timeLbl">60</b>s · 得分 <b id="scoreLbl">0</b></div>
+    <button class="icobtn" id="muteBtn" aria-label="静音">🔊</button>
+  </div>
+  <div id="timerbar"><div id="timerfill"></div></div>
+  <div id="prog">对了 <b id="okLbl">0</b>/8</div>
+  <div id="board"></div>
+  <div id="toast"></div>
+  <canvas id="confetti"></canvas>
+
+  <div class="screen" id="startScreen">
+    <h1>🌒 月相拼图</h1>
+    <p>把 8 个月相按从新月到满月再到残月的正确顺序排好。<br>点一块选中（高亮），再点另一块交换位置。<br>3 轮限时 60 / 45 / 30 秒，越快分越高！</p>
+    <div class="teach">🌑🌒🌓🌔🌕🌖🌗🌘</div>
+    <button class="bigbtn" id="startBtn">开始游戏</button>
+    <div class="hs">最高分：<b id="hsStart">0</b></div>
+  </div>
+
+  <div class="screen hidden" id="pauseScreen">
+    <h1>⏸ 已暂停</h1>
+    <p>休息一下，月亮不会跑。</p>
+    <button class="bigbtn" id="resumeBtn">继续</button>
+  </div>
+
+  <div class="screen hidden" id="endScreen">
+    <h1 id="endTitle">🎉 胜利</h1>
+    <p id="endDesc"></p>
+    <button class="bigbtn" id="againBtn">再来一局</button>
+    <div class="hs">最高分：<b id="hsEnd">0</b></div>
+  </div>
+</div>
+<script>
+'use strict';
+var PHASES = ['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'];
+var ROUND_TIME = [60, 45, 30];
+var HS_KEY = 'g100_moonphase_hs';
+var MUTE_KEY = 'g100_mute';
+
+var board = document.getElementById('board');
+var roundLbl = document.getElementById('roundLbl');
+var timeLbl = document.getElementById('timeLbl');
+var scoreLbl = document.getElementById('scoreLbl');
+var okLbl = document.getElementById('okLbl');
+var timerfill = document.getElementById('timerfill');
+var toast = document.getElementById('toast');
+var confetti = document.getElementById('confetti');
+var ctx = confetti.getContext('2d');
+
+var round = 1, score = 0, timeLeft = 60, tiles = [], sel = -1;
+var playing = false, paused = false, lockInput = false;
+var timerId = null, lastTick = 0;
+var highScore = parseInt(localStorage.getItem(HS_KEY) || '0', 10) || 0;
+var muted = localStorage.getItem(MUTE_KEY) === '1';
+var muteBtn = document.getElementById('muteBtn');
+var particles = [];
+
+function fitConfetti(){
+  var r = confetti.parentElement.getBoundingClientRect();
+  confetti.width = r.width; confetti.height = r.height;
+}
+window.addEventListener('resize', fitConfetti);
+
+function refreshMuteBtn(){ muteBtn.textContent = muted ? '🔇' : '🔊'; }
+muteBtn.addEventListener('click', function(){
+  muted = !muted;
+  localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
+  refreshMuteBtn();
+  if(!muted) sfx('click');
+});
+refreshMuteBtn();
+
+var AC = null;
+function ac(){
+  if(!AC){
+    var C = window.AudioContext || window.webkitAudioContext;
+    if(C) AC = new C();
+  }
+  if(AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, dur, type, delay, slideTo){
+  if(muted) return;
+  try{
+    var c = ac(); if(!c) return;
+    var t = c.currentTime + (delay || 0);
+    var o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + dur + 0.05);
+  }catch(e){}
+}
+function sfx(kind){
+  if(kind === 'click'){ tone(900, 0.06, 'sine'); }
+  else if(kind === 'select'){ tone(520, 0.08, 'triangle'); }
+  else if(kind === 'swap'){ tone(420, 0.09, 'triangle'); tone(640, 0.09, 'triangle', 0.08); }
+  else if(kind === 'round'){ var n=[523,659,784,1047]; for(var i=0;i<n.length;i++) tone(n[i], 0.16, 'sine', i*0.11); }
+  else if(kind === 'fail'){ tone(320, 0.5, 'sawtooth', 0, 110); }
+}
+function buzz(ms){ if(navigator.vibrate){ try{ navigator.vibrate(ms); }catch(e){} } }
+
+function showToast(txt){
+  toast.textContent = txt;
+  toast.classList.add('show');
+  setTimeout(function(){ toast.classList.remove('show'); }, 900);
+}
+
+function shuffle(){
+  tiles = PHASES.slice();
+  var ok = false;
+  while(!ok){
+    for(var i = tiles.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = tiles[i]; tiles[i] = tiles[j]; tiles[j] = t;
+    }
+    var mis = 0;
+    for(var k = 0; k < 8; k++) if(tiles[k] !== PHASES[k]) mis++;
+    ok = mis >= 4;
+  }
+}
+
+function render(){
+  board.innerHTML = '';
+  for(var i = 0; i < 8; i++){
+    (function(idx){
+      var d = document.createElement('button');
+      d.className = 'tile' + (idx === sel ? ' sel' : '') + (tiles[idx] === PHASES[idx] ? ' ok' : '');
+      d.textContent = tiles[idx];
+      d.setAttribute('aria-label', '月相' + (idx + 1));
+      d.addEventListener('click', function(){ onTile(idx); });
+      board.appendChild(d);
+    })(i);
+  }
+  var n = 0;
+  for(var k = 0; k < 8; k++) if(tiles[k] === PHASES[k]) n++;
+  okLbl.textContent = n;
+  return n;
+}
+
+function onTile(i){
+  if(!playing || paused || lockInput) return;
+  if(sel === -1){
+    sel = i; sfx('select'); render(); return;
+  }
+  if(sel === i){ sel = -1; render(); return; }
+  var a = sel; sel = -1;
+  var t = tiles[a]; tiles[a] = tiles[i]; tiles[i] = t;
+  sfx('swap'); buzz(15);
+  var n = render();
+  if(n === 8) roundDone();
+}
+
+function startRound(){
+  sel = -1; lockInput = false;
+  timeLeft = ROUND_TIME[round - 1];
+  roundLbl.textContent = round;
+  timeLbl.textContent = timeLeft;
+  scoreLbl.textContent = score;
+  timerfill.style.width = '100%';
+  shuffle(); render();
+  playing = true; paused = false;
+  lastTick = Date.now();
+  clearInterval(timerId);
+  timerId = setInterval(tick, 100);
+}
+
+function tick(){
+  if(!playing || paused || lockInput) return;
+  var now = Date.now();
+  var dt = (now - lastTick) / 1000;
+  lastTick = now;
+  timeLeft -= dt;
+  if(timeLeft <= 0){
+    timeLeft = 0;
+    timeLbl.textContent = '0';
+    timerfill.style.width = '0%';
+    gameOver(false);
+    return;
+  }
+  timeLbl.textContent = Math.ceil(timeLeft);
+  timerfill.style.width = (timeLeft / ROUND_TIME[round - 1] * 100) + '%';
+}
+
+function roundDone(){
+  lockInput = true;
+  clearInterval(timerId);
+  var gained = 100 + Math.ceil(timeLeft) * 2;
+  score += gained;
+  scoreLbl.textContent = score;
+  sfx('round'); buzz([40, 60, 40]);
+  showToast('+' + gained);
+  boom();
+  setTimeout(function(){
+    if(round >= 3){ gameOver(true); }
+    else { round++; startRound(); }
+  }, 1600);
+}
+
+function boom(){
+  fitConfetti();
+  var colors = ['#ffd76a','#7CFFB2','#ff8fb3','#8fb3ff','#fff'];
+  for(var i = 0; i < 90; i++){
+    particles.push({
+      x: confetti.width / 2 + (Math.random() - 0.5) * 120,
+      y: confetti.height * 0.35,
+      vx: (Math.random() - 0.5) * 9,
+      vy: -Math.random() * 8 - 2,
+      s: 3 + Math.random() * 5,
+      c: colors[i % colors.length],
+      life: 90 + Math.random() * 40,
+      rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.3
+    });
+  }
+  if(!boom.raf) boom.raf = requestAnimationFrame(paintBoom);
+}
+function paintBoom(){
+  boom.raf = null;
+  ctx.clearRect(0, 0, confetti.width, confetti.height);
+  if(particles.length === 0) return;
+  for(var i = particles.length - 1; i >= 0; i--){
+    var p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.28; p.rot += p.vr; p.life--;
+    if(p.life <= 0 || p.y > confetti.height + 20){ particles.splice(i, 1); continue; }
+    ctx.save();
+    ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+    ctx.globalAlpha = Math.min(1, p.life / 40);
+    ctx.fillStyle = p.c;
+    ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+    ctx.restore();
+  }
+  if(particles.length > 0) boom.raf = requestAnimationFrame(paintBoom);
+  else ctx.clearRect(0, 0, confetti.width, confetti.height);
+}
+
+function saveHs(){
+  if(score > highScore){
+    highScore = score;
+    localStorage.setItem(HS_KEY, String(highScore));
+  }
+}
+
+function gameOver(win){
+  playing = false;
+  clearInterval(timerId);
+  saveHs();
+  document.getElementById('endTitle').textContent = win ? '🎉 胜利' : '⏰ 时间到';
+  document.getElementById('endDesc').innerHTML =
+    (win ? '三轮全部通关！<br>' : '第 ' + round + ' 轮超时，游戏结束。<br>') +
+    '本局得分：<b style="color:#ffd76a">' + score + '</b>';
+  document.getElementById('hsEnd').textContent = highScore;
+  document.getElementById('endScreen').classList.remove('hidden');
+  if(!win){ sfx('fail'); buzz(80); }
+}
+
+document.getElementById('startBtn').addEventListener('click', function(){
+  ac(); sfx('click');
+  document.getElementById('startScreen').classList.add('hidden');
+  round = 1; score = 0;
+  fitConfetti();
+  startRound();
+});
+document.getElementById('againBtn').addEventListener('click', function(){
+  sfx('click');
+  document.getElementById('endScreen').classList.add('hidden');
+  round = 1; score = 0;
+  startRound();
+});
+document.getElementById('pauseBtn').addEventListener('click', function(){
+  if(!playing || lockInput) return;
+  paused = true;
+  document.getElementById('pauseScreen').classList.remove('hidden');
+  sfx('click');
+});
+document.getElementById('resumeBtn').addEventListener('click', function(){
+  document.getElementById('pauseScreen').classList.add('hidden');
+  paused = false;
+  lastTick = Date.now();
+  sfx('click');
+});
+document.getElementById('hsStart').textContent = highScore;
+</script>
+</body>
+</html>
