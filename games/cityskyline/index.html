@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>都市天际线</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d1420;color:#f5f7fa;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none}
+#wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+#cv{flex:1;display:block;touch-action:none}
+/* 顶栏 */
+#topbar{display:flex;align-items:center;gap:4px;padding:8px 8px;background:rgba(13,20,32,.92);border-bottom:1px solid #2a3a52;z-index:10;flex-wrap:wrap}
+.stat{background:#1a2438;border:1px solid #2e3f5c;border-radius:10px;padding:6px 9px;font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.stat.bad{border-color:#e53935;color:#ff8a80}
+.stat .v{font-weight:700}
+.icobtn{min-width:44px;min-height:44px;border-radius:12px;border:1px solid #2e3f5c;background:#1a2438;color:#f5f7fa;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.icobtn:active{transform:scale(.93)}
+.icobtn.on{background:#0a84ff;border-color:#0a84ff}
+/* 底部建造栏 */
+#toolbar{display:flex;gap:8px;overflow-x:auto;padding:10px 12px;background:rgba(13,20,32,.94);border-top:1px solid #2a3a52;z-index:10;scrollbar-width:none}
+#toolbar::-webkit-scrollbar{display:none}
+.tool{flex:0 0 auto;min-width:64px;min-height:64px;border-radius:14px;border:2px solid #2e3f5c;background:#1a2438;color:#f5f7fa;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;padding:6px 4px}
+.tool .ti{font-size:24px;line-height:1}
+.tool .tn{font-size:11px}
+.tool .tp{font-size:10px;color:#8e97a8}
+.tool.sel{border-color:#0a84ff;background:#12325e}
+.tool.cant{opacity:.38}
+.tool:active{transform:scale(.94)}
+/* 覆盖层 */
+.overlay{position:fixed;inset:0;background:rgba(5,8,14,.82);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.panel{background:#162033;border:1px solid #2e3f5c;border-radius:20px;padding:28px 24px;max-width:420px;width:100%;text-align:center;max-height:86vh;overflow-y:auto}
+.panel h1{font-size:30px;margin-bottom:6px}
+.panel h2{font-size:20px;margin-bottom:10px}
+.panel p{font-size:14px;color:#aeb9cc;line-height:1.7;margin:8px 0;text-align:left}
+.panel .c{text-align:center}
+.bigbtn{display:block;width:100%;margin-top:14px;padding:14px;border:none;border-radius:14px;background:linear-gradient(135deg,#0a84ff,#30c48d);color:#fff;font-size:18px;font-weight:700;cursor:pointer;min-height:52px}
+.bigbtn:active{transform:scale(.97)}
+.bigbtn.ghost{background:#243252}
+.kv{display:flex;justify-content:space-between;font-size:14px;padding:6px 2px;border-bottom:1px dashed #2a3a52}
+.hide{display:none!important}
+#toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(20,28,44,.95);border:1px solid #2e3f5c;padding:10px 18px;border-radius:999px;font-size:14px;z-index:60;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="topbar">
+    <div class="stat" id="st_money">💰 <span class="v">$8000</span></div>
+    <div class="stat" id="st_pop">👥 <span class="v">0</span></div>
+    <div class="stat" id="st_hap">😊 <span class="v">55</span></div>
+    <div class="stat" id="st_pow">⚡ <span class="v">0/0</span></div>
+    <div class="stat" id="st_wat">💧 <span class="v">0/0</span></div>
+    <div style="flex:1"></div>
+    <button class="icobtn" id="btn_help" title="帮助">❓</button>
+    <button class="icobtn" id="btn_pause" title="暂停">⏸</button>
+    <button class="icobtn" id="btn_mute" title="静音">🔊</button>
+    <button class="icobtn" id="btn_restart" title="重开">🔄</button>
+  </div>
+  <canvas id="cv"></canvas>
+  <div style="position:absolute;right:10px;top:70px;display:flex;flex-direction:column;gap:8px;z-index:9">
+    <button class="icobtn" id="btn_zoom_in" style="font-size:22px">＋</button>
+    <button class="icobtn" id="btn_zoom_out" style="font-size:22px">－</button>
+  </div>
+  <div id="toolbar"></div>
+</div>
+<div id="toast"></div>
+
+<div class="overlay" id="ov_start">
+  <div class="panel">
+    <h1>🏙️ 都市天际线</h1>
+    <p class="c" style="color:#8e97a8">从一片荒地，建造你的梦幻都市</p>
+    <p>🛣️ <b>铺路</b> → 🎨 <b>划区</b>（住宅/商业/工业）→ 建筑会自动生长<br>
+    🌬️💧 建 <b>风电</b> 和 <b>水塔</b> 供电供水，不然城市长不大<br>
+    🌳🏫 建 <b>公园学校医院</b> 提升幸福度，幸福≥60 才会升级<br>
+    💰 每 10 秒收一次税，别破产！<br>
+    🖱️ 拖拽移动地图，双指/按钮缩放；点建筑看信息</p>
+    <button class="bigbtn" id="btn_start">开始建造</button>
+    <button class="bigbtn ghost hide" id="btn_continue">继续上次</button>
+  </div>
+</div>
+
+<div class="overlay hide" id="ov_help">
+  <div class="panel">
+    <h2>❓ 玩法说明</h2>
+    <p><b>1. 铺路</b>（$10/格）：拖拽铺设，建筑必须挨着路。<br>
+    <b>2. 划区</b>（$5/格）：住宅🏠(绿)/商业🏪(蓝)/工业🏭(黄)，拖拽涂抹。<br>
+    <b>3. 生长</b>：有区+有路+水电充足 → 脚手架 2 秒 → 建筑拔地而起。<br>
+    <b>4. 水电</b>：风电🌬️ $200(40⚡) / 火电 $800(200⚡) / 水塔💧 $200(60💧)。缺水电建筑变灰、停止生长。<br>
+    <b>5. 升级</b>：每 15 秒评估，幸福≥60、无污染、住宅旁有公园 → 升到 3 级，人口税金翻倍。<br>
+    <b>6. 服务</b>：公园/警察/消防/学校/医院，半径覆盖加幸福，有维护费。<br>
+    <b>7. 经济</b>：每 10 秒收税 − 维护费。余额 &lt;0 破产！<br>
+    <b>8. 昼夜</b>：120 秒一天，夜晚万家灯火。</p>
+    <button class="bigbtn" id="btn_help_close">知道了</button>
+  </div>
+</div>
+
+<div class="overlay hide" id="ov_info">
+  <div class="panel">
+    <h2 id="info_title">建筑</h2>
+    <div id="info_body"></div>
+    <button class="bigbtn" id="btn_info_close">关闭</button>
+  </div>
+</div>
+
+<div class="overlay hide" id="ov_bankrupt">
+  <div class="panel">
+    <h1>💸</h1>
+    <h2>城市破产了！</h2>
+    <p class="c">支出超过了税收，市政厅关门大吉。</p>
+    <button class="bigbtn" id="btn_restart2">重建城市</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ================= 配置（按 CITY_SPEC.md） ================= */
+var TW=64, TH=32;               // tile 尺寸
+var MAPW=16, MAPH=16;           // 地图
+var START_MONEY=8000;
+var ROAD_COST=10, ZONE_COST=5;
+var TICK_LEN=10;               // 经济轮秒
+var UPGRADE_LEN=15;            // 升级评估秒
+var DAY_LEN=120;               // 昼夜秒
+
+var BSTAT={ // 建筑数值
+  R:[null,{pop:6,tax:8},{pop:20,tax:20},{pop:50,tax:45}],
+  C:[null,{job:4,tax:10},{job:12,tax:25},{job:30,tax:55}],
+  I:[null,{job:6,tax:8,pol:1},{job:18,tax:22,pol:2},{job:40,tax:50,pol:3}]
+};
+var BNAME={R:'住宅',C:'商业',I:'工业'};
+var BCOLOR={R:'#4caf50',C:'#2196f3',I:'#ff9800'};
+var BHEIGHT=[0,24,44,68];      // 等级高度
+var INFRA={
+  wind:  {name:'风力发电',icon:'🌬️',price:200,power:40,maint:0,color:'#eceff1'},
+  coal:  {name:'火电厂',icon:'🏭',price:800,power:200,maint:0,color:'#616161',polR:4},
+  water: {name:'水塔',icon:'💧',price:200,water:60,maint:0,color:'#29b6f6'},
+  park:  {name:'公园',icon:'🌳',price:100,r:3,maint:5,color:'#66bb6a'},
+  police:{name:'警察局',icon:'🚔',price:300,r:4,maint:15,color:'#5c6bc0'},
+  fire:  {name:'消防局',icon:'🚒',price:300,r:4,maint:15,color:'#ef5350'},
+  school:{name:'学校',icon:'🏫',price:400,r:4,maint:20,color:'#ab47bc',unlock:200},
+  hospital:{name:'医院',icon:'🏥',price:500,r:5,maint:25,color:'#ec407a',unlock:400}
+};
+var TOOLS=[
+  {id:'road',icon:'🛣️',name:'道路',price:ROAD_COST},
+  {id:'R',icon:'🏠',name:'住宅区',price:ZONE_COST},
+  {id:'C',icon:'🏪',name:'商业区',price:ZONE_COST},
+  {id:'I',icon:'🏭',name:'工业区',price:ZONE_COST},
+  {id:'wind',icon:'🌬️',name:'风电',price:200},
+  {id:'coal',icon:'🏭',name:'火电厂',price:800},
+  {id:'water',icon:'💧',name:'水塔',price:200},
+  {id:'park',icon:'🌳',name:'公园',price:100},
+  {id:'police',icon:'🚔',name:'警察局',price:300},
+  {id:'fire',icon:'🚒',name:'消防局',price:300},
+  {id:'school',icon:'🏫',name:'学校',price:400},
+  {id:'hospital',icon:'🏥',name:'医院',price:500},
+  {id:'bulldoze',icon:'🧹',name:'拆除',price:0}
+];
+
+/* ================= 音效（WebAudio 合成） ================= */
+var Sound={
+  ctx:null, muted:false,
+  init:function(){ if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } },
+  tone:function(f,dur,type,vol,when){
+    if(this.muted||!this.ctx) return;
+    var t=this.ctx.currentTime+(when||0);
+    var o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    o.type=type||'sine'; o.frequency.value=f;
+    g.gain.setValueAtTime(vol||0.15,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(this.ctx.destination);
+    o.start(t); o.stop(t+dur+0.02);
+  },
+  noise:function(dur,vol,when){
+    if(this.muted||!this.ctx) return;
+    var t=this.ctx.currentTime+(when||0);
+    var len=Math.floor(this.ctx.sampleRate*dur);
+    var buf=this.ctx.createBuffer(1,len,this.ctx.sampleRate);
+    var d=buf.getChannelData(0);
+    for(var i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+    var s=this.ctx.createBufferSource(); s.buffer=buf;
+    var g=this.ctx.createGain(); g.gain.value=vol||0.2;
+    var f=this.ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=800;
+    s.connect(f); f.connect(g); g.connect(this.ctx.destination);
+    s.start(t);
+  },
+  click:function(){ this.tone(600,0.06,'square',0.08); },
+  place:function(){ this.noise(0.12,0.25); this.tone(180,0.12,'sine',0.2); },
+  build:function(){ this.noise(0.08,0.3); this.noise(0.08,0.3,0.12); this.tone(220,0.15,'triangle',0.15,0.05); },
+  tax:function(){ this.tone(880,0.09,'sine',0.12); this.tone(1320,0.12,'sine',0.12,0.09); },
+  upgrade:function(){ var n=[523,659,784,1047]; for(var i=0;i<n.length;i++) this.tone(n[i],0.12,'triangle',0.12,i*0.09); },
+  error:function(){ this.tone(160,0.2,'sawtooth',0.12); },
+  toggle:function(){ this.muted=!this.muted; return this.muted; }
+};
+
+/* ================= 存档 ================= */
+var SAVE_KEY='g100_cityskyline_save';
+function saveGame(){
+  if(!S.started) return;
+  try{
+    var cells=[];
+    for(var y=0;y<MAPH;y++) for(var x=0;x<MAPW;x++){
+      var c=S.grid[y][x];
+      cells.push([c.road?1:0, c.zone||'', c.b?c.b.type:'', c.b?c.b.level:0]);
+    }
+    localStorage.setItem(SAVE_KEY, JSON.stringify({money:S.money,time:S.time,cells:cells}));
+  }catch(e){}
+}
+function loadSave(){
+  try{
+    var d=JSON.parse(localStorage.getItem(SAVE_KEY));
+    return (d && d.cells && d.cells.length===MAPW*MAPH) ? d : null;
+  }catch(e){ return null; }
+}
+function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+
+/* ================= 游戏状态 ================= */
+var S=null;
+function newCell(){ return {road:false, zone:null, b:null, decor:Math.random()<0.08?1:(Math.random()<0.12?2:0)}; }
+function newGame(){
+  S={
+    started:false, paused:false, over:false,
+    money:START_MONEY, time:0,
+    grid:[], tool:null,
+    cam:{ox:0,oy:0,zoom:1},
+    cars:[], clouds:[], parts:[],
+    tickAcc:0, upgAcc:0,
+    stats:{pop:0,jobs:0,workers:0,hap:55,powS:0,powD:0,watS:0,watD:0,powOK:true,watOK:true},
+    selected:null, painting:false, panning:false
+  };
+  for(var y=0;y<MAPH;y++){ var row=[]; for(var x=0;x<MAPW;x++) row.push(newCell()); S.grid.push(row); }
+  for(var i=0;i<4;i++) S.clouds.push({x:Math.random(),y:Math.random()*0.5,s:0.6+Math.random()*0.8,v:0.004+Math.random()*0.006});
+}
+function applySave(d){
+  S.money=d.money; S.time=d.time||0;
+  for(var y=0;y<MAPH;y++) for(var x=0;x<MAPW;x++){
+    var s=d.cells[y*MAPW+x], c=S.grid[y][x];
+    c.road=!!s[0]; c.zone=s[1]||null;
+    if(s[2]) c.b={type:s[2],level:s[3]||1,grow:0};
+  }
+}
+/* ================= 等距投影与相机 ================= */
+var cv, ctx, DW=0, DH=0, DPR=1;
+function isoX(x,y){ return (x-y)*(TW/2)*S.cam.zoom + S.cam.ox; }
+function isoY(x,y){ return (x+y)*(TH/2)*S.cam.zoom + S.cam.oy; }
+function screenToCell(px,py){
+  // 逆投影：解 (x-y) 和 (x+y)
+  var z=S.cam.zoom;
+  var a=(px-S.cam.ox)/(TW/2*z), b=(py-S.cam.oy)/(TH/2*z);
+  var x=(a+b)/2, y=(b-a)/2;
+  var ix=Math.floor(x), iy=Math.floor(y);
+  if(ix<0||iy<0||ix>=MAPW||iy>=MAPH) return null;
+  return {x:ix,y:iy};
+}
+function centerCamera(){
+  // 让地图居中
+  var cx=isoX(MAPW/2,MAPH/2), cy=isoY(MAPW/2,MAPH/2);
+  S.cam.ox += DW/2-cx; S.cam.oy += DH/2-cy-40;
+}
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  DW=cv.clientWidth; DH=cv.clientHeight;
+  cv.width=Math.round(DW*DPR); cv.height=Math.round(DH*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+/* ================= 建造逻辑 ================= */
+function cellAt(x,y){ return (x<0||y<0||x>=MAPW||y>=MAPH)?null:S.grid[y][x]; }
+function neighbors4(x,y){
+  var r=[], d=[[1,0],[-1,0],[0,1],[0,-1]];
+  for(var i=0;i<4;i++){ var c=cellAt(x+d[i][0],y+d[i][1]); if(c) r.push(c); }
+  return r;
+}
+function adjRoad(x,y){
+  var d=[[1,0],[-1,0],[0,1],[0,-1]];
+  for(var i=0;i<4;i++){ var c=cellAt(x+d[i][0],y+d[i][1]); if(c&&c.road) return true; }
+  return false;
+}
+function manhattan(x1,y1,x2,y2){ return Math.abs(x1-x2)+Math.abs(y1-y2); }
+function toast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg; t.style.opacity=1;
+  clearTimeout(t._tm); t._tm=setTimeout(function(){t.style.opacity=0;},1800);
+}
+function canAfford(cost){ return S.money>=cost; }
+
+function paintCell(x,y){
+  var c=cellAt(x,y); if(!c) return;
+  var tool=S.tool; if(!tool) return;
+  if(tool==='road'){
+    if(c.road||c.b) return;
+    if(!canAfford(ROAD_COST)){ Sound.error(); toast('资金不足'); return; }
+    c.road=true; c.zone=null; S.money-=ROAD_COST;
+    Sound.place(); burst(x,y,'#ffd54f',6);
+  }else if(tool==='R'||tool==='C'||tool==='I'){
+    if(c.road||c.b||c.zone===tool) return;
+    if(!canAfford(ZONE_COST)){ Sound.error(); toast('资金不足'); return; }
+    c.zone=tool; S.money-=ZONE_COST;
+    Sound.click();
+  }else if(tool==='bulldoze'){
+    if(!c.road&&!c.zone&&!c.b) return;
+    c.road=false; c.zone=null; c.b=null;
+    Sound.noise(0.15,0.2); burst(x,y,'#9e9e9e',8);
+  }else{
+    // 基础设施：点放
+    var inf=INFRA[tool]; if(!inf) return;
+    if(c.road||c.b) return;
+    if(inf.unlock && S.stats.pop<inf.unlock){ Sound.error(); toast('需要 '+inf.unlock+' 人口解锁'); return; }
+    if(!canAfford(inf.price)){ Sound.error(); toast('资金不足'); return; }
+    c.b={type:tool,level:1,grow:0}; c.zone=null;
+    S.money-=inf.price;
+    Sound.build(); burst(x,y,'#ffd54f',10);
+  }
+  saveGame(); updateTopbar(); refreshTools();
+}
+
+function burst(x,y,color,n){
+  var sx=isoX(x+0.5,y+0.5), sy=isoY(x+0.5,y+0.5)-20;
+  for(var i=0;i<n;i++){
+    var a=Math.random()*Math.PI*2, sp=40+Math.random()*80;
+    S.parts.push({x:sx,y:sy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-40,life:0.7,color:color,size:2+Math.random()*3});
+  }
+}
+
+/* ================= 输入 ================= */
+function setupInput(){
+  var pointers=new Map();
+  var downPos=null, downTime=0, moved=false, lastPinch=0;
+  var lastCell=null;
+
+  cv.addEventListener('pointerdown',function(e){
+    Sound.init();
+    cv.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size===1){
+      downPos={x:e.clientX,y:e.clientY}; downTime=Date.now(); moved=false;
+      S.panning=false; S.painting=false; lastCell=null;
+    }else if(pointers.size===2){
+      var p=[...pointers.values()];
+      lastPinch=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
+      S.panning=false; S.painting=false;
+    }
+  });
+  cv.addEventListener('pointermove',function(e){
+    if(!pointers.has(e.pointerId)) return;
+    var prev=pointers.get(e.pointerId);
+    var dx=e.clientX-prev.x, dy=e.clientY-prev.y;
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size===2){
+      var p=[...pointers.values()];
+      var d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
+      if(lastPinch>0){
+        var nz=S.cam.zoom*(d/lastPinch);
+        S.cam.zoom=Math.max(0.6,Math.min(1.8,nz));
+      }
+      lastPinch=d; moved=true; return;
+    }
+    if(pointers.size===1&&downPos){
+      var dist=Math.hypot(e.clientX-downPos.x,e.clientY-downPos.y);
+      if(dist>10) moved=true;
+      if(moved){
+        if(S.tool&&(S.tool==='road'||S.tool==='R'||S.tool==='C'||S.tool==='I'||S.tool==='bulldoze')){
+          // 涂抹
+          S.painting=true;
+          var rect=cv.getBoundingClientRect();
+          var cell=screenToCell(e.clientX-rect.left,e.clientY-rect.top);
+          if(cell&&( !lastCell||lastCell.x!==cell.x||lastCell.y!==cell.y)){
+            paintCell(cell.x,cell.y); lastCell=cell;
+          }
+        }else{
+          // 拖拽相机
+          S.panning=true;
+          S.cam.ox+=dx; S.cam.oy+=dy;
+        }
+      }
+    }
+  });
+  function up(e){
+    pointers.delete(e.pointerId);
+    if(pointers.size===0&&downPos){
+      var dt=Date.now()-downTime;
+      if(!moved&&dt<400&&S.started&&!S.paused){
+        var rect=cv.getBoundingClientRect();
+        var cell=screenToCell(e.clientX-rect.left,e.clientY-rect.top);
+        if(cell) tapCell(cell.x,cell.y);
+      }
+      downPos=null;
+    }
+    if(pointers.size<2) lastPinch=0;
+  }
+  cv.addEventListener('pointerup',up);
+  cv.addEventListener('pointercancel',up);
+
+  document.getElementById('btn_zoom_in').addEventListener('click',function(){
+    S.cam.zoom=Math.min(1.8,S.cam.zoom*1.2); Sound.click();
+  });
+  document.getElementById('btn_zoom_out').addEventListener('click',function(){
+    S.cam.zoom=Math.max(0.6,S.cam.zoom/1.2); Sound.click();
+  });
+}
+
+function tapCell(x,y){
+  var c=cellAt(x,y); if(!c) return;
+  if(S.tool){
+    // 有工具时点按也生效（拖拽由 pointermove 处理）
+    paintCell(x,y); return;
+  }
+  // 无工具：查看建筑信息
+  if(c.b){ showInfo(x,y,c.b); }
+  else if(c.road){ toast('🛣️ 道路'); }
+  else if(c.zone){ toast('区域：'+BNAME[c.zone]); }
+}
+/* ================= 颜色工具 ================= */
+function shade(hex,f){
+  var n=parseInt(hex.slice(1),16);
+  var r=Math.min(255,Math.max(0,Math.round(((n>>16)&255)*f)));
+  var g=Math.min(255,Math.max(0,Math.round(((n>>8)&255)*f)));
+  var b=Math.min(255,Math.max(0,Math.round((n&255)*f)));
+  return 'rgb('+r+','+g+','+b+')';
+}
+function lerp(a,b,t){ return a+(b-a)*t; }
+function lerpColor(c1,c2,t){
+  return 'rgb('+Math.round(lerp(c1[0],c2[0],t))+','+Math.round(lerp(c1[1],c2[1],t))+','+Math.round(lerp(c1[2],c2[2],t))+')';
+}
+var SKY_DAY=[135,206,235], SKY_NIGHT=[11,16,38], SKY_DUSK=[255,140,90];
+function nightness(){
+  var t=(S.time%DAY_LEN)/DAY_LEN;
+  if(t<0.35) return 0;
+  if(t<0.5) return (t-0.35)/0.15;
+  if(t<0.85) return 1;
+  return 1-(t-0.85)/0.15;
+}
+function skyColor(){
+  var n=nightness();
+  var t=(S.time%DAY_LEN)/DAY_LEN;
+  // 黄昏/黎明加一点橙
+  var duskF=0;
+  if(t>=0.32&&t<0.5) duskF=Math.sin((t-0.32)/0.18*Math.PI);
+  if(t>=0.82) duskF=Math.sin((t-0.82)/0.18*Math.PI)*0.7;
+  var base=lerpColor(SKY_DAY,SKY_NIGHT,n);
+  if(duskF>0&&n<1){
+    var dc=lerpColor(SKY_DAY,SKY_DUSK,duskF*(1-n));
+    return dc;
+  }
+  return base;
+}
+
+/* ================= 绘制 ================= */
+function drawDiamond(cx,cy,w,h,fill){
+  // cx,cy 为中心；w=半宽，h=半高
+  ctx.beginPath();
+  ctx.moveTo(cx,cy-h); ctx.lineTo(cx+w,cy); ctx.lineTo(cx,cy+h); ctx.lineTo(cx-w,cy);
+  ctx.closePath(); ctx.fillStyle=fill; ctx.fill();
+}
+function tileCenter(x,y){ return {x:isoX(x+0.5,y+0.5), y:isoY(x+0.5,y+0.5)}; }
+
+/* 等距盒子：sx,sy 为底面中心（tile 中心投影），w=半宽(32*z)，d=半高(16*z)，h=高度 */
+function drawBox(sx,sy,hw,hd,h,base,roofC,winLit){
+  var T={x:sx,y:sy}, R={x:sx+hw,y:sy+hd}, B={x:sx,y:sy+hd*2}, L={x:sx-hw,y:sy+hd};
+  var Tp={x:sx,y:sy-h}, Rp={x:sx+hw,y:sy+hd-h}, Bp={x:sx,y:sy+hd*2-h}, Lp={x:sx-hw,y:sy+hd-h};
+  // 左墙（西南面 L-B）：深色
+  ctx.beginPath();
+  ctx.moveTo(L.x,L.y); ctx.lineTo(B.x,B.y); ctx.lineTo(Bp.x,Bp.y); ctx.lineTo(Lp.x,Lp.y);
+  ctx.closePath(); ctx.fillStyle=shade(base,0.72); ctx.fill();
+  // 右墙（东南面 B-R）
+  ctx.beginPath();
+  ctx.moveTo(B.x,B.y); ctx.lineTo(R.x,R.y); ctx.lineTo(Rp.x,Rp.y); ctx.lineTo(Bp.x,Bp.y);
+  ctx.closePath(); ctx.fillStyle=shade(base,0.9); ctx.fill();
+  // 屋顶
+  ctx.beginPath();
+  ctx.moveTo(Tp.x,Tp.y); ctx.lineTo(Rp.x,Rp.y); ctx.lineTo(Bp.x,Bp.y); ctx.lineTo(Lp.x,Lp.y);
+  ctx.closePath(); ctx.fillStyle=roofC||shade(base,1.12); ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.15)'; ctx.lineWidth=1; ctx.stroke();
+  // 窗户
+  if(h>10) drawWindows(L,B,Bp,Lp,hw,hd,h,winLit,true);
+  if(h>10) drawWindows(B,R,Rp,Bp,hw,hd,h,winLit,false);
+}
+function drawWindows(A,B,Bp,Ap,hw,hd,h,lit,isLeft){
+  // 在墙面 A-B-Bp-Ap 上画窗户；u 沿底边，v 向上
+  var cols = hw>20?3:2;
+  var rows = h>50?3:(h>30?2:1);
+  for(var ci=0;ci<cols;ci++){
+    for(var ri=0;ri<rows;ri++){
+      var u = cols===1 ? 0.35 : 0.15+ci*(0.7/(cols-1));
+      var v=0.25+ri*(0.5/Math.max(rows,1));
+      (function(uu,vv){
+        var wu=0.12, wv=0.16;
+        function P(uu2,vv2){
+          return { x:A.x+(B.x-A.x)*uu2+(Ap.x-A.x)*vv2, y:A.y+(B.y-A.y)*uu2+(Ap.y-A.y)*vv2 };
+        }
+        var p1=P(uu,vv), p2=P(uu+wu,vv), p3=P(uu+wu,vv+wv), p4=P(uu,vv+wv);
+        ctx.beginPath();
+        ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(p4.x,p4.y);
+        ctx.closePath();
+        var on = lit ? (Math.random()<0.75) : false;
+        // 用确定性伪随机，避免闪烁：基于位置
+        var seed=Math.sin(uu*91.7+vv*47.3+(isLeft?13.7:0))*43758.5;
+        var det=(seed-Math.floor(seed))<0.6;
+        ctx.fillStyle = lit ? (det?'#ffe082':'#37474f') : '#37474f';
+        if(lit&&det){ ctx.shadowColor='#ffca28'; ctx.shadowBlur=6; } else { ctx.shadowBlur=0; }
+        ctx.fill(); ctx.shadowBlur=0;
+      })(u,v);
+    }
+  }
+}
+
+function drawTerrain(x,y){
+  var p=tileCenter(x,y), z=S.cam.zoom;
+  var hw=32*z, hd=16*z;
+  var c=S.grid[y][x];
+  var g1=(x+y)%2===0;
+  var base=g1?'#7cb342':'#8bc34a';
+  drawDiamond(p.x,p.y,hw,hd,base);
+  // 装饰
+  if(c.decor===1){
+    ctx.fillStyle='#f48fb1';
+    ctx.beginPath(); ctx.arc(p.x-6*z,p.y-2*z,2.2*z,0,7); ctx.arc(p.x+5*z,p.y+3*z,2.2*z,0,7); ctx.fill();
+  }else if(c.decor===2){
+    ctx.strokeStyle='#558b2f'; ctx.lineWidth=1.5*z;
+    ctx.beginPath();
+    ctx.moveTo(p.x-4*z,p.y+2*z); ctx.lineTo(p.x-2*z,p.y-4*z);
+    ctx.moveTo(p.x+2*z,p.y+3*z); ctx.lineTo(p.x+4*z,p.y-3*z);
+    ctx.stroke();
+  }
+  // 分区染色
+  if(c.zone&&!c.b){
+    var zc={R:'rgba(76,175,80,0.45)',C:'rgba(33,150,243,0.45)',I:'rgba(255,152,0,0.45)'}[c.zone];
+    drawDiamond(p.x,p.y,hw,hd,zc);
+    ctx.fillStyle='rgba(255,255,255,0.75)';
+    ctx.font='bold '+(11*z+4)+'px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(c.zone,p.x,p.y);
+  }
+}
+
+function drawRoad(x,y){
+  var p=tileCenter(x,y), z=S.cam.zoom;
+  var hw=32*z, hd=16*z;
+  drawDiamond(p.x,p.y,hw,hd,'#616161');
+  drawDiamond(p.x,p.y,hw*0.82,hd*0.82,'#757575');
+  // 中线：根据邻接画
+  ctx.strokeStyle='#f5f5f5'; ctx.lineWidth=Math.max(1.5,2.5*z); ctx.setLineDash([6*z,4*z]);
+  ctx.beginPath();
+  var conn=[[1,0],[-1,0],[0,1],[0,-1]];
+  var has=false;
+  for(var i=0;i<4;i++){
+    var n=cellAt(x+conn[i][0],y+conn[i][1]);
+    if(n&&n.road){
+      var np=tileCenter(x+conn[i][0],y+conn[i][1]);
+      ctx.moveTo(p.x,p.y); ctx.lineTo((p.x+np.x)/2,(p.y+np.y)/2);
+      has=true;
+    }
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+  if(has){
+    ctx.fillStyle='#f5f5f5';
+    ctx.beginPath(); ctx.arc(p.x,p.y,2.5*z,0,7); ctx.fill();
+  }
+  // 夜晚路灯光晕
+  if(nightness()>0.5){
+    var g=ctx.createRadialGradient(p.x,p.y,1,p.x,p.y,26*z);
+    g.addColorStop(0,'rgba(255,213,79,0.35)'); g.addColorStop(1,'rgba(255,213,79,0)');
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(p.x,p.y,26*z,0,7); ctx.fill();
+  }
+}
+
+function drawScaffold(x,y,t){
+  var p=tileCenter(x,y), z=S.cam.zoom;
+  var hw=32*z, hd=16*z, h=44*z;
+  ctx.strokeStyle='#8d6e63'; ctx.lineWidth=2*z;
+  var T={x:p.x,y:p.y},R={x:p.x+hw,y:p.y+hd},B={x:p.x,y:p.y+hd*2},L={x:p.x-hw,y:p.y+hd};
+  ctx.beginPath();
+  ctx.moveTo(L.x,L.y); ctx.lineTo(L.x,L.y-h); ctx.lineTo(B.x,B.y-h); ctx.lineTo(B.x,B.y);
+  ctx.moveTo(B.x,B.y); ctx.lineTo(B.x,B.y-h); ctx.lineTo(R.x,R.y-h); ctx.lineTo(R.x,R.y);
+  ctx.moveTo(L.x,L.y-h*0.5); ctx.lineTo(B.x,B.y-h*0.5); ctx.lineTo(R.x,R.y-h*0.5);
+  ctx.stroke();
+  // 条纹警示
+  ctx.fillStyle='rgba(255,193,7,'+(0.25+0.2*Math.sin(t*10))+')';
+  drawDiamond(p.x,p.y-h*0.5,hw,hd,'rgba(255,193,7,0.18)');
+}
+
+function drawBuilding(x,y,b){
+  var p=tileCenter(x,y), z=S.cam.zoom;
+  var hw=32*z, hd=16*z;
+  var lit=nightness()>0.5;
+  var grayed=!S.stats.powOK||!S.stats.watOK;
+  if(b.grow>0){ drawScaffold(x,y,S.time); return; }
+  if(b.type==='R'||b.type==='C'||b.type==='I'){
+    var base=BCOLOR[b.type];
+    if(grayed) base='#78909c';
+    var h=BHEIGHT[b.level]*z;
+    drawBox(p.x,p.y,hw,hd,h,grayed?'#78909c':base,null,lit&&!grayed);
+  }else{
+    drawInfra(x,y,b,p,z,hw,hd,lit);
+  }
+}
+
+function drawInfra(x,y,b,p,z,hw,hd,lit){
+  var inf=INFRA[b.type];
+  var col=inf.color;
+  if(b.type==='wind'){
+    // 杆
+    ctx.strokeStyle='#eceff1'; ctx.lineWidth=3*z;
+    ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x,p.y-52*z); ctx.stroke();
+    // 扇叶（旋转）
+    var a=S.time*2.5;
+    ctx.strokeStyle='#ffffff'; ctx.lineWidth=2.5*z;
+    for(var i=0;i<3;i++){
+      var an=a+i*Math.PI*2/3;
+      ctx.beginPath(); ctx.moveTo(p.x,p.y-52*z);
+      ctx.lineTo(p.x+Math.cos(an)*16*z,p.y-52*z+Math.sin(an)*16*z); ctx.stroke();
+    }
+    ctx.fillStyle='#b0bec5';
+    ctx.beginPath(); ctx.arc(p.x,p.y-52*z,3*z,0,7); ctx.fill();
+  }else if(b.type==='coal'){
+    drawBox(p.x,p.y,hw*0.9,hd*0.9,30*z,'#616161','#424242',false);
+    // 烟囱
+    ctx.fillStyle='#37474f';
+    ctx.fillRect(p.x+8*z,p.y-52*z,8*z,24*z);
+    // 烟
+    if(Math.random()<0.3) S.parts.push({x:p.x+12*z,y:p.y-52*z,vx:6,vy:-22,life:1.4,color:'rgba(120,120,120,0.5)',size:4*z,smoke:true});
+  }else if(b.type==='water'){
+    drawBox(p.x,p.y,hw*0.8,hd*0.8,26*z,'#29b6f6','#0288d1',false);
+  }else if(b.type==='park'){
+    drawDiamond(p.x,p.y,hw,hd,'#66bb6a');
+    // 树
+    for(var i=0;i<3;i++){
+      var tx=p.x+(i-1)*14*z, ty=p.y+(i%2)*8*z-4*z;
+      ctx.fillStyle='#2e7d32';
+      ctx.beginPath(); ctx.arc(tx,ty,7*z,0,7); ctx.fill();
+      ctx.fillStyle='#43a047';
+      ctx.beginPath(); ctx.arc(tx-2*z,ty-2*z,4*z,0,7); ctx.fill();
+    }
+  }else{
+    // 服务建筑：彩色盒子 + emoji
+    drawBox(p.x,p.y,hw*0.85,hd*0.85,30*z,col,null,false);
+    ctx.font=(20*z+6)+'px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(inf.icon,p.x,p.y-34*z);
+    if(lit){ ctx.fillStyle='rgba(255,224,130,0.9)'; ctx.font=(10*z+4)+'px sans-serif'; ctx.fillText('●',p.x-14*z,p.y-20*z); }
+  }
+}
+
+function drawCar(car){
+  var z=S.cam.zoom;
+  var p0=tileCenter(car.x0,car.y0), p1=tileCenter(car.x1,car.y1);
+  var x=p0.x+(p1.x-p0.x)*car.t, y=p0.y+(p1.y-p0.y)*car.t-4*z;
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.beginPath(); ctx.ellipse(x,y+3*z,7*z,3*z,0,0,7); ctx.fill();
+  ctx.fillStyle=car.color;
+  var w=9*z,h2=4.5*z;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(x-w,y-h2,w*2,h2*2,2*z); else ctx.rect(x-w,y-h2,w*2,h2*2);
+  ctx.fill();
+  // 车灯
+  if(nightness()>0.5){
+    ctx.fillStyle='#fff9c4';
+    ctx.beginPath(); ctx.arc(x+7*z,y,1.8*z,0,7); ctx.fill();
+  }
+}
+
+function drawClouds(){
+  ctx.save();
+  for(var i=0;i<S.clouds.length;i++){
+    var c=S.clouds[i];
+    var x=c.x*DW, y=c.y*DH*0.6;
+    var s=c.s*120;
+    ctx.fillStyle='rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(x,y,s,s*0.38,0,0,7);
+    ctx.ellipse(x-s*0.5,y+s*0.1,s*0.6,s*0.28,0,0,7);
+    ctx.ellipse(x+s*0.5,y+s*0.08,s*0.65,s*0.3,0,0,7);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function render(){
+  // 天空
+  ctx.fillStyle=skyColor();
+  ctx.fillRect(0,0,DW,DH);
+  drawClouds();
+  var n=nightness();
+  // 地面阴影（夜晚压暗一点）
+  // 画家算法：按 x+y 排序
+  var order=[];
+  for(var y=0;y<MAPH;y++) for(var x=0;x<MAPW;x++) order.push({x:x,y:y,s:x+y});
+  order.sort(function(a,b){return a.s-b.s;});
+  for(var i=0;i<order.length;i++){
+    var x=order[i].x, y=order[i].y, c=S.grid[y][x];
+    if(c.road) drawRoad(x,y); else drawTerrain(x,y);
+    if(c.b) drawBuilding(x,y,c.b);
+  }
+  // 汽车
+  for(var j=0;j<S.cars.length;j++) drawCar(S.cars[j]);
+  // 粒子
+  for(var k=S.parts.length-1;k>=0;k--){
+    var p=S.parts[k];
+    ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // 夜晚罩
+  if(n>0.02){
+    ctx.fillStyle='rgba(8,10,30,'+(n*0.28)+')';
+    ctx.fillRect(0,0,DW,DH);
+  }
+  // 选中高亮
+  if(S.selected){
+    var sp=tileCenter(S.selected.x,S.selected.y), z=S.cam.zoom;
+    ctx.strokeStyle='#0a84ff'; ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(sp.x,sp.y-16*z); ctx.lineTo(sp.x+32*z,sp.y); ctx.lineTo(sp.x,sp.y+16*z); ctx.lineTo(sp.x-32*z,sp.y);
+    ctx.closePath(); ctx.stroke();
+  }
+}
+/* ================= 模拟 ================= */
+function eachCell(fn){
+  for(var y=0;y<MAPH;y++) for(var x=0;x<MAPW;x++) fn(x,y,S.grid[y][x]);
+}
+function computeStats(){
+  var st=S.stats;
+  st.pop=0; st.jobs=0; st.powS=0; st.powD=0; st.watS=0; st.watD=0;
+  st.resList=[];
+  eachCell(function(x,y,c){
+    if(!c.b||c.b.grow>0) return;
+    var b=c.b, lvl=b.level;
+    if(b.type==='R'||b.type==='C'||b.type==='I'){
+      var bs=BSTAT[b.type][lvl];
+      if(b.type==='R'){ st.pop+=bs.pop; st.resList.push({x:x,y:y}); }
+      else st.jobs+=bs.job;
+      st.powD+=3+lvl; st.watD+=3+lvl;
+    }else{
+      var inf=INFRA[b.type];
+      if(inf.power) st.powS+=inf.power;
+      if(inf.water) st.watS+=inf.water;
+      st.powD+=4; st.watD+=4;
+    }
+  });
+  st.workers=st.pop;
+  st.powOK=st.powS>=st.powD;
+  st.watOK=st.watS>=st.watD;
+}
+function pollutionAt(x,y,r){
+  var n=0;
+  eachCell(function(x2,y2,c){
+    if(c.b&&c.b.type==='I'&&c.b.grow<=0&&manhattan(x,y,x2,y2)<=r) n++;
+  });
+  return n;
+}
+function computeHappiness(){
+  var st=S.stats, h=55;
+  if(st.powOK) h+=10;
+  if(st.watOK) h+=10;
+  var svcHit={}, parkHit=false;
+  var svcTypes=['police','fire','school','hospital'];
+  for(var i=0;i<st.resList.length;i++){
+    var rc=st.resList[i];
+    eachCell(function(x,y,c){
+      if(!c.b||c.b.grow>0) return;
+      var t=c.b.type;
+      if(svcTypes.indexOf(t)>=0 && manhattan(rc.x,rc.y,x,y)<=INFRA[t].r) svcHit[t]=1;
+      if(t==='park' && manhattan(rc.x,rc.y,x,y)<=INFRA.park.r) parkHit=true;
+    });
+  }
+  var nSvc=Object.keys(svcHit).length;
+  h+=Math.min(20,nSvc*5);
+  if(parkHit) h+=8;
+  for(var j=0;j<st.resList.length;j++){
+    h-=4*pollutionAt(st.resList[j].x,st.resList[j].y,3);
+  }
+  var unemp=st.workers>0?(st.workers-st.jobs)/st.workers:0;
+  if(unemp>0.2) h-=15;
+  st.hap=Math.max(0,Math.min(100,Math.round(h)));
+  st.unemp=unemp;
+}
+
+function tryGrow(dt){
+  var st=S.stats;
+  eachCell(function(x,y,c){
+    if(c.b&&c.b.grow>0){
+      c.b.grow-=dt;
+      if(c.b.grow<=0){
+        c.b.level=1; c.b.grow=0;
+        Sound.build(); burst(x,y,'#ffd54f',10);
+        saveGame();
+      }
+      return;
+    }
+    if(c.zone&&!c.b&&!c.road){
+      if(adjRoad(x,y)&&st.powOK&&st.watOK){
+        c.b={type:c.zone,level:0,grow:2};
+      }
+    }
+  });
+}
+
+function tryUpgrade(){
+  var st=S.stats;
+  if(st.hap<60) return;
+  var jobsOK=st.workers===0||st.jobs>=st.workers*0.8;
+  eachCell(function(x,y,c){
+    if(!c.b||c.b.grow>0) return;
+    var t=c.b.type;
+    if(t!=='R'&&t!=='C'&&t!=='I') return;
+    if(c.b.level>=3) return;
+    if(pollutionAt(x,y,2)>0) return;
+    if(t==='R'){
+      var hasPark=false;
+      eachCell(function(x2,y2,c2){
+        if(c2.b&&c2.b.type==='park'&&manhattan(x,y,x2,y2)<=INFRA.park.r) hasPark=true;
+      });
+      if(!hasPark||!jobsOK) return;
+    }
+    c.b.level++;
+    Sound.upgrade();
+    var p=tileCenter(x,y);
+    for(var i=0;i<12;i++) S.parts.push({x:p.x+(Math.random()-0.5)*30,y:p.y,vx:(Math.random()-0.5)*20,vy:-60-Math.random()*40,life:1,color:'#ffd54f',size:2+Math.random()*2});
+    saveGame();
+  });
+  computeStats(); computeHappiness(); updateTopbar();
+}
+
+function economyTick(){
+  var income=0, expense=0;
+  eachCell(function(x,y,c){
+    if(!c.b||c.b.grow>0) return;
+    var b=c.b;
+    if(b.type==='R'||b.type==='C'||b.type==='I') income+=BSTAT[b.type][b.level].tax;
+    else { var inf=INFRA[b.type]; if(inf.maint) expense+=inf.maint; }
+  });
+  S.money+=income-expense;
+  if(income>0) Sound.tax();
+  if(S.money<0&&!S.over){
+    S.over=true; clearSave();
+    document.getElementById('ov_bankrupt').classList.remove('hide');
+    Sound.error();
+  }
+  saveGame(); updateTopbar(); refreshTools();
+}
+
+/* 汽车 */
+var CAR_COLORS=['#ef5350','#42a5f5','#ffca28','#ab47bc','#26a69a','#ff7043'];
+function roadCells(){
+  var r=[];
+  eachCell(function(x,y,c){ if(c.road) r.push({x:x,y:y}); });
+  return r;
+}
+function spawnCar(){
+  var roads=roadCells(); if(!roads.length) return;
+  var s=roads[Math.floor(Math.random()*roads.length)];
+  S.cars.push({x0:s.x,y0:s.y,x1:s.x,y1:s.y,t:1,color:CAR_COLORS[Math.floor(Math.random()*CAR_COLORS.length)]});
+}
+function updateCars(dt){
+  while(S.cars.length<5&&roadCells().length>3) spawnCar();
+  if(S.cars.length>8) S.cars.length=8;
+  for(var i=S.cars.length-1;i>=0;i--){
+    var car=S.cars[i];
+    car.t+=dt*0.9;
+    if(car.t>=1){
+      // 找下一个路格
+      var opts=[];
+      var d=[[1,0],[-1,0],[0,1],[0,-1]];
+      for(var k=0;k<4;k++){
+        var nx=car.x1+d[k][0], ny=car.y1+d[k][1];
+        var c=cellAt(nx,ny);
+        if(c&&c.road&&!(nx===car.x0&&ny===car.y0)) opts.push({x:nx,y:ny});
+      }
+      if(!opts.length){ S.cars.splice(i,1); continue; }
+      var np=opts[Math.floor(Math.random()*opts.length)];
+      car.x0=car.x1; car.y0=car.y1; car.x1=np.x; car.y1=np.y; car.t=0;
+    }
+  }
+}
+
+/* ================= UI ================= */
+function fmt(n){ return (n<0?'-$':'$')+Math.abs(Math.round(n)).toLocaleString('en-US'); }
+function hapEmoji(h){ return h>=80?'😍':(h>=60?'😊':(h>=40?'😐':'😟')); }
+function updateTopbar(){
+  var st=S.stats;
+  document.querySelector('#st_money .v').textContent=fmt(S.money);
+  document.querySelector('#st_pop .v').textContent=st.pop;
+  document.querySelector('#st_hap .v').textContent=st.hap;
+  document.getElementById('st_hap').firstChild.textContent=hapEmoji(st.hap)+' ';
+  var pe=document.getElementById('st_pow');
+  pe.querySelector('.v').textContent=st.powS+'/'+st.powD;
+  pe.classList.toggle('bad',!st.powOK);
+  var wa=document.getElementById('st_wat');
+  wa.querySelector('.v').textContent=st.watS+'/'+st.watD;
+  wa.classList.toggle('bad',!st.watOK);
+}
+function buildToolbar(){
+  var bar=document.getElementById('toolbar');
+  bar.innerHTML='';
+  TOOLS.forEach(function(t){
+    var d=document.createElement('div');
+    d.className='tool'; d.id='tool_'+t.id;
+    d.innerHTML='<div class="ti">'+t.icon+'</div><div class="tn">'+t.name+'</div><div class="tp">'+(t.price?'$'+t.price:'免费')+'</div>';
+    d.addEventListener('click',function(){
+      Sound.init(); Sound.click();
+      S.tool=(S.tool===t.id)?null:t.id;
+      refreshTools();
+    });
+    bar.appendChild(d);
+  });
+  refreshTools();
+}
+function refreshTools(){
+  TOOLS.forEach(function(t){
+    var el=document.getElementById('tool_'+t.id);
+    if(!el) return;
+    el.classList.toggle('sel',S.tool===t.id);
+    var cant=S.money<t.price;
+    var inf=INFRA[t.id];
+    if(inf&&inf.unlock&&S.stats.pop<inf.unlock) cant=true;
+    el.classList.toggle('cant',cant);
+  });
+}
+function showInfo(x,y,b){
+  S.selected={x:x,y:y};
+  var title='建筑', body='';
+  if(b.type==='R'||b.type==='C'||b.type==='I'){
+    var bs=BSTAT[b.type][b.level];
+    title=BNAME[b.type]+' · '+b.level+'级';
+    if(b.type==='R') body+='<div class="kv"><span>👥 人口</span><b>'+bs.pop+'</b></div>';
+    else body+='<div class="kv"><span>💼 岗位</span><b>'+bs.job+'</b></div>';
+    body+='<div class="kv"><span>💰 税收/轮</span><b>$'+bs.tax+'</b></div>';
+    if(b.type==='I') body+='<div class="kv"><span>🏭 污染</span><b>'+bs.pol+'</b></div>';
+    if(b.level<3) body+='<div class="kv"><span>⬆️ 升级</span><span>幸福≥60 会自动升级</span></div>';
+  }else{
+    var inf=INFRA[b.type];
+    title=inf.icon+' '+inf.name;
+    if(inf.power) body+='<div class="kv"><span>⚡ 供电</span><b>'+inf.power+'</b></div>';
+    if(inf.water) body+='<div class="kv"><span>💧 供水</span><b>'+inf.water+'</b></div>';
+    if(inf.r) body+='<div class="kv"><span>📡 半径</span><b>'+inf.r+' 格</b></div>';
+    if(inf.maint) body+='<div class="kv"><span>🔧 维护/轮</span><b>$'+inf.maint+'</b></div>';
+  }
+  document.getElementById('info_title').textContent=title;
+  document.getElementById('info_body').innerHTML=body;
+  document.getElementById('ov_info').classList.remove('hide');
+  Sound.click();
+}
+
+/* ================= 主循环 ================= */
+var lastT=0;
+function loop(now){
+  requestAnimationFrame(loop);
+  if(!S||!S.started) return;
+  var dt=Math.min(0.1,(now-lastT)/1000||0);
+  lastT=now;
+  if(!S.paused&&!S.over){
+    S.time+=dt;
+    tryGrow(dt);
+    // 粒子
+    for(var i=S.parts.length-1;i>=0;i--){
+      var p=S.parts[i];
+      p.x+=p.vx*dt; p.y+=p.vy*dt;
+      if(!p.smoke) p.vy+=160*dt;
+      p.life-=dt*(p.smoke?0.7:1.4);
+      if(p.life<=0) S.parts.splice(i,1);
+    }
+    // 云
+    for(var ci=0;ci<S.clouds.length;ci++){
+      var cl=S.clouds[ci];
+      cl.x+=cl.v*dt; if(cl.x>1.3) cl.x=-0.3;
+    }
+    updateCars(dt);
+    // 经济轮
+    S.tickAcc+=dt;
+    if(S.tickAcc>=TICK_LEN){
+      S.tickAcc-=TICK_LEN;
+      computeStats(); computeHappiness();
+      economyTick();
+    }
+    // 升级评估
+    S.upgAcc+=dt;
+    if(S.upgAcc>=UPGRADE_LEN){
+      S.upgAcc-=UPGRADE_LEN;
+      computeStats(); computeHappiness();
+      tryUpgrade();
+    }
+  }
+  render();
+}
+
+/* ================= 启动 ================= */
+function startGame(useSave){
+  newGame();
+  if(useSave){ var d=loadSave(); if(d) applySave(d); }
+  S.started=true;
+  document.getElementById('ov_start').classList.add('hide');
+  computeStats(); computeHappiness();
+  buildToolbar(); updateTopbar();
+  centerCamera();
+  saveGame();
+  lastT=performance.now();
+  requestAnimationFrame(loop);
+}
+window.addEventListener('load',function(){
+  cv=document.getElementById('cv');
+  ctx=cv.getContext('2d');
+  newGame();
+  resize();
+  window.addEventListener('resize',resize);
+  S.cam.ox=0; S.cam.oy=0;
+  // 预设一个临时相机用于 start 界面背景（render 不跑，先不画）
+  var has=!!loadSave();
+  if(has) document.getElementById('btn_continue').classList.remove('hide');
+  document.getElementById('btn_start').addEventListener('click',function(){ Sound.init(); Sound.click(); clearSave(); startGame(false); });
+  document.getElementById('btn_continue').addEventListener('click',function(){ Sound.init(); Sound.click(); startGame(true); });
+  document.getElementById('btn_help').addEventListener('click',function(){ Sound.click(); document.getElementById('ov_help').classList.remove('hide'); });
+  document.getElementById('btn_help_close').addEventListener('click',function(){ Sound.click(); document.getElementById('ov_help').classList.add('hide'); });
+  document.getElementById('btn_pause').addEventListener('click',function(){
+    Sound.click(); S.paused=!S.paused;
+    document.getElementById('btn_pause').textContent=S.paused?'▶':'⏸';
+    document.getElementById('btn_pause').classList.toggle('on',S.paused);
+    toast(S.paused?'已暂停':'继续');
+  });
+  document.getElementById('btn_mute').addEventListener('click',function(){
+    Sound.init();
+    var m=Sound.toggle();
+    document.getElementById('btn_mute').textContent=m?'🔇':'🔊';
+  });
+  function doRestart(){
+    clearSave(); S.over=false;
+    document.getElementById('ov_bankrupt').classList.add('hide');
+    startGame(false);
+    toast('新城市开工！');
+  }
+  document.getElementById('btn_restart').addEventListener('click',function(){ Sound.click(); if(confirm('重开会清空当前城市，确定吗？')) doRestart(); });
+  document.getElementById('btn_restart2').addEventListener('click',function(){ Sound.click(); doRestart(); });
+  document.getElementById('btn_info_close').addEventListener('click',function(){ Sound.click(); document.getElementById('ov_info').classList.add('hide'); S.selected=null; });
+  document.getElementById('ov_info').addEventListener('click',function(e){ if(e.target.id==='ov_info'){ document.getElementById('ov_info').classList.add('hide'); S.selected=null; } });
+  setupInput();
+});
+</script>
+</body>
+</html>
