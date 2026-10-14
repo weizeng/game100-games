@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>引力弹射</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b1020;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:#0b1020}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none;font-size:15px;z-index:5}
+.hud .left{font-weight:bold;text-shadow:0 0 8px #b388ff;font-size:14px}
+.hud .right{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{min-width:44px;min-height:44px;border-radius:50%;border:1px solid #b388ff55;background:#161a2ed9;color:#fff;font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(8,10,24,.92);backdrop-filter:blur(4px);z-index:10;text-align:center;padding:24px}
+.screen h1{font-size:40px;margin-bottom:6px;background:linear-gradient(135deg,#b388ff,#7c4dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.screen p{color:#aab;font-size:14px;line-height:1.8;margin:12px 0 20px}
+.bigbtn{min-height:52px;padding:14px 56px;font-size:18px;border:none;border-radius:30px;background:linear-gradient(135deg,#7c4dff,#b388ff);color:#fff;font-weight:bold;cursor:pointer;transition:transform .1s;box-shadow:0 4px 20px #7c4dff55}
+.bigbtn:active{transform:scale(.93)}
+.score{font-size:52px;font-weight:bold;background:linear-gradient(135deg,#b388ff,#7c4dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0}
+.hiscore{color:#888;font-size:14px;margin-bottom:20px}
+.hidden{display:none!important}
+#hintScr{z-index:12}
+#hintScr .card{background:#141a30;border:1px solid #7c4dff66;border-radius:16px;padding:22px 20px;max-width:340px}
+#hintScr h2{font-size:20px;color:#b388ff;margin-bottom:10px}
+#hintScr p{color:#ccd;font-size:15px;line-height:1.8;margin:0 0 18px}
+.lvlTag{font-size:13px;color:#7c8db5;margin-bottom:4px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="480" height="720"></canvas>
+<div class="hud">
+<div class="left">第 <span id="lvl">1</span>/6 关 · 机会 <span id="tries">3</span> · 得分 <span id="score">0</span></div>
+<div class="right"><button class="iconbtn" id="hintBtn" title="提示">💡</button><button class="iconbtn" id="muteBtn">🔊</button><button class="iconbtn" id="pauseBtn">⏸</button></div>
+</div>
+<div class="screen" id="startScr">
+<h1>🪐 引力弹射</h1>
+<p>从发射台按住向后拖拽蓄力<br>虚线是引力模拟的预测轨道<br>松手发射，借行星引力弯曲轨道<br>命中发光的目标星即过关<br>每关 3 次机会，撞上行星会坠毁</p>
+<button class="bigbtn" id="startBtn">开始游戏</button>
+</div>
+<div class="screen hidden" id="overScr">
+<h1 id="overTitle">游戏结束</h1>
+<div class="score" id="finalScore">0</div>
+<div class="hiscore">最高分：<span id="hiScore">0</span></div>
+<button class="bigbtn" id="retryBtn">再来一局</button>
+</div>
+<div class="screen hidden" id="pauseScr">
+<h1>已暂停</h1>
+<p></p>
+<button class="bigbtn" id="resumeBtn">继续</button>
+</div>
+<div class="screen hidden" id="hintScr">
+<div class="card">
+<div class="lvlTag" id="hintLvl">第 1 关提示</div>
+<h2>💡 过关思路</h2>
+<p id="hintText"></p>
+<button class="bigbtn" id="hintClose">知道了</button>
+</div>
+</div>
+</div>
+<script>
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=480,H=720;
+var GRAV=220,MAXA=4000,MAXV=520,FLIGHT_LIMIT=6;
+var state='start',paused=false,hintOpen=false;
+var level=0,tries=3,score=0,hi=0;
+var ship=null,aiming=false,aimX=0,aimY=0;
+var parts=[],floats=[],stars=[],shake=0;
+var flightT=0,waitT=0,waitNext=null;
+var muted=false,AC=null;
+var HIKEY='g100_slingshot_hs';
+try{hi=parseInt(localStorage.getItem(HIKEY))||0;}catch(e){}
+try{muted=localStorage.getItem('g100_mute')==='1';}catch(e){}
+function $(id){return document.getElementById(id);}
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){try{AC.resume();}catch(e){}}return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+function noiseBurst(dur,vol){if(muted)return;var c=ac();if(!c)return;try{var n=Math.floor(c.sampleRate*dur),buf=c.createBuffer(1,n,c.sampleRate),d=buf.getChannelData(0);for(var i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);var s=c.createBufferSource(),g=c.createGain();s.buffer=buf;g.gain.setValueAtTime(vol||.2,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);s.connect(g);g.connect(c.destination);s.start();}catch(e){}}
+function sClick(){tone(620,.07,'square',.1);}
+function sLaunch(){tone(180,.35,'sawtooth',.14,900);noiseBurst(.25,.08);}
+function sWin(){var fs=[523,659,784,1046];for(var i=0;i<fs.length;i++)(function(f,j){setTimeout(function(){tone(f,.28,'sine',.14);},j*130);})(fs[i],i);}
+function sFail(){tone(320,.5,'sawtooth',.16,70);noiseBurst(.4,.15);}
+function vibrate(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function saveHi(){if(score>hi){hi=score;try{localStorage.setItem(HIKEY,String(hi));}catch(e){}}}
+var LEVELS=[
+ {launch:[80,620],planets:[],target:[400,120,26],hint:"直接瞄准目标发射，不用管引力。"},
+ {launch:[80,620],planets:[[280,380,9000,34]],target:[400,150,26],hint:"从行星左侧绕过去，让引力把轨道掰向目标。"},
+ {launch:[400,620],planets:[[240,360,12000,38]],target:[80,140,26],hint:"瞄准行星上沿，借力甩向左上角。"},
+ {launch:[80,620],planets:[[200,450,9000,32],[330,260,9000,32]],target:[400,120,26],hint:"穿过两颗行星之间，别靠太近。"},
+ {launch:[240,640],planets:[[240,360,14000,40]],target:[240,90,26],hint:"瞄准行星正下方擦过，绕一整圈甩向顶部。"},
+ {launch:[80,640],planets:[[180,480,8000,30],[320,300,11000,36]],target:[420,140,22],hint:"先借第一颗行星加速，再蹭第二颗变向。"}
+];
+function accAt(x,y,planets){var ax=0,ay=0;for(var i=0;i<planets.length;i++){var p=planets[i],dx=p[0]-x,dy=p[1]-y,d2=dx*dx+dy*dy;if(d2<100)d2=100;var d=Math.sqrt(d2),a=GRAV*p[2]/d2;if(a>MAXA)a=MAXA;ax+=a*dx/d;ay+=a*dy/d;}return [ax,ay];}
+function simTraj(lx,ly,vx,vy,planets){var pts=[],x=lx,y=ly,ux=vx,uy=vy,dt=1/60;
+ for(var s=0;s<60;s++){var a=accAt(x,y,planets);ux+=a[0]*dt;uy+=a[1]*dt;x+=ux*dt;y+=uy*dt;pts.push([x,y]);
+  var dead=x<-30||x>W+30||y<-30||y>H+30,hitP=false;
+  for(var i=0;i<planets.length;i++){var p=planets[i],dx=x-p[0],dy=y-p[1];if(dx*dx+dy*dy<p[3]*p[3]){hitP=true;break;}}
+  if(dead||hitP)break;}
+ return pts;}
+function aimVec(){var dx=aimX-LEVELS[level].launch[0],dy=aimY-LEVELS[level].launch[1];var d=Math.sqrt(dx*dx+dy*dy);if(d<15)return null;var pw=Math.min(d,200)/200*MAXV;var nx=-dx/d,ny=-dy/d;return {vx:nx*pw,vy:ny*pw,power:pw/MAXV};}
+function startGame(){score=0;level=0;startLevel();}
+function startLevel(){tries=3;ship=null;aiming=false;flightT=0;waitT=0;waitNext=null;parts=[];floats=[];state='play';paused=false;
+ $('lvl').textContent=level+1;$('tries').textContent=tries;$('score').textContent=score;
+ $('pauseScr').classList.add('hidden');$('overScr').classList.add('hidden');$('startScr').classList.add('hidden');}
+function fire(){var v=aimVec();if(!v)return;aiming=false;var L=LEVELS[level];ship={x:L.launch[0],y:L.launch[1],vx:v.vx,vy:v.vy};flightT=0;state='fly';sLaunch();vibrate(25);}
+function levelClear(){var gain=100+40*(tries-1);score+=gain;saveHi();$('score').textContent=score;
+ var T=LEVELS[level].target;burst(T[0],T[1],'#ffd54f',26);addFloat(T[0],T[1]-30,'+'+gain,'#ffd54f');sWin();vibrate(40);shake=6;
+ waitT=1.3;waitNext=function(){if(level>=LEVELS.length-1){endGame(true);}else{level++;startLevel();}};state='wait';}
+function levelFail(msg){tries--;$('tries').textContent=tries;
+ if(ship)burst(ship.x,ship.y,'#ff5252',22);addFloat(ship?ship.x:240,ship?ship.y:360,msg,'#ff5252');sFail();vibrate(60);shake=10;
+ waitT=1.1;waitNext=function(){if(tries<=0){endGame(false);}else{ship=null;flightT=0;state='play';}};state='wait';}
+function endGame(win){state=win?'win':'over';saveHi();
+ $('overTitle').textContent=win?'🎉 全部通关！':'游戏结束';
+ $('finalScore').textContent=score;$('hiScore').textContent=hi;
+ $('overScr').classList.remove('hidden');if(win)sWin();}
+function burst(x,y,color,n){for(var i=0;i<n;i++){var a=Math.random()*6.283,sp=60+Math.random()*220;parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.6+Math.random()*.5,t:.6+Math.random()*.5,color:color,r:2+Math.random()*3});}}
+function addFloat(x,y,text,color){floats.push({x:x,y:y,text:text,color:color,life:1.4,t:1.4});}
+function update(dt){
+ if(hintOpen||paused||state==='start'||state==='over'||state==='win')return;
+ if(shake>0)shake=Math.max(0,shake-30*dt);
+ for(var i=parts.length-1;i>=0;i--){var p=parts[i];p.t-=dt;if(p.t<=0){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.98;p.vy*=.98;}
+ for(var j=floats.length-1;j>=0;j--){var f=floats[j];f.t-=dt;f.y-=36*dt;if(f.t<=0)floats.splice(j,1);}
+ if(state==='wait'){waitT-=dt;if(waitT<=0&&waitNext){var n=waitNext;waitNext=null;n();}return;}
+ if(state!=='fly')return;
+ var L=LEVELS[level],sub=4,sdt=dt/sub;
+ for(var s=0;s<sub;s++){var a=accAt(ship.x,ship.y,L.planets);ship.vx+=a[0]*sdt;ship.vy+=a[1]*sdt;ship.x+=ship.vx*sdt;ship.y+=ship.vy*sdt;
+  if(ship.x<-30||ship.x>W+30||ship.y<-30||ship.y>H+30){levelFail('飞出边界');return;}
+  var T=L.target,dx=ship.x-T[0],dy=ship.y-T[1];if(dx*dx+dy*dy<T[2]*T[2]){levelClear();return;}
+  for(var k=0;k<L.planets.length;k++){var pl=L.planets[k],px=ship.x-pl[0],py=ship.y-pl[1];if(px*px+py*py<pl[3]*pl[3]){levelFail('撞上行星');return;}}}
+ flightT+=dt;if(flightT>FLIGHT_LIMIT)levelFail('超时未命中');
+}
+function drawPlanet(x,y,r){var g=ctx.createRadialGradient(x-r*.3,y-r*.3,r*.1,x,y,r);g.addColorStop(0,'#8e6cc9');g.addColorStop(.6,'#5b2d8e');g.addColorStop(1,'#2c1650');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.fill();
+ ctx.strokeStyle='#b388ff44';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y,r+10,r+5,-.4,0,6.283);ctx.stroke();
+ var wg=ctx.createRadialGradient(x,y,r,x,y,r+34);wg.addColorStop(0,'#7c4dff22');wg.addColorStop(1,'#7c4dff00');ctx.fillStyle=wg;ctx.beginPath();ctx.arc(x,y,r+34,0,6.283);ctx.fill();}
+function render(){ctx.save();
+ if(shake>0)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
+ var bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#0b1020');bg.addColorStop(.6,'#0d1230');bg.addColorStop(1,'#141024');ctx.fillStyle=bg;ctx.fillRect(-20,-20,W+40,H+40);
+ ctx.fillStyle='#fff';for(var i=0;i<stars.length;i++){var st=stars[i];ctx.globalAlpha=.3+.7*Math.abs(Math.sin(st.p));ctx.fillRect(st.x,st.y,st.s,st.s);}ctx.globalAlpha=1;
+ var L=LEVELS[level];
+ for(var k=0;k<L.planets.length;k++)drawPlanet(L.planets[k][0],L.planets[k][1],L.planets[k][3]);
+ var T=L.target,tp=(Date.now()/300)%1;var tg=ctx.createRadialGradient(T[0],T[1],2,T[0],T[1],T[2]+14);tg.addColorStop(0,'#fff59d');tg.addColorStop(.5,'#ffd54f');tg.addColorStop(1,'#ffd54f00');ctx.fillStyle=tg;ctx.beginPath();ctx.arc(T[0],T[1],T[2]+14,0,6.283);ctx.fill();
+ ctx.fillStyle='#fff59d';ctx.font='bold 26px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⭐',T[0],T[1]);
+ ctx.strokeStyle='#ffd54f88';ctx.lineWidth=2;ctx.setLineDash([6,6]);ctx.beginPath();ctx.arc(T[0],T[1],T[2]+6+tp*8,0,6.283);ctx.stroke();ctx.setLineDash([]);
+ var lx=L.launch[0],ly=L.launch[1];
+ ctx.fillStyle='#2a3358';ctx.beginPath();ctx.arc(lx,ly,22,0,6.283);ctx.fill();ctx.strokeStyle='#7c4dff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(lx,ly,22,0,6.283);ctx.stroke();
+ ctx.fillStyle='#b388ff';ctx.font='20px sans-serif';ctx.fillText('🚀',lx,ly-2);
+ if(state==='play'&&aiming){var v=aimVec();if(v){var pts=simTraj(lx,ly,v.vx,v.vy,L.planets);ctx.strokeStyle='#80d8ffcc';ctx.lineWidth=2;ctx.setLineDash([7,7]);ctx.beginPath();for(var q=0;q<pts.length;q++){if(q===0)ctx.moveTo(pts[q][0],pts[q][1]);else ctx.lineTo(pts[q][0],pts[q][1]);}ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle='#ff8a65';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(aimX,aimY);ctx.stroke();
+  ctx.fillStyle='#1a2038ee';ctx.fillRect(lx-70,ly+34,140,12);ctx.fillStyle=v.power>.85?'#ff5252':(v.power>.5?'#ffd54f':'#69f0ae');ctx.fillRect(lx-68,ly+36,136*v.power,8);}}
+ if(ship){ctx.save();ctx.translate(ship.x,ship.y);var ang=Math.atan2(ship.vy,ship.vx);ctx.rotate(ang);ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-8,-7);ctx.lineTo(-8,7);ctx.closePath();ctx.fill();ctx.fillStyle='#ff8a65';ctx.beginPath();ctx.moveTo(-8,0);ctx.lineTo(-8-10-Math.random()*8,0);ctx.closePath();ctx.stroke();ctx.restore();}
+ for(var m=0;m<parts.length;m++){var p=parts[m];ctx.globalAlpha=Math.max(0,p.t/p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.283);ctx.fill();}ctx.globalAlpha=1;
+ ctx.textAlign='center';for(var n=0;n<floats.length;n++){var f=floats[n];ctx.globalAlpha=Math.min(1,f.t/.6);ctx.fillStyle=f.color;ctx.font='bold 22px sans-serif';ctx.fillText(f.text,f.x,f.y);}ctx.globalAlpha=1;
+ ctx.restore();}
+var lastT=0;
+function loop(t){var dt=Math.min(.05,(t-lastT)/1000||0);lastT=t;update(dt);render();requestAnimationFrame(loop);}
+function toGame(e){var r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
+cv.addEventListener('pointerdown',function(e){if(state!=='play'||hintOpen||paused)return;var p=toGame(e),L=LEVELS[level];var dx=p.x-L.launch[0],dy=p.y-L.launch[1];if(dx*dx+dy*dy<110*110){aiming=true;aimX=p.x;aimY=p.y;e.preventDefault();}});
+window.addEventListener('pointermove',function(e){if(!aiming)return;var p=toGame(e);aimX=p.x;aimY=p.y;});
+window.addEventListener('pointerup',function(){if(!aiming)return;var v=aimVec();aiming=false;if(v&&v.power>.06)fire();});
+window.addEventListener('pointercancel',function(){aiming=false;});
+$('startBtn').addEventListener('click',function(){sClick();ac();startGame();});
+$('retryBtn').addEventListener('click',function(){sClick();startGame();});
+$('resumeBtn').addEventListener('click',function(){sClick();paused=false;$('pauseScr').classList.add('hidden');});
+$('pauseBtn').addEventListener('click',function(e){e.stopPropagation();if(state!=='play'&&state!=='fly'&&state!=='wait')return;sClick();paused=!paused;$('pauseScr').classList.toggle('hidden',!paused);});
+$('hintBtn').addEventListener('click',function(e){e.stopPropagation();if(state!=='play'&&state!=='fly')return;sClick();hintOpen=true;$('hintLvl').textContent='第 '+(level+1)+' 关提示';$('hintText').textContent=LEVELS[level].hint;$('hintScr').classList.remove('hidden');});
+$('hintClose').addEventListener('click',function(){sClick();hintOpen=false;$('hintScr').classList.add('hidden');});
+function refreshMute(){$('muteBtn').textContent=muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(e){e.stopPropagation();muted=!muted;try{localStorage.setItem('g100_mute',muted?'1':'0');}catch(e2){}refreshMute();sClick();});
+refreshMute();
+for(var s=0;s<90;s++)stars.push({x:Math.random()*W,y:Math.random()*H,s:.6+Math.random()*1.8,p:Math.random()*6.28});
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

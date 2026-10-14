@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>太空对接</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b1020;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
+#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:#0b1020}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none;font-size:14px;z-index:5}
+.hud .left{font-weight:bold;text-shadow:0 0 8px #4fc3f7}
+.hud .right{display:flex;gap:8px;pointer-events:auto}
+.iconbtn{min-width:44px;min-height:44px;border-radius:50%;border:1px solid #4fc3f755;background:#101a2ed9;color:#fff;font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
+.iconbtn:active{transform:scale(.9)}
+.fuelbar{position:absolute;top:60px;left:12px;right:12px;z-index:5;pointer-events:none}
+.fuelbar .track{height:10px;border-radius:5px;background:#1a2038;overflow:hidden}
+.fuelbar .fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#69f0ae,#4fc3f7);transition:width .15s}
+.fuelbar .lbl{font-size:12px;color:#9fc3e8;margin-top:3px;display:flex;justify-content:space-between}
+#ctrl{position:absolute;left:12px;right:12px;bottom:14px;display:flex;gap:10px;z-index:6}
+.cbtn{flex:1;min-height:76px;border-radius:16px;border:1px solid #4fc3f766;background:#14223ad9;color:#fff;font-size:30px;cursor:pointer;touch-action:none;transition:transform .06s,background .06s}
+.cbtn small{display:block;font-size:12px;color:#9fc3e8;margin-top:2px}
+.cbtn.on{background:#1e6f9f;transform:scale(.96)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(8,10,24,.92);backdrop-filter:blur(4px);z-index:10;text-align:center;padding:24px}
+.screen h1{font-size:40px;margin-bottom:6px;background:linear-gradient(135deg,#4fc3f7,#0288d1);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.screen p{color:#aab;font-size:14px;line-height:1.8;margin:12px 0 20px}
+.bigbtn{min-height:52px;padding:14px 56px;font-size:18px;border:none;border-radius:30px;background:linear-gradient(135deg,#0288d1,#4fc3f7);color:#fff;font-weight:bold;cursor:pointer;transition:transform .1s;box-shadow:0 4px 20px #0288d155}
+.bigbtn:active{transform:scale(.93)}
+.score{font-size:52px;font-weight:bold;background:linear-gradient(135deg,#4fc3f7,#0288d1);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0}
+.hiscore{color:#888;font-size:14px;margin-bottom:20px}
+.hidden{display:none!important}
+.lives{color:#ff8a80;font-size:15px;letter-spacing:2px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="480" height="720"></canvas>
+<div class="hud">
+<div class="left">第 <span id="lvl">1</span>/5 关 · 得分 <span id="score">0</span> · <span class="lives" id="lives">❤❤❤</span></div>
+<div class="right"><button class="iconbtn" id="muteBtn">🔊</button><button class="iconbtn" id="pauseBtn">⏸</button></div>
+</div>
+<div class="fuelbar"><div class="track"><div class="fill" id="fuelFill" style="width:100%"></div></div><div class="lbl"><span>⛽ 燃料 <span id="fuelTxt">100</span></span><span id="spdTxt">速度 0</span></div></div>
+<div id="ctrl">
+<button class="cbtn" id="btnL">⟲<small>左转</small></button>
+<button class="cbtn" id="btnR">⟳<small>右转</small></button>
+<button class="cbtn" id="btnT">▲<small>推进</small></button>
+</div>
+<div class="screen" id="startScr">
+<h1>🛰️ 太空对接</h1>
+<p>飞船从下方出发，对准顶部空间站的<br><b style="color:#69f0ae">绿色对接口</b>缓慢靠近<br>船头距接口 &lt;26px、角度差 &lt;容差、速度 &lt;60 即对接成功<br>撞上空间站本体：高速会爆炸，低速弹开扣燃料<br>每关燃料有限，推进/旋转都会消耗</p>
+<button class="bigbtn" id="startBtn">开始对接</button>
+</div>
+<div class="screen hidden" id="overScr">
+<h1 id="overTitle">任务完成</h1>
+<div class="score" id="finalScore">0</div>
+<div class="hiscore">最高分：<span id="hiScore">0</span></div>
+<button class="bigbtn" id="retryBtn">再来一局</button>
+</div>
+<div class="screen hidden" id="pauseScr">
+<h1>已暂停</h1>
+<p></p>
+<button class="bigbtn" id="resumeBtn">继续</button>
+</div>
+</div>
+<script>
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=480,H=720;
+var THRUST=300,ROT=2.9,DAMP=.22,FUEL_T=15,FUEL_R=7;
+var DOCK_DIST=26,DOCK_SPD=60,CRASH_SPD=90;
+var state='start',paused=false;
+var level=0,lives=3,score=0,hi=0,fuel=100;
+var ship=null,station=null,parts=[],floats=[],stars=[],shake=0;
+var keyL=false,keyR=false,keyT=false,stuckT=0;
+var waitT=0,waitNext=null,lastThrustSnd=0,lvlT=0;
+var muted=false,AC=null;
+var HIKEY='g100_docking_hs';
+try{hi=parseInt(localStorage.getItem(HIKEY))||0;}catch(e){}
+try{muted=localStorage.getItem('g100_mute')==='1';}catch(e){}
+function $(id){return document.getElementById(id);}
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){try{AC.resume();}catch(e){}}return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
+function noiseBurst(dur,vol){if(muted)return;var c=ac();if(!c)return;try{var n=Math.floor(c.sampleRate*dur),buf=c.createBuffer(1,n,c.sampleRate),d=buf.getChannelData(0);for(var i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);var s=c.createBufferSource(),g=c.createGain();s.buffer=buf;g.gain.setValueAtTime(vol||.2,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);s.connect(g);g.connect(c.destination);s.start();}catch(e){}}
+function sClick(){tone(620,.07,'square',.1);}
+function sThrust(){tone(85,.09,'sawtooth',.07,60);}
+function sDock(){var fs=[392,523,659,880];for(var i=0;i<fs.length;i++)(function(f,j){setTimeout(function(){tone(f,.3,'sine',.14);},j*120);})(fs[i],i);}
+function sBoom(){tone(110,.6,'sawtooth',.2,35);noiseBurst(.5,.22);}
+function sThud(){tone(160,.15,'triangle',.16,90);}
+function vibrate(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function saveHi(){if(score>hi){hi=score;try{localStorage.setItem(HIKEY,String(hi));}catch(e){}}}
+function rad(d){return d*Math.PI/180;}
+var LEVELS=[
+ {rotSpd:0,driftAmp:0,driftSpd:0,tol:14,fuel:100,tip:"第1关：空间站静止，稳住速度对准接口"},
+ {rotSpd:.22,driftAmp:0,driftSpd:0,tol:14,fuel:100,tip:"第2关：空间站缓慢旋转，跟着转船头"},
+ {rotSpd:0,driftAmp:95,driftSpd:.55,tol:14,fuel:100,tip:"第3关：空间站水平漂移，提前预判位置"},
+ {rotSpd:0,driftAmp:0,driftSpd:0,tol:9,fuel:80,tip:"第4关：角度容差收紧到 ±9°，燃料80"},
+ {rotSpd:.3,driftAmp:75,driftSpd:.7,tol:9,fuel:60,tip:"第5关：旋转+漂移，燃料只有60！"}
+];
+function angDiff(a,b){var d=a-b;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;}
+function startGame(){score=0;level=0;lives=3;startLevel();}
+function startLevel(){var cfg=LEVELS[level];fuel=cfg.fuel;stuckT=0;lvlT=0;parts=[];floats=[];
+ ship={x:240,y:600,a:-Math.PI/2,vx:0,vy:0};
+ station={x:240,y:130,w:132,h:46,rot:0,rotSpd:cfg.rotSpd,driftAmp:cfg.driftAmp,driftSpd:cfg.driftSpd,tol:rad(cfg.tol)};
+ keyL=keyR=keyT=false;state='play';paused=false;waitT=0;waitNext=null;
+ $('lvl').textContent=level+1;$('score').textContent=score;updLives();updFuel();
+ addFloat(240,360,cfg.tip,'#4fc3f7');
+ $('pauseScr').classList.add('hidden');$('overScr').classList.add('hidden');$('startScr').classList.add('hidden');}
+function updLives(){$('lives').textContent='❤'.repeat(lives)+'🖤'.repeat(3-lives);}
+function updFuel(){$('fuelFill').style.width=Math.max(0,fuel)+'%';$('fuelTxt').textContent=Math.ceil(Math.max(0,fuel));}
+function portPos(){var pxx=station.x-(station.h/2)*Math.sin(station.rot),pyy=station.y+(station.h/2)*Math.cos(station.rot);return [pxx,pyy,station.rot-Math.PI/2];}
+function docked(){var s=state==='play'?true:false;if(!s)return;
+ var gain=Math.round(Math.max(0,fuel))*2;score+=gain;saveHi();$('score').textContent=score;
+ var pp=portPos();burst(pp[0],pp[1],'#69f0ae',30);addFloat(pp[0],pp[1]-40,'对接成功 +'+gain,'#69f0ae');sDock();vibrate(40);
+ waitT=1.5;waitNext=function(){if(level>=LEVELS.length-1)endGame(true);else{level++;startLevel();}};state='wait';}
+function crashed(reason){lives--;updLives();
+ burst(ship.x,ship.y,'#ff7043',34);addFloat(ship.x,ship.y-40,reason,'#ff7043');sBoom();vibrate(70);shake=12;
+ waitT=1.3;waitNext=function(){if(lives<=0)endGame(false);else startLevel();};state='wait';}
+function endGame(win){state=win?'win':'over';saveHi();
+ $('overTitle').textContent=win?'🎉 全部对接成功！':'飞船损毁';
+ $('finalScore').textContent=score;$('hiScore').textContent=hi;
+ $('overScr').classList.remove('hidden');if(win)sDock();}
+function burst(x,y,color,n){for(var i=0;i<n;i++){var a=Math.random()*6.283,sp=60+Math.random()*240;parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.5+Math.random()*.6,t:.5+Math.random()*.6,color:color,r:2+Math.random()*3});}}
+function addFloat(x,y,text,color){floats.push({x:x,y:y,text:text,color:color,life:2,t:2});}
+function bindHold(el,set){function on(e){e.preventDefault();set(true);el.classList.add('on');try{el.setPointerCapture(e.pointerId);}catch(err){}}
+ function off(e){set(false);el.classList.remove('on');}
+ el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);el.addEventListener('pointercancel',off);el.addEventListener('pointerleave',off);el.addEventListener('contextmenu',function(e){e.preventDefault();});}
+bindHold($('btnL'),function(v){keyL=v;});bindHold($('btnR'),function(v){keyR=v;});bindHold($('btnT'),function(v){keyT=v;});
+function update(dt){
+ if(paused||state==='start'||state==='over'||state==='win')return;
+ if(shake>0)shake=Math.max(0,shake-34*dt);
+ lvlT+=dt;
+ station.rot+=station.rotSpd*dt;
+ if(station.driftAmp>0)station.x=240+Math.sin(lvlT*station.driftSpd)*station.driftAmp;
+ for(var i=parts.length-1;i>=0;i--){var p=parts[i];p.t-=dt;if(p.t<=0){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.98;p.vy*=.98;}
+ for(var j=floats.length-1;j>=0;j--){var f=floats[j];f.t-=dt;f.y-=30*dt;if(f.t<=0)floats.splice(j,1);}
+ if(state==='wait'){waitT-=dt;if(waitT<=0&&waitNext){var n=waitNext;waitNext=null;n();}return;}
+ if(state!=='play')return;
+ if(keyL&&fuel>0){ship.a-=ROT*dt;fuel-=FUEL_R*dt;}
+ if(keyR&&fuel>0){ship.a+=ROT*dt;fuel-=FUEL_R*dt;}
+ if(keyT&&fuel>0){ship.vx+=Math.cos(ship.a)*THRUST*dt;ship.vy+=Math.sin(ship.a)*THRUST*dt;fuel-=FUEL_T*dt;
+  var now=Date.now();if(now-lastThrustSnd>100){lastThrustSnd=now;sThrust();}
+  parts.push({x:ship.x-Math.cos(ship.a)*16,y:ship.y-Math.sin(ship.a)*16,vx:-Math.cos(ship.a)*120+(Math.random()-.5)*40,vy:-Math.sin(ship.a)*120+(Math.random()-.5)*40,life:.3,t:.3,color:Math.random()<.5?'#ffab40':'#ff7043',r:2+Math.random()*2});}
+ if(fuel<0)fuel=0;updFuel();
+ ship.vx*=1-DAMP*dt;ship.vy*=1-DAMP*dt;
+ ship.x+=ship.vx*dt;ship.y+=ship.vy*dt;
+ if(ship.x<14)ship.x=14;if(ship.x>W-14)ship.x=W-14;
+ if(ship.y<80)ship.y=80;if(ship.y>H-120)ship.y=H-120;
+ var spd=Math.sqrt(ship.vx*ship.vx+ship.vy*ship.vy);
+ $('spdTxt').textContent='速度 '+Math.round(spd);
+ var pp=portPos(),nx=ship.x+Math.cos(ship.a)*20,ny=ship.y+Math.sin(ship.a)*20;
+ var pdx=nx-pp[0],pdy=ny-pp[1],pdist=Math.sqrt(pdx*pdx+pdy*pdy);
+ if(pdist<DOCK_DIST&&Math.abs(angDiff(ship.a,pp[2]))<station.tol&&spd<DOCK_SPD){docked();return;}
+ var c=Math.cos(-station.rot),s=Math.sin(-station.rot),dx=ship.x-station.x,dy=ship.y-station.y;
+ var lx=dx*c-dy*s,ly=dx*s+dy*c;
+ if(Math.abs(lx)<station.w/2+9&&Math.abs(ly)<station.h/2+9){
+  if(spd>CRASH_SPD){crashed('撞毁！');return;}
+  sThud();vibrate(25);fuel=Math.max(0,fuel-5);updFuel();
+  burst(ship.x,ship.y,'#ffd54f',8);addFloat(ship.x,ship.y-30,'轻触弹开 -5燃料','#ffd54f');
+  ship.vx*=-.35;ship.vy*=-.35;ship.x+=ship.vx*dt*4;ship.y+=ship.vy*dt*4;}
+ if(fuel<=0&&spd<8){stuckT+=dt;if(stuckT>1.5){crashed('燃料耗尽');return;}}else stuckT=0;
+}
+function drawStation(){var st=station;ctx.save();ctx.translate(st.x,st.y);ctx.rotate(st.rot);
+ ctx.fillStyle='#1b2a4a';ctx.strokeStyle='#4fc3f7';ctx.lineWidth=2;
+ ctx.beginPath();if(ctx.roundRect)ctx.roundRect(-st.w/2,-st.h/2,st.w,st.h,10);else ctx.rect(-st.w/2,-st.h/2,st.w,st.h);ctx.fill();ctx.stroke();
+ ctx.fillStyle='#27407a';ctx.fillRect(-st.w/2-46,-12,40,24);ctx.fillRect(st.w/2+6,-12,40,24);
+ ctx.strokeStyle='#4fc3f744';for(var i=0;i<3;i++){ctx.beginPath();ctx.moveTo(-st.w/2-46+i*13,-12);ctx.lineTo(-st.w/2-46+i*13,12);ctx.stroke();ctx.beginPath();ctx.moveTo(st.w/2+6+i*13,-12);ctx.lineTo(st.w/2+6+i*13,12);ctx.stroke();}
+ ctx.fillStyle='#0e1626';ctx.beginPath();ctx.arc(0,0,12,0,6.283);ctx.fill();ctx.strokeStyle='#4fc3f7';ctx.stroke();
+ ctx.restore();
+ var pp=portPos();
+ ctx.fillStyle='#69f0ae';ctx.beginPath();ctx.arc(pp[0],pp[1],7,0,6.283);ctx.fill();
+ ctx.strokeStyle='#69f0ae55';ctx.lineWidth=3;ctx.beginPath();ctx.arc(pp[0],pp[1],12+Math.sin(Date.now()/250)*2,0,6.283);ctx.stroke();
+ ctx.save();ctx.translate(pp[0],pp[1]);ctx.rotate(pp[2]);
+ ctx.fillStyle='#69f0ae33';ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,46,-station.tol,station.tol);ctx.closePath();ctx.fill();
+ ctx.strokeStyle='#69f0ae';ctx.lineWidth=3;ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(46,0);ctx.stroke();ctx.setLineDash([]);
+ ctx.restore();
+ ctx.fillStyle='#69f0ae';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText('±'+Math.round(station.tol*180/Math.PI)+'°',pp[0],pp[1]+30);}
+function render(){ctx.save();
+ if(shake>0)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
+ var bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#0b1020');bg.addColorStop(.6,'#0d1430');bg.addColorStop(1,'#101a30');ctx.fillStyle=bg;ctx.fillRect(-20,-20,W+40,H+40);
+ ctx.fillStyle='#fff';for(var i=0;i<stars.length;i++){var st=stars[i];ctx.globalAlpha=.3+.7*Math.abs(Math.sin(st.p+lvlT));ctx.fillRect(st.x,st.y,st.s,st.s);}ctx.globalAlpha=1;
+ ctx.fillStyle='#0d2b4d';ctx.beginPath();ctx.arc(80,860,220,0,6.283);ctx.fill();ctx.strokeStyle='#1e6f9f';ctx.lineWidth=2;ctx.stroke();
+ drawStation();
+ if(ship){ctx.save();ctx.translate(ship.x,ship.y);ctx.rotate(ship.a);
+  ctx.fillStyle='#e8f4ff';ctx.beginPath();ctx.moveTo(20,0);ctx.lineTo(-12,-11);ctx.lineTo(-6,0);ctx.lineTo(-12,11);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#4fc3f7';ctx.beginPath();ctx.arc(2,0,5,0,6.283);ctx.fill();
+  if(keyT&&fuel>0){ctx.fillStyle='#ffab40';ctx.beginPath();ctx.moveTo(-12,0);ctx.lineTo(-12-14-Math.random()*10,-5);ctx.lineTo(-12-14-Math.random()*10,5);ctx.closePath();ctx.fill();}
+  ctx.restore();
+  ctx.strokeStyle='#ffffff44';ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(ship.x,ship.y);ctx.lineTo(ship.x+Math.cos(ship.a)*40,ship.y+Math.sin(ship.a)*40);ctx.stroke();ctx.setLineDash([]);}
+ for(var m=0;m<parts.length;m++){var p=parts[m];ctx.globalAlpha=Math.max(0,p.t/p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.283);ctx.fill();}ctx.globalAlpha=1;
+ ctx.textAlign='center';for(var n=0;n<floats.length;n++){var f=floats[n];ctx.globalAlpha=Math.min(1,f.t/.6);ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';var lines=String(f.text).split('|');for(var q=0;q<lines.length;q++)ctx.fillText(lines[q],f.x,f.y+q*22);}ctx.globalAlpha=1;
+ ctx.restore();}
+var lastT=0;
+function loop(t){var dt=Math.min(.05,(t-lastT)/1000||0);lastT=t;update(dt);render();requestAnimationFrame(loop);}
+$('startBtn').addEventListener('click',function(){sClick();ac();startGame();});
+$('retryBtn').addEventListener('click',function(){sClick();startGame();});
+$('resumeBtn').addEventListener('click',function(){sClick();paused=false;$('pauseScr').classList.add('hidden');});
+$('pauseBtn').addEventListener('click',function(e){e.stopPropagation();if(state!=='play'&&state!=='wait')return;sClick();paused=!paused;$('pauseScr').classList.toggle('hidden',!paused);});
+function refreshMute(){$('muteBtn').textContent=muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(e){e.stopPropagation();muted=!muted;try{localStorage.setItem('g100_mute',muted?'1':'0');}catch(e2){}refreshMute();sClick();});
+refreshMute();
+for(var s=0;s<90;s++)stars.push({x:Math.random()*W,y:Math.random()*H,s:.6+Math.random()*1.8,p:Math.random()*6.28});
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
