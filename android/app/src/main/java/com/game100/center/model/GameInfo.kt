@@ -10,7 +10,8 @@ data class RemoteGame(
     val color: String,
     val category: String,
     val url: String,
-    val size: Long
+    val size: Long,
+    val premium: Boolean = false
 )
 
 /** 已安装到本地的游戏 */
@@ -21,7 +22,8 @@ data class InstalledGame(
     val version: Int,
     val icon: String,
     val color: String,
-    val category: String
+    val category: String,
+    val premium: Boolean = false
 )
 
 /** 大厅列表展示用（本地 + 远端合并） */
@@ -34,7 +36,8 @@ data class GameItem(
     val category: String,
     val installedVersion: Int,
     val remote: RemoteGame?,
-    val isNew: Boolean = false
+    val isNew: Boolean = false,
+    val isPremium: Boolean = false
 ) {
     val installed: Boolean get() = installedVersion > 0
     val hasUpdate: Boolean get() = installed && remote != null && remote.version > installedVersion

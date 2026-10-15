@@ -109,7 +109,8 @@ class GameRepository(private val context: Context) {
                         version = meta.optInt("version", 1),
                         icon = meta.optString("icon", "🎮"),
                         color = meta.optString("color", "#607D8B"),
-                        category = meta.optString("category", "经典重温")
+                        category = meta.optString("category", "经典重温"),
+                        premium = meta.optBoolean("premium", false)
                     )
                 )
             } catch (e: Exception) {
@@ -169,6 +170,7 @@ class GameRepository(private val context: Context) {
         val remoteById = remote.associateBy { it.id }
         val items = mutableListOf<GameItem>()
         for ((id, ins) in installed) {
+            val rem = remoteById[id]
             items.add(
                 GameItem(
                     id = id,
@@ -178,8 +180,9 @@ class GameRepository(private val context: Context) {
                     color = ins.color,
                     category = ins.category.ifBlank { "经典重温" },
                     installedVersion = ins.version,
-                    remote = remoteById[id],
-                    isNew = isNewGame(id)
+                    remote = rem,
+                    isNew = isNewGame(id),
+                    isPremium = ins.premium || (rem?.premium == true)
                 )
             )
         }
@@ -195,7 +198,8 @@ class GameRepository(private val context: Context) {
                         category = r.category.ifBlank { "休闲趣味" },
                         installedVersion = 0,
                         remote = r,
-                        isNew = isNewGame(r.id)
+                        isNew = isNewGame(r.id),
+                        isPremium = r.premium
                     )
                 )
             }

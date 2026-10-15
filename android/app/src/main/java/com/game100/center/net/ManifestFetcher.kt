@@ -36,7 +36,8 @@ object ManifestFetcher {
                         color = o.optString("color", "#607D8B"),
                         category = o.optString("category", "休闲趣味"),
                         url = o.optString("url", ""),
-                        size = o.optLong("size", 0)
+                        size = o.optLong("size", 0),
+                        premium = o.optBoolean("premium", false)
                     )
                 )
             }

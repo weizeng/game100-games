@@ -41,7 +41,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var featAdapter: FeaturedAdapter
     private lateinit var swipe: SwipeRefreshLayout
 
-    private val categories = listOf("全部", "街机动作", "益智解谜", "休闲趣味", "经典重温")
+    private val categories = listOf("全部", "精品", "街机动作", "益智解谜", "休闲趣味", "经典重温")
     private var selectedCat = "全部"
     private var searchQuery = ""
     private var allItems: List<GameItem> = emptyList()
@@ -162,7 +162,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyFilter() {
-        var filtered = if (selectedCat == "全部") allItems else allItems.filter { it.category == selectedCat }
+        var filtered = when (selectedCat) {
+            "全部" -> allItems
+            "精品" -> allItems.filter { it.isPremium }
+            else -> allItems.filter { it.category == selectedCat }
+        }
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.trim()
             filtered = filtered.filter {
@@ -179,14 +183,16 @@ class MainActivity : AppCompatActivity() {
         applyFilter()
         findViewById<TextView>(R.id.tv_subtitle).text =
             getString(R.string.subtitle_games, items.size)
-        // 新上架轮播：取 NEW 游戏，最多 8 款
-        val newGames = items.filter { it.isNew }.take(8)
+        // 新上架轮播：精品优先，其次 NEW 游戏，最多 8 款
+        val featGames = (items.filter { it.isPremium } + items.filter { it.isNew && !it.isPremium })
+            .distinctBy { it.id }.take(8)
         val featTitle = findViewById<TextView>(R.id.feat_title)
         val featRecycler = findViewById<RecyclerView>(R.id.feat_recycler)
-        if (newGames.isNotEmpty()) {
+        if (featGames.isNotEmpty()) {
             featTitle.visibility = View.VISIBLE
+            featTitle.text = if (items.any { it.isPremium }) "精品力作" else "新上架"
             featRecycler.visibility = View.VISIBLE
-            featAdapter.submit(newGames)
+            featAdapter.submit(featGames)
         } else {
             featTitle.visibility = View.GONE
             featRecycler.visibility = View.GONE
@@ -322,6 +328,14 @@ class MainActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
+    private fun formatSize(bytes: Long): String {
+        return when {
+            bytes >= 1024 * 1024 -> String.format("%.1fMB", bytes / (1024.0 * 1024.0))
+            bytes >= 1024 -> String.format("%.0fKB", bytes / 1024.0)
+            else -> "$bytes B"
+        }
+    }
+
     @SuppressLint("InflateParams")
     private fun downloadGame(item: GameItem) {
         val remote = item.remote ?: return
@@ -338,10 +352,18 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val tmp = File(repo.downloadDir, "${item.id}.zip.tmp")
+                val totalSize = remote.size
                 GameDownloader.download(remote.url, tmp) { p ->
                     launch(Dispatchers.Main) {
                         progressBar.progress = p
-                        progressText.text = "$p%"
+                        // 显示 MB 进度：1.2MB / 3.5MB (34%)
+                        val text = if (totalSize > 0) {
+                            val done = p * totalSize / 100
+                            "${formatSize(done)} / ${formatSize(totalSize)} ($p%)"
+                        } else {
+                            "$p%"
+                        }
+                        progressText.text = text
                     }
                 }
                 // 解压安装

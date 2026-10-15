@@ -45,6 +45,7 @@ class GameRowAdapter(
         }
         h.name.text = item.name
         val subText = buildString {
+            if (item.isPremium) append("⭐精品 · ")
             if (item.isNew) append("NEW · ")
             append(item.category)
             if (item.installed) append(" · v${item.installedVersion}")
