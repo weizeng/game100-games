@@ -36,6 +36,11 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        /** 游戏详情页用的缓存：id -> RemoteGame */
+        val gameCache = mutableMapOf<String, RemoteGame>()
+    }
+
     private lateinit var repo: GameRepository
     private lateinit var adapter: GameRowAdapter
     private lateinit var featAdapter: FeaturedAdapter
@@ -247,6 +252,7 @@ class MainActivity : AppCompatActivity() {
             }
             if (remote != null && remote.isNotEmpty()) {
                 lastRemote = remote
+                remote.forEach { gameCache[it.id] = it }
                 repo.updateSeenGames(remote)
                 val merged = repo.buildGameList(remote)
                 withContext(Dispatchers.Main) { showItems(merged) }
@@ -323,8 +329,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openGame(id: String) {
-        val intent = Intent(this, GameActivity::class.java)
-        intent.putExtra(GameActivity.EXTRA_GAME_ID, id)
+        // 确保详情页能拿到数据：先从缓存找，找不到从 allItems 构造
+        if (!gameCache.containsKey(id)) {
+            allItems.find { it.id == id }?.let { item ->
+                val rg = item.remote ?: RemoteGame(
+                    id = item.id, name = item.name, desc = item.desc,
+                    version = item.installedVersion, icon = item.icon, color = item.color,
+                    category = item.category, url = "", size = 0, premium = item.isPremium
+                )
+                gameCache[id] = rg
+            }
+        }
+        val intent = Intent(this, GameDetailActivity::class.java)
+        intent.putExtra("game_id", id)
         startActivity(intent)
     }
 

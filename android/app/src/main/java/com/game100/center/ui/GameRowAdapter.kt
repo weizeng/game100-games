@@ -24,6 +24,7 @@ class GameRowAdapter(
         val icon: TextView = v.findViewById(R.id.row_icon)
         val name: TextView = v.findViewById(R.id.row_name)
         val sub: TextView = v.findViewById(R.id.row_sub)
+        val rating: TextView = v.findViewById(R.id.row_rating)
         val action: TextView = v.findViewById(R.id.row_action)
     }
 
@@ -52,6 +53,16 @@ class GameRowAdapter(
             if (item.hasUpdate) append(" → v${item.remote!!.version}")
         }
         h.sub.text = subText
+
+        // 星级评分显示
+        val userData = com.game100.center.data.UserData(ctx)
+        val rating = userData.getRating(item.id)
+        if (rating > 0) {
+            h.rating.visibility = View.VISIBLE
+            h.rating.text = "⭐".repeat(rating) + "☆".repeat(5 - rating)
+        } else {
+            h.rating.visibility = View.GONE
+        }
 
         val actionText = when {
             item.hasUpdate -> ctx.getString(R.string.update_now)

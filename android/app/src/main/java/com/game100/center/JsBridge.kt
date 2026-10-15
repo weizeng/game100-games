@@ -8,8 +8,11 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.webkit.JavascriptInterface
 
-/** 游戏网页可调用的原生能力：window.NativeBridge.vibrate(50) / .exit() */
-class JsBridge(private val activity: Activity) {
+/** 游戏网页可调用的原生能力：window.NativeBridge.vibrate(50) / .exit() / .reportScore(1234) */
+class JsBridge(
+    private val activity: Activity,
+    private val onScore: ((Int) -> Unit)? = null
+) {
 
     @JavascriptInterface
     fun vibrate(ms: Long) {
@@ -35,5 +38,11 @@ class JsBridge(private val activity: Activity) {
     @JavascriptInterface
     fun exit() {
         activity.runOnUiThread { activity.finish() }
+    }
+
+    /** 游戏结束上报分数：window.NativeBridge.reportScore(1234) */
+    @JavascriptInterface
+    fun reportScore(score: Int) {
+        activity.runOnUiThread { onScore?.invoke(score) }
     }
 }
