@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>冰壶 - 游戏100</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#0b1622; }
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:#e8f4fd;
+         display:flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; }
+  #wrap { position:relative; width:400px; max-width:100vw; }
+  #hud { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; }
+  #score { font-size:15px; font-weight:bold; letter-spacing:1px; }
+  #score .me { color:#4FC3F7; } #score .ai { color:#ff8a65; }
+  #round { font-size:13px; color:#9fc3dd; }
+  .hbtn { width:44px; height:44px; font-size:20px; background:#16283a; color:#e8f4fd;
+          border:1px solid #2c4a63; border-radius:10px; cursor:pointer; }
+  .hbtn:active { transform:scale(.94); }
+  canvas { display:block; width:400px; max-width:100vw; height:560px; max-height:calc(100vh - 120px);
+           background:#0e1d2e; border-radius:12px; touch-action:none; }
+  #tip { text-align:center; font-size:13px; color:#9fc3dd; padding:6px 10px; min-height:32px; }
+  .overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+             background:rgba(4,10,18,.82); border-radius:12px; z-index:10; }
+  .panel { background:#13273c; border:1px solid #2c4a63; border-radius:16px; padding:28px 24px;
+           width:320px; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,.5); }
+  .panel h1 { font-size:30px; margin-bottom:8px; }
+  .panel h2 { font-size:22px; margin-bottom:10px; }
+  .panel p { font-size:14px; color:#9fc3dd; line-height:1.7; margin-bottom:14px; }
+  .panel .best { font-size:13px; color:#ffd54f; margin-bottom:14px; }
+  .bigbtn { display:block; width:100%; padding:14px; margin-top:8px; font-size:17px; font-weight:bold;
+            color:#06283a; background:linear-gradient(180deg,#7fd4fb,#4FC3F7); border:none;
+            border-radius:12px; cursor:pointer; }
+  .bigbtn:active { transform:scale(.97); }
+  .bigbtn.ghost { background:#1c3448; color:#e8f4fd; border:1px solid #2c4a63; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <button class="hbtn" id="btnPause">⏸</button>
+    <div style="text-align:center">
+      <div id="score"><span class="me">你 0</span> : <span class="ai">0 AI</span></div>
+      <div id="round">第 1 / 8 轮</div>
+    </div>
+    <button class="hbtn" id="btnMute">🔊</button>
+  </div>
+  <canvas id="cv" width="400" height="560"></canvas>
+  <div id="tip">按住蓝色冰壶向后拖拽蓄力，松手掷出</div>
+
+  <div class="overlay" id="ovStart">
+    <div class="panel">
+      <h1>🥌 冰壶</h1>
+      <p>拖拽掷壶擦冰占营<br>8 轮对战 AI，每轮双方各掷一壶<br>轮末离营垒中心最近者得 1 分<br>可撞开对方的壶，也别滑出界！</p>
+      <div class="best" id="startBest"></div>
+      <button class="bigbtn" id="btnStart">开始比赛</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="ovPause">
+    <div class="panel">
+      <h2>⏸ 已暂停</h2>
+      <button class="bigbtn" id="btnResume">继续</button>
+      <button class="bigbtn ghost" id="btnRestart1">重新开始</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="ovEnd">
+    <div class="panel">
+      <h2 id="endTitle">🏆 胜利！</h2>
+      <p id="endDetail"></p>
+      <div class="best" id="endBest"></div>
+      <button class="bigbtn" id="btnRestart2">再来一局</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+(function(){
+  var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  var W = 400, H = 560;
+  var HX = 200, HY = 118;                 // 营垒中心
+  var R_OUT = 96, R_MID = 62, R_IN = 30;  // 1分区/5分圈/10分圈
+  var STONE_R = 15;
+  var START_Y = 478;                      // 发球区
+  var FRICTION = 0.986, STOP_V = 14;      // 摩擦 / 停壶阈值(px/s)
+  var MAXPULL = 170;                      // 最大拖拽距离
+
+  var state = 'menu';   // menu|aim|flying|aiwait|settle|over
+  var paused = false;
+  var round = 1, scoreMe = 0, scoreAi = 0;
+  var stones = [];      // {x,y,vx,vy,mine}
+  var turnMine = true;  // 本轮谁先掷由轮次决定
+  var drag = null;      // {sx,sy,dx,dy}
+  var particles = [], floats = [];
+  var best = parseInt(localStorage.getItem('g100_icecurl_best') || '0', 10) || 0;
+  var muted = localStorage.getItem('g100_mute') === '1';
+
+  // ---------- 音效 ----------
+  var AC = null;
+  function ac(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+  function tone(f, t, dur, type, vol){
+    if(muted) return; var a = ac(); if(!a) return;
+    try{
+      var o = a.createOscillator(), g = a.createGain();
+      o.type = type || 'sine'; o.frequency.value = f;
+      var s = a.currentTime + (t || 0);
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(vol || .18, s + .012);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + dur);
+      o.connect(g); g.connect(a.destination);
+      o.start(s); o.stop(s + dur + .05);
+    }catch(e){}
+  }
+  function sndThrow(){ if(muted) return; var a=ac(); if(!a) return;
+    try{ var o=a.createOscillator(),g=a.createGain(); o.type='sawtooth';
+      o.frequency.setValueAtTime(220,a.currentTime); o.frequency.exponentialRampToValueAtTime(90,a.currentTime+.28);
+      g.gain.setValueAtTime(.12,a.currentTime); g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.3);
+      o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+.32);}catch(e){} }
+  function sndHit(power){ tone(180+Math.min(600,power*.9), 0, .09, 'square', .16); tone(90,0,.12,'triangle',.14); }
+  function sndScore(){ tone(660,0,.12,'sine',.2); tone(880,.1,.18,'sine',.2); }
+  function sndWin(){ var n=[523,659,784,1047]; for(var i=0;i<n.length;i++) tone(n[i],i*.13,.22,'triangle',.2); }
+  function sndLose(){ var n=[392,330,262]; for(var i=0;i<n.length;i++) tone(n[i],i*.16,.24,'triangle',.16); }
+  function sndClick(){ tone(520,0,.06,'square',.1); }
+  function vibrate(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+
+  // ---------- 界面 ----------
+  var elScore=document.getElementById('score'), elRound=document.getElementById('round'),
+      elTip=document.getElementById('tip'), btnMute=document.getElementById('btnMute');
+  function refreshHud(){
+    elScore.innerHTML = '<span class="me">你 '+scoreMe+'</span> : <span class="ai">'+scoreAi+' AI</span>';
+    elRound.textContent = state==='over' ? '比赛结束' : ('第 '+round+' / 8 轮');
+  }
+  function setTip(t){ elTip.textContent = t; }
+  function refreshMute(){ btnMute.textContent = muted ? '🔇' : '🔊'; }
+  function showBest(){ document.getElementById('startBest').textContent = best>0 ? ('历史最佳：你 '+best+' 分') : ''; }
+  refreshMute(); showBest(); refreshHud();
+
+  btnMute.addEventListener('click', function(){
+    muted = !muted; localStorage.setItem('g100_mute', muted?'1':'0'); refreshMute(); if(!muted) sndClick();
+  });
+  document.getElementById('btnPause').addEventListener('click', function(){
+    if(state==='menu'||state==='over') return; sndClick();
+    paused = true; document.getElementById('ovPause').classList.remove('hidden');
+  });
+  function hidePause(){ paused=false; document.getElementById('ovPause').classList.add('hidden'); }
+  document.getElementById('btnResume').addEventListener('click', function(){ sndClick(); hidePause(); });
+  document.getElementById('btnStart').addEventListener('click', function(){ sndClick(); startGame(); });
+  document.getElementById('btnRestart1').addEventListener('click', function(){ sndClick(); hidePause(); startGame(); });
+  document.getElementById('btnRestart2').addEventListener('click', function(){ sndClick(); startGame(); });
+
+  function startGame(){
+    document.getElementById('ovStart').classList.add('hidden');
+    document.getElementById('ovEnd').classList.add('hidden');
+    hidePause();
+    round=1; scoreMe=0; scoreAi=0; stones=[]; particles=[]; floats=[];
+    refreshHud(); beginRound();
+  }
+
+  // ---------- 回合流程 ----------
+  function beginRound(){
+    stones = [];
+    // 双方各一壶在发球区等待
+    stones.push({x:200,y:START_Y,vx:0,vy:0,mine:true,thrown:false});
+    stones.push({x:200,y:START_Y+52,vx:0,vy:0,mine:false,thrown:false});
+    turnMine = (round % 2 === 1);   // 单数轮你先掷，双数轮AI先掷
+    refreshHud();
+    setTip(turnMine ? '第 '+round+' 轮：按住蓝色冰壶向后拖拽，松手掷出' : '第 '+round+' 轮：AI 先掷…');
+    if(turnMine){ state='aim'; }
+    else { state='aiwait'; setTimeout(function(){ if(!paused && state==='aiwait') aiThrow(); }, 900); }
+  }
+
+  function playerStone(){ for(var i=0;i<stones.length;i++) if(stones[i].mine && !stones[i].thrown) return stones[i]; return null; }
+  function aiStone(){ for(var i=0;i<stones.length;i++) if(!stones[i].mine && !stones[i].thrown) return stones[i]; return null; }
+
+  // 玩家掷壶：拖拽
+  function ptr(e){ var r=cv.getBoundingClientRect();
+    return { x:(e.clientX-r.left)*(W/r.width), y:(e.clientY-r.top)*(H/r.height) }; }
+  cv.addEventListener('pointerdown', function(e){
+    if(state!=='aim' || paused) return;
+    var p=ptr(e);
+    var s=playerStone(); if(!s) return;
+    var dx=p.x-s.x, dy=p.y-s.y;
+    if(dx*dx+dy*dy < 60*60){ drag={sx:s.x, sy:s.y, dx:0, dy:0, stone:s}; e.preventDefault(); }
+  });
+  cv.addEventListener('pointermove', function(e){
+    if(!drag) return; var p=ptr(e);
+    drag.dx=p.x-drag.sx; drag.dy=p.y-drag.sy;
+    var len=Math.hypot(drag.dx,drag.dy);
+    if(len>MAXPULL){ drag.dx*=MAXPULL/len; drag.dy*=MAXPULL/len; }
+  });
+  function endDrag(){
+    if(!drag) return;
+    var len=Math.hypot(drag.dx,drag.dy), s=drag.stone; drag=null;
+    if(len<24){ setTip('拖拽距离太短，再用力一点向后拉'); return; }
+    // 方向 = 拖拽反方向（向后拉 → 向前掷）
+    var nx=-drag.dx/len, ny=-drag.dy/len;
+    var power=Math.min(1, len/MAXPULL);
+    var v0=260+power*760;
+    s.vx=nx*v0; s.vy=ny*v0; s.thrown=true;
+    sndThrow(); state='flying'; setTip('掷出！');
+  }
+  cv.addEventListener('pointerup', endDrag);
+  cv.addEventListener('pointercancel', function(){ drag=null; });
+
+  // AI 掷壶
+  function aiThrow(){
+    var s=aiStone(); if(!s){ nextAfterThrow(); return; }
+    // 目标：70% 概率撞击营内最近的你的壶，否则瞄准中心附近
+    var tx=HX+(Math.random()*44-22), ty=HY+(Math.random()*44-22), boost=1.0;
+    var mineIn=[]; for(var i=0;i<stones.length;i++){ var st=stones[i];
+      if(st.mine){ var d=Math.hypot(st.x-HX,st.y-HY); if(d<R_OUT) mineIn.push({s:st,d:d}); } }
+    mineIn.sort(function(a,b){return a.d-b.d;});
+    if(mineIn.length && Math.random()<0.7){ tx=mineIn[0].s.x; ty=mineIn[0].s.y; boost=1.12; }
+    var dx=tx-s.x, dy=ty-s.y, dist=Math.hypot(dx,dy)||1;
+    // 指数摩擦下 v0 ≈ dist*60*(1-FRICTION)；加随机误差
+    var v0=dist*60*(1-FRICTION)*boost*(0.94+Math.random()*0.14);
+    v0=Math.min(v0, 1000);
+    s.vx=dx/dist*v0; s.vy=dy/dist*v0; s.thrown=true;
+    sndThrow(); state='flying'; setTip('AI 掷壶…');
+  }
+
+  function nextAfterThrow(){
+    // 一方掷完：轮到另一方
+    var meDone = !playerStone(), aiDone = !aiStone();
+    if(!meDone && !aiDone){ /* 不可能 */ }
+    if(meDone && aiDone){ settleRound(); return; }
+    if(meDone){ state='aiwait'; setTip('AI 掷壶…');
+      setTimeout(function(){ if(!paused && state==='aiwait') aiThrow(); }, 800); }
+    else { state='aim'; setTip('轮到你掷壶：按住蓝色冰壶向后拖拽'); }
+  }
+
+  function settleRound(){
+    state='settle';
+    // 出界移除
+    stones=stones.filter(function(s){ return s.x>-30&&s.x<W+30&&s.y>-30&&s.y<H+30; });
+    var bestD=1e9, winner=null;
+    for(var i=0;i<stones.length;i++){ var s=stones[i];
+      var d=Math.hypot(s.x-HX,s.y-HY);
+      if(d<R_OUT && d<bestD){ bestD=d; winner=s.mine?'me':'ai'; } }
+    if(winner==='me'){ scoreMe++; sndScore(); addFloat(HX,HY-70,'+1', '#4FC3F7'); burst(HX,HY,26,'#4FC3F7'); setTip('本轮你离中心最近，得 1 分！'); }
+    else if(winner==='ai'){ scoreAi++; sndScore(); addFloat(HX,HY-70,'+1','#ff8a65'); burst(HX,HY,26,'#ff8a65'); setTip('本轮 AI 更接近中心，AI 得 1 分'); }
+    else { setTip('本轮营垒内无壶，双方均不得分'); }
+    refreshHud();
+    (function waitGo(){
+      setTimeout(function(){
+        if(paused){ waitGo(); return; }
+        if(round>=8){ endGame(); } else { round++; beginRound(); }
+      }, 400);
+    })();
+  }
+
+  function endGame(){
+    state='over'; refreshHud();
+    var t=document.getElementById('endTitle'), d=document.getElementById('endDetail');
+    if(scoreMe>scoreAi){ t.textContent='🏆 胜利！'; sndWin(); burst(200,280,60,'#ffd54f'); }
+    else if(scoreMe<scoreAi){ t.textContent='😅 惜败'; sndLose(); }
+    else { t.textContent='🤝 平局'; sndScore(); }
+    d.textContent='最终比分 你 '+scoreMe+' : '+scoreAi+' AI';
+    if(scoreMe>best){ best=scoreMe; localStorage.setItem('g100_icecurl_best', String(best)); }
+    document.getElementById('endBest').textContent='历史最佳：你 '+best+' 分';
+    showBest();
+    document.getElementById('ovEnd').classList.remove('hidden');
+  }
+
+  // ---------- 物理 ----------
+
+  function step(dt){
+    var moving=false;
+    for(var i=0;i<stones.length;i++){ var s=stones[i];
+      if(!s.thrown) continue;
+      s.x+=s.vx*dt; s.y+=s.vy*dt;
+      var f=Math.pow(FRICTION, dt*60);
+      s.vx*=f; s.vy*=f;
+      if(Math.hypot(s.vx,s.vy)<STOP_V){ s.vx=0; s.vy=0; }
+      else moving=true;
+    }
+    // 壶间碰撞（等质量弹性近似）
+    for(var a=0;a<stones.length;a++) for(var b=a+1;b<stones.length;b++){
+      var A=stones[a],B=stones[b];
+      if(!A.thrown||!B.thrown) continue;
+      var dx=B.x-A.x, dy=B.y-A.y, dist=Math.hypot(dx,dy), min=STONE_R*2;
+      if(dist>0 && dist<min){
+        var nx=dx/dist, ny=dy/dist, overlap=(min-dist)/2;
+        A.x-=nx*overlap; A.y-=ny*overlap; B.x+=nx*overlap; B.y+=ny*overlap;
+        var avn=A.vx*nx+A.vy*ny, bvn=B.vx*nx+B.vy*ny;
+        // 沿法线交换速度，切向分量保留
+        var Atnx=A.vx-avn*nx, Atny=A.vy-avn*ny;
+        var Btnx=B.vx-bvn*nx, Btny=B.vy-bvn*ny;
+        A.vx=Atnx+bvn*nx; A.vy=Atny+bvn*ny;
+        B.vx=Btnx+avn*nx; B.vy=Btny+avn*ny;
+        var impact=Math.abs(avn-bvn);
+        if(impact>60){ sndHit(impact); vibrate(35); burst((A.x+B.x)/2,(A.y+B.y)/2,10,'#ffffff'); }
+        moving=true;
+      }
+    }
+    if(state==='flying' && !moving){
+      // 全部停下
+      for(var k=0;k<stones.length;k++){ stones[k].vx=0; stones[k].vy=0; }
+      nextAfterThrow();
+    }
+  }
+
+  // ---------- 粒子 / 飘字 ----------
+  function burst(x,y,n,color){ for(var i=0;i<n;i++){ var a=Math.random()*Math.PI*2, sp=40+Math.random()*140;
+    particles.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.6+Math.random()*.4,t:0,color:color,r:2+Math.random()*3}); } }
+  function addFloat(x,y,txt,color){ floats.push({x:x,y:y,txt:txt,color:color,t:0}); }
+
+  // ---------- 绘制 ----------
+  function drawHouse(){
+    ctx.save();
+    // 冰面底
+    var g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#12324e'); g.addColorStop(1,'#0d2036');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // 冰面划痕
+    ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+    for(var i=0;i<14;i++){ var y=(i*97)%H;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y+14); ctx.stroke(); }
+    // 营垒同心圆
+    var rings=[[R_OUT,'rgba(79,195,247,0.16)','1分区'],[R_MID,'rgba(79,195,247,0.28)','5分圈'],[R_IN,'rgba(255,213,79,0.5)','10分圈']];
+    for(var r=0;r<rings.length;r++){
+      ctx.beginPath(); ctx.arc(HX,HY,rings[r][0],0,Math.PI*2);
+      ctx.fillStyle=rings[r][1]; ctx.fill();
+      ctx.strokeStyle='rgba(232,244,253,0.75)'; ctx.lineWidth=2; ctx.stroke();
+      ctx.fillStyle='rgba(232,244,253,0.85)'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+      ctx.fillText(rings[r][2], HX, HY-rings[r][0]+14);
+    }
+    ctx.beginPath(); ctx.arc(HX,HY,4,0,Math.PI*2); ctx.fillStyle='#ffd54f'; ctx.fill();
+    // 中线 & 发球区
+    ctx.strokeStyle='rgba(232,244,253,0.25)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(20,HY+R_OUT+26); ctx.lineTo(W-20,HY+R_OUT+26); ctx.stroke();
+    ctx.strokeStyle='rgba(79,195,247,0.4)';
+    ctx.strokeRect(120, START_Y-34, 160, 96);
+    ctx.fillStyle='rgba(159,195,221,0.8)'; ctx.font='12px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('发 球 区', 200, START_Y+52);
+    ctx.restore();
+  }
+  function drawStone(s){
+    ctx.save();
+    ctx.shadowColor='rgba(0,0,0,0.45)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
+    var g=ctx.createRadialGradient(s.x-5,s.y-6,3,s.x,s.y,STONE_R+2);
+    if(s.mine){ g.addColorStop(0,'#bfe9fd'); g.addColorStop(.6,'#4FC3F7'); g.addColorStop(1,'#1c6d96'); }
+    else { g.addColorStop(0,'#ffd9c7'); g.addColorStop(.6,'#ff8a65'); g.addColorStop(1,'#a03d1f'); }
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(s.x,s.y,STONE_R,0,Math.PI*2); ctx.fill();
+    ctx.shadowColor='transparent';
+    ctx.strokeStyle='rgba(255,255,255,0.7)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(s.x,s.y,STONE_R-5,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.font='13px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(s.mine?'你':'AI', s.x, s.y+1); ctx.textBaseline='alphabetic';
+    ctx.restore();
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    drawHouse();
+    for(var i=0;i<stones.length;i++) drawStone(stones[i]);
+    // 瞄准线
+    if(drag && state==='aim'){
+      var len=Math.hypot(drag.dx,drag.dy);
+      if(len>8){
+        var nx=-drag.dx/len, ny=-drag.dy/len, power=Math.min(1,len/MAXPULL);
+        ctx.save();
+        ctx.strokeStyle='rgba(255,213,79,0.9)'; ctx.lineWidth=3; ctx.setLineDash([8,6]);
+        ctx.beginPath(); ctx.moveTo(drag.sx,drag.sy);
+        ctx.lineTo(drag.sx+nx*(40+power*220), drag.sy+ny*(40+power*220)); ctx.stroke();
+        ctx.setLineDash([]);
+        // 力度条
+        ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(drag.sx-60, drag.sy+34, 120, 10);
+        ctx.fillStyle=power>0.8?'#ff5252':(power>0.5?'#ffd54f':'#69f0ae');
+        ctx.fillRect(drag.sx-60, drag.sy+34, 120*power, 10);
+        ctx.restore();
+      }
+    }
+    // 粒子
+    for(var p=particles.length-1;p>=0;p--){ var pt=particles[p];
+      ctx.globalAlpha=Math.max(0,1-pt.t/pt.life);
+      ctx.fillStyle=pt.color; ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.r,0,Math.PI*2); ctx.fill(); }
+    ctx.globalAlpha=1;
+    // 飘字
+    ctx.textAlign='center';
+    for(var f=floats.length-1;f>=0;f--){ var fl=floats[f];
+      ctx.globalAlpha=Math.max(0,1-fl.t/1.1);
+      ctx.font='bold 26px sans-serif'; ctx.fillStyle=fl.color;
+      ctx.fillText(fl.txt, fl.x, fl.y-fl.t*46); }
+    ctx.globalAlpha=1;
+  }
+
+  // ---------- 主循环 ----------
+  var last=0;
+  function loop(ts){
+    requestAnimationFrame(loop);
+    if(paused){ last=ts; return; }
+    var dt=Math.min(0.05,(ts-last)/1000||0.016); last=ts;
+    if(state==='flying'){ step(dt); }
+    for(var i=particles.length-1;i>=0;i--){ var p=particles[i];
+      p.t+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=.96; p.vy*=.96;
+      if(p.t>=p.life) particles.splice(i,1); }
+    for(var j=floats.length-1;j>=0;j--){ floats[j].t+=dt; if(floats[j].t>1.1) floats.splice(j,1); }
+    draw();
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

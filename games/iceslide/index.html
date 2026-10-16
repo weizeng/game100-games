@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>冰滑块 - 游戏100</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#0b1622; }
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:#e8f4fd;
+         display:flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; }
+  #wrap { position:relative; width:400px; max-width:100vw; }
+  #hud { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; }
+  #info { text-align:center; }
+  #level { font-size:15px; font-weight:bold; }
+  #steps { font-size:13px; color:#9fc3dd; }
+  .hbtn { width:44px; height:44px; font-size:20px; background:#16283a; color:#e8f4fd;
+          border:1px solid #2c4a63; border-radius:10px; cursor:pointer; }
+  .hbtn:active { transform:scale(.94); }
+  canvas { display:block; width:400px; max-width:100vw; height:400px; max-height:52vh;
+           background:#0e1d2e; border-radius:12px; touch-action:none; }
+  #pad { display:grid; grid-template-columns:repeat(3,64px); grid-template-rows:repeat(3,64px);
+         gap:6px; justify-content:center; padding:10px 0 2px; }
+  .dbtn { width:64px; height:64px; font-size:26px; background:#16283a; color:#e8f4fd;
+          border:1px solid #2c4a63; border-radius:14px; cursor:pointer; }
+  .dbtn:active { background:#23415c; transform:scale(.94); }
+  #tip { text-align:center; font-size:13px; color:#9fc3dd; padding:4px 10px; min-height:30px; }
+  .overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+             background:rgba(4,10,18,.84); border-radius:12px; z-index:10; }
+  .panel { background:#13273c; border:1px solid #2c4a63; border-radius:16px; padding:26px 22px;
+           width:330px; max-width:92vw; max-height:86%; overflow-y:auto; text-align:center;
+           box-shadow:0 8px 32px rgba(0,0,0,.5); }
+  .panel h1 { font-size:30px; margin-bottom:8px; }
+  .panel h2 { font-size:21px; margin-bottom:10px; }
+  .panel p { font-size:14px; color:#9fc3dd; line-height:1.75; margin-bottom:12px; text-align:left; }
+  .panel p.center { text-align:center; }
+  .panel .best { font-size:13px; color:#ffd54f; margin-bottom:12px; }
+  .bigbtn { display:block; width:100%; padding:14px; margin-top:8px; font-size:17px; font-weight:bold;
+            color:#06283a; background:linear-gradient(180deg,#9be7f5,#80DEEA); border:none;
+            border-radius:12px; cursor:pointer; }
+  .bigbtn:active { transform:scale(.97); }
+  .bigbtn.ghost { background:#1c3448; color:#e8f4fd; border:1px solid #2c4a63; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <button class="hbtn" id="btnPause">⏸</button>
+    <div id="info">
+      <div id="level">第 1 / 8 关</div>
+      <div id="steps">步数 0 / 10</div>
+    </div>
+    <div>
+      <button class="hbtn" id="btnHint" title="提示">💡</button>
+      <button class="hbtn" id="btnMute">🔊</button>
+    </div>
+  </div>
+  <canvas id="cv" width="400" height="400"></canvas>
+  <div id="pad">
+    <span></span><button class="dbtn" data-d="up">⬆</button><span></span>
+    <button class="dbtn" data-d="left">⬅</button><button class="dbtn" data-d="down">⬇</button><button class="dbtn" data-d="right">➡</button>
+    <span></span><button class="dbtn" data-d="retry" title="重来">🔄</button><span></span>
+  </div>
+  <div id="tip">点选一个滑块，再按方向键（或在滑块上滑动）推动</div>
+
+  <div class="overlay" id="ovStart">
+    <div class="panel">
+      <h1>🧊 冰滑块</h1>
+      <p class="center">一滑到底 8 关烧脑<br>冰块一推就滑到尽头<br>把<b style="color:#ff8a80">红色滑块</b>送进<b style="color:#69f0ae">绿色目标</b>格<br><b style="color:#80DEEA">蓝色滑块</b>可以推动，用来垫脚或清路</p>
+      <div class="best" id="startBest"></div>
+      <button class="bigbtn" id="btnStart">开始挑战</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="ovPause">
+    <div class="panel">
+      <h2>⏸ 已暂停</h2>
+      <button class="bigbtn" id="btnResume">继续</button>
+      <button class="bigbtn ghost" id="btnRestart1">重来本关</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="ovHint">
+    <div class="panel">
+      <h2>💡 解题思路</h2>
+      <p id="hintText"></p>
+      <button class="bigbtn" id="btnHintClose">知道了</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="ovLevel">
+    <div class="panel">
+      <h2 id="lvTitle">🎉 过关！</h2>
+      <p class="center" id="lvDetail"></p>
+      <button class="bigbtn" id="btnNext">下一关</button>
+      <button class="bigbtn ghost" id="btnRetryLv">重玩本关</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="ovOver">
+    <div class="panel">
+      <h2 id="overTitle">步数超限</h2>
+      <p class="center" id="overDetail"></p>
+      <button class="bigbtn" id="btnRetry">重来本关</button>
+      <button class="bigbtn ghost" id="btnKeep">继续尝试</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="ovWin">
+    <div class="panel">
+      <h2>🏆 全部通关！</h2>
+      <p class="center" id="winDetail"></p>
+      <div class="best" id="winBest"></div>
+      <button class="bigbtn" id="btnAgain">再玩一次</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+(function(){
+  // 8 关（已用 BFS 验算可解）：map 图例 #墙 .冰 R红起点 G目标 B蓝块
+  var LEVELS = [
+    { limit:10, hint:'先向右滑，再向下，最后向右滑进绿色格子。',
+      map:['#####','#R.##','##.G#','#####'] },
+    { limit:12, hint:'走回形：右→下→左→下→右，沿着走廊滑到绿格。',
+      map:['########','#R.....#','######.#','#......#','#.######','#.....G#','########'] },
+    { limit:12, hint:'右→下→左→下→右，5步直达，注意每一步都会滑到尽头。',
+      map:['#######','#R...##','####.##','#.....#','#.#####','#...G##','#######'] },
+    { limit:14, hint:'红块先向下滑进走廊；下面的蓝块滑到底，上面的蓝块跟下、再向右滑到绿格右边当刹车；最后红块向右滑进绿格。',
+      map:['#########','#R......#','#.B.....#','#.B..####','#.....G.#','##......#','#########'] },
+    { limit:14, hint:'红块先下去绕一圈到第5列上方；蓝块向下滑、向右滑到绿格下方当刹车；最后红块从上面滑下来正好停在绿格。',
+      map:['#########','#R...#..#','#.B.....#','#.......#','#.......#','#....G..#','#.....#.#','#########'] },
+    { limit:16, hint:'蛇形走廊：右→下→左→下→右→下→左，一口气滑到最左下的绿格。',
+      map:['##########','#R.......#','########.#','#........#','#.########','#........#','########.#','#G.......#','##########'] },
+    { limit:18, hint:'蓝块要跳一支舞：右→上→下→左→下→右，把它送到绿格正下方当刹车；红块先向右让出位置，最后从第5列滑下正中绿格。',
+      map:['#########','#R......#','##B....##','#.......#','#......##','#....G..#','#.....#.#','#########'] },
+    { limit:20, hint:'终极蛇形：右→下→左→下→右→下→左→下→右，9步毫厘不差，滑进右下角绿格。',
+      map:['##########','#R.......#','########.#','#........#','#.########','#........#','########.#','#........#','#.########','#.......G#','##########'] }
+  ];
+
+  var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  var W=400, H=400;
+  var state='menu', paused=false;
+  var lv=0, steps=0, totalSteps=0;
+  var grid=[];        // {w,h,walls:Set,goal:{x,y}}
+  var red={x:0,y:0}, blues=[];
+  var sel=null;       // {kind:'red'|'blue', idx}
+  var anim=null;      // {blk,fx,fy,tx,ty,t}
+  var particles=[];
+  var best=parseInt(localStorage.getItem('g100_iceslide_best')||'0',10)||0;
+  var muted=localStorage.getItem('g100_mute')==='1';
+
+  // ---------- 音效 ----------
+  var AC=null;
+  function ac(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+  function tone(f,t,dur,type,vol){
+    if(muted) return; var a=ac(); if(!a) return;
+    try{ var o=a.createOscillator(),g=a.createGain();
+      o.type=type||'sine'; o.frequency.value=f;
+      var s=a.currentTime+(t||0);
+      g.gain.setValueAtTime(.0001,s); g.gain.exponentialRampToValueAtTime(vol||.16,s+.012);
+      g.gain.exponentialRampToValueAtTime(.0001,s+dur);
+      o.connect(g); g.connect(a.destination); o.start(s); o.stop(s+dur+.05);
+    }catch(e){}
+  }
+  function sndPush(){ tone(300,0,.14,'sine',.14); tone(420,.05,.1,'sine',.1); }
+  function sndWall(){ tone(140,0,.12,'square',.14); }
+  function sndClear(){ tone(660,0,.12,'sine',.2); tone(880,.1,.2,'sine',.2); }
+  function sndWin(){ var n=[523,659,784,1047,1319]; for(var i=0;i<n.length;i++) tone(n[i],i*.12,.22,'triangle',.2); }
+  function sndClick(){ tone(520,0,.06,'square',.1); }
+  function vibrate(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+
+  // ---------- 界面 ----------
+  var elLevel=document.getElementById('level'), elSteps=document.getElementById('steps'),
+      elTip=document.getElementById('tip'), btnMute=document.getElementById('btnMute');
+  function refreshHud(){
+    elLevel.textContent='第 '+(lv+1)+' / 8 关';
+    elSteps.textContent='步数 '+steps+' / '+LEVELS[lv].limit;
+  }
+  function setTip(t){ elTip.textContent=t; }
+  function refreshMute(){ btnMute.textContent=muted?'🔇':'🔊'; }
+  refreshMute();
+  document.getElementById('startBest').textContent = best>0 ? ('历史最佳：通关 '+best+' / 8 关') : '';
+  btnMute.addEventListener('click',function(){ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); refreshMute(); if(!muted) sndClick(); });
+  document.getElementById('btnPause').addEventListener('click',function(){
+    if(state!=='play') return; sndClick(); paused=true;
+    document.getElementById('ovPause').classList.remove('hidden');
+  });
+  document.getElementById('btnResume').addEventListener('click',function(){ sndClick(); paused=false; document.getElementById('ovPause').classList.add('hidden'); });
+  document.getElementById('btnRestart1').addEventListener('click',function(){ sndClick(); paused=false; document.getElementById('ovPause').classList.add('hidden'); loadLevel(lv); });
+  document.getElementById('btnStart').addEventListener('click',function(){ sndClick(); startGame(); });
+  document.getElementById('btnHint').addEventListener('click',function(){
+    if(state!=='play') return; sndClick();
+    document.getElementById('hintText').textContent=LEVELS[lv].hint;
+    document.getElementById('ovHint').classList.remove('hidden');
+  });
+  document.getElementById('btnHintClose').addEventListener('click',function(){ sndClick(); document.getElementById('ovHint').classList.add('hidden'); });
+  document.getElementById('btnNext').addEventListener('click',function(){ sndClick(); document.getElementById('ovLevel').classList.add('hidden'); loadLevel(lv+1); });
+  document.getElementById('btnRetryLv').addEventListener('click',function(){ sndClick(); document.getElementById('ovLevel').classList.add('hidden'); loadLevel(lv); });
+  document.getElementById('btnRetry').addEventListener('click',function(){ sndClick(); document.getElementById('ovOver').classList.add('hidden'); loadLevel(lv); });
+  document.getElementById('btnKeep').addEventListener('click',function(){ sndClick(); document.getElementById('ovOver').classList.add('hidden'); state='play'; });
+  document.getElementById('btnAgain').addEventListener('click',function(){ sndClick(); document.getElementById('ovWin').classList.add('hidden'); startGame(); });
+
+  var padBtns=document.querySelectorAll('.dbtn');
+  for(var i=0;i<padBtns.length;i++){
+    padBtns[i].addEventListener('click',function(){
+      var d=this.getAttribute('data-d'); sndClick();
+      if(d==='retry'){ loadLevel(lv); return; }
+      pushSel(d);
+    });
+  }
+
+  function startGame(){
+    document.getElementById('ovStart').classList.add('hidden');
+    lv=0; totalSteps=0; loadLevel(0);
+  }
+
+  function loadLevel(n){
+    if(n>=LEVELS.length){ winGame(); return; }
+    lv=n; steps=0; sel=null; anim=null; particles=[];
+    var mp=LEVELS[n].map, h=mp.length, w=mp[0].length;
+    grid={w:w,h:h,walls:{},goal:null};
+    blues=[];
+    for(var y=0;y<h;y++) for(var x=0;x<w;x++){
+      var c=mp[y][x];
+      if(c==='#') grid.walls[x+','+y]=1;
+      else if(c==='R') red={x:x,y:y};
+      else if(c==='G') grid.goal={x:x,y:y};
+      else if(c==='B') blues.push({x:x,y:y});
+    }
+    // 默认选中红块
+    sel={kind:'red',idx:-1};
+    state='play'; paused=false;
+    refreshHud();
+    setTip('第 '+(n+1)+' 关：把红块送进绿格（步数上限 '+LEVELS[n].limit+'）');
+  }
+
+  function winGame(){
+    state='over';
+    var cleared=8;
+    if(cleared>best){ best=cleared; localStorage.setItem('g100_iceslide_best',String(best)); }
+    document.getElementById('winDetail').textContent='8 关全通！共用 '+totalSteps+' 步';
+    document.getElementById('winBest').textContent='历史最佳：通关 '+best+' / 8 关';
+    document.getElementById('ovWin').classList.remove('hidden');
+    sndWin(); vibrate([60,40,60]);
+  }
+
+  function levelClear(){
+    state='clear';
+    totalSteps+=steps;
+    var cleared=lv+1;
+    if(cleared>best){ best=cleared; localStorage.setItem('g100_iceslide_best',String(best)); }
+    sndClear(); vibrate(50);
+    burst(red.x,red.y,30,'#69f0ae');
+    document.getElementById('lvTitle').textContent='🎉 第 '+(lv+1)+' 关通过！';
+    document.getElementById('lvDetail').textContent='用时 '+steps+' 步（上限 '+LEVELS[lv].limit+'）';
+    setTimeout(function(){
+      if(lv+1>=LEVELS.length) winGame();
+      else document.getElementById('ovLevel').classList.remove('hidden');
+    }, 900);
+  }
+
+  // ---------- 推动逻辑 ----------
+  var DMAP={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+  function occSet(except){
+    var s={};
+    s[red.x+','+red.y]=1;
+    for(var i=0;i<blues.length;i++) s[blues[i].x+','+blues[i].y]=1;
+    if(except) delete s[except.x+','+except.y];
+    return s;
+  }
+  function pushSel(dname){
+    if(state!=='play'||paused||anim||!sel) return;
+    var d=DMAP[dname]; if(!d) return;
+    var blk = sel.kind==='red' ? red : blues[sel.idx];
+    var occ=occSet(blk);
+    var x=blk.x, y=blk.y;
+    for(;;){
+      var nx=x+d[0], ny=y+d[1];
+      if(nx<0||ny<0||nx>=grid.w||ny>=grid.h) break;
+      if(grid.walls[nx+','+ny]) break;
+      if(occ[nx+','+ny]) break;
+      x=nx; y=ny;
+    }
+    if(x===blk.x&&y===blk.y){ sndWall(); setTip('撞墙了，换个方向试试'); return; }
+    steps++; refreshHud();
+    sndPush();
+    anim={blk:blk,fx:blk.x,fy:blk.y,tx:x,ty:y,t:0,red:sel.kind==='red'};
+    blk.x=x; blk.y=y; // 逻辑位置立即更新，动画插值绘制
+    // 粒子
+    for(var i=0;i<8;i++){ var a=Math.random()*Math.PI*2;
+      particles.push({x:x,y:y,vx:Math.cos(a)*60,vy:Math.sin(a)*60,t:0,life:.5,color:sel.kind==='red'?'#ff8a80':'#80DEEA'}); }
+    if(sel.kind==='red' && x===grid.goal.x && y===grid.goal.y){
+      setTimeout(levelClear, 260);
+    } else if(steps>=LEVELS[lv].limit){
+      setTimeout(function(){
+        if(state!=='play') return;
+        state='over';
+        document.getElementById('overDetail').textContent='本关已用 '+steps+' 步（上限 '+LEVELS[lv].limit+'）';
+        document.getElementById('ovOver').classList.remove('hidden');
+      }, 300);
+    }
+  }
+  // ---------- 输入：点选 + 滑动 ----------
+  function cellFromEvent(e){
+    var r=cv.getBoundingClientRect();
+    var px=(e.clientX-r.left)*(W/r.width), py=(e.clientY-r.top)*(H/r.height);
+    var m=metrics();
+    var cx=Math.floor((px-m.ox)/m.cell), cy=Math.floor((py-m.oy)/m.cell);
+    return {cx:cx,cy:cy,px:px,py:py};
+  }
+  var touchStart=null;
+  cv.addEventListener('pointerdown',function(e){
+    if(state!=='play'||paused) return;
+    var c=cellFromEvent(e); touchStart={cx:c.cx,cy:c.cy,px:c.px,py:c.py};
+    // 点选滑块
+    if(c.cx===red.x&&c.cy===red.y){ sel={kind:'red',idx:-1}; sndClick(); }
+    else { for(var i=0;i<blues.length;i++){ if(c.cx===blues[i].x&&c.cy===blues[i].y){ sel={kind:'blue',idx:i}; sndClick(); break; } } }
+    e.preventDefault();
+  });
+  cv.addEventListener('pointerup',function(e){
+    if(!touchStart||state!=='play'||paused) return;
+    var c=cellFromEvent(e);
+    var dx=c.px-touchStart.px, dy=c.py-touchStart.py;
+    // 在滑块上滑动：位移>24px 视为推动手势
+    if(Math.hypot(dx,dy)>24){
+      // 手势方向以滑块为起点：必须按住的是选中的滑块
+      var dname = Math.abs(dx)>Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up');
+      pushSel(dname);
+    }
+    touchStart=null;
+  });
+  cv.addEventListener('pointercancel',function(){ touchStart=null; });
+
+  // ---------- 绘制 ----------
+  function metrics(){
+    var cell=Math.min(W/grid.w, H/grid.h);
+    var ox=(W-cell*grid.w)/2, oy=(H-cell*grid.h)/2;
+    return {cell:cell,ox:ox,oy:oy};
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    if(!grid.w) return;
+    var m=metrics(), cell=m.cell;
+    // 棋盘
+    for(var y=0;y<grid.h;y++) for(var x=0;x<grid.w;x++){
+      var px=m.ox+x*cell, py=m.oy+y*cell;
+      if(grid.walls[x+','+y]){
+        ctx.fillStyle='#1d3a56'; ctx.fillRect(px,py,cell,cell);
+        ctx.strokeStyle='#2c4a63'; ctx.lineWidth=1; ctx.strokeRect(px+.5,py+.5,cell-1,cell-1);
+      } else {
+        ctx.fillStyle=((x+y)%2===0)?'#10273d':'#0e2337';
+        ctx.fillRect(px,py,cell,cell);
+      }
+    }
+    // 目标格
+    if(grid.goal){
+      var gx=m.ox+grid.goal.x*cell, gy=m.oy+grid.goal.y*cell;
+      var pulse=0.5+0.2*Math.sin(Date.now()/300);
+      ctx.fillStyle='rgba(105,240,174,'+pulse+')';
+      ctx.fillRect(gx+2,gy+2,cell-4,cell-4);
+      ctx.strokeStyle='#69f0ae'; ctx.lineWidth=2; ctx.strokeRect(gx+2,gy+2,cell-4,cell-4);
+      ctx.font=Math.floor(cell*0.5)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('🎯', gx+cell/2, gy+cell/2+1); ctx.textBaseline='alphabetic';
+    }
+    // 滑块
+    drawBlock(red.x,red.y,cell,m,'red',anim&&anim.red?anim:null);
+    for(var i=0;i<blues.length;i++){
+      var a=(anim&&!anim.red&&anim.blk===blues[i])?anim:null;
+      drawBlock(blues[i].x,blues[i].y,cell,m,'blue',a);
+    }
+    // 选中高亮
+    if(sel&&state==='play'){
+      var sb=sel.kind==='red'?red:blues[sel.idx];
+      var sx=m.ox+sb.x*cell, sy=m.oy+sb.y*cell;
+      ctx.strokeStyle='#ffd54f'; ctx.lineWidth=3;
+      ctx.strokeRect(sx+1,sy+1,cell-2,cell-2);
+    }
+    // 粒子
+    for(var p=particles.length-1;p>=0;p--){ var pt=particles[p];
+      ctx.globalAlpha=Math.max(0,1-pt.t/pt.life);
+      ctx.fillStyle=pt.color;
+      var mm=metrics();
+      ctx.fillRect(mm.ox+pt.x*cell+cell/2-2, mm.oy+pt.y*cell+cell/2-2,4,4);
+    }
+    ctx.globalAlpha=1;
+  }
+  function drawBlock(bx,by,cell,m,kind,a){
+    var px=m.ox+bx*cell, py=m.oy+by*cell;
+    if(a){ // 滑动动画插值（easeOutCubic）
+      var k=Math.min(1,a.t/0.22), e=1-Math.pow(1-k,3);
+      px=m.ox+(a.fx+(a.tx-a.fx)*e)*cell;
+      py=m.oy+(a.fy+(a.ty-a.fy)*e)*cell;
+    }
+    var pad=cell*0.12;
+    ctx.save();
+    ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=6; ctx.shadowOffsetY=2;
+    var g=ctx.createLinearGradient(px,py,px,py+cell);
+    if(kind==='red'){ g.addColorStop(0,'#ffab91'); g.addColorStop(1,'#e05252'); }
+    else { g.addColorStop(0,'#b3e5fc'); g.addColorStop(1,'#4aa3c7'); }
+    ctx.fillStyle=g;
+    roundRect(px+pad,py+pad,cell-pad*2,cell-pad*2,cell*0.22); ctx.fill();
+    ctx.shadowColor='transparent';
+    ctx.fillStyle='rgba(255,255,255,0.85)';
+    ctx.font=Math.floor(cell*0.42)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(kind==='red'?'🔴':'🧊', px+cell/2, py+cell/2+1);
+    ctx.textBaseline='alphabetic';
+    ctx.restore();
+  }
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  }
+  function burst(bx,by,n,color){
+    var m=metrics();
+    for(var i=0;i<n;i++){ var a=Math.random()*Math.PI*2, sp=2+Math.random()*4;
+      particles.push({x:bx,y:by,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,t:0,life:.7,color:color}); }
+  }
+
+  // ---------- 主循环 ----------
+  var last=0;
+  function loop(ts){
+    requestAnimationFrame(loop);
+    if(paused){ last=ts; return; }
+    var dt=Math.min(0.05,(ts-last)/1000||0.016); last=ts;
+    if(anim){ anim.t+=dt; if(anim.t>=0.24) anim=null; }
+    for(var i=particles.length-1;i>=0;i--){ var p=particles[i];
+      p.t+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=.94; p.vy*=.94;
+      if(p.t>=p.life) particles.splice(i,1); }
+    draw();
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
