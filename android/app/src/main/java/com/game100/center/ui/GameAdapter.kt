@@ -2,6 +2,7 @@ package com.game100.center.ui
 
 import android.content.Context
 import android.graphics.Color
+import androidx.core.graphics.ColorUtils
 import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.View
@@ -24,29 +25,27 @@ class GameAdapter(
             override fun areContentsTheSame(a: GameItem, b: GameItem) = a == b
         }
 
-        /** 游戏色 → 深色的对角渐变，用作图标底 */
+        /** Quiet pastel icon tiles retain each game's own color. */
         fun tileBackground(ctx: Context, colorStr: String): GradientDrawable {
             val base = try {
                 Color.parseColor(colorStr)
             } catch (e: Exception) {
                 Color.parseColor("#607D8B")
             }
-            val dark = darken(base, 0.45f)
-            return GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(base, dark)
-            ).apply {
-                val r = (20 * ctx.resources.displayMetrics.density)
-                cornerRadii = floatArrayOf(r, r, r, r, r, r, r, r)
+            return GradientDrawable().apply {
+                setColor(ColorUtils.blendARGB(base, Color.WHITE, 0.86f))
+                setStroke((ctx.resources.displayMetrics.density + 0.5f).toInt(), ColorUtils.blendARGB(base, Color.WHITE, 0.65f))
+                cornerRadius = 18 * ctx.resources.displayMetrics.density
             }
         }
 
-        private fun darken(color: Int, factor: Float): Int {
-            return Color.rgb(
-                (Color.red(color) * factor).toInt(),
-                (Color.green(color) * factor).toInt(),
-                (Color.blue(color) * factor).toInt()
-            )
+        fun featuredBackground(ctx: Context, colorStr: String): GradientDrawable {
+            val base = try { Color.parseColor(colorStr) } catch (_: Exception) { ctx.getColor(R.color.brand) }
+            val navy = ctx.getColor(R.color.stage)
+            return GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(ColorUtils.blendARGB(base, navy, 0.86f), navy)).apply {
+                cornerRadius = 24 * ctx.resources.displayMetrics.density
+            }
         }
     }
 

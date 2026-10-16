@@ -4,7 +4,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.game100.center.R
@@ -33,8 +32,12 @@ class FeaturedAdapter(
     override fun onBindViewHolder(h: VH, position: Int) {
         val item = getItem(position)
         val ctx = h.itemView.context
-        h.bg.background = GameAdapter.tileBackground(ctx, item.color)
-        h.kicker.text = if (item.isNew) "NEW" else item.category
+        h.bg.background = GameAdapter.featuredBackground(ctx, item.color)
+        h.kicker.text = when {
+            item.isNew -> "新鲜上架"
+            item.isPremium -> "精选推荐"
+            else -> item.category
+        }
         h.kicker.visibility = View.VISIBLE
         h.name.text = item.name
         h.desc.text = item.desc.ifBlank { item.category }

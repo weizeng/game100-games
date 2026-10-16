@@ -3,6 +3,9 @@ package com.game100.center
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
+import android.view.Gravity
+import com.game100.center.ui.GameAdapter
+import com.google.android.material.appbar.MaterialToolbar
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -11,7 +14,7 @@ import com.game100.center.data.UserData
 import com.game100.center.model.RemoteGame
 
 /**
- * 游戏详情页（App Store 风格）：大图标、星级评分、收藏、最高分、开始游戏
+ * 游戏详情页：游戏信息、开始、收藏与个人评分。
  */
 class GameDetailActivity : AppCompatActivity() {
 
@@ -21,8 +24,7 @@ class GameDetailActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_game_detail)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = ""
+        findViewById<MaterialToolbar>(R.id.detail_toolbar).setNavigationOnClickListener { finish() }
 
         userData = UserData(this)
 
@@ -32,15 +34,15 @@ class GameDetailActivity : AppCompatActivity() {
         // 这里通过 MainActivity 的静态缓存获取
         game = MainActivity.gameCache[gameId] ?: run { finish(); return }
 
-        supportActionBar?.title = game.name
 
         findViewById<TextView>(R.id.detail_icon).apply {
             text = game.icon
-            setBackgroundColor(parseGameColor(game.color))
+            background = GameAdapter.tileBackground(this@GameDetailActivity, game.color)
         }
         findViewById<TextView>(R.id.detail_name).text = game.name
         findViewById<TextView>(R.id.detail_category).text = game.category
-        findViewById<TextView>(R.id.detail_size).text = formatSize(game.size)
+        findViewById<TextView>(R.id.detail_size).text =
+            if (game.size > 0) "${formatSize(game.size)}  ·  离线可玩" else "已下载到本机"
         findViewById<TextView>(R.id.detail_desc).text =
             game.desc.ifBlank { "暂无简介" }
 
@@ -56,7 +58,11 @@ class GameDetailActivity : AppCompatActivity() {
         // 收藏按钮
         val btnFav = findViewById<TextView>(R.id.btn_favorite)
         fun refreshFav() {
-            btnFav.text = if (userData.isFavorite(gameId)) "❤️" else "🤍"
+            val selected = userData.isFavorite(gameId)
+            btnFav.text = if (selected) "♥" else "♡"
+            btnFav.isSelected = selected
+            btnFav.setTextColor(getColor(if (selected) R.color.badge_red else R.color.text_secondary))
+            btnFav.contentDescription = if (selected) "取消收藏${game.name}" else "收藏${game.name}"
         }
         refreshFav()
         btnFav.setOnClickListener {
@@ -71,7 +77,8 @@ class GameDetailActivity : AppCompatActivity() {
         fun refreshStars() {
             val rating = userData.getRating(gameId)
             starViews.forEachIndexed { i, tv ->
-                tv.text = if (i < rating) "⭐" else "☆"
+                tv.text = if (i < rating) "★" else "☆"
+                tv.isSelected = i < rating
             }
             findViewById<TextView>(R.id.detail_rating_text).text =
                 if (rating > 0) "你的评分：$rating 星" else "点击星星评分"
@@ -79,8 +86,12 @@ class GameDetailActivity : AppCompatActivity() {
         repeat(5) { i ->
             val tv = TextView(this).apply {
                 text = "☆"
-                textSize = 32f
-                setPadding(4, 0, 4, 0)
+                textSize = 30f
+                gravity = Gravity.CENTER
+                isFocusable = true
+                setTextColor(getColor(R.color.accent))
+                contentDescription = "评为${i + 1}星"
+                layoutParams = LinearLayout.LayoutParams(0, dp(52), 1f)
                 setOnClickListener {
                     userData.setRating(gameId, i + 1)
                     refreshStars()
@@ -106,11 +117,7 @@ class GameDetailActivity : AppCompatActivity() {
         return true
     }
 
-    private fun parseGameColor(color: String): Int = try {
-        android.graphics.Color.parseColor(color)
-    } catch (e: Exception) {
-        android.graphics.Color.parseColor("#607D8B")
-    }
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun formatSize(bytes: Long): String = when {
         bytes <= 0 -> "未知大小"

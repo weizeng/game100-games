@@ -10,7 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.game100.center.R
 import com.game100.center.model.GameItem
 
-/** App Store 风格的紧凑列表行：图标 | 名称+分类 | 获取/更新按钮 */
+/** Game library row with a clear, accessible action for each download state. */
 class GameRowAdapter(
     private val onClick: (GameItem) -> Unit,
     private val onAction: (GameItem) -> Unit,
@@ -46,11 +46,13 @@ class GameRowAdapter(
         }
         h.name.text = item.name
         val subText = buildString {
-            if (item.isPremium) append("⭐精品 · ")
-            if (item.isNew) append("NEW · ")
             append(item.category)
-            if (item.installed) append(" · v${item.installedVersion}")
-            if (item.hasUpdate) append(" → v${item.remote!!.version}")
+            when {
+                item.hasUpdate -> append("  ·  可更新")
+                item.isNew -> append("  ·  新上架")
+                item.isPremium -> append("  ·  精选")
+                item.installed -> append("  ·  离线可玩")
+            }
         }
         h.sub.text = subText
 
@@ -59,17 +61,29 @@ class GameRowAdapter(
         val rating = userData.getRating(item.id)
         if (rating > 0) {
             h.rating.visibility = View.VISIBLE
-            h.rating.text = "⭐".repeat(rating) + "☆".repeat(5 - rating)
+            h.rating.text = "★".repeat(rating) + "☆".repeat(5 - rating)
+            h.rating.contentDescription = "你的评分：$rating 星"
         } else {
             h.rating.visibility = View.GONE
         }
 
         val actionText = when {
-            item.hasUpdate -> ctx.getString(R.string.update_now)
+            item.hasUpdate -> "更新"
             item.canDownload -> ctx.getString(R.string.download)
-            else -> ctx.getString(R.string.play)
+            else -> "开玩"
         }
         h.action.text = actionText
+        h.action.setBackgroundResource(when {
+            item.hasUpdate -> R.drawable.pill_update
+            item.canDownload -> R.drawable.pill_secondary
+            else -> R.drawable.pill_action
+        })
+        h.action.setTextColor(ctx.getColor(when {
+            item.hasUpdate -> R.color.accent
+            item.canDownload -> R.color.brand
+            else -> android.R.color.white
+        }))
+        h.action.contentDescription = "${item.name}，$actionText"
         h.action.setOnClickListener { onAction(item) }
 
         h.itemView.setOnClickListener { onClick(item) }

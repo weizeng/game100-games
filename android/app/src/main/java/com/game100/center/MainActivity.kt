@@ -2,7 +2,9 @@ package com.game100.center
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.graphics.Color
+import android.content.res.ColorStateList
+import android.graphics.drawable.RippleDrawable
+import android.view.Gravity
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -15,7 +17,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -25,7 +26,6 @@ import com.game100.center.model.RemoteGame
 import com.game100.center.net.AppUpdater
 import com.game100.center.net.GameDownloader
 import com.game100.center.ui.FeaturedAdapter
-import com.game100.center.ui.GameAdapter
 import com.game100.center.ui.GameRowAdapter
 import com.game100.center.util.ZipUtils
 import com.google.android.material.appbar.MaterialToolbar
@@ -58,6 +58,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         repo = GameRepository(this)
         selectedCat = savedInstanceState?.getString("selectedCat") ?: "全部"
+        searchQuery = savedInstanceState?.getString("searchQuery") ?: ""
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         toolbar.menu.findItem(R.id.action_refresh)?.icon?.let {
@@ -98,6 +99,13 @@ class MainActivity : AppCompatActivity() {
         buildCategoryChips()
 
         val searchBar = findViewById<android.widget.EditText>(R.id.search_bar)
+        searchBar.setText(searchQuery)
+        findViewById<View>(R.id.btn_reset_filters).setOnClickListener {
+            selectedCat = "全部"
+            searchBar.text.clear()
+            refreshChips()
+            applyFilter()
+        }
         searchBar.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -121,7 +129,10 @@ class MainActivity : AppCompatActivity() {
             val tv = TextView(this).apply {
                 text = cat
                 textSize = 13f
-                setPadding(dp(14), dp(7), dp(14), dp(7))
+                minHeight = dp(44)
+                gravity = Gravity.CENTER
+                isFocusable = true
+                setPadding(dp(16), dp(10), dp(16), dp(10))
                 setOnClickListener { selectCategory(cat) }
             }
             val lp = LinearLayout.LayoutParams(
@@ -138,23 +149,19 @@ class MainActivity : AppCompatActivity() {
     private fun chipBg(selected: Boolean): GradientDrawable {
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(20).toFloat()
-            if (selected) {
-                orientation = GradientDrawable.Orientation.TL_BR
-                colors = intArrayOf(
-                    Color.parseColor("#FF6F61"),
-                    Color.parseColor("#FFB84D")
-                )
-            } else {
-                setColor(getColor(R.color.bg_chip))
-            }
+            cornerRadius = dp(14).toFloat()
+            setColor(getColor(if (selected) R.color.stage else R.color.bg_card))
+            if (!selected) setStroke(dp(1), getColor(R.color.divider))
         }
     }
 
     private fun refreshChips() {
         for (i in categories.indices) {
             val sel = categories[i] == selectedCat
-            chipViews[i].background = chipBg(sel)
+            chipViews[i].background = RippleDrawable(
+                ColorStateList.valueOf(getColor(R.color.ripple)), chipBg(sel), null
+            )
+            chipViews[i].isSelected = sel
             chipViews[i].setTextColor(getColor(if (sel) android.R.color.white else R.color.text_secondary))
             chipViews[i].setTypeface(null, if (sel) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         }
@@ -181,21 +188,39 @@ class MainActivity : AppCompatActivity() {
             }
         }
         adapter.submit(filtered)
+        findViewById<TextView>(R.id.tv_games_title).text = when {
+            searchQuery.isNotBlank() -> "搜索结果"
+            selectedCat == "全部" -> "全部游戏"
+            else -> selectedCat
+        }
+        findViewById<TextView>(R.id.tv_result_count).text = getString(R.string.game_count, filtered.size)
+        findViewById<View>(R.id.empty_state).visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.recycler).visibility = if (filtered.isEmpty()) View.GONE else View.VISIBLE
+        val hasFilter = selectedCat != "全部" || searchQuery.isNotBlank()
+        findViewById<TextView>(R.id.tv_empty).text = if (hasFilter)
+            "没有找到相关游戏\n换个关键词，或试试其他分类。"
+        else "游戏库暂时为空\n下拉刷新，获取最新游戏。"
+        findViewById<View>(R.id.btn_reset_filters).visibility = if (hasFilter) View.VISIBLE else View.GONE
+        refreshFeatured()
     }
 
     private fun showItems(items: List<GameItem>) {
         allItems = items
-        applyFilter()
         findViewById<TextView>(R.id.tv_subtitle).text =
             getString(R.string.subtitle_games, items.size)
-        // 新上架轮播：精品优先，其次 NEW 游戏，最多 8 款
-        val featGames = (items.filter { it.isPremium } + items.filter { it.isNew && !it.isPremium })
+        applyFilter()
+    }
+
+    private fun refreshFeatured() {
+        // Keep discovery out of the way while the user searches or browses a category.
+        val showFeatured = selectedCat == "全部" && searchQuery.isBlank()
+        val featGames = (allItems.filter { it.isPremium } + allItems.filter { it.isNew && !it.isPremium })
             .distinctBy { it.id }.take(8)
         val featTitle = findViewById<TextView>(R.id.feat_title)
         val featRecycler = findViewById<RecyclerView>(R.id.feat_recycler)
-        if (featGames.isNotEmpty()) {
+        if (showFeatured && featGames.isNotEmpty()) {
             featTitle.visibility = View.VISIBLE
-            featTitle.text = if (items.any { it.isPremium }) "精品力作" else "新上架"
+            featTitle.text = if (allItems.any { it.isPremium }) "精选推荐" else "新鲜上架"
             featRecycler.visibility = View.VISIBLE
             featAdapter.submit(featGames)
         } else {
@@ -235,6 +260,7 @@ class MainActivity : AppCompatActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString("selectedCat", selectedCat)
+        outState.putString("searchQuery", searchQuery)
     }
 
     private fun loadLocal() {
@@ -320,8 +346,8 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(R.string.delete) { _, _ ->
                 lifecycleScope.launch(Dispatchers.IO) {
                     repo.deleteGame(item.id)
-                    val items = repo.buildGameList(emptyList())
-                    withContext(Dispatchers.Main) { adapter.submit(items) }
+                    val items = repo.buildGameList(lastRemote)
+                    withContext(Dispatchers.Main) { showItems(items) }
                 }
             }
             .setNegativeButton(R.string.cancel, null)
