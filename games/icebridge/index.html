@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>铺冰桥</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{background:#050b16;color:#dbeafe;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden;height:100%}
+#wrap{max-width:1000px;margin:0 auto;height:100%;display:flex;flex-direction:column}
+#hud{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#0a1526;flex-wrap:wrap}
+#hud .t{font-size:15px;font-weight:700;color:#90caf9}
+#hud .s{font-size:13px;color:#9fb3c8}
+#hud .sp{flex:1}
+.btn{background:#16283f;border:1px solid #2b4a6b;color:#dbeafe;border-radius:10px;min-height:44px;min-width:44px;padding:8px 12px;font-size:16px;cursor:pointer;user-select:none}
+.btn:active{transform:scale(.94);background:#1e3552}
+.btn.primary{background:#1565c0;border-color:#42a5f5;font-weight:700}
+.btn.warn{background:#5d3a1a;border-color:#ff9800}
+#stage{position:relative;flex:1;min-height:0;background:#050b16}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(3,8,18,.82);z-index:20;padding:16px}
+.ov.hidden{display:none}
+.card{background:#0d1b30;border:1px solid #2b4a6b;border-radius:16px;padding:22px 20px;max-width:440px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(66,165,245,.15)}
+.card h1{font-size:30px;margin-bottom:6px;color:#90caf9}
+.card h2{font-size:22px;margin-bottom:10px;color:#90caf9}
+.card p{font-size:14px;line-height:1.7;color:#b9cbe0;margin:8px 0;text-align:left}
+.card .row{display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.stars{font-size:26px;letter-spacing:4px;margin:6px 0}
+#actions{display:flex;gap:10px;padding:10px;background:#0a1526;justify-content:center}
+#actions .btn{flex:1;max-width:220px;font-size:17px}
+#toast{position:absolute;left:50%;top:14%;transform:translateX(-50%);background:rgba(180,30,40,.92);color:#fff;padding:10px 18px;border-radius:12px;font-size:16px;font-weight:700;z-index:30;display:none;pointer-events:none;white-space:nowrap}
+#toast.show{display:block;animation:pop .25s ease}
+@keyframes pop{from{transform:translateX(-50%) scale(.8);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
+.hintbody{font-size:15px;line-height:1.8;color:#ffe9b0;text-align:left;background:#221a08;border:1px dashed #d9a441;border-radius:10px;padding:12px;margin-top:8px}
+.kbd{color:#ffd54f;font-weight:700}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="t">🌉 铺冰桥</span>
+    <span class="s" id="hudLevel">第 1/6 关</span>
+    <span class="s" id="hudScore">得分 0</span>
+    <span class="s" id="hudBest">最佳通关 0/6</span>
+    <span class="sp"></span>
+    <button class="btn" id="btnHint" title="提示">💡</button>
+    <button class="btn" id="btnMute" title="声音">🔊</button>
+    <button class="btn" id="btnPause" title="暂停">⏸</button>
+  </div>
+  <div id="stage">
+    <canvas id="cv" width="1000" height="640"></canvas>
+    <div id="toast"></div>
+    <div class="ov" id="ovStart">
+      <div class="card">
+        <h1>🌉 铺冰桥</h1>
+        <p>🐧 企鹅要过河去对岸！河面上有浮冰，你手里有 <b class="kbd">短 / 中 / 长</b> 三种冰板。</p>
+        <p>👉 <b>拖动</b>底部冰板到河面上放下：两端必须都落在浮冰（或两岸）上，长度不够或太长都放不下，放下瞬间会自动吸附校验。</p>
+        <p>🟢 变绿 = 能架稳，🔴 变红 = 无效。拖动已放好的冰板可以重新摆放。</p>
+        <p>🐧 全部架好后点 <b class="kbd">出发</b>，企鹅沿冰桥过河；路线不通它会掉进水里哦！用板越少得分越高。</p>
+        <div class="row"><button class="btn primary" id="btnStart">开始游戏</button></div>
+      </div>
+    </div>
+    <div class="ov hidden" id="ovHint">
+      <div class="card">
+        <h2>💡 本关提示</h2>
+        <div class="hintbody" id="hintText"></div>
+        <div class="row"><button class="btn primary" id="btnHintClose">知道了</button></div>
+      </div>
+    </div>
+    <div class="ov hidden" id="ovPause">
+      <div class="card">
+        <h2>⏸ 已暂停</h2>
+        <div class="row">
+          <button class="btn primary" id="btnResume">继续</button>
+          <button class="btn warn" id="btnRestart">重来</button>
+        </div>
+      </div>
+    </div>
+    <div class="ov hidden" id="ovLevel">
+      <div class="card">
+        <h2 id="lvTitle">🎉 过关！</h2>
+        <div class="stars" id="lvStars">★★★</div>
+        <p id="lvScore" style="text-align:center"></p>
+        <div class="row"><button class="btn primary" id="btnNext">下一关 →</button></div>
+      </div>
+    </div>
+    <div class="ov hidden" id="ovDone">
+      <div class="card">
+        <h1>🏆 全部通关！</h1>
+        <p id="doneScore" style="text-align:center"></p>
+        <div class="row"><button class="btn primary" id="btnAgain">再玩一次</button></div>
+      </div>
+    </div>
+  </div>
+  <div id="actions">
+    <button class="btn warn" id="btnReset">↩ 重置冰板</button>
+    <button class="btn primary" id="btnGo">🐧 出发！</button>
+  </div>
+</div>
+<script>
+'use strict';
+/* ================= 音频 ================= */
+let AC=null;
+let muted=localStorage.getItem('g100_mute')==='1';
+function ac(){
+  if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){AC=null;}}
+  if(AC&&AC.state==='suspended'){AC.resume();}
+  return AC;
+}
+function tone(f,d,type,v,f2,delay){
+  if(muted)return;const c=ac();if(!c)return;
+  const t0=c.currentTime+(delay||0);
+  const o=c.createOscillator(),g=c.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,t0);
+  if(f2)o.frequency.exponentialRampToValueAtTime(Math.max(30,f2),t0+d);
+  g.gain.setValueAtTime(v||0.2,t0);g.gain.exponentialRampToValueAtTime(0.001,t0+d);
+  o.connect(g);g.connect(c.destination);o.start(t0);o.stop(t0+d+0.03);
+}
+function noiseBurst(d,v){
+  if(muted)return;const c=ac();if(!c)return;
+  const n=Math.floor(c.sampleRate*d),buf=c.createBuffer(1,n,c.sampleRate),ch=buf.getChannelData(0);
+  for(let i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);
+  const s=c.createBufferSource(),g=c.createGain(),f=c.createBiquadFilter();
+  f.type='lowpass';f.frequency.value=900;
+  s.buffer=buf;g.gain.value=v||0.3;s.connect(f);f.connect(g);g.connect(c.destination);s.start();
+}
+const SFX={
+  click(){tone(620,0.06,'square',0.10);},
+  place(){tone(240,0.10,'triangle',0.28);tone(480,0.08,'sine',0.16,null,0.03);},
+  invalid(){tone(150,0.22,'sawtooth',0.20,85);},
+  step(){tone(480+Math.random()*120,0.05,'sine',0.07);},
+  splash(){noiseBurst(0.45,0.35);tone(300,0.3,'sine',0.15,80);},
+  win(){[523,659,784,1047].forEach((f,i)=>tone(f,0.22,'triangle',0.22,null,i*0.11));},
+  pickup(){tone(700,0.07,'sine',0.14,1000);}
+};
+/* ================= 关卡数据（已逐关验算可解） ================= */
+const TOL=70;                 // 允许的最大超出长度
+const RIVER_Y=300, BANK_L=60, BANK_R=940;
+const PLANK_TYPES={S:{label:'短板',c:'#8d6e63'},M:{label:'中板',c:'#a1887f'},L:{label:'长板',c:'#d7ccc8'}};
+const LEVELS=[
+ {floes:[220,400,580,760],
+  inv:{S:{len:170,n:3},M:{len:200,n:3},L:{len:240,n:1}},optimal:5,
+  hint:'热身关！缺口分别是 160 / 180 / 180 / 180 / 180。<br>👉 160 的缺口用<b class="kbd">短板(170)</b>，三个 180 缺口用<b class="kbd">中板(200)</b>，最后一个 180 缺口用<b class="kbd">长板(240)</b>——两端落在浮冰上变绿再松手！'},
+ {floes:[180,300,480,660],
+  inv:{S:{len:150,n:2},M:{len:250,n:2},L:{len:330,n:2}},optimal:4,
+  hint:'短板只有 2 块，不够铺 5 个缺口！<br>👉 <b class="kbd">长板(330)</b>可以一次跨过两个浮冰：从<b class="kbd">浮冰1直接连到浮冰3</b>（跨度300），跳过浮冰2，省下一块板！'},
+ {floes:[150,270,430,550,710,830],
+  inv:{S:{len:140,n:3},M:{len:190,n:3},L:{len:300,n:2}},optimal:5,
+  hint:'7 个缺口，短板只有 3 块！<br>👉 用 2 块<b class="kbd">长板(300)</b>跳岛：<b class="kbd">浮冰1→3</b>（跨度280，跳过2）、<b class="kbd">浮冰3→5</b>（跨度280，跳过4），首尾用短板收尾。'},
+ {floes:[140,250,380,470,600,690,820],
+  inv:{S:{len:130,n:2},M:{len:180,n:3},L:{len:260,n:3}},optimal:5,
+  hint:'缺口太多，板子不够铺满！<br>👉 <b class="kbd">长板(260)</b>三连跳：<b class="kbd">浮冰1→3→5→7</b>，最后用一块<b class="kbd">中板(180)</b>登上右岸，开头用短板起步。'},
+ {floes:[120,230,350,420,540,660,730,850],
+  inv:{S:{len:120,n:5},M:{len:170,n:2},L:{len:240,n:2}},optimal:6,
+  hint:'9 个缺口，板子总数只有 9 块，短板铺满行不通！<br>👉 跳过<b class="kbd">浮冰3</b>和<b class="kbd">浮冰5</b>：<b class="kbd">浮冰2→4</b>（跨度190）、<b class="kbd">浮冰4→6</b>（跨度240）用长板直连；开头还能用<b class="kbd">中板(170)</b>从左岸直达浮冰2（跨度170），其余用短板补齐。'},
+ {floes:[110,200,330,400,530,620,750,840],
+  inv:{S:{len:110,n:3},M:{len:160,n:3},L:{len:230,n:3}},optimal:5,
+  hint:'终极考验！9 个缺口，短板只有 3 块。<br>👉 <b class="kbd">长板(230)</b>连跳：<b class="kbd">浮冰2→4→6→8</b>（跨度200~220），开头用<b class="kbd">中板(160)</b>从左岸直达浮冰2（跨度140），结尾用短板上岸，一块都不能浪费！'}
+];
+/* ================= 状态 ================= */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=1000,H=640;
+let levelIdx=0,score=0,mode='build'; // build | walking | paused(from build)
+let supports=[],counts={},placed=[],drag=null;
+let peng=null,particles=[],stars=[];
+let best=parseInt(localStorage.getItem('g100_icebridge_best')||'0',10);
+let toastTimer=null;
+for(let i=0;i<90;i++)stars.push({x:Math.random()*W,y:Math.random()*220,r:Math.random()*1.6+0.4,tw:Math.random()*6.28});
+function toast(msg,red){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.background=red===false?'rgba(30,130,70,.92)':'rgba(180,30,40,.92)';
+  t.classList.remove('show');void t.offsetWidth;t.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),1600);
+}
+function hideAllOv(){['ovStart','ovHint','ovPause','ovLevel','ovDone'].forEach(id=>document.getElementById(id).classList.add('hidden'));}
+function showOv(id){document.getElementById(id).classList.remove('hidden');}
+function updHud(){
+  document.getElementById('hudLevel').textContent='第 '+(levelIdx+1)+'/6 关';
+  document.getElementById('hudScore').textContent='得分 '+score;
+  document.getElementById('hudBest').textContent='最佳通关 '+best+'/6';
+}
+function loadLevel(i){
+  const L=LEVELS[i];
+  supports=[{x:BANK_L,label:'左岸',bank:true}];
+  L.floes.forEach((x,k)=>supports.push({x:x,label:''+(k+1)}));
+  supports.push({x:BANK_R,label:'右岸',bank:true});
+  counts={};Object.keys(L.inv).forEach(k=>counts[k]=L.inv[k].n);
+  placed=[];drag=null;peng=null;particles=[];mode='build';
+  updHud();
+}
+/* ================= 输入 ================= */
+function toLogic(e){
+  const r=cv.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*(W/r.width),y:(e.clientY-r.top)*(H/r.height)};
+}
+const TRAY_Y=560,TRAY_H=110;
+function traySlot(k){ // k: 0,1,2 -> S,M,L
+  return {cx:200+k*300,k:['S','M','L'][k]};
+}
+function pointSegDist(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;
+  let t=l2?((px-ax)*dx+(py-ay)*dy)/l2:0;t=Math.max(0,Math.min(1,t));
+  const cx=ax+t*dx,cy=ay+t*dy;return Math.hypot(px-cx,py-cy);
+}
+function findPair(x,len){
+  let bestP=null,bestD=1e9;
+  for(let i=0;i<supports.length;i++)for(let j=i+1;j<supports.length;j++){
+    const d=supports[j].x-supports[i].x;
+    if(len<d||len-d>TOL)continue;
+    if(placed.some(p=>(p.a===i&&p.b===j)))continue;
+    const mid=(supports[i].x+supports[j].x)/2,dd=Math.abs(mid-x);
+    if(dd<bestD&&dd<220){bestD=dd;bestP={a:i,b:j};}
+  }
+  return bestP;
+}
+cv.addEventListener('pointerdown',e=>{
+  ac();if(mode!=='build')return;
+  const p=toLogic(e);e.preventDefault();
+  // 先尝试拾起已放的冰板
+  for(let i=placed.length-1;i>=0;i--){
+    const pl=placed[i],A=supports[pl.a],B=supports[pl.b];
+    if(pointSegDist(p.x,p.y,A.x,RIVER_Y,B.x,RIVER_Y)<26){
+      placed.splice(i,1);
+      drag={type:pl.type,len:pl.len,fromPlaced:true,orig:pl,x:p.x,pair:null,valid:false};
+      SFX.pickup();return;
+    }
+  }
+  // 再尝试从托盘取
+  for(let s=0;s<3;s++){
+    const sl=traySlot(s),k=sl.k;
+    if(Math.abs(p.x-sl.cx)<140&&p.y>TRAY_Y-TRAY_H/2&&p.y<TRAY_Y+TRAY_H/2){
+      if(counts[k]>0){
+        counts[k]--;
+        drag={type:k,len:LEVELS[levelIdx].inv[k].len,fromPlaced:false,x:p.x,pair:null,valid:false};
+        SFX.pickup();
+      }else{toast(PLANK_TYPES[k].label+'用完了！');SFX.invalid();}
+      return;
+    }
+  }
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drag||mode!=='build')return;
+  const p=toLogic(e);drag.x=Math.max(40,Math.min(W-40,p.x));
+  if(p.y>RIVER_Y-140&&p.y<RIVER_Y+140){
+    drag.pair=findPair(drag.x,drag.len);drag.valid=!!drag.pair;
+  }else{drag.pair=null;drag.valid=false;}
+});
+function endDrag(){
+  if(!drag)return;
+  if(drag.valid&&drag.pair){
+    placed.push({a:drag.pair.a,b:drag.pair.b,type:drag.type,len:drag.len});
+    SFX.place();spawnPuff((supports[drag.pair.a].x+supports[drag.pair.b].x)/2,RIVER_Y);
+  }else{
+    if(drag.fromPlaced)placed.push(drag.orig);
+    else counts[drag.type]++;
+    SFX.invalid();
+    const msg=drag.pair?'这里已经有冰板了！':nearMsg(drag.x,drag.len);
+    toast(msg);
+  }
+  drag=null;
+}
+function nearMsg(x,len){
+  // 找最近的缺口，判断是太短还是太长
+  let bd=1e9,bg=0;
+  for(let i=0;i<supports.length-1;i++){
+    const mid=(supports[i].x+supports[i+1].x)/2,dd=Math.abs(mid-x);
+    if(dd<bd){bd=dd;bg=supports[i+1].x-supports[i].x;}
+  }
+  if(bd>260)return '拖到河面上再松手！';
+  if(len<bg)return '太短了！够不着两端 ❌';
+  return '太长了！会戳出浮冰 ❌';
+}
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',()=>{
+  if(!drag)return;
+  if(drag.fromPlaced)placed.push(drag.orig);else counts[drag.type]++;
+  drag=null;
+});
+/* ================= 寻路 & 出发 ================= */
+function buildGraph(){
+  const g=supports.map(()=>[]);
+  placed.forEach(p=>{g[p.a].push(p.b);g[p.b].push(p.a);});
+  return g;
+}
+function findPath(){
+  const g=buildGraph(),n=supports.length,prev=new Array(n).fill(-1),q=[0],seen=new Array(n).fill(false);
+  seen[0]=true;
+  while(q.length){const u=q.shift();if(u===n-1)break;
+    for(const v of g[u])if(!seen[v]){seen[v]=true;prev[v]=u;q.push(v);}}
+  if(!seen[n-1])return null;
+  const path=[];let c=n-1;while(c!==-1){path.unshift(c);c=prev[c];}
+  return path;
+}
+function farthestReachable(){
+  const g=buildGraph(),n=supports.length,seen=new Array(n).fill(false),q=[0];seen[0]=true;
+  let far=0;
+  while(q.length){const u=q.shift();if(supports[u].x>supports[far].x)far=u;
+    for(const v of g[u])if(!seen[v]){seen[v]=true;q.push(v);}}
+  return far;
+}
+document.getElementById('btnGo').addEventListener('click',()=>{
+  ac();if(mode!=='build')return;
+  if(placed.length===0){toast('先拖几块冰板到河面上！');SFX.invalid();return;}
+  const path=findPath();
+  if(path){
+    const pts=path.map(i=>({x:supports[i].x,y:RIVER_Y-46}));
+    peng={pts:pts,seg:0,t:0,ok:true,x:pts[0].x,y:pts[0].y,stepT:0};
+  }else{
+    const far=farthestReachable();
+    const pts=[];let c=far;
+    // 走到最远可达点：简单按 x 排序的可达路径近似（取一条可达链）
+    const g=buildGraph(),n=supports.length,prev=new Array(n).fill(-1),q=[0],seen=new Array(n).fill(false);
+    seen[0]=true;
+    while(q.length){const u=q.shift();for(const v of g[u])if(!seen[v]){seen[v]=true;prev[v]=u;q.push(v);}}
+    const chain=[];let cc=far;while(cc!==-1){chain.unshift(cc);cc=prev[cc];}
+    chain.forEach(i=>pts.push({x:supports[i].x,y:RIVER_Y-46}));
+    pts.push({x:supports[far].x+70,y:RIVER_Y-46}); // 往前一探
+    peng={pts:pts,seg:0,t:0,ok:false,x:pts[0].x,y:pts[0].y,stepT:0,fall:0};
+  }
+  mode='walking';SFX.click();
+});
+document.getElementById('btnReset').addEventListener('click',()=>{
+  if(mode!=='build')return;
+  Object.keys(counts).forEach(k=>counts[k]=LEVELS[levelIdx].inv[k].n);
+  placed=[];SFX.click();toast('已清空，重摆吧！',false);
+});
+/* ================= 粒子 ================= */
+function spawnPuff(x,y){for(let i=0;i<10;i++)particles.push({x:x,y:y,vx:(Math.random()-0.5)*160,vy:-Math.random()*120-30,life:0.6,t:0,c:'#bfe3ff',r:2+Math.random()*3});}
+function spawnSplash(x,y){for(let i=0;i<26;i++)particles.push({x:x,y:y,vx:(Math.random()-0.5)*320,vy:-Math.random()*260-40,life:0.9,t:0,c:Math.random()<0.5?'#7fc4ff':'#e3f2fd',r:2+Math.random()*4});}
+function spawnWin(x,y){for(let i=0;i<40;i++)particles.push({x:x+(Math.random()-0.5)*120,y:y,vx:(Math.random()-0.5)*200,vy:-Math.random()*280-60,life:1.4,t:0,c:['#ffd54f','#90caf9','#ffffff','#a5d6a7'][i%4],r:2+Math.random()*4});}
+/* ================= 渲染 ================= */
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+let waveT=0;
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#0a1830');bg.addColorStop(0.55,'#0d2242');bg.addColorStop(1,'#050b16');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  // 星星 & 月亮
+  stars.forEach(s=>{ctx.globalAlpha=0.4+0.6*Math.abs(Math.sin(waveT*0.8+s.tw));ctx.fillStyle='#cfe6ff';ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,6.29);ctx.fill();});
+  ctx.globalAlpha=1;ctx.font='54px serif';ctx.fillText('🌕',906,66);
+  // 远山
+  ctx.fillStyle='#0e2547';ctx.beginPath();ctx.moveTo(0,300);
+  for(let x=0;x<=W;x+=40)ctx.lineTo(x,300-40-Math.abs(Math.sin(x*0.013))*70);
+  ctx.lineTo(W,340);ctx.lineTo(0,340);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#12315c';ctx.beginPath();ctx.moveTo(0,320);
+  for(let x=0;x<=W;x+=50)ctx.lineTo(x,320-30-Math.abs(Math.sin(x*0.02+2))*50);
+  ctx.lineTo(W,360);ctx.lineTo(0,360);ctx.closePath();ctx.fill();
+  // 河水
+  const wg=ctx.createLinearGradient(0,RIVER_Y-90,0,RIVER_Y+90);
+  wg.addColorStop(0,'#123c6e');wg.addColorStop(0.5,'#0e2f58');wg.addColorStop(1,'#0a2347');
+  ctx.fillStyle=wg;ctx.fillRect(0,RIVER_Y-90,W,180);
+  ctx.strokeStyle='rgba(127,196,255,0.25)';ctx.lineWidth=2;
+  for(let r2=0;r2<3;r2++){ctx.beginPath();
+    for(let x=0;x<=W;x+=20){const y=RIVER_Y-50+r2*48+Math.sin(x*0.03+waveT*2+r2)*6;x?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    ctx.stroke();}
+  // 两岸
+  ctx.fillStyle='#1b3a63';rr(-10,RIVER_Y-100,80,200,18);ctx.fill();
+  ctx.fillStyle='#1b3a63';rr(W-70,RIVER_Y-100,80,200,18);ctx.fill();
+  ctx.fillStyle='#e8f4ff';
+  for(let i=0;i<5;i++){ctx.globalAlpha=0.85;ctx.beginPath();ctx.ellipse(30,RIVER_Y-80+i*36,26,10,0,0,6.29);ctx.fill();
+    ctx.beginPath();ctx.ellipse(W-30,RIVER_Y-80+i*36,26,10,0,0,6.29);ctx.fill();}
+  ctx.globalAlpha=1;
+  ctx.fillStyle='#90caf9';ctx.font='bold 22px sans-serif';ctx.textAlign='center';
+  ctx.fillText('起点',30,RIVER_Y+92);ctx.fillText('终点',W-30,RIVER_Y+92);
+  ctx.font='40px serif';ctx.fillText('🏁',W-30,RIVER_Y-108);
+  // 浮冰
+  supports.forEach((s,idx)=>{
+    if(s.bank)return;
+    ctx.save();ctx.shadowColor='#7fc4ff';ctx.shadowBlur=14;
+    const fg=ctx.createLinearGradient(0,RIVER_Y-26,0,RIVER_Y+22);
+    fg.addColorStop(0,'#d6ecff');fg.addColorStop(1,'#8fbfe8');
+    ctx.fillStyle=fg;rr(s.x-46,RIVER_Y-26,92,48,20);ctx.fill();ctx.restore();
+    ctx.fillStyle='#e8f4ff';ctx.globalAlpha=0.5;
+    ctx.beginPath();ctx.ellipse(s.x-14,RIVER_Y-12,16,6,-0.3,0,6.29);ctx.fill();ctx.globalAlpha=1;
+    ctx.fillStyle='#0d2b52';ctx.font='bold 20px sans-serif';ctx.fillText(s.label,s.x,RIVER_Y+6);
+  });
+  // 已放冰板
+  placed.forEach(pl=>{
+    const A=supports[pl.a],B=supports[pl.b];
+    drawPlank(A.x,B.x,RIVER_Y,PLANK_TYPES[pl.type].c,false);
+  });
+  // 拖拽中的冰板（实时红绿反馈）
+  if(drag){
+    const col=drag.valid?'#66bb6a':'#ef5350';
+    if(drag.pair){
+      const A=supports[drag.pair.a],B=supports[drag.pair.b];
+      ctx.save();ctx.globalAlpha=0.35;ctx.fillStyle=col;
+      rr(Math.min(A.x,B.x)-46,RIVER_Y-30,Math.abs(B.x-A.x)+92,56,20);ctx.fill();ctx.restore();
+    }
+    drawPlank(drag.x-drag.len/2,drag.x+drag.len/2,RIVER_Y-60,col,true);
+    ctx.fillStyle=col;ctx.font='bold 18px sans-serif';
+    ctx.fillText(drag.valid?'✓ 松手架桥':'✗ '+nearMsg(drag.x,drag.len),drag.x,RIVER_Y-110);
+  }
+  // 企鹅
+  if(peng){
+    const bob=Math.sin(waveT*14)*4;
+    ctx.font='44px serif';ctx.textAlign='center';
+    if(peng.fall>0){ctx.save();ctx.translate(peng.x,peng.y+peng.fall*90);ctx.rotate(peng.fall*1.2);ctx.fillText('🐧',0,0);ctx.restore();}
+    else ctx.fillText('🐧',peng.x,peng.y+bob);
+  }else if(mode==='build'){
+    ctx.font='44px serif';ctx.textAlign='center';
+    ctx.fillText('🐧',supports[0].x,RIVER_Y-46+Math.sin(waveT*3)*4);
+  }
+  // 粒子
+  particles.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.29);ctx.fill();});
+  ctx.globalAlpha=1;
+  // 托盘
+  ctx.fillStyle='rgba(10,22,40,0.92)';rr(10,TRAY_Y-TRAY_H/2,W-20,TRAY_H,16);ctx.fill();
+  ctx.strokeStyle='#2b4a6b';ctx.lineWidth=2;rr(10,TRAY_Y-TRAY_H/2,W-20,TRAY_H,16);ctx.stroke();
+  ctx.fillStyle='#9fb3c8';ctx.font='15px sans-serif';ctx.textAlign='left';
+  ctx.fillText('👇 拖一块冰板到河面上',26,TRAY_Y-TRAY_H/2+24);
+  for(let s=0;s<3;s++){
+    const sl=traySlot(s),k=sl.k,inv=LEVELS[levelIdx].inv[k],pw=inv.len*0.62;
+    ctx.fillStyle=counts[k]>0?'#dbeafe':'#4a5a70';
+    ctx.font='bold 17px sans-serif';ctx.textAlign='center';
+    ctx.fillText(PLANK_TYPES[k].label+' '+inv.len,sl.cx,TRAY_Y+42);
+    if(counts[k]>0){
+      ctx.save();ctx.globalAlpha=0.95;
+      drawPlank(sl.cx-pw/2,sl.cx+pw/2,TRAY_Y-8,PLANK_TYPES[k].c,false);
+      ctx.restore();
+      ctx.fillStyle='#ff5252';ctx.beginPath();ctx.arc(sl.cx+pw/2+6,TRAY_Y-30,15,0,6.29);ctx.fill();
+      ctx.fillStyle='#fff';ctx.font='bold 17px sans-serif';ctx.fillText('×'+counts[k],sl.cx+pw/2+6,TRAY_Y-24);
+    }else{ctx.fillStyle='#5a6b82';ctx.font='15px sans-serif';ctx.fillText('用完了',sl.cx,TRAY_Y-8);}
+  }
+  ctx.textAlign='left';
+}
+function drawPlank(x1,x2,y,color,ghost){
+  const w=Math.abs(x2-x1);
+  ctx.save();
+  if(!ghost){ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowBlur=6;ctx.shadowOffsetY=3;}
+  const g=ctx.createLinearGradient(0,y-11,0,y+11);
+  g.addColorStop(0,color);g.addColorStop(1,'#5d6a7a');
+  ctx.fillStyle=ghost?color:g;rr(Math.min(x1,x2),y-11,w,22,9);ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle='rgba(0,0,0,0.25)';ctx.lineWidth=1.5;
+  for(let i=1;i<5;i++){const x=Math.min(x1,x2)+w*i/5;ctx.beginPath();ctx.moveTo(x,y-11);ctx.lineTo(x,y+11);ctx.stroke();}
+}
+/* ================= 主循环 ================= */
+let lastT=0,paused=false;
+function loop(t){
+  requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(t-lastT)/1000||0.016);lastT=t;
+  if(paused)return;
+  waveT+=dt;
+  // 粒子
+  for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.t+=dt;
+    if(p.t>=p.life){particles.splice(i,1);continue;}
+    p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=500*dt;}
+  // 企鹅行走
+  if(peng&&mode==='walking'){
+    const P=peng,SPD=260;
+    if(P.fall>0){
+      P.fall+=dt*1.4;
+      if(P.fall>1.6&&P.fall<90){ // 落水（fall=99 为已处理标记）
+        spawnSplash(P.x,RIVER_Y+40);SFX.splash();P.fall=99;
+        setTimeout(()=>{peng=null;mode='build';toast('企鹅掉进水里了！调整冰板再试一次');},700);
+      }
+    }else{
+      const A=P.pts[P.seg],B=P.pts[P.seg+1];
+      if(!B){ // 到达
+        P.x=A.x;
+        if(P.ok){
+          mode='done';spawnWin(supports[supports.length-1].x,RIVER_Y-60);SFX.win();
+          const used=placed.length,opt=LEVELS[levelIdx].optimal;
+          const starsN=used<=opt?3:(used===opt+1?2:1);
+          const gained=Math.max(100,600+300*Math.max(0,opt-used))+ (levelIdx+1)*100;
+          score+=gained;
+          const cleared=levelIdx+1;
+          if(cleared>best){best=cleared;localStorage.setItem('g100_icebridge_best',''+best);}
+          updHud();peng=null;
+          setTimeout(()=>{
+            document.getElementById('lvTitle').textContent='🎉 第 '+(levelIdx+1)+' 关通过！';
+            document.getElementById('lvStars').textContent='★★★'.slice(0,starsN)+'☆☆☆'.slice(0,3-starsN);
+            document.getElementById('lvScore').textContent='本关用板 '+used+' 块（最优 '+opt+'）· +'+gained+' 分 · 总分 '+score;
+            document.getElementById('btnNext').textContent=levelIdx<5?'下一关 →':'完成 🎉';
+            showOv('ovLevel');
+          },900);
+        }else{
+          P.fall=0.01; // 开始下坠
+        }
+      }else{
+        const dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy),step=SPD*dt;
+        P.t+=step;
+        P.stepT+=dt;
+        if(P.stepT>0.28){P.stepT=0;SFX.step();}
+        if(P.t>=d){P.seg++;P.t=0;P.x=B.x;P.y=B.y;}
+        else{P.x=A.x+dx*P.t/d;P.y=A.y+dy*P.t/d;}
+      }
+    }
+  }
+  draw();
+}
+/* ================= UI 接线 ================= */
+function setMute(m){muted=m;localStorage.setItem('g100_mute',m?'1':'0');
+  document.getElementById('btnMute').textContent=m?'🔇':'🔊';}
+document.getElementById('btnMute').addEventListener('click',()=>{setMute(!muted);SFX.click();});
+document.getElementById('btnStart').addEventListener('click',()=>{ac();SFX.click();hideAllOv();});
+document.getElementById('btnHint').addEventListener('click',()=>{
+  document.getElementById('hintText').innerHTML=LEVELS[levelIdx].hint;showOv('ovHint');SFX.click();});
+document.getElementById('btnHintClose').addEventListener('click',()=>{hideAllOv();SFX.click();});
+document.getElementById('btnPause').addEventListener('click',()=>{if(mode==='build'){paused=true;showOv('ovPause');SFX.click();}});
+document.getElementById('btnResume').addEventListener('click',()=>{paused=false;hideAllOv();SFX.click();});
+document.getElementById('btnRestart').addEventListener('click',()=>{
+  paused=false;hideAllOv();loadLevel(levelIdx);SFX.click();});
+document.getElementById('btnNext').addEventListener('click',()=>{
+  hideAllOv();SFX.click();
+  if(levelIdx<5){levelIdx++;loadLevel(levelIdx);}
+  else{
+    document.getElementById('doneScore').textContent='6 关全通！总分 '+score+' 分 🎊';
+    showOv('ovDone');
+  }
+});
+document.getElementById('btnAgain').addEventListener('click',()=>{
+  hideAllOv();score=0;levelIdx=0;loadLevel(0);SFX.click();});
+setMute(muted);
+loadLevel(0);
+updHud();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

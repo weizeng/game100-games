@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>雪怪</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{background:#050b16;color:#dbeafe;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden;height:100%}
+#wrap{max-width:1000px;margin:0 auto;height:100%;display:flex;flex-direction:column}
+#hud{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#0a1526}
+#hud .t{font-size:15px;font-weight:700;color:#ce93d8;white-space:nowrap}
+#hud .s{font-size:13px;color:#9fb3c8;white-space:nowrap}
+#hud .sp{flex:1}
+.btn{background:#16283f;border:1px solid #2b4a6b;color:#dbeafe;border-radius:10px;min-height:44px;min-width:44px;padding:8px 12px;font-size:16px;cursor:pointer;user-select:none}
+.btn:active{transform:scale(.94)}
+#gapbar{flex:1;min-width:80px;max-width:260px;height:16px;background:#1a0f24;border:1px solid #6a3d8f;border-radius:8px;position:relative;overflow:hidden}
+#gapfill{position:absolute;left:0;top:0;bottom:0;width:60%;background:linear-gradient(90deg,#ab47bc,#e1bee7);border-radius:8px;transition:width .2s}
+#gapbar .e1{position:absolute;left:2px;top:-4px;font-size:16px}
+#gapbar .e2{position:absolute;right:2px;top:-4px;font-size:16px}
+#stage{position:relative;flex:1;min-height:0;background:#050b16}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#btnSnow{position:absolute;right:14px;bottom:16px;width:104px;height:104px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#4a6fa5,#1c3f6e);border:3px solid #90caf9;color:#fff;
+  font-size:15px;font-weight:700;z-index:15;box-shadow:0 4px 18px rgba(144,202,249,.4);line-height:1.25}
+#btnSnow:active{transform:scale(.92)}
+#btnSnow small{font-size:12px;color:#cfe6ff}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(3,8,18,.82);z-index:20;padding:16px}
+.ov.hidden{display:none}
+.card{background:#140d24;border:1px solid #6a3d8f;border-radius:16px;padding:22px 20px;max-width:440px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(171,71,188,.2)}
+.card h1{font-size:30px;margin-bottom:6px;color:#ce93d8}
+.card h2{font-size:22px;margin-bottom:10px;color:#ce93d8}
+.card p{font-size:14px;line-height:1.7;color:#cdbad9;margin:8px 0;text-align:left}
+.card .row{display:flex;gap:10px;justify-content:center;margin-top:14px}
+.card .big{font-size:18px;color:#fff;text-align:center}
+.btn.primary{background:#6a1b9a;border-color:#ab47bc;font-weight:700;font-size:17px}
+.kbd{color:#e1bee7;font-weight:700}
+#toast{position:absolute;left:50%;top:16%;transform:translateX(-50%);background:rgba(106,27,154,.92);color:#fff;padding:10px 18px;border-radius:12px;font-size:16px;font-weight:700;z-index:30;display:none;pointer-events:none;white-space:nowrap}
+#toast.show{display:block;animation:pop .25s ease}
+@keyframes pop{from{transform:translateX(-50%) scale(.8);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="t">👹 雪怪</span>
+    <div id="gapbar" title="与雪怪的距离"><div id="gapfill"></div><span class="e1">👹</span><span class="e2">🏃</span></div>
+    <span class="s" id="hudDist">0 米</span>
+    <span class="s" id="hudBall">❄️×3</span>
+    <span class="s" id="hudBest">最佳 0 米</span>
+    <span class="sp"></span>
+    <button class="btn" id="btnMute">🔊</button>
+    <button class="btn" id="btnPause">⏸</button>
+  </div>
+  <div id="stage">
+    <canvas id="cv" width="960" height="600"></canvas>
+    <button id="btnSnow">🎯<br>扔雪球<br><small id="ballN">×3</small></button>
+    <div id="toast"></div>
+    <div class="ov" id="ovStart">
+      <div class="card">
+        <h1>👹 雪怪追击</h1>
+        <p>🏃 你在雪山小径上狂奔，雪怪在身后紧追不舍！顶部的<b class="kbd">距离条</b>就是你的生命线。</p>
+        <p>👆 <b>点按屏幕 / 空格</b>跳跃，躲开<b class="kbd">冰石</b>🪨和<b class="kbd">冰缝</b>🕳️——撞上会踉跄减速，雪怪就追近了！</p>
+        <p>🎯 右下角<b class="kbd">扔雪球</b>按钮向后砸雪怪，让它减速拉开距离。雪球有限，沿途捡<b class="kbd">雪堆</b>❄️补充。</p>
+        <p>🏆 跑得越远分越高。被雪怪追上就结束了！</p>
+        <div class="row"><button class="btn primary" id="btnStart">开始逃亡</button></div>
+      </div>
+    </div>
+    <div class="ov hidden" id="ovPause">
+      <div class="card">
+        <h2>⏸ 已暂停</h2>
+        <div class="row">
+          <button class="btn primary" id="btnResume">继续</button>
+          <button class="btn" id="btnRestart">重来</button>
+        </div>
+      </div>
+    </div>
+    <div class="ov hidden" id="ovOver">
+      <div class="card">
+        <h2>👹 被雪怪抓住了！</h2>
+        <p class="big" id="overScore">跑了 0 米</p>
+        <p class="big" id="overBest" style="font-size:14px;color:#9fb3c8"></p>
+        <div class="row"><button class="btn primary" id="btnAgain">再跑一次</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ================= 音频 ================= */
+let AC=null;
+let muted=localStorage.getItem('g100_mute')==='1';
+function ac(){
+  if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){AC=null;}}
+  if(AC&&AC.state==='suspended'){AC.resume();}
+  return AC;
+}
+function tone(f,d,type,v,f2,delay){
+  if(muted)return;const c=ac();if(!c)return;
+  const t0=c.currentTime+(delay||0);
+  const o=c.createOscillator(),g=c.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,t0);
+  if(f2)o.frequency.exponentialRampToValueAtTime(Math.max(30,f2),t0+d);
+  g.gain.setValueAtTime(v||0.2,t0);g.gain.exponentialRampToValueAtTime(0.001,t0+d);
+  o.connect(g);g.connect(c.destination);o.start(t0);o.stop(t0+d+0.03);
+}
+function noiseBurst(d,v,ff){
+  if(muted)return;const c=ac();if(!c)return;
+  const n=Math.floor(c.sampleRate*d),buf=c.createBuffer(1,n,c.sampleRate),ch=buf.getChannelData(0);
+  for(let i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);
+  const s=c.createBufferSource(),g=c.createGain(),f=c.createBiquadFilter();
+  f.type='lowpass';f.frequency.value=ff||1200;
+  s.buffer=buf;g.gain.value=v||0.3;s.connect(f);f.connect(g);g.connect(c.destination);s.start();
+}
+const SFX={
+  click(){tone(620,0.06,'square',0.10);},
+  jump(){tone(300,0.18,'sine',0.22,640);},
+  throw(){noiseBurst(0.18,0.20,2500);tone(900,0.15,'sine',0.10,300);},
+  hitYeti(){noiseBurst(0.22,0.35,700);tone(180,0.18,'square',0.22,70);},
+  stumble(){noiseBurst(0.25,0.30,500);tone(220,0.25,'sawtooth',0.18,90);},
+  pickup(){tone(880,0.08,'sine',0.16,1320);},
+  caught(){tone(400,0.9,'sawtooth',0.25,60);noiseBurst(0.5,0.3,400);}
+};
+function buzz(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+/* ================= 状态 ================= */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=960,H=600,GROUND=478,PX=230;
+const GAP_MAX=360,GAP_START=240;
+let mode='menu'; // menu | run | pause | over
+let obstacles=[],piles=[],snowballs=[],parts=[],flakes=[];
+let dist,py,vy,onGround,gap,balls,ballCD,invuln,slowT;
+let shakeT,spawnT,pileT,trailT,stepPhase,waveT=0;
+let best=parseInt(localStorage.getItem('g100_yeti_best')||'0',10);
+function reset(){
+  dist=0;py=GROUND;vy=0;onGround=true;gap=GAP_START;balls=3;ballCD=0;invuln=0;slowT=0;
+  obstacles=[];piles=[];snowballs=[];parts=[];shakeT=0;spawnT=1.2;pileT=3;trailT=0;stepPhase=0;
+  updHud();
+}
+function speed(){return (300+Math.min(340,dist*0.012))*(slowT>0?0.55:1);}
+function updHud(){
+  document.getElementById('hudDist').textContent=Math.floor(dist/50)+' 米';
+  document.getElementById('hudBall').textContent='❄️×'+balls;
+  document.getElementById('ballN').textContent='×'+balls;
+  document.getElementById('hudBest').textContent='最佳 '+best+' 米';
+  document.getElementById('gapfill').style.width=Math.max(0,Math.min(100,gap/GAP_MAX*100))+'%';
+}
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;
+  t.classList.remove('show');void t.offsetWidth;t.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),1400);
+}
+function hideAllOv(){['ovStart','ovPause','ovOver'].forEach(id=>document.getElementById(id).classList.add('hidden'));}
+/* ================= 输入 ================= */
+function doJump(){
+  if(mode!=='run')return;
+  if(onGround){vy=-830;onGround=false;SFX.jump();}
+}
+cv.addEventListener('pointerdown',e=>{ac();e.preventDefault();doJump();});
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();ac();doJump();}
+});
+document.getElementById('btnSnow').addEventListener('pointerdown',e=>{
+  e.preventDefault();e.stopPropagation();ac();
+  if(mode!=='run')return;
+  if(ballCD>0)return;
+  if(balls<=0){toast('没雪球了！去捡雪堆 ❄️');SFX.click();return;}
+  balls--;ballCD=0.35;
+  snowballs.push({x:PX-24,y:py-64,life:1.4});
+  SFX.throw();updHud();
+});
+/* ================= 粒子 ================= */
+function burst(x,y,c,n,spd){
+  for(let i=0;i<(n||14);i++)parts.push({x:x,y:y,vx:(Math.random()-0.5)*(spd||260),vy:-Math.random()*(spd||260)*0.7-40,life:0.7,t:0,c:c,r:2+Math.random()*3.5});
+}
+for(let i=0;i<70;i++)flakes.push({x:Math.random()*W,y:Math.random()*H,s:1+Math.random()*2.5,v:30+Math.random()*50,ph:Math.random()*6.28});
+/* ================= 生成 ================= */
+function spawnObstacle(){
+  const r=Math.random();
+  if(r<0.55)obstacles.push({kind:'rock',x:W+60,w:46,h:54});
+  else obstacles.push({kind:'crack',x:W+60,w:104,h:10});
+}
+function spawnPile(){piles.push({x:W+60,y:GROUND-14,taken:false});}
+/* ================= 更新 ================= */
+function update(dt){
+  const sp=speed();
+  dist+=sp*dt;
+  gap-=(7+dist/3500)*dt; // 雪怪缓慢追近
+  if(ballCD>0)ballCD-=dt;
+  if(invuln>0)invuln-=dt;
+  if(slowT>0)slowT-=dt;
+  if(shakeT>0)shakeT-=dt;
+  // 跳跃物理
+  if(!onGround){
+    vy+=2400*dt;py+=vy*dt;
+    if(py>=GROUND){py=GROUND;vy=0;onGround=true;burst(PX,GROUND,'#cfe6ff',6,120);}
+  }
+  // 生成
+  spawnT-=dt;
+  if(spawnT<=0){spawnObstacle();spawnT=Math.max(0.62,1.35-dist/9000)+Math.random()*0.55;}
+  pileT-=dt;
+  if(pileT<=0){spawnPile();pileT=4+Math.random()*4;}
+  // 障碍移动 & 碰撞
+  const pL=PX-24,pR=PX+24,pFeet=py,pHead=py-52;
+  for(let i=obstacles.length-1;i>=0;i--){
+    const o=obstacles[i];o.x-=sp*dt;
+    if(o.x<-120){obstacles.splice(i,1);continue;}
+    if(invuln>0)continue;
+    let hit=false;
+    if(o.kind==='rock'){
+      if(o.x<pR&&o.x+o.w>pL&&pFeet>GROUND-o.h+16)hit=true;
+    }else{ // crack：站在地面上经过就绊倒
+      if(o.x<pR&&o.x+o.w>pL&&onGround)hit=true;
+    }
+    if(hit){
+      obstacles.splice(i,1);
+      invuln=1.5;slowT=0.55;gap-=70;shakeT=0.35;
+      SFX.stumble();buzz(90);burst(PX,py-20,'#ff8a80',16,300);
+      toast('踉跄！雪怪追近了！');
+      if(gap<=10){gameOver();return;}
+    }
+  }
+  // 雪堆拾取
+  for(let i=piles.length-1;i>=0;i--){
+    const pl=piles[i];pl.x-=sp*dt;
+    if(pl.x<-40){piles.splice(i,1);continue;}
+    if(Math.abs(pl.x-PX)<40){
+      if(balls<5){balls++;SFX.pickup();burst(pl.x,GROUND-30,'#e1f5fe',10,160);toast('❄️ 雪球 +1');}
+      else{SFX.pickup();}
+      piles.splice(i,1);updHud();
+    }
+  }
+  // 雪球飞行（屏幕空间向左）
+  const yetiX=PX-gap;
+  for(let i=snowballs.length-1;i>=0;i--){
+    const b=snowballs[i];b.x-=640*dt;b.life-=dt;
+    if(Math.abs(b.x-yetiX)<42){
+      snowballs.splice(i,1);
+      gap=Math.min(GAP_MAX,gap+110);
+      SFX.hitYeti();buzz(70);burst(yetiX,py-70,'#ffffff',22,340);
+      toast('🎯 砸中雪怪！拉开距离！');
+      updHud();continue;
+    }
+    if(b.life<=0||b.x<-30)snowballs.splice(i,1);
+  }
+  // 跑步扬雪
+  trailT-=dt;
+  if(trailT<=0){trailT=0.07;parts.push({x:PX-20,y:GROUND-4,vx:-sp*0.25+(Math.random()-0.5)*40,vy:-Math.random()*70-20,life:0.5,t:0,c:'#d8ecff',r:1.5+Math.random()*2});}
+  stepPhase+=dt*10;
+  // 粒子
+  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.t+=dt;
+    if(p.t>=p.life){parts.splice(i,1);continue;}
+    p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=420*dt;}
+  // 雪花
+  flakes.forEach(f=>{f.y+=f.v*dt;f.x+=Math.sin(waveT*2+f.ph)*20*dt;f.ph+=dt;
+    if(f.y>H){f.y=-10;f.x=Math.random()*W;}});
+  if(gap<=10){gameOver();return;}
+  updHud();
+}
+function gameOver(){
+  mode='over';
+  const m=Math.floor(dist/50);
+  if(m>best){best=m;localStorage.setItem('g100_yeti_best',''+best);}
+  SFX.caught();buzz([120,60,120]);shakeT=0.7;
+  burst(PX-gap,py-40,'#ce93d8',30,380);
+  document.getElementById('overScore').textContent='🏃 跑了 '+m+' 米';
+  document.getElementById('overBest').textContent='历史最佳：'+best+' 米';
+  updHud();
+  setTimeout(()=>{document.getElementById('ovOver').classList.remove('hidden');},650);
+}
+/* ================= 渲染 ================= */
+function draw(){
+  ctx.save();
+  if(shakeT>0)ctx.translate((Math.random()-0.5)*14*shakeT,(Math.random()-0.5)*10*shakeT);
+  ctx.clearRect(-20,-20,W+40,H+40);
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#0b1430');bg.addColorStop(0.6,'#101f42');bg.addColorStop(1,'#070d1c');
+  ctx.fillStyle=bg;ctx.fillRect(-20,-20,W+40,H+40);
+  // 月亮
+  ctx.font='52px serif';ctx.fillText('🌕',872,60);
+  // 远山（两层视差）
+  const off1=(dist*0.12)%W,off2=(dist*0.3)%W;
+  ctx.fillStyle='#152b52';
+  for(let k=-1;k<2;k++){const ox=k*W-off1;ctx.beginPath();ctx.moveTo(ox,430);
+    for(let x=0;x<=W;x+=60)ctx.lineTo(ox+x,430-60-Math.abs(Math.sin((x+k*W)*0.011))*110);
+    ctx.lineTo(ox+W,470);ctx.lineTo(ox,470);ctx.closePath();ctx.fill();}
+  ctx.fillStyle='#1d3a68';
+  for(let k=-1;k<2;k++){const ox=k*W-off2;ctx.beginPath();ctx.moveTo(ox,452);
+    for(let x=0;x<=W;x+=70)ctx.lineTo(ox+x,452-40-Math.abs(Math.sin((x+k*W)*0.017+3))*70);
+    ctx.lineTo(ox+W,490);ctx.lineTo(ox,490);ctx.closePath();ctx.fill();}
+  // 雪地
+  const gg=ctx.createLinearGradient(0,GROUND,0,H);
+  gg.addColorStop(0,'#dfeefc');gg.addColorStop(0.25,'#b9d4ee');gg.addColorStop(1,'#7d9cc4');
+  ctx.fillStyle=gg;ctx.fillRect(-20,GROUND,W+40,H-GROUND+20);
+  ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(-20,GROUND);
+  for(let x=0;x<=W+20;x+=30)ctx.lineTo(x,GROUND+Math.sin(x*0.05+waveT*3)*2.5);
+  ctx.stroke();
+  // 冰缝
+  obstacles.forEach(o=>{
+    if(o.kind==='crack'){
+      ctx.fillStyle='#06121f';
+      ctx.beginPath();ctx.ellipse(o.x+o.w/2,GROUND+6,o.w/2,13,0,0,6.29);ctx.fill();
+      ctx.strokeStyle='#7fc4ff';ctx.lineWidth=3;
+      ctx.beginPath();ctx.ellipse(o.x+o.w/2,GROUND+6,o.w/2,13,0,0,6.29);ctx.stroke();
+      ctx.font='26px serif';ctx.textAlign='center';ctx.fillText('🕳️',o.x+o.w/2,GROUND+2);
+    }
+  });
+  // 雪堆
+  piles.forEach(p=>{
+    ctx.font='34px serif';ctx.textAlign='center';
+    ctx.fillText('❄️',p.x,GROUND+2);
+  });
+  // 冰石
+  obstacles.forEach(o=>{
+    if(o.kind==='rock'){
+      ctx.save();ctx.shadowColor='#7fc4ff';ctx.shadowBlur=10;
+      const rg=ctx.createLinearGradient(0,GROUND-o.h,0,GROUND);
+      rg.addColorStop(0,'#cfe8ff');rg.addColorStop(1,'#6f9fd0');
+      ctx.fillStyle=rg;
+      ctx.beginPath();ctx.moveTo(o.x,GROUND);ctx.lineTo(o.x+8,GROUND-o.h);
+      ctx.lineTo(o.x+o.w-10,GROUND-o.h+8);ctx.lineTo(o.x+o.w,GROUND);ctx.closePath();ctx.fill();
+      ctx.restore();
+      ctx.font='30px serif';ctx.textAlign='center';ctx.fillText('🪨',o.x+o.w/2,GROUND-o.h+6);
+    }
+  });
+  // 雪球
+  snowballs.forEach(b=>{
+    ctx.font='26px serif';ctx.textAlign='center';ctx.fillText('⚪',b.x,b.y);
+  });
+  // 雪怪
+  const yetiX=PX-gap;
+  const yBob=Math.sin(waveT*9)*5;
+  ctx.font='64px serif';ctx.textAlign='center';
+  ctx.fillText('👹',yetiX,GROUND-6+yBob);
+  // 玩家
+  ctx.save();
+  if(invuln>0&&Math.floor(waveT*12)%2===0)ctx.globalAlpha=0.4;
+  const runBob=onGround?Math.abs(Math.sin(stepPhase))*6:0;
+  ctx.font='52px serif';ctx.textAlign='center';
+  ctx.fillText(onGround?'🏃':'🦘',PX,py-4-runBob);
+  ctx.restore();
+  // 粒子
+  parts.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.c;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.29);ctx.fill();});
+  ctx.globalAlpha=1;
+  // 雪花
+  ctx.fillStyle='rgba(230,242,255,0.8)';
+  flakes.forEach(f=>{ctx.beginPath();ctx.arc(f.x,f.y,f.s,0,6.29);ctx.fill();});
+  // 受击红闪
+  if(invuln>1.2){ctx.fillStyle='rgba(255,60,60,'+(0.25*(invuln-1.2))+')';ctx.fillRect(-20,-20,W+40,H+40);}
+  ctx.restore();
+}
+/* ================= 主循环 ================= */
+let lastT=0;
+function loop(t){
+  requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(t-lastT)/1000||0.016);lastT=t;
+  if(mode==='run'){waveT+=dt;update(dt);}
+  else if(mode==='menu'||mode==='over'){waveT+=dt*0.4;
+    flakes.forEach(f=>{f.y+=f.v*dt*0.5;if(f.y>H){f.y=-10;f.x=Math.random()*W;}});}
+  draw();
+}
+/* ================= UI 接线 ================= */
+function setMute(m){muted=m;localStorage.setItem('g100_mute',m?'1':'0');
+  document.getElementById('btnMute').textContent=m?'🔇':'🔊';}
+document.getElementById('btnMute').addEventListener('click',()=>{setMute(!muted);SFX.click();});
+document.getElementById('btnStart').addEventListener('click',()=>{
+  ac();SFX.click();hideAllOv();reset();mode='run';
+  toast('跑！雪怪来了！👹');
+});
+document.getElementById('btnPause').addEventListener('click',()=>{
+  if(mode==='run'){mode='pause';document.getElementById('ovPause').classList.remove('hidden');SFX.click();}
+});
+document.getElementById('btnResume').addEventListener('click',()=>{
+  hideAllOv();mode='run';SFX.click();
+});
+document.getElementById('btnRestart').addEventListener('click',()=>{
+  hideAllOv();reset();mode='run';SFX.click();
+});
+document.getElementById('btnAgain').addEventListener('click',()=>{
+  hideAllOv();reset();mode='run';SFX.click();
+});
+setMute(muted);
+reset();
+document.getElementById('hudBest').textContent='最佳 '+best+' 米';
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
