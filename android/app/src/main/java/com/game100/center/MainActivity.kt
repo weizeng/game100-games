@@ -27,6 +27,7 @@ import com.game100.center.net.AppUpdater
 import com.game100.center.net.GameDownloader
 import com.game100.center.ui.FeaturedAdapter
 import com.game100.center.ui.GameRowAdapter
+import com.game100.center.ui.UiMotion
 import com.game100.center.util.ZipUtils
 import com.google.android.material.appbar.MaterialToolbar
 import kotlinx.coroutines.Dispatchers
@@ -97,6 +98,8 @@ class MainActivity : AppCompatActivity() {
         swipe.setOnRefreshListener { refreshRemote(silent = false) }
 
         buildCategoryChips()
+        UiMotion.enterPage(findViewById(R.id.swipe))
+        UiMotion.press(findViewById(R.id.btn_reset_filters))
 
         val searchBar = findViewById<android.widget.EditText>(R.id.search_bar)
         searchBar.setText(searchQuery)
@@ -135,6 +138,7 @@ class MainActivity : AppCompatActivity() {
                 setPadding(dp(16), dp(10), dp(16), dp(10))
                 setOnClickListener { selectCategory(cat) }
             }
+            UiMotion.press(tv)
             val lp = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -168,9 +172,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun selectCategory(cat: String) {
+        if (selectedCat == cat) return
         selectedCat = cat
         refreshChips()
         applyFilter()
+        UiMotion.pop(chipViews[categories.indexOf(cat)])
+        UiMotion.enter(findViewById(R.id.recycler))
+        UiMotion.enter(findViewById(R.id.empty_state))
     }
 
     private fun applyFilter() {

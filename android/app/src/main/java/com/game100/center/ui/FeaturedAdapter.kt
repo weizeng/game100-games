@@ -22,11 +22,13 @@ class FeaturedAdapter(
         val name: TextView = v.findViewById(R.id.feat_name)
         val desc: TextView = v.findViewById(R.id.feat_desc)
         val icon: TextView = v.findViewById(R.id.feat_icon)
+        val effects: ArcadeBackdropView = v.findViewById(R.id.feat_effects)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context).inflate(R.layout.item_featured, parent, false)
-        return VH(v)
+        UiMotion.press(v, 0.97f, tilt = true)
+        return VH(v).also { it.effects.bindIcon(it.icon) }
     }
 
     override fun onBindViewHolder(h: VH, position: Int) {
@@ -43,5 +45,10 @@ class FeaturedAdapter(
         h.desc.text = item.desc.ifBlank { item.category }
         h.icon.text = item.icon
         h.itemView.setOnClickListener { onClick(item) }
+    }
+
+    override fun onViewDetachedFromWindow(holder: VH) {
+        UiMotion.reset(holder.itemView)
+        super.onViewDetachedFromWindow(holder)
     }
 }

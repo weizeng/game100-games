@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.game100.center.data.GameRepository
 import com.game100.center.net.AppUpdater
+import com.game100.center.ui.UiMotion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -79,5 +80,8 @@ class SettingsActivity : AppCompatActivity() {
                 .setNegativeButton(R.string.cancel, null)
                 .show()
         }
+        val content = findViewById<android.view.ViewGroup>(android.R.id.content)
+        UiMotion.bindButtons(content)
+        UiMotion.enterPage(content)
     }
 }

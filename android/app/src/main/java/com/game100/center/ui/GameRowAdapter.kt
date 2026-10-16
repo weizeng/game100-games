@@ -16,6 +16,7 @@ class GameRowAdapter(
     private val onAction: (GameItem) -> Unit,
     private val onLongClick: (GameItem) -> Unit
 ) : ListAdapter<GameItem, GameRowAdapter.VH>(GameAdapter.DIFF) {
+    private val revealed = mutableSetOf<String>()
 
     fun submit(items: List<GameItem>) = submitList(items)
 
@@ -31,10 +32,14 @@ class GameRowAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context).inflate(R.layout.item_game_row, parent, false)
         // 图标圆角
-        return VH(v)
+        return VH(v).also {
+            UiMotion.press(v, 0.98f)
+            UiMotion.press(it.action)
+        }
     }
 
     override fun onBindViewHolder(h: VH, position: Int) {
+        UiMotion.reset(h.icon)
         val item = getItem(position)
         val ctx = h.itemView.context
         h.icon.text = item.icon
@@ -88,5 +93,20 @@ class GameRowAdapter(
 
         h.itemView.setOnClickListener { onClick(item) }
         h.itemView.setOnLongClickListener { onLongClick(item); true }
+    }
+
+    override fun onViewAttachedToWindow(holder: VH) {
+        super.onViewAttachedToWindow(holder)
+        val position = holder.bindingAdapterPosition
+        if (position in 0 until minOf(itemCount, 6) && revealed.add(getItem(position).id)) {
+            UiMotion.enter(holder.icon, position * 35L)
+        }
+    }
+
+    override fun onViewDetachedFromWindow(holder: VH) {
+        UiMotion.reset(holder.icon)
+        UiMotion.reset(holder.itemView)
+        UiMotion.reset(holder.action)
+        super.onViewDetachedFromWindow(holder)
     }
 }

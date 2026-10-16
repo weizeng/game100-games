@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.widget.Button
 import android.view.Gravity
 import com.game100.center.ui.GameAdapter
+import com.game100.center.ui.UiMotion
+import com.game100.center.ui.FavoriteBurst
 import com.google.android.material.appbar.MaterialToolbar
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -68,6 +70,7 @@ class GameDetailActivity : AppCompatActivity() {
         btnFav.setOnClickListener {
             val now = userData.toggleFavorite(gameId)
             refreshFav()
+            if (now) FavoriteBurst.show(btnFav)
             Toast.makeText(this, if (now) "已收藏" else "已取消收藏", Toast.LENGTH_SHORT).show()
         }
 
@@ -95,6 +98,9 @@ class GameDetailActivity : AppCompatActivity() {
                 setOnClickListener {
                     userData.setRating(gameId, i + 1)
                     refreshStars()
+                    starViews.take(i + 1).forEachIndexed { index, star ->
+                        UiMotion.pop(star, index * 45L)
+                    }
                     Toast.makeText(this@GameDetailActivity, "已评分 ${i + 1} 星", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -110,6 +116,9 @@ class GameDetailActivity : AppCompatActivity() {
             }
             startActivity(intent)
         }
+        val content = findViewById<android.view.ViewGroup>(android.R.id.content)
+        UiMotion.bindButtons(content)
+        UiMotion.enterPage(content)
     }
 
     override fun onSupportNavigateUp(): Boolean {
