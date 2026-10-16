@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>极光</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#050510;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#cv{position:fixed;inset:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;pointer-events:none}
+.pill{background:rgba(8,8,28,.62);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+#meterWrap{flex:1;pointer-events:none}
+#meterBar{position:relative;height:14px;border-radius:7px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);overflow:hidden}
+#meterFill{position:absolute;left:0;top:0;bottom:0;width:0%;border-radius:7px;background:linear-gradient(90deg,#2196F3,#00E676,#FFEB3B);transition:width .08s linear}
+#peakMark{position:absolute;top:-2px;bottom:-2px;width:3px;background:#fff;border-radius:2px;box-shadow:0 0 6px #fff}
+.iconBtn{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(8,8,28,.62);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#shots{position:fixed;top:64px;left:0;right:0;text-align:center;font-size:15px;letter-spacing:2px;z-index:5;pointer-events:none;text-shadow:0 2px 6px #000}
+#shutterBtn{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);width:84px;height:84px;border-radius:50%;border:4px solid rgba(255,255,255,.85);background:radial-gradient(circle at 35% 30%,#b39ddb,#5e35b1 70%);font-size:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:6;box-shadow:0 0 24px rgba(126,87,194,.8)}
+#shutterBtn:active{transform:translateX(-50%) scale(.93)}
+#shutterBtn.cool{opacity:.45}
+.overlay{position:fixed;inset:0;background:rgba(3,3,14,.86);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.card{background:linear-gradient(160deg,#151532,#0a0a24);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:28px 26px;max-width:340px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.card h1{font-size:30px;margin-bottom:6px}
+.card p{font-size:14px;color:#c5cae9;line-height:1.7;margin:10px 0}
+.bigBtn{display:inline-block;margin-top:14px;padding:14px 52px;font-size:18px;border:none;border-radius:999px;background:linear-gradient(135deg,#7E57C2,#00BCD4);color:#fff;cursor:pointer;min-height:52px}
+.stars{font-size:34px;margin:8px 0;letter-spacing:4px}
+.score{font-size:44px;font-weight:bold;color:#FFEB3B;margin:6px 0}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill" id="scorePill">得分 0</div>
+  <div id="meterWrap"><div id="meterBar"><div id="meterFill"></div><div id="peakMark"></div></div></div>
+  <button class="iconBtn" id="muteBtn" title="静音">🔊</button>
+  <button class="iconBtn" id="pauseBtn" title="暂停">⏸</button>
+</div>
+<div id="shots">📷 📷 📷 📷 📷</div>
+<button id="shutterBtn" title="快门">📷</button>
+
+<div class="overlay" id="startOv">
+  <div class="card">
+    <h1>🌌 极光</h1>
+    <p>夜空中的极光强度不断起伏。<br>在<b>强度峰值附近</b>按下快门得分越高！<br>你有 <b>5</b> 次快门机会，越接近峰值分数越高。<br>完美命中会触发<b>「完美！」</b>特效。</p>
+    <p style="color:#9fa8da;font-size:12px">顶部能量条 = 当前强度，白线 = 近期峰值</p>
+    <button class="bigBtn" id="startBtn">开始拍摄</button>
+  </div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h1>⏸ 已暂停</h1>
+    <p>极光还在等你回来</p>
+    <button class="bigBtn" id="resumeBtn">继续</button>
+  </div>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="card">
+    <h1>📸 拍摄结束</h1>
+    <div class="stars" id="starRow">★★★★★</div>
+    <div class="score" id="finalScore">0</div>
+    <p id="bestLine">历史最高：0</p>
+    <button class="bigBtn" id="retryBtn">再来一组</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0,DPR=1;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  buildStars();
+}
+window.addEventListener('resize',resize);
+
+/* ---------- 音频 ---------- */
+var muted=localStorage.getItem('g100_mute')==='1';
+var ac=null;
+function actx(){
+  if(!ac){var AC=window.AudioContext||window.webkitAudioContext;if(AC)ac=new AC();}
+  if(ac&&ac.state==='suspended')ac.resume();
+  return ac;
+}
+function tone(f,dur,type,vol,delay,f2){
+  if(muted)return;
+  var a=actx();if(!a)return;
+  var t0=a.currentTime+(delay||0);
+  var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,t0);
+  if(f2)o.frequency.exponentialRampToValueAtTime(f2,t0+dur);
+  g.gain.setValueAtTime(0.0001,t0);
+  g.gain.exponentialRampToValueAtTime(vol||0.2,t0+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  o.connect(g);g.connect(a.destination);
+  o.start(t0);o.stop(t0+dur+0.05);
+}
+function sfx(name){
+  if(muted)return;
+  if(name==='shutter'){tone(2200,0.05,'square',0.12);tone(900,0.09,'triangle',0.18,0.02);}
+  else if(name==='perfect'){tone(1568,0.16,'sine',0.25);tone(2093,0.22,'sine',0.25,0.1);tone(2637,0.3,'sine',0.22,0.2);}
+  else if(name==='normal'){tone(880,0.12,'sine',0.2);tone(1108,0.14,'sine',0.16,0.07);}
+  else if(name==='low'){tone(440,0.16,'sine',0.18);tone(349,0.2,'sine',0.14,0.08);}
+  else if(name==='fanfare'){var n=[523,659,784,1046,1318];for(var i=0;i<n.length;i++)tone(n[i],0.28,'triangle',0.22,i*0.13);}
+}
+
+/* ---------- 星空 ---------- */
+var stars=[];
+function buildStars(){
+  stars=[];
+  var n=Math.floor(W*H/9000);
+  for(var i=0;i<n;i++)stars.push({x:Math.random()*W,y:Math.random()*H*0.7,r:Math.random()*1.4+0.3,tw:Math.random()*6.28});
+}
+
+/* ---------- 极光强度：正弦叠加随机游走 ---------- */
+var tSec=0,walk=0,intensity=50,hist=[];
+var HIST_LEN=540;
+function calcIntensity(dt){
+  tSec+=dt;
+  walk+= (Math.random()-0.5)*3.2;
+  walk*=0.985;
+  if(walk>14)walk=14;if(walk<-14)walk=-14;
+  var v=56+27*Math.sin(tSec*0.42)+13*Math.sin(tSec*0.16+1.3)+7*Math.sin(tSec*1.05+0.5)+walk;
+  intensity=Math.max(4,Math.min(100,v));
+  hist.push(intensity);
+  if(hist.length>HIST_LEN)hist.shift();
+  return intensity;
+}
+function recentPeak(){
+  var m=0;
+  for(var i=0;i<hist.length;i++)if(hist[i]>m)m=hist[i];
+  return m;
+}
+
+/* ---------- 游戏状态 ---------- */
+var state='start',shotsLeft=5,totalScore=0,shotScores=[];
+var floats=[],parts=[],flashA=0;
+var best=parseInt(localStorage.getItem('g100_aurora_best')||'0',10)||0;
+
+var muteBtn=document.getElementById('muteBtn');
+function refreshMute(){muteBtn.textContent=muted?'🔇':'🔊';}
+muteBtn.addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');refreshMute();});
+muteBtn.addEventListener('pointerdown',function(e){e.stopPropagation();});
+refreshMute();
+
+function startGame(){
+  state='play';shotsLeft=5;totalScore=0;shotScores=[];
+  floats=[];parts=[];flashA=0;
+  document.getElementById('startOv').classList.add('hidden');
+  document.getElementById('endOv').classList.add('hidden');
+  document.getElementById('pauseOv').classList.add('hidden');
+  updateHud();
+}
+document.getElementById('startBtn').addEventListener('click',function(){tone(660,0.1,'sine',0.15);startGame();});
+document.getElementById('retryBtn').addEventListener('click',function(){tone(660,0.1,'sine',0.15);startGame();});
+document.getElementById('pauseBtn').addEventListener('click',function(){
+  if(state==='play'){state='pause';document.getElementById('pauseOv').classList.remove('hidden');}
+});
+document.getElementById('pauseBtn').addEventListener('pointerdown',function(e){e.stopPropagation();});
+document.getElementById('resumeBtn').addEventListener('click',function(){
+  document.getElementById('pauseOv').classList.add('hidden');state='play';
+});
+
+function updateHud(){
+  document.getElementById('scorePill').textContent='得分 '+totalScore;
+  var s='';for(var i=0;i<shotsLeft;i++)s+='📷 ';
+  document.getElementById('shots').textContent=s||'—';
+}
+
+function judge(diff){
+  if(diff<=4)return['完美！',100,'#FFEB3B'];
+  if(diff<=10)return['漂亮！',92,'#00E676'];
+  if(diff<=20)return['不错',78,'#4FC3F7'];
+  if(diff<=35)return['一般',55,'#B0BEC5'];
+  return['时机不佳',25,'#78909C'];
+}
+
+function burst(x,y,color,n){
+  for(var i=0;i<n;i++){
+    var a=Math.random()*6.28,sp=60+Math.random()*220;
+    parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-40,life:0.9+Math.random()*0.6,t:0,r:2+Math.random()*3.5,c:color});
+  }
+}
+
+document.getElementById('shutterBtn').addEventListener('click',function(e){
+  e.stopPropagation();
+  if(state!=='play'||shotsLeft<=0)return;
+  shotsLeft--;
+  flashA=0.85;
+  var peak=recentPeak();
+  var diff=peak-intensity;
+  var j=judge(diff);
+  var sc=Math.max(0,Math.min(100,Math.round(100-diff*4)));
+  if(j[0]==='完美！')sc=100;
+  totalScore+=sc;shotScores.push(sc);
+  floats.push({x:W/2,y:H*0.38,text:'+'+sc+' '+j[0],t:0,life:1.6,c:j[2],big:j[0]==='完美！'});
+  if(j[0]==='完美！'){
+    sfx('perfect');
+    burst(W/2,H*0.35,'#FFEB3B',42);
+    burst(W/2,H*0.35,'#00E5FF',28);
+    if(navigator.vibrate)navigator.vibrate([60,40,60]);
+  }else if(sc>=60){sfx('normal');}
+  else{sfx('low');}
+  updateHud();
+  if(shotsLeft<=0)setTimeout(endGame,900);
+});
+
+function endGame(){
+  if(state!=='play')return;
+  state='end';
+  var isBest=false;
+  if(totalScore>best){best=totalScore;localStorage.setItem('g100_aurora_best',String(best));isBest=true;}
+  var n=totalScore>=450?5:totalScore>=360?4:totalScore>=260?3:totalScore>=150?2:1;
+  var row='';for(var i=0;i<5;i++)row+=i<n?'★':'☆';
+  document.getElementById('starRow').textContent=row;
+  document.getElementById('finalScore').textContent=totalScore+' / 500';
+  document.getElementById('bestLine').textContent=(isBest?'🎉 新纪录！':'历史最高：'+best);
+  document.getElementById('endOv').classList.remove('hidden');
+  sfx('fanfare');
+  if(navigator.vibrate)navigator.vibrate([80,60,120]);
+}
+
+/* ---------- 绘制 ---------- */
+function drawAurora(inten,tt){
+  var ribbons=[
+    {base:0.16,amp:34,len:150,hue:0,c1:'0,230,170',c2:'140,80,255'},
+    {base:0.24,amp:46,len:210,hue:2,c1:'0,200,255',c2:'180,60,255'},
+    {base:0.10,amp:26,len:100,hue:4,c1:'120,255,170',c2:'0,150,255'}
+  ];
+  var a=0.12+0.62*(inten/100);
+  for(var k=0;k<ribbons.length;k++){
+    var rb=ribbons[k];
+    var step=7;
+    for(var x=0;x<W;x+=step){
+      var top=H*rb.base+Math.sin(x*0.012+tt*0.9+rb.hue)*rb.amp+Math.sin(x*0.03-tt*0.6)*12;
+      var bot=top+rb.len*(0.6+0.4*Math.sin(x*0.02+tt*1.3+rb.hue*2));
+      var g=ctx.createLinearGradient(0,top,0,bot);
+      g.addColorStop(0,'rgba('+rb.c1+',0)');
+      g.addColorStop(0.65,'rgba('+rb.c1+','+(a*0.55)+')');
+      g.addColorStop(1,'rgba('+rb.c2+','+a+')');
+      ctx.fillStyle=g;
+      ctx.fillRect(x,top,step+0.5,bot-top);
+    }
+  }
+  /* 地面反射微光 */
+  var gg=ctx.createLinearGradient(0,H*0.82,0,H);
+  gg.addColorStop(0,'rgba(0,230,170,'+(a*0.10)+')');
+  gg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=gg;ctx.fillRect(0,H*0.82,W,H*0.18);
+}
+
+function drawScene(tt){
+  var g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#02020c');g.addColorStop(0.7,'#060614');g.addColorStop(1,'#0b0b1e');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  /* 月亮 */
+  ctx.save();
+  ctx.shadowColor='#FFF9C4';ctx.shadowBlur=40;
+  ctx.fillStyle='#FFFDE7';
+  ctx.beginPath();ctx.arc(W*0.85,H*0.12,26,0,6.29);ctx.fill();
+  ctx.restore();
+  /* 星星 */
+  for(var i=0;i<stars.length;i++){
+    var s=stars[i],tw=0.5+0.5*Math.sin(tt*2+s.tw);
+    ctx.fillStyle='rgba(255,255,255,'+(0.25+0.65*tw)+')';
+    ctx.fillRect(s.x,s.y,s.r,s.r);
+  }
+  drawAurora(intensity,tt);
+  /* 雪原 */
+  ctx.fillStyle='#101024';
+  ctx.beginPath();ctx.moveTo(0,H*0.86);
+  for(var x=0;x<=W;x+=40)ctx.lineTo(x,H*0.86+Math.sin(x*0.02)*6);
+  ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fill();
+  /* 雪树 */
+  ctx.fillStyle='#0d2b1d';
+  for(var tx=30;tx<W;tx+=90){
+    var th=34+((tx*7)%28);
+    ctx.beginPath();ctx.moveTo(tx,H*0.86-th);ctx.lineTo(tx-16,H*0.86);ctx.lineTo(tx+16,H*0.86);ctx.closePath();ctx.fill();
+  }
+  /* 粒子 */
+  for(var p=parts.length-1;p>=0;p--){
+    var pt=parts[p];
+    pt.t+=1/60;if(pt.t>pt.life){parts.splice(p,1);continue;}
+    pt.x+=pt.vx/60;pt.y+=pt.vy/60;pt.vy+=160/60;
+    ctx.globalAlpha=1-pt.t/pt.life;
+    ctx.fillStyle=pt.c;
+    ctx.beginPath();ctx.arc(pt.x,pt.y,pt.r,0,6.29);ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  /* 飘字 */
+  ctx.textAlign='center';
+  for(var f=floats.length-1;f>=0;f--){
+    var fl=floats[f];
+    fl.t+=1/60;if(fl.t>fl.life){floats.splice(f,1);continue;}
+    var yy=fl.y-fl.t*46;
+    ctx.globalAlpha=1-fl.t/fl.life;
+    ctx.font='bold '+(fl.big?40:28)+'px sans-serif';
+    ctx.shadowColor=fl.c;ctx.shadowBlur=fl.big?22:8;
+    ctx.fillStyle=fl.c;
+    ctx.fillText(fl.text,fl.x,yy);
+    ctx.shadowBlur=0;ctx.globalAlpha=1;
+  }
+  /* 快门闪光 */
+  if(flashA>0){
+    ctx.fillStyle='rgba(255,255,255,'+flashA+')';
+    ctx.fillRect(0,0,W,H);
+    flashA-=0.09;
+  }
+  /* 强度条 */
+  document.getElementById('meterFill').style.width=intensity.toFixed(1)+'%';
+  var pk=recentPeak();
+  document.getElementById('peakMark').style.left='calc('+pk.toFixed(1)+'% - 1px)';
+}
+
+var lastT=0;
+function loop(ms){
+  var dt=Math.min(0.05,(ms-lastT)/1000||0.016);
+  lastT=ms;
+  if(state==='play'||state==='start'){
+    calcIntensity(dt);
+  }
+  drawScene(tSec);
+  requestAnimationFrame(loop);
+}
+resize();
+updateHud();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

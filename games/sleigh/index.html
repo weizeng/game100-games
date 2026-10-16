@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>雪橇</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#050518;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#cv{position:fixed;inset:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;pointer-events:none}
+.pill{background:rgba(8,8,30,.62);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+#timerPill.warn{color:#FF5252;border-color:#FF5252;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.5}}
+.spacer{flex:1}
+.iconBtn{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(8,8,30,.62);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#dropBtn{position:fixed;right:22px;bottom:30px;width:76px;height:76px;border-radius:50%;border:4px solid rgba(255,255,255,.85);background:radial-gradient(circle at 35% 30%,#ef9a9a,#c62828 70%);font-size:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:6;box-shadow:0 0 20px rgba(239,154,154,.7)}
+#dropBtn:active{transform:scale(.92)}
+#dropBtn.empty{opacity:.4}
+#tip{position:fixed;left:0;right:0;bottom:120px;text-align:center;font-size:13px;color:#c5cae9;z-index:5;pointer-events:none;text-shadow:0 1px 4px #000}
+.overlay{position:fixed;inset:0;background:rgba(3,3,16,.86);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.card{background:linear-gradient(160deg,#1a1626,#0a0a1c);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:28px 26px;max-width:340px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.card h1{font-size:30px;margin-bottom:6px}
+.card p{font-size:14px;color:#c5cae9;line-height:1.7;margin:10px 0}
+.bigBtn{display:inline-block;margin-top:14px;padding:14px 52px;font-size:18px;border:none;border-radius:999px;background:linear-gradient(135deg,#EF9A9A,#7E57C2);color:#fff;cursor:pointer;min-height:52px}
+.score{font-size:44px;font-weight:bold;color:#FFEB3B;margin:6px 0}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill" id="timePill">⏱ 60</div>
+  <div class="pill" id="giftPill">🎁 20</div>
+  <div class="pill" id="scorePill">投中 0</div>
+  <div class="spacer"></div>
+  <button class="iconBtn" id="muteBtn" title="静音">🔊</button>
+  <button class="iconBtn" id="pauseBtn" title="暂停">⏸</button>
+</div>
+<div id="tip">拖动雪橇移动 · 飞到烟囱正上方点屏幕或按 🎁 投礼物</div>
+<button id="dropBtn" title="投礼物">🎁</button>
+
+<div class="overlay" id="startOv">
+  <div class="card">
+    <h1>🛷 雪橇</h1>
+    <p>圣诞雪橇划过夜空，屋顶的烟囱不断经过。<br><b>左右拖动</b>控制雪橇（上下可小幅移动），<br>飞到<b>烟囱正上方</b>时点屏幕或按 🎁 投下礼物。<br>礼物共 <b>20</b> 个，限时 <b>60</b> 秒，投中越多越好！</p>
+    <button class="bigBtn" id="startBtn">出发送礼</button>
+  </div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h1>⏸ 已暂停</h1>
+    <p>雪橇悬停在夜空中</p>
+    <button class="bigBtn" id="resumeBtn">继续飞行</button>
+  </div>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="card">
+    <h1>🎄 送礼结束</h1>
+    <div class="score" id="finalScore">0</div>
+    <p id="hitRate">命中率 0%</p>
+    <p id="bestLine">历史最高：0</p>
+    <button class="bigBtn" id="retryBtn">再飞一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0,DPR=1,GROUND=0;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;GROUND=H-86;
+  cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  buildStars();
+}
+window.addEventListener('resize',resize);
+
+/* ---------- 音频 ---------- */
+var muted=localStorage.getItem('g100_mute')==='1';
+var ac=null;
+function actx(){
+  if(!ac){var AC=window.AudioContext||window.webkitAudioContext;if(AC)ac=new AC();}
+  if(ac&&ac.state==='suspended')ac.resume();
+  return ac;
+}
+function tone(f,dur,type,vol,delay,f2){
+  if(muted)return;
+  var a=actx();if(!a)return;
+  var t0=a.currentTime+(delay||0);
+  var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(f,t0);
+  if(f2)o.frequency.exponentialRampToValueAtTime(f2,t0+dur);
+  g.gain.setValueAtTime(0.0001,t0);
+  g.gain.exponentialRampToValueAtTime(vol||0.2,t0+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  o.connect(g);g.connect(a.destination);
+  o.start(t0);o.stop(t0+dur+0.05);
+}
+function sfx(name){
+  if(muted)return;
+  if(name==='drop'){tone(620,0.16,'sine',0.2,0,180);}
+  else if(name==='hit'){tone(880,0.1,'triangle',0.22);tone(1174,0.1,'triangle',0.22,0.07);tone(1568,0.16,'triangle',0.22,0.14);tone(2093,0.2,'sine',0.16,0.21);}
+  else if(name==='empty'){tone(160,0.22,'square',0.14);}
+  else if(name==='fanfare'){var n=[659,784,880,1046,1318];for(var i=0;i<n.length;i++)tone(n[i],0.26,'triangle',0.2,i*0.12);}
+  else if(name==='miss'){tone(300,0.12,'sine',0.1,0,200);}
+}
+
+/* ---------- 背景 ---------- */
+var stars=[],snow=[];
+function buildStars(){
+  stars=[];
+  var n=Math.floor(W*H/11000);
+  for(var i=0;i<n;i++)stars.push({x:Math.random()*W,y:Math.random()*H*0.6,r:Math.random()*1.3+0.3,tw:Math.random()*6.28});
+  snow=[];
+  for(var j=0;j<70;j++)snow.push({x:Math.random()*W,y:Math.random()*H,sp:30+Math.random()*60,r:1+Math.random()*2.2,ph:Math.random()*6.28});
+}
+
+/* ---------- 游戏状态 ---------- */
+var state='start',timeLeft=60,giftsLeft=20,hits=0,thrown=0;
+var sleigh={x:0,y:0};
+var houses=[],gifts=[],parts=[],smokes=[],floats=[];
+var best=parseInt(localStorage.getItem('g100_sleigh_best')||'0',10)||0;
+var SPEED=78,GRAV=1500;
+var tipTimer=0;
+
+var muteBtn=document.getElementById('muteBtn');
+function refreshMute(){muteBtn.textContent=muted?'🔇':'🔊';}
+muteBtn.addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');refreshMute();});
+muteBtn.addEventListener('pointerdown',function(e){e.stopPropagation();});
+refreshMute();
+
+function makeHouse(x){
+  var w=150+Math.random()*90,bodyH=52+Math.random()*36;
+  var chim=null;
+  if(Math.random()<0.8)chim={ox:w*0.3+Math.random()*w*0.35,ch:26+Math.random()*20};
+  return {x:x,w:w,bodyH:bodyH,chim:chim,winSeed:Math.random()*10};
+}
+function initWorld(){
+  houses=[];gifts=[];parts=[];smokes=[];floats=[];
+  var x=-40;
+  while(x<W+60){var h=makeHouse(x);houses.push(h);x+=h.w+8+Math.random()*30;}
+}
+function houseGeo(h){
+  var roofPeakY=GROUND-h.bodyH-36;
+  return {roofPeakY:roofPeakY};
+}
+function chimneyTop(h){
+  if(!h.chim)return null;
+  var geo=houseGeo(h);
+  return {x:h.x+h.chim.ox,topY:geo.roofPeakY-h.chim.ch,hw:15};
+}
+
+function startGame(){
+  state='play';timeLeft=60;giftsLeft=20;hits=0;thrown=0;tipTimer=5;
+  sleigh.x=W*0.3;sleigh.y=H*0.22;
+  initWorld();
+  document.getElementById('startOv').classList.add('hidden');
+  document.getElementById('endOv').classList.add('hidden');
+  document.getElementById('pauseOv').classList.add('hidden');
+  document.getElementById('tip').style.display='block';
+  updateHud();
+}
+document.getElementById('startBtn').addEventListener('click',function(){tone(660,0.1,'sine',0.15);startGame();});
+document.getElementById('retryBtn').addEventListener('click',function(){tone(660,0.1,'sine',0.15);startGame();});
+document.getElementById('pauseBtn').addEventListener('click',function(){
+  if(state==='play'){state='pause';document.getElementById('pauseOv').classList.remove('hidden');}
+});
+document.getElementById('pauseBtn').addEventListener('pointerdown',function(e){e.stopPropagation();});
+document.getElementById('resumeBtn').addEventListener('click',function(){
+  document.getElementById('pauseOv').classList.add('hidden');state='play';
+});
+
+function updateHud(){
+  var tp=document.getElementById('timePill');
+  tp.textContent='⏱ '+Math.ceil(timeLeft);
+  tp.classList.toggle('warn',timeLeft<=10);
+  document.getElementById('giftPill').textContent='🎁 '+giftsLeft;
+  document.getElementById('scorePill').textContent='投中 '+hits;
+  document.getElementById('dropBtn').classList.toggle('empty',giftsLeft<=0);
+}
+
+/* ---------- 操作：拖动 + 点按投礼物 ---------- */
+var dragging=false,downX=0,downY=0,downT=0,moved=false;
+cv.addEventListener('pointerdown',function(e){
+  if(state!=='play')return;
+  dragging=true;moved=false;downX=e.clientX;downY=e.clientY;downT=performance.now();
+});
+window.addEventListener('pointermove',function(e){
+  if(!dragging||state!=='play')return;
+  if(Math.abs(e.clientX-downX)+Math.abs(e.clientY-downY)>14)moved=true;
+  sleigh.x=Math.max(30,Math.min(W-30,e.clientX));
+  sleigh.y=Math.max(H*0.08,Math.min(H*0.55,e.clientY));
+});
+window.addEventListener('pointerup',function(e){
+  if(!dragging)return;
+  dragging=false;
+  if(state!=='play')return;
+  var dt=performance.now()-downT;
+  var d=Math.abs(e.clientX-downX)+Math.abs(e.clientY-downY);
+  if(!moved&&d<16&&dt<400)dropGift();
+});
+document.getElementById('dropBtn').addEventListener('click',function(e){
+  e.stopPropagation();
+  if(state==='play')dropGift();
+});
+document.getElementById('dropBtn').addEventListener('pointerdown',function(e){e.stopPropagation();});
+
+function dropGift(){
+  if(giftsLeft<=0){sfx('empty');floats.push({x:sleigh.x,y:sleigh.y+30,text:'没礼物了！',t:0,life:1.2,c:'#FF8A80'});return;}
+  giftsLeft--;thrown++;
+  gifts.push({x:sleigh.x,y:sleigh.y+22,vy:40});
+  sfx('drop');
+  updateHud();
+}
+
+function burst(x,y,color,n,up){
+  for(var i=0;i<n;i++){
+    var a=Math.random()*6.28,sp=60+Math.random()*200;
+    parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:(up?-1:1)*(Math.random()*140+40),life:0.7+Math.random()*0.5,t:0,r:2+Math.random()*3,c:color});
+  }
+}
+
+/* ---------- 更新 ---------- */
+function update(dt){
+  timeLeft-=dt;
+  if(timeLeft<=10&&timeLeft>0)tipTimer=0;
+  if(tipTimer>0){tipTimer-=dt;if(tipTimer<=0)document.getElementById('tip').style.display='none';}
+  /* 房屋左移 */
+  for(var i=0;i<houses.length;i++)houses[i].x-=SPEED*dt;
+  if(houses.length&&houses[0].x+houses[0].w<-60)houses.shift();
+  var lastH=houses[houses.length-1];
+  while(lastH&&lastH.x+lastH.w<W+80){lastH=makeHouse(lastH.x+lastH.w+8+Math.random()*30);houses.push(lastH);}
+  /* 礼物下落 */
+  for(var gi=gifts.length-1;gi>=0;gi--){
+    var gf=gifts[gi],prevY=gf.y;
+    gf.vy+=GRAV*dt;gf.y+=gf.vy*dt;
+    var hit=false;
+    for(var hi=0;hi<houses.length;hi++){
+      var ct=chimneyTop(houses[hi]);
+      if(!ct)continue;
+      if(prevY<ct.topY&&gf.y>=ct.topY&&Math.abs(gf.x-ct.x)<=ct.hw){
+        hit=true;
+        hits++;
+        burst(ct.x,ct.topY,'#FFD54F',26,true);
+        burst(ct.x,ct.topY,'#FF6F00',14,true);
+        for(var s2=0;s2<8;s2++)smokes.push({x:ct.x+(Math.random()-0.5)*14,y:ct.topY-4,vy:-30-Math.random()*30,r:6+Math.random()*8,t:0,life:1.4});
+        floats.push({x:ct.x,y:ct.topY-50,text:'+1 🎁',t:0,life:1.1,c:'#FFD54F'});
+        sfx('hit');
+        if(navigator.vibrate)navigator.vibrate(40);
+        break;
+      }
+    }
+    if(hit){gifts.splice(gi,1);continue;}
+    if(gf.y>=GROUND+30){gifts.splice(gi,1);sfx('miss');}
+  }
+  /* 粒子 & 烟 & 飘字 */
+  for(var p=parts.length-1;p>=0;p--){var pt=parts[p];pt.t+=dt;if(pt.t>pt.life){parts.splice(p,1);continue;}pt.x+=pt.vx*dt;pt.y+=pt.vy*dt;pt.vy+=120*dt;}
+  for(var sm=smokes.length-1;sm>=0;sm--){var sk=smokes[sm];sk.t+=dt;if(sk.t>sk.life){smokes.splice(sm,1);continue;}sk.y+=sk.vy*dt;sk.r+=14*dt;}
+  for(var f=floats.length-1;f>=0;f--){floats[f].t+=dt;if(floats[f].t>floats[f].life)floats.splice(f,1);}
+  /* 雪 */
+  for(var sn=0;sn<snow.length;sn++){var fl2=snow[sn];fl2.y+=fl2.sp*dt;fl2.x+=Math.sin(tSec*1.5+fl2.ph)*12*dt;if(fl2.y>H){fl2.y=-4;fl2.x=Math.random()*W;}}
+  if(timeLeft<=0)timeLeft=0;
+  updateHud();
+  if(timeLeft<=0||(giftsLeft<=0&&gifts.length===0))endGame();
+}
+
+function endGame(){
+  if(state!=='play')return;
+  state='end';
+  var isBest=false;
+  if(hits>best){best=hits;localStorage.setItem('g100_sleigh_best',String(best));isBest=true;}
+  document.getElementById('finalScore').textContent=hits+' / '+thrown+' 中';
+  var rate=thrown>0?Math.round(hits/thrown*100):0;
+  document.getElementById('hitRate').textContent='命中率 '+rate+'%（'+thrown+' 投 '+hits+' 中）';
+  document.getElementById('bestLine').textContent=(isBest?'🎉 新纪录！':'历史最高：'+best);
+  document.getElementById('endOv').classList.remove('hidden');
+  sfx('fanfare');
+  if(navigator.vibrate)navigator.vibrate([80,60,120]);
+}
+
+/* ---------- 绘制 ---------- */
+var tSec=0;
+function draw(){
+  var g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#030312');g.addColorStop(0.75,'#0a0a22');g.addColorStop(1,'#141428');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  /* 月亮 */
+  ctx.save();ctx.shadowColor='#FFF9C4';ctx.shadowBlur=44;
+  ctx.fillStyle='#FFFDE7';ctx.beginPath();ctx.arc(W*0.14,H*0.11,24,0,6.29);ctx.fill();ctx.restore();
+  /* 星 */
+  for(var i=0;i<stars.length;i++){var s=stars[i],tw=0.5+0.5*Math.sin(tSec*2+s.tw);ctx.fillStyle='rgba(255,255,255,'+(0.25+0.6*tw)+')';ctx.fillRect(s.x,s.y,s.r,s.r);}
+  /* 雪 */
+  ctx.fillStyle='rgba(255,255,255,.7)';
+  for(var sn=0;sn<snow.length;sn++){var fl=snow[sn];ctx.beginPath();ctx.arc(fl.x,fl.y,fl.r,0,6.29);ctx.fill();}
+  /* 雪橇 */
+  ctx.font='46px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.save();ctx.shadowColor='#FFD54F';ctx.shadowBlur=16;
+  ctx.fillText('🛷',sleigh.x,sleigh.y);ctx.restore();
+  /* 房屋 */
+  for(var hi=0;hi<houses.length;hi++){
+    var h=houses[hi],geo=houseGeo(h);
+    ctx.fillStyle='#1c1c34';ctx.fillRect(h.x,GROUND-h.bodyH,h.w,h.bodyH);
+    ctx.fillStyle='#2e2e5c';
+    ctx.beginPath();ctx.moveTo(h.x-8,GROUND-h.bodyH);ctx.lineTo(h.x+h.w/2,geo.roofPeakY);ctx.lineTo(h.x+h.w+8,GROUND-h.bodyH);ctx.closePath();ctx.fill();
+    /* 雪盖屋顶 */
+    ctx.fillStyle='rgba(230,235,255,.85)';
+    ctx.beginPath();ctx.moveTo(h.x-8,GROUND-h.bodyH);ctx.lineTo(h.x+h.w/2,geo.roofPeakY);ctx.lineTo(h.x+h.w/2+6,geo.roofPeakY+8);ctx.lineTo(h.x-8,GROUND-h.bodyH+4);ctx.closePath();ctx.fill();
+    /* 窗 */
+    ctx.fillStyle='rgba(255,213,79,.9)';
+    var nwin=Math.max(2,Math.floor(h.w/70));
+    for(var wn=0;wn<nwin;wn++){var wx=h.x+18+wn*(h.w-36)/Math.max(1,nwin-1);ctx.fillRect(wx-8,GROUND-h.bodyH+16,16,14);}
+    /* 烟囱 */
+    if(h.chim){
+      var cx=h.x+h.chim.ox;
+      ctx.fillStyle='#3d3d5c';
+      ctx.fillRect(cx-15,geo.roofPeakY-h.chim.ch,30,h.chim.ch+10);
+      ctx.fillStyle='#565678';
+      ctx.fillRect(cx-17,geo.roofPeakY-h.chim.ch,34,8);
+      /* 烟囱口高亮（可投提示） */
+      ctx.fillStyle='rgba(255,213,79,.55)';
+      ctx.fillRect(cx-15,geo.roofPeakY-h.chim.ch+2,30,5);
+    }
+  }
+  /* 烟 */
+  for(var sm=0;sm<smokes.length;sm++){var sk=smokes[sm];ctx.globalAlpha=Math.max(0,0.5*(1-sk.t/sk.life));ctx.fillStyle='#9e9e9e';ctx.beginPath();ctx.arc(sk.x,sk.y,sk.r,0,6.29);ctx.fill();ctx.globalAlpha=1;}
+  /* 地面 */
+  ctx.fillStyle='#151530';ctx.fillRect(0,GROUND,W,H-GROUND);
+  /* 礼物 */
+  ctx.font='26px serif';
+  for(var gi=0;gi<gifts.length;gi++){var gf=gifts[gi];ctx.save();ctx.translate(gf.x,gf.y);ctx.rotate(Math.sin(tSec*8+gf.x)*0.25);ctx.fillText('🎁',0,0);ctx.restore();}
+  /* 粒子 */
+  for(var p=0;p<parts.length;p++){var pt=parts[p];ctx.globalAlpha=Math.max(0,1-pt.t/pt.life);ctx.fillStyle=pt.c;ctx.beginPath();ctx.arc(pt.x,pt.y,pt.r,0,6.29);ctx.fill();ctx.globalAlpha=1;}
+  /* 飘字 */
+  ctx.textAlign='center';
+  for(var f=0;f<floats.length;f++){var ft=floats[f];ctx.globalAlpha=Math.max(0,1-ft.t/ft.life);ctx.font='bold 24px sans-serif';ctx.shadowColor=ft.c;ctx.shadowBlur=10;ctx.fillStyle=ft.c;ctx.fillText(ft.text,ft.x,ft.y-ft.t*40);ctx.shadowBlur=0;ctx.globalAlpha=1;}
+  /* 瞄准线：雪橇正下方虚线 */
+  if(state==='play'){
+    ctx.strokeStyle='rgba(255,255,255,.22)';ctx.setLineDash([6,8]);ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(sleigh.x,sleigh.y+26);ctx.lineTo(sleigh.x,GROUND);ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+var lastT=0;
+function loop(ms){
+  var dt=Math.min(0.05,(ms-lastT)/1000||0.016);
+  lastT=ms;tSec+=dt;
+  if(state==='play')update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+resize();
+sleigh.x=window.innerWidth*0.3;sleigh.y=window.innerHeight*0.22;
+updateHud();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
