@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>灯谜</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:linear-gradient(160deg,#2a1410 0%,#141018 55%,#0a0808 100%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none;overflow-x:hidden}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;z-index:1}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:9px 12px;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.topbar .title{font-weight:700;font-size:16px}
+.topbar .stat{color:#ffcc9e;font-size:12px}
+.topbar .stat b{color:#fff;font-size:14px}
+.tbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:17px;min-width:42px;height:42px;border-radius:11px;cursor:pointer;transition:transform .08s}
+.tbtn:active{transform:scale(.9)}
+.screen{width:100%;display:none;flex-direction:column;align-items:center;gap:12px}
+.screen.on{display:flex}
+.card{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.card h1{font-size:26px;margin-bottom:8px;background:linear-gradient(90deg,#ff7043,#ffab91);-webkit-background-clip:text;background-clip:text;color:transparent}
+.card h2{font-size:22px;margin-bottom:8px}
+.card p{color:#ffd9c4;font-size:14px;line-height:1.8;margin-bottom:12px}
+.bigbtn{background:linear-gradient(135deg,#e64a19,#ff7043);border:none;color:#fff;font-size:18px;font-weight:700;padding:14px 46px;border-radius:999px;cursor:pointer;box-shadow:0 6px 18px rgba(255,112,67,.45);transition:transform .1s;min-height:48px}
+.bigbtn:active{transform:scale(.93)}
+.ghostbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:14px;padding:10px 22px;border-radius:999px;cursor:pointer;min-height:44px}
+.ghostbtn:active{transform:scale(.93)}
+.best{color:#ffd76a;font-size:14px;margin-top:8px}
+.riddlecard{width:100%;background:linear-gradient(135deg,rgba(255,112,67,.16),rgba(255,112,67,.06));border:1px solid rgba(255,112,67,.4);border-radius:16px;padding:22px 16px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.riddlecard .no{color:#ffab91;font-size:13px;margin-bottom:6px}
+.riddlecard .q{font-size:24px;font-weight:700;color:#ffe0cc;letter-spacing:2px}
+.riddlecard .tip{color:#d8a583;font-size:12px;margin-top:8px}
+.slots{display:flex;gap:12px;justify-content:center;margin:6px 0}
+.slot{width:64px;height:64px;border-radius:14px;border:2px dashed rgba(255,112,67,.55);background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;color:#fff;cursor:pointer;transition:transform .12s,background .12s}
+.slot.fill{border-style:solid;background:rgba(255,112,67,.22);transform:scale(1.04)}
+.slot.hinted{border-color:#ffd54f;background:rgba(255,213,79,.18)}
+.slot.shake{animation:shake .4s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-5px)}}
+.pool{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%;max-width:360px}
+.tile{min-height:56px;border-radius:12px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#fff;cursor:pointer;transition:transform .1s,opacity .15s}
+.tile:active{transform:scale(.9)}
+.tile.used{opacity:.18;pointer-events:none}
+.lives{font-size:18px;letter-spacing:4px}
+.hint{color:#d8a583;font-size:13px}
+.hint b{color:#ffd54f}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:50}
+.float{position:fixed;pointer-events:none;z-index:60;font-weight:700;font-size:18px;animation:floatup 1.1s ease-out forwards;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+@keyframes floatup{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-46px)}}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px)}
+.ov.on{display:flex}
+.pausecard{background:#1e1410;border:1px solid rgba(255,112,67,.3);border-radius:18px;padding:28px 32px;text-align:center;display:flex;flex-direction:column;gap:12px;max-width:86vw}
+.pausecard h2{font-size:20px}
+.pausecard p{color:#ffd9c4;font-size:14px;line-height:1.8;white-space:pre-line}
+#toast{position:fixed;top:38%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);border:1px solid rgba(255,112,67,.4);color:#fff;font-size:17px;font-weight:700;padding:12px 26px;border-radius:999px;z-index:70;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div id="toast"></div>
+<div class="wrap">
+  <div class="topbar">
+    <span class="title">🏮 灯谜</span>
+    <span class="stat"><b id="prog">1/20</b> · <span class="lives" id="lives">❤❤❤</span> · 分<b id="score">0</b></span>
+    <span><button class="tbtn" id="sndBtn">🔊</button><button class="tbtn" id="hintBtn" title="提示">💡</button><button class="tbtn" id="pauseBtn">⏸</button></span>
+  </div>
+  <div class="screen on" id="s-start">
+    <div class="card">
+      <h1>🏮 灯谜</h1>
+      <p>看谜面猜成语：点下方字块组字作答，<br>点已填的字可退回。4 字填满自动揭晓。<br>答对 +100（越快奖励越多），答错扣 1 命，<br>共 3 条命，20 道谜语等你挑战！<br>💡 提示会揭晓一个正确字（-20 分）。</p>
+      <button class="bigbtn" id="startBtn">开始猜谜</button>
+      <div class="best">🏅 最高分：<b id="best0">0</b></div>
+    </div>
+  </div>
+  <div class="screen" id="s-game">
+    <div class="riddlecard">
+      <div class="no" id="rNo">第 1 题</div>
+      <div class="q" id="rQ">谜面</div>
+      <div class="tip">打一成语</div>
+    </div>
+    <div class="slots" id="slots"></div>
+    <div class="pool" id="pool"></div>
+    <div class="hint">⏱ <b id="time">0</b>s · 💡 剩 <b id="hintLeft">∞</b>（每次 -20 分）</div>
+  </div>
+  <div class="screen" id="s-end">
+    <div class="card">
+      <h2 id="endTitle">🏆 灯谜状元！</h2>
+      <p id="endDesc"></p>
+      <div class="best">🏅 最高分：<b id="best1">0</b></div>
+      <button class="bigbtn" id="againBtn">再猜一次</button>
+    </div>
+  </div>
+</div>
+<div class="ov" id="pauseov"><div class="pausecard"><h2>⏸ 已暂停</h2><button class="bigbtn" id="resumeBtn">继续</button><button class="ghostbtn" id="quitBtn">重新开始</button></div></div>
+<div class="ov" id="hintov"><div class="pausecard"><h2>💡 提示</h2><p id="hintTxt"></p><button class="bigbtn" id="hintOk">知道了</button></div></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+/* ===== 音效 ===== */
+let AC=null;
+let soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,d,type,v,delay){if(!soundOn)return;const c=ac();if(!c)return;const t=c.currentTime+(delay||0);const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.15,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}
+const SFX={
+  click(){tone(600,0.06,'square',0.07);},
+  good(){tone(660,0.1,'sine',0.16);tone(880,0.14,'sine',0.16,0.09);},
+  bad(){tone(200,0.22,'sawtooth',0.13);tone(140,0.25,'sawtooth',0.11,0.1);},
+  win(){[523,659,784,1047,1319].forEach((f,i)=>tone(f,0.16,'triangle',0.16,i*0.11));}
+};
+function vib(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function updateSndBtn(){$('sndBtn').textContent=soundOn?'🔊':'🔇';}
+/* ===== 飘字 & 粒子 ===== */
+function floatText(x,y,txt,color){const d=document.createElement('div');d.className='float';d.textContent=txt;d.style.left=x+'px';d.style.top=y+'px';d.style.color=color||'#ffd54f';document.body.appendChild(d);setTimeout(()=>d.remove(),1150);}
+const fx=$('fx'),fctx=fx.getContext('2d');let parts=[];
+function fxResize(){fx.width=innerWidth;fx.height=innerHeight;}
+addEventListener('resize',fxResize);fxResize();
+function burst(x,y,color,n){for(let i=0;i<(n||20);i++){const a=Math.random()*Math.PI*2,sp=60+Math.random()*160;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-40,life:0.9+Math.random()*0.5,t:0,color:color||'#ff7043',r:2+Math.random()*3});}}
+(function fxLoop(){let last=performance.now();function fr(now){const dt=Math.min(0.05,(now-last)/1000);last=now;fctx.clearRect(0,0,fx.width,fx.height);parts=parts.filter(p=>p.t<p.life);for(const p of parts){p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=160*dt;const k=1-p.t/p.life;fctx.globalAlpha=k;fctx.fillStyle=p.color;fctx.beginPath();fctx.arc(p.x,p.y,p.r*k+0.5,0,7);fctx.fill();}fctx.globalAlpha=1;requestAnimationFrame(fr);}requestAnimationFrame(fr);})();
+let toastT=null;
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>t.style.opacity=0,1400);}
+/* ===== 题库 ===== */
+const BANK=[
+  ['最长的腿','一步登天'],['最短的季节','一日三秋'],['最大的手术','脱胎换骨'],
+  ['最贵的话','一诺千金'],['最长的寿命','万寿无疆'],['最黑的夜','暗无天日'],
+  ['最快的流水','一泻千里'],['最大的嘴','气吞山河'],['最难做的饭','无米之炊'],
+  ['最快的速度','风驰电掣'],['最高的人','顶天立地'],['最远的距离','天涯海角'],
+  ['最大的容量','包罗万象'],['最重的头发','一发千钧'],['最大的谎言','弥天大谎'],
+  ['最小的国家','弹丸之地'],['最亮的光','光芒万丈'],['最长的河','源远流长'],
+  ['最密的网','天罗地网'],['最深的情','情深似海'],['最多的颜色','五彩缤纷'],
+  ['最大的磨难','九死一生'],['最小的步','寸步难行'],['最甜的话','甜言蜜语']
+];
+const DISTR='天地玄黄宇宙洪荒日月星辰山川草木金木水火风雨雷电东西南北春夏秋冬红黄蓝绿青紫白黑龙凤虎豹梅兰竹菊琴棋书画江河湖海';
+/* ===== 状态 ===== */
+let list=[],idx=0,lives=3,score=0,slots=[],pool=[],poolEls=[],slotEls=[];
+let qStart=0,elapsed=0,playing=false,paused=false,over=false,lockInput=false,lastT=0;
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');}
+function getBest(){return parseInt(localStorage.getItem('g100_riddle_hs')||'0',10);}
+function setBest(v){if(v>getBest())localStorage.setItem('g100_riddle_hs',String(v));}
+function refreshBest(){$('best0').textContent=getBest();$('best1').textContent=getBest();}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function updateHud(){
+  $('prog').textContent=(idx+1)+'/'+list.length;
+  $('score').textContent=score;
+  $('lives').textContent='❤'.repeat(lives)+'🖤'.repeat(3-lives);
+}
+function newGame(){
+  list=shuffle(BANK.slice()).slice(0,20);
+  idx=0;lives=3;score=0;elapsed=0;over=false;lockInput=false;paused=false;
+  loadQ();updateHud();
+}
+function loadQ(){
+  lockInput=false;
+  const qa=list[idx],ans=qa[1];
+  $('rNo').textContent='第 '+(idx+1)+' 题';
+  $('rQ').textContent=qa[0];
+  slots=[null,null,null,null];
+  const need=[];
+  for(const ch of ans)need.push({ch:ch,hint:false,used:false,pi:-1});
+  const used=new Set(ans.split(''));
+  const dc=[];
+  for(const ch of DISTR){if(!used.has(ch)&&dc.indexOf(ch)<0)dc.push(ch);}
+  shuffle(dc);
+  const tiles=need.concat(dc.slice(0,8).map(ch=>({ch:ch,hint:false,used:false,pi:-1})));
+  pool=shuffle(tiles);
+  pool.forEach((t,i)=>t.pi=i);
+  qStart=performance.now();
+  renderSlots();renderPool();updateHud();
+}
+function renderSlots(){
+  const box=$('slots');box.innerHTML='';slotEls=[];
+  slots.forEach((s,i)=>{
+    const d=document.createElement('div');
+    d.className='slot'+(s?' fill':'')+(s&&s.hint?' hinted':'');
+    d.textContent=s?s.ch:'';
+    d.addEventListener('click',()=>unfill(i));
+    box.appendChild(d);slotEls.push(d);
+  });
+}
+function renderPool(){
+  const box=$('pool');box.innerHTML='';poolEls=[];
+  pool.forEach((t,i)=>{
+    const d=document.createElement('div');
+    d.className='tile'+(t.used?' used':'');
+    d.textContent=t.ch;
+    d.addEventListener('click',()=>fill(i));
+    box.appendChild(d);poolEls.push(d);
+  });
+}
+function fill(i){
+  if(lockInput||paused||over)return;
+  const t=pool[i];
+  if(t.used)return;
+  const si=slots.findIndex(s=>!s);
+  if(si<0)return;
+  SFX.click();
+  t.used=true;slots[si]={ch:t.ch,pi:i,hint:false};
+  renderSlots();renderPool();
+  if(slots.every(s=>s)){lockInput=true;setTimeout(check,380);}
+}
+function unfill(i){
+  if(lockInput||paused||over)return;
+  const s=slots[i];
+  if(!s||s.hint)return;
+  SFX.click();
+  pool[s.pi].used=false;slots[i]=null;
+  renderSlots();renderPool();
+}
+function check(){
+  if(over)return;
+  if(paused){setTimeout(check,400);return;}
+  if(slots.some(s=>!s)){lockInput=false;return;}
+  const ans=list[idx][1],got=slots.map(s=>s.ch).join('');
+  if(got===ans){
+    const tb=Math.max(0,Math.round(45-(performance.now()-qStart)/1000))*2;
+    const pts=100+tb;score+=pts;
+    SFX.good();vib(25);
+    const r=$('slots').getBoundingClientRect();
+    burst(r.left+r.width/2,r.top,'#ffd54f',26);
+    floatText(r.left+r.width/2-24,r.top-10,'+'+pts,'#ffd54f');
+    updateHud();
+    setTimeout(()=>{
+      idx++;
+      if(idx>=list.length)victory();else loadQ();
+    },900);
+  }else{
+    lives--;SFX.bad();vib([70,40,70]);
+    slotEls.forEach(d=>d.classList.add('shake'));
+    toast('不对！正确答案稍后揭晓');
+    updateHud();
+    setTimeout(()=>{
+      if(lives<=0){gameOver();}
+      else{
+        slots.forEach(s=>{if(s&&!s.hint)pool[s.pi].used=false;});
+        slots=[null,null,null,null];
+        renderSlots();renderPool();lockInput=false;
+      }
+    },900);
+  }
+}
+function victory(){
+  over=true;setBest(score);refreshBest();SFX.win();
+  $('endTitle').textContent='🏆 灯谜状元！';
+  $('endDesc').innerHTML='20 道谜语全部猜中，才高八斗！<br>总分 <b style="color:#ffd54f">'+score+'</b> · 用时 '+Math.round(elapsed)+'s';
+  show('s-end');
+}
+function gameOver(){
+  over=true;setBest(score);refreshBest();
+  const ans=list[idx][1];
+  $('endTitle').textContent='🕯️ 灯灭了';
+  $('endDesc').innerHTML='三条命用完，本题答案是 <b style="color:#ffd54f">'+ans+'</b>。<br>答对 '+(idx)+' 题，得分 <b style="color:#ffd54f">'+score+'</b>';
+  show('s-end');
+}
+/* ===== 主循环（计时） ===== */
+(function loop(){
+  requestAnimationFrame(loop);
+  if(!playing||paused||over)return;
+  const now=performance.now(),dt=(now-lastT)/1000;lastT=now;
+  elapsed+=dt;
+  if(Math.floor(now/500)!==loop._t){loop._t=Math.floor(now/500);$('time').textContent=Math.round(elapsed);}
+})();
+/* ===== 暂停 / 提示 / 静音 ===== */
+function doPause(v){paused=v;if(v){doPause._t=performance.now();$('pauseov').classList.add('on');}else{if(doPause._t)qStart+=performance.now()-doPause._t;doPause._t=0;$('pauseov').classList.remove('on');}lastT=performance.now();}
+$('pauseBtn').addEventListener('click',()=>doPause(true));
+$('resumeBtn').addEventListener('click',()=>{doPause(false);SFX.click();});
+$('quitBtn').addEventListener('click',()=>{doPause(false);newGame();toast('重新开始');});
+$('hintBtn').addEventListener('click',()=>{
+  if(!playing||paused||over||!$('s-game').classList.contains('on')||lockInput)return;
+  const ans=list[idx][1];
+  SFX.click();
+  let done=false;
+  for(let i=0;i<4;i++){
+    if(!slots[i]||slots[i].ch!==ans[i]){
+      if(slots[i]&&!slots[i].hint)pool[slots[i].pi].used=false;
+      const pi=pool.findIndex(t=>!t.used&&t.ch===ans[i]);
+      if(pi>=0)pool[pi].used=true;
+      slots[i]={ch:ans[i],pi:pi,hint:true};
+      done=true;break;
+    }
+  }
+  if(done){
+    score=Math.max(0,score-20);
+    $('hintTxt').textContent='已为你揭晓一个正确字（金色框）。\n（-20 分）';
+    renderSlots();renderPool();updateHud();
+    if(slots.every(s=>s))setTimeout(check,380);
+  }else $('hintTxt').textContent='四字已全对，无需提示！';
+  $('hintov').classList.add('on');
+});
+$('hintOk').addEventListener('click',()=>$('hintov').classList.remove('on'));
+$('sndBtn').addEventListener('click',()=>{soundOn=!soundOn;localStorage.setItem('g100_sound',soundOn?'1':'0');updateSndBtn();if(soundOn)SFX.click();});
+/* ===== 流程 ===== */
+$('startBtn').addEventListener('click',()=>{ac();SFX.click();playing=true;newGame();show('s-game');lastT=performance.now();});
+$('againBtn').addEventListener('click',()=>{SFX.click();playing=true;newGame();show('s-game');lastT=performance.now();});
+updateSndBtn();refreshBest();
+</script>
+</body>
+</html>
