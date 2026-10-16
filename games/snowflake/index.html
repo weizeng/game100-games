@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>雪花剪</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a1424;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#e3f2fd;user-select:none;-webkit-user-select:none}
+#cv{position:absolute;left:0;top:0;touch-action:none}
+#topbar{position:absolute;top:0;left:0;right:0;z-index:5;padding:8px 10px;pointer-events:none}
+#topbar .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+#topbar .lvl{font-size:16px;font-weight:bold;text-shadow:0 2px 6px #000}
+#topbar .btns{pointer-events:auto;display:flex;gap:8px}
+#topbar .actions{pointer-events:auto;display:flex;gap:10px}
+button{font-family:inherit}
+.ibtn{width:44px;height:44px;border-radius:12px;border:1px solid #3d5a80;background:rgba(20,40,70,.85);color:#e3f2fd;font-size:20px;cursor:pointer}
+.ibtn:active{transform:scale(.92)}
+.abtn{flex:1;padding:12px;border-radius:14px;border:1px solid #4fc3f7;background:rgba(25,60,100,.9);color:#e1f5fe;font-size:16px;font-weight:bold;cursor:pointer;min-height:48px}
+.abtn:active{transform:scale(.97)}
+.abtn.warn{border-color:#ffb74d}
+.overlay{position:absolute;left:0;top:0;right:0;bottom:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(5,12,24,.85);backdrop-filter:blur(4px)}
+.overlay.hidden{display:none}
+.card{width:86%;max-width:360px;background:linear-gradient(160deg,#14273e,#0c1929);border:1px solid #3d5a80;border-radius:20px;padding:26px 22px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.card h1{font-size:30px;margin-bottom:6px}
+.card h2{font-size:24px;margin-bottom:10px}
+.card p{font-size:14px;line-height:1.8;color:#b8d4ee;margin:10px 0}
+.card .best{color:#ffd54f;font-weight:bold}
+.card .pct{font-size:52px;font-weight:bold;color:#4fc3f7;margin:8px 0}
+.bigbtn{display:block;width:100%;margin-top:14px;padding:14px;border-radius:14px;border:none;background:linear-gradient(135deg,#42a5f5,#1e88e5);color:#fff;font-size:18px;font-weight:bold;cursor:pointer;min-height:52px}
+.bigbtn:active{transform:scale(.97)}
+.ghostbtn{display:block;width:100%;margin-top:10px;padding:12px;border-radius:14px;border:1px solid #3d5a80;background:transparent;color:#b8d4ee;font-size:15px;cursor:pointer;min-height:48px}
+#toast{position:absolute;left:50%;top:118px;transform:translateX(-50%);z-index:8;background:rgba(10,25,45,.93);border:1px solid #4fc3f7;color:#e1f5fe;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:92%;text-align:center}
+.hint-emoji{font-size:40px}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="topbar">
+  <div class="row">
+    <div class="lvl">❄️ <span id="lvlName">第一关·初雪</span></div>
+    <div class="btns">
+      <button class="ibtn" id="btnHint" title="提示">💡</button>
+      <button class="ibtn" id="btnMute" title="静音">🔊</button>
+      <button class="ibtn" id="btnPause" title="暂停">⏸</button>
+    </div>
+  </div>
+  <div class="row actions">
+    <button class="abtn warn" id="btnClear">🧹 一键清空</button>
+    <button class="abtn" id="btnCheck">🔍 展开对比</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<div class="overlay" id="menuOv">
+  <div class="card">
+    <h1>❄️ 雪花剪</h1>
+    <p>在 60° 扇形纸上<strong>点击格子</strong>剪出缺口，<br>右侧实时预览展开成完整六瓣雪花。<br>左上角小图是本关目标图案。<br>点「展开对比」，相似度 ≥85% 即过关！<br>共 6 关，难度递增，卡住就点 💡。</p>
+    <p class="best">🏆 历史最佳：<span id="menuBest">0</span>/6 关</p>
+    <button class="bigbtn" id="btnStart">开始剪纸</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="hintOv">
+  <div class="card">
+    <div class="hint-emoji">💡</div>
+    <h2 id="hintTitle">提示</h2>
+    <p id="hintText"></p>
+    <button class="bigbtn" id="btnHintClose">知道了</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="resultOv">
+  <div class="card">
+    <h2 id="resTitle">对比结果</h2>
+    <div class="pct" id="resPct">0%</div>
+    <p id="resText"></p>
+    <button class="bigbtn hidden" id="btnNext" style="display:none">下一关 ➜</button>
+    <button class="ghostbtn" id="btnRetry">继续修改</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="winOv">
+  <div class="card">
+    <h1>🎉 通关！</h1>
+    <p>6 朵雪花全部剪出来了，<br>你是剪纸小能手！</p>
+    <p class="best">🏆 历史最佳：6/6 关</p>
+    <button class="bigbtn" id="btnAgain">再玩一次</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h2>⏸ 已暂停</h2>
+    <button class="bigbtn" id="btnResume">继续</button>
+    <button class="ghostbtn" id="btnRestart">重新开始</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0;
+var BEST_KEY='g100_snowflake_best',MUTE_KEY='g100_mute';
+var best=parseInt(localStorage.getItem(BEST_KEY)||'0',10);
+var muted=localStorage.getItem(MUTE_KEY)==='1';
+var RINGS=4,SECS=6,TOTAL=RINGS*SECS;
+
+var LEVELS=[
+  {name:'第一关·初雪',cuts:[[3,0],[3,1],[3,2],[3,3],[3,4],[3,5],[2,1],[2,4]],hint:'最外圈剪掉一整圈，再在第二圈左右各剪一格。'},
+  {name:'第二关·飞絮',cuts:[[3,0],[3,2],[3,4],[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[1,3]],hint:'最外圈隔一格剪，第二圈全部剪掉，第三圈只剪正中间一格。'},
+  {name:'第三关·冰晶',cuts:[[3,1],[3,2],[3,4],[3,5],[2,0],[2,3],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5]],hint:'第三圈全部剪掉；第二圈只留最外两格；最外圈剪掉中间两对。'},
+  {name:'第四关·六出',cuts:[[3,0],[3,1],[3,3],[3,4],[2,1],[2,2],[2,4],[2,5],[1,0],[1,2],[1,3],[1,5],[0,1],[0,4]],hint:'每一圈都隔开剪，注意最中心一圈只剪两个对称格。'},
+  {name:'第五关·霰雪',cuts:[[3,0],[3,2],[3,3],[3,5],[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[1,1],[1,4],[0,0],[0,2],[0,3],[0,5]],hint:'第二圈全部剪掉，内圈和外圈交错着剪，中心圈剪四个角。'},
+  {name:'第六关·暴风雪',cuts:[[3,0],[3,1],[3,2],[3,3],[3,4],[3,5],[2,1],[2,4],[1,0],[1,2],[1,3],[1,5],[0,0],[0,1],[0,2],[0,3],[0,4],[0,5]],hint:'最外圈和最中心圈全部剪掉；第二圈只剪两格，第三圈剪四格。'}
+];
+
+var G={state:'menu',li:0,cut:[],countT:0};
+var geo={wx:0,wy:0,R:180,px:0,py:0,PR:100,tx:0,ty:0,TR:52};
+
+/* ---------- 音频 ---------- */
+var AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function beep(f,d,type,v,delay,slide){if(muted)return;var a=ac();if(!a)return;var t=a.currentTime+(delay||0);var o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(slide){o.frequency.exponentialRampToValueAtTime(slide,t+d);}g.gain.setValueAtTime(v||0.15,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}
+function sClick(){beep(650,0.07,'square',0.07);}
+function sCut(){beep(1400,0.06,'triangle',0.12,0,900);beep(2100,0.05,'sine',0.08,0.02);}
+function sUncut(){beep(700,0.08,'triangle',0.1,0,420);}
+function sClear(){beep(900,0.25,'sawtooth',0.08,0,220);}
+function sPass(){var n=[523,659,784,1047,1319];for(var i=0;i<n.length;i++){beep(n[i],0.2,'triangle',0.14,i*0.08);}}
+function sWin(){var n=[523,659,784,1047,784,1047,1319,1568];for(var i=0;i<n.length;i++){beep(n[i],0.25,'triangle',0.14,i*0.11);}}
+function buzz(ms){if(navigator.vibrate){try{navigator.vibrate(ms);}catch(e){}}}
+
+/* ---------- 布局 ---------- */
+function resize(){var d=Math.min(2,window.devicePixelRatio||1);W=window.innerWidth;H=window.innerHeight;cv.width=W*d;cv.height=H*d;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(d,0,0,d,0,0);layout();}
+function layout(){
+  geo.R=Math.min(W*0.47,Math.max(140,(H-330)*0.5));
+  geo.wx=W/2;geo.wy=H-24;
+  geo.PR=Math.min(W*0.30,120);
+  geo.px=W/2+geo.PR*0.15;geo.py=210;
+  geo.tx=64;geo.ty=196;geo.TR=46;
+}
+function emptyCut(){var c=[];for(var i=0;i<RINGS;i++){c.push([false,false,false,false,false,false]);}return c;}
+function targetCut(li){var c=emptyCut();var cs=LEVELS[li].cuts;for(var i=0;i<cs.length;i++){c[cs[i][0]][cs[i][1]]=true;}return c;}
+
+/* ---------- 绘制 ---------- */
+function cellPath(x,y,RR,ring,sec){
+  var D=Math.PI/180,r0=RR*0.16;
+  var a0=-(60+sec*10)*D,a1=-(60+(sec+1)*10)*D;
+  var ra=r0+(RR-r0)*ring/RINGS,rb=r0+(RR-r0)*(ring+1)/RINGS;
+  ctx.beginPath();
+  ctx.arc(x,y,rb,a0,a1,true);
+  ctx.arc(x,y,ra,a1,a0,false);
+  ctx.closePath();
+}
+function drawWedge(x,y,RR,cut){
+  for(var r=0;r<RINGS;r++)for(var s=0;s<SECS;s++){
+    cellPath(x,y,RR,r,s);
+    if(cut[r][s]){ctx.fillStyle='rgba(8,18,34,0.55)';ctx.fill();ctx.strokeStyle='rgba(120,170,220,0.25)';ctx.lineWidth=1;ctx.stroke();}
+    else{var g=ctx.createLinearGradient(x,y-RR,x,y+RR);g.addColorStop(0,'#cfeeff');g.addColorStop(1,'#7fc4f2');ctx.fillStyle=g;ctx.fill();ctx.strokeStyle='#0a2038';ctx.lineWidth=1.5;ctx.stroke();}
+  }
+  ctx.beginPath();ctx.arc(x,y,RR*0.16,0,6.29);ctx.fillStyle='#dff3ff';ctx.fill();
+}
+function drawSnowflake(x,y,RR,cut){
+  ctx.save();ctx.translate(x,y);
+  for(var k=0;k<6;k++){ctx.save();ctx.rotate(k*Math.PI/3);drawWedge(0,0,RR,cut);ctx.restore();}
+  ctx.restore();
+}
+function draw(){
+  var g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0a1424');g.addColorStop(1,'#123049');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.globalAlpha=0.12;ctx.fillStyle='#fff';
+  for(var i=0;i<24;i++){var fx=(i*97)%W,fy=(i*61)%H;ctx.beginPath();ctx.arc(fx,fy,1.6,0,6.29);ctx.fill();}
+  ctx.restore();
+  if(G.state==='menu')return;
+  ctx.fillStyle='#9fc6e8';ctx.font='13px sans-serif';ctx.textAlign='center';
+  ctx.fillText('目标图案',geo.tx,geo.ty-geo.TR-12);
+  drawSnowflake(geo.tx,geo.ty,geo.TR,targetCut(G.li));
+  ctx.strokeStyle='#4fc3f7';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(geo.tx,geo.ty,geo.TR+8,0,6.29);ctx.stroke();
+  ctx.fillStyle='#9fc6e8';ctx.fillText('你的雪花（实时预览）',geo.px,geo.py-geo.PR-12);
+  drawSnowflake(geo.px,geo.py,geo.PR,G.cut);
+  ctx.fillStyle='#9fc6e8';ctx.fillText('👇 点击扇形纸剪出缺口',geo.wx,geo.wy-geo.R-14);
+  ctx.save();ctx.shadowColor='rgba(120,200,255,0.5)';ctx.shadowBlur=14;
+  drawWedge(geo.wx,geo.wy,geo.R,G.cut);
+  ctx.restore();
+}
+
+/* ---------- 交互 ---------- */
+function pos(e){var r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+function cellAt(x,y){
+  var dx=x-geo.wx,dy=y-geo.wy,r=Math.hypot(dx,dy);
+  var r0=geo.R*0.16;
+  if(r<r0||r>geo.R+6)return null;
+  var ang=Math.atan2(-dy,dx)*180/Math.PI;
+  if(ang<60||ang>120)return null;
+  var sec=Math.min(5,Math.floor((ang-60)/10));
+  var ring=Math.min(3,Math.floor((r-r0)/(geo.R-r0)*RINGS));
+  return{ring:ring,sec:sec};
+}
+cv.addEventListener('pointerdown',function(e){
+  if(G.state!=='playing')return;
+  var p=pos(e),c=cellAt(p.x,p.y);
+  if(!c)return;
+  G.cut[c.ring][c.sec]=!G.cut[c.ring][c.sec];
+  if(G.cut[c.ring][c.sec]){sCut();}else{sUncut();}
+  draw();e.preventDefault();
+});
+
+function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._h);t._h=setTimeout(function(){t.style.opacity='0';},1800);}
+
+function doCheck(){
+  if(G.state!=='playing')return;
+  sClick();
+  var tgt=targetCut(G.li),match=0;
+  for(var r=0;r<RINGS;r++)for(var s=0;s<SECS;s++){if(G.cut[r][s]===tgt[r][s])match++;}
+  var pct=match/TOTAL;
+  document.getElementById('resTitle').textContent='对比结果';
+  document.getElementById('resPct').textContent=Math.round(pct*100)+'%';
+  var btnNext=document.getElementById('btnNext');
+  if(pct>=0.85){
+    var cleared=G.li+1;
+    if(cleared>best){best=cleared;localStorage.setItem(BEST_KEY,String(best));}
+    document.getElementById('resText').textContent=G.li<5?'漂亮！这朵雪花剪成了~':'最后一朵也完成了！';
+    btnNext.style.display='block';
+    btnNext.textContent=G.li<5?'下一关 ➜':'查看成果 🎉';
+    sPass();buzz(70);
+  }else{
+    document.getElementById('resText').textContent='还差 '+(TOTAL-match)+' 格，对照目标小图再调整下~';
+    btnNext.style.display='none';
+  }
+  document.getElementById('resultOv').classList.remove('hidden');
+  G.state='result';
+}
+
+/* ---------- 流程 ---------- */
+function loadLevel(li){
+  G.li=li;G.cut=emptyCut();
+  document.getElementById('lvlName').textContent=LEVELS[li].name;
+  document.getElementById('hintText').textContent=LEVELS[li].hint;
+  document.getElementById('hintTitle').textContent=LEVELS[li].name+' · 提示';
+  draw();
+}
+function startGame(){ac();sClick();G.state='playing';loadLevel(0);document.getElementById('menuOv').classList.add('hidden');document.getElementById('winOv').classList.add('hidden');document.getElementById('pauseOv').classList.add('hidden');document.getElementById('resultOv').classList.add('hidden');}
+function togglePause(){
+  if(G.state==='playing'){G.state='paused';document.getElementById('pauseOv').classList.remove('hidden');}
+  else if(G.state==='paused'){G.state='playing';document.getElementById('pauseOv').classList.add('hidden');}
+  sClick();
+}
+function toggleMute(){muted=!muted;localStorage.setItem(MUTE_KEY,muted?'1':'0');document.getElementById('btnMute').textContent=muted?'🔇':'🔊';if(!muted)sClick();}
+
+document.getElementById('btnStart').addEventListener('click',startGame);
+document.getElementById('btnAgain').addEventListener('click',startGame);
+document.getElementById('btnRestart').addEventListener('click',startGame);
+document.getElementById('btnResume').addEventListener('click',togglePause);
+document.getElementById('btnPause').addEventListener('click',function(){if(G.state==='playing'||G.state==='paused')togglePause();});
+document.getElementById('btnMute').addEventListener('click',toggleMute);
+document.getElementById('btnHint').addEventListener('click',function(){if(G.state!=='playing')return;sClick();document.getElementById('hintOv').classList.remove('hidden');});
+document.getElementById('btnHintClose').addEventListener('click',function(){sClick();document.getElementById('hintOv').classList.add('hidden');});
+document.getElementById('btnClear').addEventListener('click',function(){if(G.state!=='playing')return;sClear();G.cut=emptyCut();draw();toast('已清空，重新剪吧~');});
+document.getElementById('btnCheck').addEventListener('click',doCheck);
+document.getElementById('btnRetry').addEventListener('click',function(){sClick();document.getElementById('resultOv').classList.add('hidden');G.state='playing';});
+document.getElementById('btnNext').addEventListener('click',function(){
+  sClick();document.getElementById('resultOv').classList.add('hidden');
+  if(G.li<5){G.state='playing';loadLevel(G.li+1);toast(LEVELS[G.li].name);}
+  else{G.state='win';sWin();buzz([80,60,80]);document.getElementById('winOv').classList.remove('hidden');}
+});
+document.getElementById('menuBest').textContent=best;
+document.getElementById('btnMute').textContent=muted?'🔇':'🔊';
+
+window.addEventListener('resize',resize);
+resize();loadLevel(0);G.state='menu';draw();
+</script>
+</body>
+</html>

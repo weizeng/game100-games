@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>堆雪人</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#0b1626;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#e8f4ff;user-select:none;-webkit-user-select:none}
+#cv{position:absolute;left:0;top:0;touch-action:none}
+#topbar{position:absolute;top:0;left:0;right:0;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;z-index:5;pointer-events:none}
+#topbar .info{font-size:16px;font-weight:bold;text-shadow:0 2px 6px #000}
+#time.low{color:#ff6b6b;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.4}}
+#topbar .btns{pointer-events:auto;display:flex;gap:8px}
+button{font-family:inherit}
+.ibtn{width:44px;height:44px;border-radius:12px;border:1px solid #3d5a80;background:rgba(20,40,70,.85);color:#e8f4ff;font-size:20px;cursor:pointer}
+.ibtn:active{transform:scale(.92)}
+#resnow{position:absolute;right:12px;bottom:200px;z-index:6;display:none;padding:12px 16px;border-radius:14px;border:1px solid #ffb74d;background:rgba(80,50,10,.9);color:#ffe0b2;font-size:15px;font-weight:bold;min-height:48px}
+.overlay{position:absolute;left:0;top:0;right:0;bottom:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(5,12,24,.82);backdrop-filter:blur(4px)}
+.overlay.hidden{display:none}
+.card{width:86%;max-width:360px;background:linear-gradient(160deg,#16283f,#0d1a2e);border:1px solid #3d5a80;border-radius:20px;padding:28px 22px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.card h1{font-size:30px;margin-bottom:6px}
+.card h2{font-size:24px;margin-bottom:10px}
+.card p{font-size:14px;line-height:1.7;color:#b8d4ee;margin:10px 0}
+.card .best{color:#ffd54f;font-weight:bold}
+.bigbtn{display:block;width:100%;margin-top:14px;padding:14px;border-radius:14px;border:none;background:linear-gradient(135deg,#42a5f5,#1e88e5);color:#fff;font-size:18px;font-weight:bold;cursor:pointer;min-height:52px}
+.bigbtn:active{transform:scale(.97)}
+.ghostbtn{display:block;width:100%;margin-top:10px;padding:12px;border-radius:14px;border:1px solid #3d5a80;background:transparent;color:#b8d4ee;font-size:15px;cursor:pointer;min-height:48px}
+#toast{position:absolute;left:50%;top:70px;transform:translateX(-50%);z-index:8;background:rgba(10,25,45,.92);border:1px solid #4fc3f7;color:#e1f5fe;padding:10px 18px;border-radius:20px;font-size:14px;white-space:nowrap;opacity:0;transition:opacity .25s;pointer-events:none;max-width:92%}
+#score-line{font-size:15px;color:#b8d4ee;margin-top:6px}
+#score-line b{color:#ffd54f;font-size:22px}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="topbar">
+  <div class="info">⛄ <span id="score">0</span> 分 · ⏱ <span id="time">90</span>s</div>
+  <div class="btns">
+    <button class="ibtn" id="btnMute" title="静音">🔊</button>
+    <button class="ibtn" id="btnPause" title="暂停">⏸</button>
+  </div>
+</div>
+<button id="resnow">🔄 雪球太大，重滚一个</button>
+<div id="toast"></div>
+
+<div class="overlay" id="menuOv">
+  <div class="card">
+    <h1>⛄ 堆雪人</h1>
+    <p>按住雪地拖动，滚起一个大雪球！<br>雪球滚得越远越大，但越大滚得越慢。<br>把雪球拖到下方发光底座上放下：<br>🔵大底座 / 🟢中底座 / 🟡小底座<br>集齐大中小三层，雪人完成！<br>限时 90 秒，多堆多得分。</p>
+    <p class="best">🏆 历史最高：<span id="menuBest">0</span> 分</p>
+    <button class="bigbtn" id="btnStart">开始堆雪人</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h2>⏸ 已暂停</h2>
+    <p>雪人等你回来继续堆~</p>
+    <button class="bigbtn" id="btnResume">继续</button>
+    <button class="ghostbtn" id="btnRestart1">重新开始</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="overOv">
+  <div class="card">
+    <h2>⏰ 时间到！</h2>
+    <p id="score-line">完成雪人 <b id="finalSnow">0</b> 个<br>总分 <b id="finalScore">0</b> 分</p>
+    <p class="best">🏆 历史最高：<span id="overBest">0</span> 分</p>
+    <button class="bigbtn" id="btnRestart2">再来一局</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0;
+var BEST_KEY='g100_snowman_best',MUTE_KEY='g100_mute';
+var best=parseInt(localStorage.getItem(BEST_KEY)||'0',10);
+var muted=localStorage.getItem(MUTE_KEY)==='1';
+
+/* ---------- 音频 ---------- */
+var AC=null,noiseBuf=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function beep(f,d,type,v,delay){if(muted)return;var a=ac();if(!a)return;var t=a.currentTime+(delay||0);var o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(v||0.15,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}
+function noiseHit(d,v){if(muted)return;var a=ac();if(!a)return;if(!noiseBuf){noiseBuf=a.createBuffer(1,a.sampleRate*0.3,a.sampleRate);var ch=noiseBuf.getChannelData(0);for(var i=0;i<ch.length;i++){ch[i]=(Math.random()*2-1)*(1-i/ch.length);}}var t=a.currentTime;var s=a.createBufferSource();s.buffer=noiseBuf;var f=a.createBiquadFilter();f.type='lowpass';f.frequency.value=900;var g=a.createGain();g.gain.setValueAtTime(v||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);s.connect(f);f.connect(g);g.connect(a.destination);s.start(t);s.stop(t+d+0.05);}
+function sClick(){beep(650,0.07,'square',0.07);}
+function sPlace(){noiseHit(0.15,0.2);beep(150,0.2,'sine',0.22);}
+function sComplete(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++){beep(n[i],0.22,'triangle',0.16,i*0.09);}}
+function sEnd(){var n=[392,330,262,196];for(var i=0;i<n.length;i++){beep(n[i],0.3,'sine',0.15,i*0.14);}}
+function buzz(ms){if(navigator.vibrate){try{navigator.vibrate(ms);}catch(e){}}}
+
+/* ---------- 布局与状态 ---------- */
+var cx=0,peds=[],ball=null,parts=[],flakes=[];
+var G={state:'menu',t:90,score:0,snowmen:0,bonus:0,drag:false,tx:0,ty:0,celebrate:0,rollT:0};
+function resize(){var d=Math.min(2,window.devicePixelRatio||1);W=window.innerWidth;H=window.innerHeight;cv.width=W*d;cv.height=H*d;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(d,0,0,d,0,0);layout();}
+function layout(){
+  cx=W/2;
+  var defs=[
+    {label:'小',drawR:30,min:22,max:38,y:H-336,color:'#ffd54f'},
+    {label:'中',drawR:40,min:38,max:54,y:H-238,color:'#69f0ae'},
+    {label:'大',drawR:52,min:54,max:74,y:H-118,color:'#4fc3f7'}
+  ];
+  peds=[];for(var i=0;i<defs.length;i++){peds.push({label:defs[i].label,drawR:defs[i].drawR,min:defs[i].min,max:defs[i].max,x:cx,y:defs[i].y,color:defs[i].color,filled:false,ballR:0});}
+  if(!ball){newBall();}
+}
+function newBall(){ball={x:cx,y:H-430,r:18,frozen:false};G.drag=false;document.getElementById('resnow').style.display='none';}
+function reset(){G.t=90;G.score=0;G.snowmen=0;G.bonus=0;G.celebrate=0;parts=[];for(var i=0;i<peds.length;i++){peds[i].filled=false;peds[i].ballR=0;}newBall();updTop();}
+function updTop(){document.getElementById('score').textContent=G.score;var te=document.getElementById('time');te.textContent=Math.ceil(G.t);te.className=G.t<=10?'low':'';}
+function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._h);t._h=setTimeout(function(){t.style.opacity='0';},1600);}
+
+/* ---------- 雪花背景 ---------- */
+function initFlakes(){flakes=[];for(var i=0;i<70;i++){flakes.push({x:Math.random()*W,y:Math.random()*H,s:1+Math.random()*2.5,v:20+Math.random()*45,o:0.3+Math.random()*0.5,ph:Math.random()*6.28});}}
+
+/* ---------- 粒子 ---------- */
+function burst(x,y,n,cols){for(var i=0;i<n;i++){var a=Math.random()*6.28,sp=60+Math.random()*220;parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-60,life:0.9+Math.random()*0.6,t:0,c:cols[i%cols.length],r:2+Math.random()*3.5});}}
+
+/* ---------- 输入 ---------- */
+function pos(e){var r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+cv.addEventListener('pointerdown',function(e){if(G.state!=='playing')return;var p=pos(e);G.drag=true;G.tx=p.x;G.ty=p.y;e.preventDefault();});
+cv.addEventListener('pointermove',function(e){if(!G.drag||G.state!=='playing')return;var p=pos(e);G.tx=p.x;G.ty=p.y;});
+window.addEventListener('pointerup',function(){if(G.state!=='playing'){G.drag=false;return;}if(G.drag){G.drag=false;tryPlace();}});
+
+function tryPlace(){
+  var bi=-1,bd=1e9;
+  for(var i=0;i<peds.length;i++){var d=Math.hypot(ball.x-peds[i].x,ball.y-peds[i].y);if(d<peds[i].drawR+ball.r*0.9&&d<bd){bd=d;bi=i;}}
+  if(bi<0){return;}
+  var p=peds[bi];
+  if(p.filled){toast('这个底座已经有雪球啦');return;}
+  if(ball.r<p.min){toast('雪球太小了，再滚大一点');return;}
+  if(ball.r>=p.max){
+    if(p.label==='大'){p.filled=true;p.ballR=ball.r;sPlace();burst(p.x,p.y-20,24,['#ffffff','#b3e5fc','#81d4fa']);checkComplete();newBall();}
+    else{toast('太大了，换'+(p.label==='小'?'中':'大')+'底座试试');}
+    return;
+  }
+  p.filled=true;p.ballR=ball.r;sPlace();burst(p.x,p.y-20,24,['#ffffff','#b3e5fc','#81d4fa']);checkComplete();newBall();
+}
+function checkComplete(){
+  for(var i=0;i<peds.length;i++){if(!peds[i].filled)return;}
+  G.snowmen++;
+  var tb=Math.max(0,Math.round(G.t));
+  G.bonus+=tb;G.score+=100+tb;
+  G.celebrate=1.8;
+  sComplete();buzz(90);
+  burst(cx,peds[0].y-40,70,['#ffffff','#ffd54f','#b3e5fc','#ff8a80']);
+  updTop();
+  toast('⛄ 雪人完成！+'+(100+tb)+'分');
+  setTimeout(function(){for(var j=0;j<peds.length;j++){peds[j].filled=false;peds[j].ballR=0;}},1700);
+}
+
+/* ---------- 主循环 ---------- */
+var lastT=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(ts-lastT)/1000||0.016);lastT=ts;
+  if(G.state==='playing'){update(dt);}
+  draw(dt);
+}
+function update(dt){
+  G.t-=dt;if(G.t<=0){G.t=0;gameOver();}
+  updTop();
+  if(G.drag&&!ball.frozen){
+    var dx=G.tx-ball.x,dy=G.ty-ball.y,d=Math.hypot(dx,dy);
+    if(d>2){
+      var sp=Math.max(55,Math.min(430,430*(18/ball.r)));
+      var mv=Math.min(d,sp*dt);
+      ball.x+=dx/d*mv;ball.y+=dy/d*mv;
+      ball.x=Math.max(ball.r,Math.min(W-ball.r,ball.x));
+      ball.y=Math.max(70+ball.r,Math.min(H-60-ball.r,ball.y));
+      ball.r=Math.min(74,ball.r+mv*0.022);
+      G.rollT-=dt;
+      if(G.rollT<=0){noiseHit(0.06,0.05);G.rollT=0.14;}
+      if(ball.r>=74&&!ball.frozen){ball.frozen=true;document.getElementById('resnow').style.display='block';toast('雪球太大滚不动啦，放到大底座上！');}
+    }
+  }
+  if(G.celebrate>0)G.celebrate-=dt;
+  for(var i=parts.length-1;i>=0;i--){var p=parts[i];p.t+=dt;if(p.t>=p.life){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=300*dt;}
+  for(var j=0;j<flakes.length;j++){var f=flakes[j];f.y+=f.v*dt;f.ph+=dt;if(f.y>H+6){f.y=-6;f.x=Math.random()*W;}}
+}
+function draw(dt){
+  var g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0b1626');g.addColorStop(0.55,'#10233c');g.addColorStop(1,'#1b3a5c');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff';
+  for(var i=0;i<flakes.length;i++){var f=flakes[i];ctx.globalAlpha=f.o;ctx.beginPath();ctx.arc(f.x+Math.sin(f.ph)*8,f.y,f.s,0,6.29);ctx.fill();}
+  ctx.globalAlpha=1;
+  ctx.fillStyle='rgba(255,255,255,0.06)';
+  ctx.beginPath();ctx.ellipse(cx,H+140,W*0.75,200,0,0,6.29);ctx.fill();
+  var j,p;
+  for(j=0;j<peds.length;j++){p=peds[j];
+    ctx.save();
+    ctx.shadowColor=p.color;ctx.shadowBlur=p.filled?8:22;
+    ctx.strokeStyle=p.filled?'rgba(120,160,200,0.5)':p.color;
+    ctx.lineWidth=p.filled?2:3;ctx.setLineDash(p.filled?[]:[8,7]);
+    ctx.beginPath();ctx.arc(p.x,p.y,p.drawR,0,6.29);ctx.stroke();
+    ctx.restore();ctx.setLineDash([]);
+    ctx.fillStyle=p.filled?'#8aa0b8':p.color;
+    ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(p.filled?'✓':p.label+'底座',p.x,p.y+p.drawR+20);
+    if(p.filled){drawBall(p.x,p.y,p.ballR*0.62,false);}
+  }
+  if(G.celebrate>0&&peds[2].filled){
+    var sc=1+Math.sin((1.8-G.celebrate)*10)*0.06;
+    ctx.save();ctx.translate(cx,peds[1].y-30);ctx.scale(sc,sc);
+    ctx.font='54px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('⛄',0,0);ctx.restore();
+  }
+  if(ball&&!allFilledNow()){drawBall(ball.x,ball.y,ball.r,ball.frozen);}
+  for(i=0;i<parts.length;i++){var q=parts[i];ctx.globalAlpha=1-q.t/q.life;ctx.fillStyle=q.c;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,6.29);ctx.fill();}
+  ctx.globalAlpha=1;
+}
+function allFilledNow(){for(var i=0;i<peds.length;i++){if(!peds[i].filled)return false;}return true;}
+function drawBall(x,y,r,frozen){
+  var g=ctx.createRadialGradient(x-r*0.35,y-r*0.4,r*0.15,x,y,r);
+  g.addColorStop(0,'#ffffff');g.addColorStop(0.75,'#e8f4fd');g.addColorStop(1,'#b9d9f2');
+  ctx.save();ctx.shadowColor='rgba(140,200,255,0.7)';ctx.shadowBlur=16;
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,6.29);ctx.fill();ctx.restore();
+  ctx.strokeStyle='rgba(120,170,220,0.5)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(x,y,r,0,6.29);ctx.stroke();
+  ctx.fillStyle='#33475c';
+  ctx.beginPath();ctx.arc(x-r*0.3,y-r*0.15,r*0.09,0,6.29);ctx.fill();
+  ctx.beginPath();ctx.arc(x+r*0.3,y-r*0.15,r*0.09,0,6.29);ctx.fill();
+  ctx.strokeStyle='#33475c';ctx.lineWidth=Math.max(2,r*0.05);
+  ctx.beginPath();ctx.arc(x,y+r*0.15,r*0.35,0.5,2.64);ctx.stroke();
+  if(frozen){
+    var pl=0.6+0.4*Math.sin(Date.now()/150);
+    ctx.strokeStyle='rgba(255,110,110,'+pl+')';ctx.lineWidth=4;
+    ctx.beginPath();ctx.arc(x,y,r+7,0,6.29);ctx.stroke();
+  }
+}
+
+/* ---------- 流程 ---------- */
+function startGame(){ac();sClick();reset();G.state='playing';document.getElementById('menuOv').classList.add('hidden');document.getElementById('overOv').classList.add('hidden');document.getElementById('pauseOv').classList.add('hidden');}
+function gameOver(){
+  if(G.state!=='playing')return;
+  G.state='over';G.drag=false;sEnd();
+  document.getElementById('finalSnow').textContent=G.snowmen;
+  document.getElementById('finalScore').textContent=G.score;
+  var nb=G.score>best;
+  if(nb){best=G.score;localStorage.setItem(BEST_KEY,String(best));}
+  document.getElementById('overBest').textContent=best;
+  document.getElementById('overOv').classList.remove('hidden');
+  toast(nb?'🎉 新纪录！':'本局结束');
+}
+function togglePause(){
+  if(G.state==='playing'){G.state='paused';document.getElementById('pauseOv').classList.remove('hidden');}
+  else if(G.state==='paused'){G.state='playing';document.getElementById('pauseOv').classList.add('hidden');}
+  sClick();
+}
+function toggleMute(){muted=!muted;localStorage.setItem(MUTE_KEY,muted?'1':'0');document.getElementById('btnMute').textContent=muted?'🔇':'🔊';if(!muted)sClick();}
+
+document.getElementById('btnStart').addEventListener('click',startGame);
+document.getElementById('btnRestart2').addEventListener('click',startGame);
+document.getElementById('btnRestart1').addEventListener('click',startGame);
+document.getElementById('btnResume').addEventListener('click',togglePause);
+document.getElementById('btnPause').addEventListener('click',function(){if(G.state==='playing'||G.state==='paused')togglePause();});
+document.getElementById('btnMute').addEventListener('click',toggleMute);
+document.getElementById('resnow').addEventListener('click',function(){sClick();newBall();toast('换了个小雪球，继续滚！');});
+document.getElementById('menuBest').textContent=best;
+document.getElementById('btnMute').textContent=muted?'🔇':'🔊';
+
+resize();initFlakes();updTop();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
