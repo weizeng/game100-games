@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>细胞结构 · 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:radial-gradient(120% 100% at 50% 0%,#1b2340 0%,#0d1024 60%,#070a18 100%);color:#e8ecff;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;min-height:100%;display:flex;flex-direction:column;align-items:center;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+header{width:100%;max-width:480px;display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+header h1{font-size:18px;letter-spacing:1px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{min-width:44px;min-height:44px;border-radius:12px;border:1px solid #3a4570;background:#1a2140;color:#e8ecff;font-size:20px;cursor:pointer}
+main{width:100%;max-width:480px;flex:1;display:flex;flex-direction:column;align-items:center;padding:0 14px 20px}
+.screen{width:100%;display:none;flex-direction:column;align-items:center}
+.screen.on{display:flex}
+.card{background:rgba(24,30,60,.85);border:1px solid #39446f;border-radius:16px;padding:22px 18px;width:100%;text-align:center;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+.card h2{font-size:26px;margin:8px 0}
+.card p{font-size:15px;line-height:1.8;color:#c6cdf2;margin:10px 0}
+.bigbtn{min-height:52px;padding:0 42px;font-size:19px;border:none;border-radius:14px;background:linear-gradient(135deg,#7E57C2,#5E35B1);color:#fff;cursor:pointer;margin-top:14px;box-shadow:0 4px 16px rgba(126,87,194,.5)}
+.bigbtn:active{transform:scale(.96)}
+.subbtn{min-height:44px;padding:0 22px;font-size:15px;border-radius:12px;border:1px solid #4a5580;background:#232b52;color:#dfe4ff;cursor:pointer;margin:8px 4px 0}
+#cvwrap{width:100%;position:relative}
+#cv{width:100%;border-radius:16px;border:1px solid #39446f;background:#0b0f22;display:block;touch-action:none}
+#cv.shake{animation:shk .35s}
+@keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-5px)}}
+#promptbar{width:100%;text-align:center;font-size:17px;font-weight:bold;background:#2a1445;border:1px solid #7E57C2;border-radius:12px;padding:12px;margin:10px 0}
+#scorebar{width:100%;display:flex;justify-content:space-between;font-size:14px;color:#aab3dd;padding:2px 4px 8px}
+#infopanel{width:100%;min-height:96px;background:rgba(24,30,60,.9);border:1px solid #39446f;border-radius:14px;padding:12px 14px;margin-top:10px}
+#infopanel .iname{font-size:18px;font-weight:bold;color:#ffd76a;margin-bottom:6px}
+#infopanel .ifunc{font-size:14px;line-height:1.7;color:#c6cdf2}
+.modebtns{display:flex;gap:10px;margin-top:12px}
+#overlay{position:fixed;inset:0;background:rgba(4,6,16,.82);display:none;align-items:center;justify-content:center;z-index:50}
+#overlay.on{display:flex}
+#overlay .card{width:82%;max-width:320px}
+#endscore{font-size:44px;font-weight:bold;color:#ffd76a;margin:6px 0}
+#endbest{font-size:15px;color:#aab3dd;margin-bottom:8px}
+#conclusion{text-align:left;font-size:13.5px;line-height:1.9;background:#12172f;border-radius:12px;padding:12px 14px;margin-top:10px;max-height:260px;overflow-y:auto}
+#conclusion b{color:#9fd0ff}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔬 细胞结构</h1>
+  <div class="hbtns">
+    <button id="muteBtn" title="静音开关">🔊</button>
+    <button id="pauseBtn" class="hidden" title="暂停">⏸</button>
+  </div>
+</header>
+<main>
+  <section id="scr-start" class="screen on">
+    <div class="card">
+      <div style="font-size:56px">🌱🔬</div>
+      <h2>细胞结构</h2>
+      <p>🔍 <b>探索模式</b>：点击植物细胞中的各个结构，认识细胞器及其功能。<br>🏆 <b>挑战模式</b>：8 轮找一找，答对 <b>+10</b> 分，答错 <b>-5</b> 分，看看你能拿多少分！</p>
+      <button class="bigbtn" id="btnStart">开始</button>
+    </div>
+  </section>
+  <section id="scr-game" class="screen">
+    <div id="scorebar"><span id="scoreTxt">得分：0</span><span id="roundTxt"></span></div>
+    <div id="promptbar" class="hidden"></div>
+    <div id="cvwrap"><canvas id="cv" width="360" height="470"></canvas></div>
+    <div id="infopanel"><div class="iname" id="infoName">👆 点击细胞中的结构开始探索</div><div class="ifunc" id="infoFunc"></div></div>
+    <div class="modebtns"><button class="subbtn" id="btnToChallenge">🏆 进入挑战</button><button class="subbtn" id="btnBackStart">🏠 返回首页</button></div>
+  </section>
+  <section id="scr-end" class="screen">
+    <div class="card">
+      <div style="font-size:52px">🎉</div>
+      <h2>挑战完成！</h2>
+      <div id="endscore">0 分</div>
+      <div id="endbest">历史最高：0 分</div>
+      <div id="conclusion"></div>
+      <button class="bigbtn" id="btnAgain">再来一次</button><br>
+      <button class="subbtn" id="btnEndHome">🏠 返回首页</button>
+    </div>
+  </section>
+</main>
+<div id="overlay"><div class="card"><div style="font-size:48px">⏸</div><h2>已暂停</h2><p>休息一下，准备好再继续吧～</p><button class="bigbtn" id="btnResume">继续</button></div></div>
+<script>
+'use strict';
+/* ============ 基础工具 ============ */
+const $=id=>document.getElementById(id);
+const W=360,H=470;
+const cv=$('cv'),ctx=cv.getContext('2d');
+let screen='start',mode='explore',score=0,round=0,order=[],target=null;
+let highlight=null,particles=[],floats=[],shakeT=0,paused=false,rafId=null,successT=0;
+const HSKEY='g100_cellstruct_hs',MUTEKEY='g100_mute';
+const muted=()=>localStorage.getItem(MUTEKEY)==='1';
+function setMuteBtn(){$('muteBtn').textContent=muted()?'🔇':'🔊';}
+$('muteBtn').onclick=()=>{localStorage.setItem(MUTEKEY,muted()?'0':'1');setMuteBtn();snd('click');};
+setMuteBtn();
+/* ============ 音效（WebAudio 合成） ============ */
+let AC=null;
+function tone(f,d,type,when,vol){
+  if(muted())return;
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended')AC.resume();
+    const t=AC.currentTime+(when||0),o=AC.createOscillator(),g=AC.createGain();
+    o.type=type||'sine';o.frequency.value=f;
+    g.gain.setValueAtTime(vol||0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);
+    o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+d);
+  }catch(e){}
+}
+function snd(n){
+  if(n==='click')tone(620,0.08,'sine',0,0.15);
+  else if(n==='correct'){tone(523,0.12,'sine',0,0.2);tone(659,0.12,'sine',0.1,0.2);tone(784,0.2,'sine',0.2,0.22);}
+  else if(n==='wrong')tone(196,0.25,'square',0,0.12);
+  else if(n==='win'){tone(523,0.14,'triangle',0,0.2);tone(659,0.14,'triangle',0.14,0.2);tone(784,0.14,'triangle',0.28,0.2);tone(1047,0.3,'triangle',0.42,0.22);}
+}
+function vibrate(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+/* ============ 细胞器数据 ============ */
+const ORG={
+  wall:{name:'细胞壁',emoji:'🧱',func:'支持和保护细胞，维持细胞形状，是植物细胞特有的结构。',color:'#A1887F'},
+  membrane:{name:'细胞膜',emoji:'🫧',func:'控制物质进出细胞，保护细胞内部环境。',color:'#4FC3F7'},
+  cytoplasm:{name:'细胞质',emoji:'💧',func:'生命活动的主要场所，各种细胞器悬浮其中。',color:'#90A4AE'},
+  nucleus:{name:'细胞核',emoji:'🟣',func:'遗传信息库，是细胞代谢和遗传的控制中心。',color:'#B39DDB'},
+  nucleolus:{name:'核仁',emoji:'⚪',func:'位于细胞核内，与核糖体的形成有关。',color:'#E1BEE7'},
+  vacuole:{name:'液泡',emoji:'💦',func:'储存水分和养料，维持细胞膨压，植物细胞中央大液泡很显著。',color:'#4DD0E1'},
+  chloroplast:{name:'叶绿体',emoji:'🍃',func:'光合作用的场所，能把光能转变成化学能，是植物的“能量工厂”。',color:'#81C784'},
+  mitochondria:{name:'线粒体',emoji:'⚡',func:'呼吸作用的主要场所，为生命活动提供能量，是细胞的“动力车间”。',color:'#FFB74D'}
+};
+const ALLIDS=['wall','membrane','cytoplasm','nucleus','nucleolus','vacuole','chloroplast','mitochondria'];
+/* 几何：细胞外框圆角矩形 */
+const CX0=20,CY0=30,CW=320,CHh=410,CR=34;
+const CHL=[{x:100,y:350},{x:150,y:400},{x:78,y:262},{x:300,y:70}];
+const MIT=[{x:92,y:150},{x:252,y:150}];
+const NUC={x:180,y:205,r:46},NUL={x:180,y:205,r:15},VAC={x:252,y:335,rx:58,ry:44};
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function inRR(x,y,ix,iy,iw,ih){return x>=ix&&x<=ix+iw&&y>=iy&&y<=iy+ih;}
+function inEllipse(x,y,e){const dx=(x-e.x)/(e.rx||e.r),dy=(y-e.y)/(e.ry||e.r);return dx*dx+dy*dy<=1;}
+function hitTest(x,y){
+  if(inEllipse(x,y,NUL))return 'nucleolus';
+  if(inEllipse(x,y,NUC))return 'nucleus';
+  if(inEllipse(x,y,VAC))return 'vacuole';
+  for(const c of CHL)if(inEllipse(x,y,{x:c.x,y:c.y,rx:20,ry:12}))return 'chloroplast';
+  for(const m of MIT)if(inEllipse(x,y,{x:m.x,y:m.y,rx:24,ry:14}))return 'mitochondria';
+  const inOuter=inRR(x,y,CX0,CY0,CW,CHh);
+  const inW1=inRR(x,y,CX0+14,CY0+14,CW-28,CHh-28);
+  const inW2=inRR(x,y,CX0+22,CY0+22,CW-44,CHh-44);
+  if(inOuter&&!inW1)return 'wall';
+  if(inW1&&!inW2)return 'membrane';
+  if(inW2)return 'cytoplasm';
+  return null;
+}
+/* ============ 绘制 ============ */
+function easeOut(t){return 1-Math.pow(1-t,3);}
+function easeInOut(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+function draw(now){
+  ctx.clearRect(0,0,W,H);
+  /* 细胞质底 */
+  rr(CX0+22,CY0+22,CW-44,CHh-44,CR-18);
+  const g=ctx.createLinearGradient(0,CY0,0,CY0+CHh);
+  g.addColorStop(0,'#1d2b3a');g.addColorStop(1,'#16202e');
+  ctx.fillStyle=g;ctx.fill();
+  /* 叶绿体 */
+  for(const c of CHL){ctx.save();ctx.translate(c.x,c.y);ctx.rotate(-0.3);
+    ctx.fillStyle='rgba(46,125,50,.95)';ctx.beginPath();ctx.ellipse(0,0,20,12,0,0,7);ctx.fill();
+    ctx.strokeStyle='#A5D6A7';ctx.lineWidth=2;for(let i=-1;i<=1;i++){ctx.beginPath();ctx.moveTo(-12,i*5);ctx.lineTo(12,i*5);ctx.stroke();}
+    ctx.restore();}
+  /* 线粒体 */
+  for(const m of MIT){ctx.save();ctx.translate(m.x,m.y);
+    ctx.fillStyle='rgba(230,126,34,.92)';ctx.beginPath();ctx.ellipse(0,0,24,14,0.25,0,7);ctx.fill();
+    ctx.strokeStyle='#FFE0B2';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-14,0);
+    ctx.bezierCurveTo(-8,-8,8,8,14,0);ctx.stroke();ctx.restore();}
+  /* 液泡 */
+  ctx.fillStyle='rgba(38,166,154,.35)';ctx.strokeStyle='#4DD0E1';ctx.lineWidth=3;
+  ctx.beginPath();ctx.ellipse(VAC.x,VAC.y,VAC.rx,VAC.ry,0,0,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle='rgba(77,208,225,.25)';
+  ctx.beginPath();ctx.ellipse(VAC.x-12,VAC.y-10,22,14,-0.4,0,7);ctx.fill();
+  /* 细胞核 */
+  ctx.fillStyle='rgba(94,53,177,.85)';ctx.strokeStyle='#B39DDB';ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(NUC.x,NUC.y,NUC.r,0,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#CE93D8';ctx.beginPath();ctx.arc(NUL.x,NUL.y,NUL.r,0,7);ctx.fill();
+  /* 细胞膜 */
+  rr(CX0+14,CY0+14,CW-28,CHh-28,CR-8);ctx.strokeStyle='#4FC3F7';ctx.lineWidth=3;ctx.stroke();
+  /* 细胞壁 */
+  rr(CX0,CY0,CW,CHh,CR);ctx.strokeStyle='#8D6E63';ctx.lineWidth=14;ctx.stroke();
+  /* 高亮脉冲 */
+  if(highlight){
+    const el=(now-highlight.t0)/1100;
+    if(el>=1)highlight=null;
+    else{
+      const e=easeOut(el),a=1-el;
+      ctx.save();ctx.globalAlpha=a;ctx.strokeStyle='#FFD54F';ctx.lineWidth=4;
+      const o=highlight.id;
+      if(o==='nucleolus'){ctx.beginPath();ctx.arc(NUL.x,NUL.y,NUL.r+4+e*22,0,7);ctx.stroke();}
+      else if(o==='nucleus'){ctx.beginPath();ctx.arc(NUC.x,NUC.y,NUC.r+4+e*26,0,7);ctx.stroke();}
+      else if(o==='vacuole'){ctx.beginPath();ctx.ellipse(VAC.x,VAC.y,VAC.rx+4+e*24,VAC.ry+4+e*18,0,0,7);ctx.stroke();}
+      else if(o==='chloroplast'){for(const c of CHL){ctx.beginPath();ctx.ellipse(c.x,c.y,20+4+e*20,12+4+e*14,-0.3,0,7);ctx.stroke();}}
+      else if(o==='mitochondria'){for(const m of MIT){ctx.beginPath();ctx.ellipse(m.x,m.y,24+4+e*22,14+4+e*16,0.25,0,7);ctx.stroke();}}
+      else if(o==='wall'){rr(CX0-4-e*14,CY0-4-e*14,CW+8+e*28,CHh+8+e*28,CR+8);ctx.stroke();}
+      else if(o==='membrane'){rr(CX0+14-3-e*8,CY0+14-3-e*8,CW-28+6+e*16,CHh-28+6+e*16,CR-4);ctx.stroke();}
+      else if(o==='cytoplasm'){rr(CX0+30,CY0+30,CW-60,CHh-60,CR-22);ctx.setLineDash([8,6]);ctx.stroke();ctx.setLineDash([]);}
+      ctx.restore();
+    }
+  }
+  /* 粒子 */
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i],el=(now-p.t0)/p.life;
+    if(el>=1){particles.splice(i,1);continue;}
+    const e=easeOut(el);
+    ctx.save();ctx.globalAlpha=1-el;ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x+p.vx*e*60,p.y+p.vy*e*60-e*30,p.r*(1-e*0.5),0,7);ctx.fill();ctx.restore();
+  }
+  /* 飘字 */
+  ctx.textAlign='center';ctx.font='bold 22px sans-serif';
+  for(let i=floats.length-1;i>=0;i--){
+    const f=floats[i],el=(now-f.t0)/900;
+    if(el>=1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=1-el;ctx.fillStyle=f.color;
+    ctx.fillText(f.txt,f.x,f.y-easeOut(el)*46);ctx.restore();
+  }
+  if(successT&&now<successT){
+    ctx.save();ctx.globalAlpha=0.9;ctx.fillStyle='#66BB6A';ctx.font='bold 30px sans-serif';ctx.textAlign='center';
+    ctx.fillText('✅ 找对了！',W/2,H/2-40);ctx.restore();
+  }
+}
+function burst(x,y,color){
+  for(let i=0;i<22;i++){const a=Math.random()*Math.PI*2;
+    particles.push({x,y,vx:Math.cos(a)*(0.4+Math.random()),vy:Math.sin(a)*(0.4+Math.random())-0.6,r:2+Math.random()*3.5,color:color||'#FFD54F',t0:performance.now(),life:500+Math.random()*500});}
+}
+function floatTxt(txt,x,y,color){floats.push({txt,x,y,color:color||'#fff',t0:performance.now()});}
+function loop(now){
+  if(paused)return;
+  draw(now);
+  rafId=requestAnimationFrame(loop);
+}
+/* ============ 流程控制 ============ */
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');}
+function startExplore(){
+  screen='game';mode='explore';score=0;round=0;target=null;highlight=null;particles=[];floats=[];
+  show('scr-game');$('pauseBtn').classList.remove('hidden');
+  $('promptbar').classList.add('hidden');$('roundTxt').textContent='';
+  $('infoName').textContent='👆 点击细胞中的结构开始探索';$('infoFunc').textContent='';
+  $('btnToChallenge').classList.remove('hidden');
+  updateScore();
+  cancelAnimationFrame(rafId);paused=false;rafId=requestAnimationFrame(loop);
+}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function startChallenge(){
+  screen='game';mode='challenge';score=0;round=0;
+  order=shuffle(ALLIDS.slice());target=order[0];
+  highlight=null;particles=[];floats=[];successT=0;
+  show('scr-game');$('pauseBtn').classList.remove('hidden');
+  $('promptbar').classList.remove('hidden');
+  $('infoName').textContent='🎯 听从提示，找出对应的细胞结构';$('infoFunc').textContent='';
+  $('btnToChallenge').classList.add('hidden');
+  setPrompt();updateScore();
+  cancelAnimationFrame(rafId);paused=false;rafId=requestAnimationFrame(loop);
+}
+function setPrompt(){$('promptbar').innerHTML='第 '+(round+1)+' / 8 轮 · 请找出：<b style="color:#FFD54F">'+ORG[target].emoji+ORG[target].name+'</b>';$('roundTxt').textContent='第'+(round+1)+'/8轮';}
+function updateScore(){$('scoreTxt').textContent='得分：'+score;}
+cv.addEventListener('pointerdown',e=>{
+  if(paused||screen!=='game')return;
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)/r.width*W,y=(e.clientY-r.top)/r.height*H;
+  const id=hitTest(x,y);
+  if(mode==='explore'){
+    if(id){snd('click');highlight={id,t0:performance.now()};burst(x,y,ORG[id].color);
+      $('infoName').textContent=ORG[id].emoji+' '+ORG[id].name;
+      $('infoFunc').textContent=ORG[id].func;}
+    return;
+  }
+  /* 挑战模式 */
+  if(successT&&performance.now()<successT)return;
+  if(id===target){
+    score+=10;snd('correct');burst(x,y,'#FFD54F');floatTxt('+10',x,y-10,'#FFD54F');
+    highlight={id,t0:performance.now()};successT=performance.now()+850;
+    round++;updateScore();
+    setTimeout(()=>{
+      if(round>=8){endChallenge();}
+      else{target=order[round];successT=0;setPrompt();}
+    },880);
+  }else if(id){
+    score=Math.max(0,score-5);snd('wrong');vibrate(180);floatTxt('-5',x,y-10,'#ff6b6b');
+    cv.classList.remove('shake');void cv.offsetWidth;cv.classList.add('shake');
+    updateScore();
+  }
+});
+function endChallenge(){
+  cancelAnimationFrame(rafId);screen='end';$('pauseBtn').classList.add('hidden');
+  snd('win');vibrate([60,60,60]);
+  const best=Math.max(score,+(localStorage.getItem(HSKEY)||0));
+  localStorage.setItem(HSKEY,best);
+  $('endscore').textContent=score+' 分';$('endbest').textContent='历史最高：'+best+' 分';
+  let c='<b>📝 实验结论：</b><br>';
+  for(const id of ALLIDS)c+='· <b>'+ORG[id].emoji+ORG[id].name+'</b>：'+ORG[id].func+'<br>';
+  $('conclusion').innerHTML=c;
+  show('scr-end');
+}
+/* 暂停 */
+function setPaused(p){
+  paused=p;$('overlay').classList.toggle('on',p);
+  if(!p&&screen==='game')rafId=requestAnimationFrame(loop);
+  else if(p)cancelAnimationFrame(rafId);
+}
+$('pauseBtn').onclick=()=>{snd('click');setPaused(true);};
+$('btnResume').onclick=()=>{snd('click');setPaused(false);};
+/* 按钮 */
+$('btnStart').onclick=()=>{snd('click');startExplore();};
+$('btnToChallenge').onclick=()=>{snd('click');startChallenge();};
+$('btnBackStart').onclick=()=>{snd('click');cancelAnimationFrame(rafId);screen='start';$('pauseBtn').classList.add('hidden');show('scr-start');};
+$('btnAgain').onclick=()=>{snd('click');startChallenge();};
+$('btnEndHome').onclick=()=>{snd('click');screen='start';show('scr-start');};
+</script>
+</body>
+</html>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>细胞分裂 · 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:radial-gradient(120% 100% at 50% 0%,#0f2a26 0%,#0a1620 60%,#05090f 100%);color:#e8fff9;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;min-height:100%;display:flex;flex-direction:column;align-items:center;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+header{width:100%;max-width:480px;display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+header h1{font-size:18px;letter-spacing:1px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{min-width:44px;min-height:44px;border-radius:12px;border:1px solid #2a5a52;background:#122b28;color:#e8fff9;font-size:20px;cursor:pointer}
+main{width:100%;max-width:480px;flex:1;display:flex;flex-direction:column;align-items:center;padding:0 14px 20px}
+.screen{width:100%;display:none;flex-direction:column;align-items:center}
+.screen.on{display:flex}
+.card{background:rgba(16,34,31,.88);border:1px solid #2a5a52;border-radius:16px;padding:22px 18px;width:100%;text-align:center;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+.card h2{font-size:26px;margin:8px 0}
+.card p{font-size:15px;line-height:1.8;color:#c4e6dc;margin:10px 0}
+.bigbtn{min-height:52px;padding:0 42px;font-size:19px;border:none;border-radius:14px;background:linear-gradient(135deg,#26A69A,#00897B);color:#fff;cursor:pointer;margin-top:14px;box-shadow:0 4px 16px rgba(38,166,154,.5)}
+.bigbtn:active{transform:scale(.96)}
+.subbtn{min-height:44px;padding:0 22px;font-size:15px;border-radius:12px;border:1px solid #3a7a72;background:#173832;color:#dff5ef;cursor:pointer;margin:8px 4px 0}
+#cv{width:100%;border-radius:16px;border:1px solid #2a5a52;background:#060b10;display:block;touch-action:none}
+#cv.shake{animation:shk .35s}
+@keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-5px)}}
+#phaseName{font-size:22px;font-weight:bold;color:#7ef0dd;margin:10px 0 4px}
+#phaseDesc{font-size:14.5px;line-height:1.8;color:#c4e6dc;background:#0f2220;border:1px solid #2a5a52;border-radius:12px;padding:10px 14px;margin:8px 0 12px;min-height:96px;text-align:left}
+#stepper{display:flex;gap:6px;margin:6px 0}
+#stepper .dot{width:34px;height:10px;border-radius:6px;background:#1d3f3b}
+#stepper .dot.done{background:#26A69A}
+#scorebar{width:100%;display:flex;justify-content:space-between;font-size:14px;color:#a9d8cf;padding:2px 4px 8px}
+#slots{display:flex;gap:6px;width:100%;margin:8px 0}
+.slot{flex:1;min-height:64px;border:2px dashed #3a7a72;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;color:#7fa89f;background:#0d1b19}
+.slot.fill{border-style:solid;border-color:#26A69A;color:#e8fff9;background:#12322e}
+.slot .em{font-size:22px}
+#cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;margin-top:8px}
+.pcard{min-height:84px;border-radius:14px;border:1px solid #3a7a72;background:#15302c;color:#e8fff9;font-size:15px;font-weight:bold;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.pcard .em{font-size:30px}
+.pcard.used{opacity:.25;pointer-events:none}
+.pcard.err{animation:shk .35s;border-color:#ff6b6b}
+#sortHint{font-size:15px;color:#ffd76a;margin:4px 0;min-height:24px;text-align:center}
+#overlay{position:fixed;inset:0;background:rgba(3,8,10,.85);display:none;align-items:center;justify-content:center;z-index:50}
+#overlay.on{display:flex}
+#overlay .card{width:82%;max-width:320px}
+#endscore{font-size:44px;font-weight:bold;color:#7ef0dd;margin:6px 0}
+#endbest{font-size:15px;color:#a9d8cf;margin-bottom:8px}
+#conclusion{text-align:left;font-size:13.5px;line-height:1.9;background:#0c1a18;border-radius:12px;padding:12px 14px;margin-top:10px;max-height:280px;overflow-y:auto}
+#conclusion b{color:#7ef0dd}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧬 细胞分裂</h1>
+  <div class="hbtns">
+    <button id="muteBtn" title="静音开关">🔊</button>
+    <button id="pauseBtn" class="hidden" title="暂停">⏸</button>
+  </div>
+</header>
+<main>
+  <section id="scr-start" class="screen on">
+    <div class="card">
+      <div style="font-size:56px">🧬🔬</div>
+      <h2>细胞分裂</h2>
+      <p>👀 <b>观看阶段</b>：按顺序观看有丝分裂的 5 个时期动画，了解每个时期的关键事件。<br>🧩 <b>排序挑战</b>：把 5 个时期按正确顺序排列，答对 <b>+10</b> 分，答错 <b>-5</b> 分！</p>
+      <button class="bigbtn" id="btnStart">开始</button>
+    </div>
+  </section>
+  <section id="scr-watch" class="screen">
+    <div id="stepper"></div>
+    <canvas id="cv" width="360" height="300"></canvas>
+    <div id="phaseName"></div>
+    <div id="phaseDesc"></div>
+    <button class="bigbtn" id="btnNext">下一步 ➜</button>
+  </section>
+  <section id="scr-sort" class="screen">
+    <div id="scorebar"><span id="scoreTxt">得分：0</span><span id="progTxt">已排 0/5</span></div>
+    <div id="sortHint">👆 按正确分裂顺序点击卡片</div>
+    <div id="slots"></div>
+    <div id="cards"></div>
+    <button class="subbtn hidden" id="btnToEnd">查看实验结论 ➜</button>
+  </section>
+  <section id="scr-end" class="screen">
+    <div class="card">
+      <div style="font-size:52px">🎉</div>
+      <h2>挑战完成！</h2>
+      <div id="endscore">0 分</div>
+      <div id="endbest">历史最高：0 分</div>
+      <div id="conclusion"></div>
+      <button class="bigbtn" id="btnAgain">再来一次</button><br>
+      <button class="subbtn" id="btnEndHome">🏠 返回首页</button>
+    </div>
+  </section>
+</main>
+<div id="overlay"><div class="card"><div style="font-size:48px">⏸</div><h2>已暂停</h2><p>休息一下，准备好再继续吧～</p><button class="bigbtn" id="btnResume">继续</button></div></div>
+<script>
+'use strict';
+/* ============ 基础 ============ */
+const $=id=>document.getElementById(id);
+const W=360,H=300;
+const cv=$('cv'),ctx=cv.getContext('2d');
+let screen='start',phaseIdx=0,animT0=0,animating=false,paused=false,rafId=null;
+let score=0,placed=0,particles=[];
+const HSKEY='g100_mitosis_hs',MUTEKEY='g100_mute';
+const muted=()=>localStorage.getItem(MUTEKEY)==='1';
+function setMuteBtn(){$('muteBtn').textContent=muted()?'🔇':'🔊';}
+$('muteBtn').onclick=()=>{localStorage.setItem(MUTEKEY,muted()?'0':'1');setMuteBtn();snd('click');};
+setMuteBtn();
+/* ============ 音效 ============ */
+let AC=null;
+function tone(f,d,type,when,vol){
+  if(muted())return;
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended')AC.resume();
+    const t=AC.currentTime+(when||0),o=AC.createOscillator(),g=AC.createGain();
+    o.type=type||'sine';o.frequency.value=f;
+    g.gain.setValueAtTime(vol||0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);
+    o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+d);
+  }catch(e){}
+}
+function snd(n){
+  if(n==='click')tone(620,0.08,'sine',0,0.15);
+  else if(n==='correct'){tone(523,0.12,'sine',0,0.2);tone(659,0.12,'sine',0.1,0.2);tone(784,0.2,'sine',0.2,0.22);}
+  else if(n==='wrong')tone(196,0.25,'square',0,0.12);
+  else if(n==='win'){tone(523,0.14,'triangle',0,0.2);tone(659,0.14,'triangle',0.14,0.2);tone(784,0.14,'triangle',0.28,0.2);tone(1047,0.3,'triangle',0.42,0.22);}
+}
+function vibrate(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+/* ============ 时期数据 ============ */
+const PHASES=[
+  {name:'间期',emoji:'🌀',desc:'🔹 染色质：DNA 完成复制，细胞生长，为分裂做准备。<br>🔑 关键事件：<b>染色质复制</b>，细胞核完整。'},
+  {name:'前期',emoji:'🧶',desc:'🔹 染色体出现（染色质高度螺旋化缩短变粗），核膜、核仁消失，纺锤体形成。<br>🔑 关键事件：<b>染色体出现、核膜消失</b>。'},
+  {name:'中期',emoji:'⚖️',desc:'🔹 每条染色体的着丝点排列在细胞中央的赤道板上，染色体形态最清晰。<br>🔑 关键事件：<b>染色体排赤道板</b>。'},
+  {name:'后期',emoji:'↔️',desc:'🔹 着丝点分裂，姐妹染色单体分开，在纺锤丝牵引下移向细胞两极。<br>🔑 关键事件：<b>姐妹染色单体分离</b>。'},
+  {name:'末期',emoji:'✌️',desc:'🔹 染色体解螺旋，两个新的细胞核形成，细胞质一分为二，产生两个子细胞。<br>🔑 关键事件：<b>两个细胞核、细胞一分为二</b>。'}
+];
+function easeInOut(t){return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+function easeOut(t){return 1-Math.pow(1-t,3);}
+function chromatin(n,seed){
+  ctx.strokeStyle='#8fa8ff';ctx.lineWidth=2.5;
+  for(let i=0;i<n;i++){
+    const cx=180+Math.sin(seed+i*2.3)*70,cy=150+Math.cos(seed*1.7+i*1.9)*55;
+    ctx.beginPath();ctx.moveTo(cx-16,cy);
+    ctx.bezierCurveTo(cx-8,cy-12,cx+8,cy+12,cx+16,cy);ctx.stroke();
+  }
+}
+function drawX(x,y,s,c){
+  ctx.strokeStyle=c||'#ffd76a';ctx.lineWidth=5;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(x-s,y-s);ctx.lineTo(x+s,y+s);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x+s,y-s);ctx.lineTo(x-s,y+s);ctx.stroke();
+}
+function draw(now){
+  ctx.clearRect(0,0,W,H);
+  const anim=animating?Math.min(1,(now-animT0)/1300):1;
+  const e=easeInOut(anim);
+  /* 细胞外框 */
+  ctx.strokeStyle='#26A69A';ctx.lineWidth=4;
+  ctx.beginPath();ctx.arc(180,150,115,0,7);ctx.stroke();
+  if(phaseIdx===0){
+    ctx.fillStyle='rgba(38,166,154,.08)';ctx.beginPath();ctx.arc(180,150,115,0,7);ctx.fill();
+    ctx.strokeStyle='rgba(179,157,219,'+(0.3+0.7*e)+')';ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(180,150,58,0,7);ctx.stroke();
+    ctx.save();ctx.globalAlpha=0.4+0.6*e;chromatin(7,1.2);ctx.restore();
+  }else if(phaseIdx===1){
+    ctx.strokeStyle='rgba(179,157,219,'+Math.max(0,0.8-0.9*e)+')';ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(180,150,58,0,7);ctx.stroke();
+    ctx.save();ctx.globalAlpha=e;
+    drawX(130,110,12);drawX(180,95,12);drawX(230,115,12);drawX(150,185,12);drawX(215,190,12);
+    ctx.restore();
+  }else if(phaseIdx===2){
+    ctx.save();ctx.globalAlpha=e;
+    ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=2;ctx.setLineDash([6,6]);
+    ctx.beginPath();ctx.moveTo(180,45);ctx.lineTo(180,255);ctx.stroke();ctx.setLineDash([]);
+    for(let i=0;i<5;i++)drawX(180,80+i*35,12);
+    ctx.restore();
+  }else if(phaseIdx===3){
+    ctx.save();
+    for(let i=0;i<5;i++){
+      const y=80+i*35,off=e*55;
+      ctx.strokeStyle='#ffd76a';ctx.lineWidth=5;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(180-9-off,y-9);ctx.lineTo(180-2-off,y+9);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(180+9+off,y-9);ctx.lineTo(180+2+off,y+9);ctx.stroke();
+      ctx.strokeStyle='rgba(160,220,255,.4)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(180-2-off,y);ctx.lineTo(120,y-40*(i%2?1:-1));ctx.stroke();
+      ctx.beginPath();ctx.moveTo(180+2+off,y);ctx.lineTo(240,y+40*(i%2?1:-1));ctx.stroke();
+    }
+    ctx.restore();
+  }else{
+    const cx1=180-45*e,cx2=180+45*e;
+    ctx.strokeStyle='#26A69A';ctx.lineWidth=4;
+    ctx.beginPath();ctx.arc(cx1,150,62,0,7);ctx.stroke();
+    ctx.beginPath();ctx.arc(cx2,150,62,0,7);ctx.stroke();
+    ctx.save();ctx.globalAlpha=e;
+    ctx.strokeStyle='#B39DDB';ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(cx1,150,28,0,7);ctx.stroke();
+    ctx.beginPath();ctx.arc(cx2,150,28,0,7);ctx.stroke();
+    chromatin(3,2.5);ctx.save();ctx.translate(cx1-180,0);chromatin(3,4.1);ctx.restore();
+    ctx.save();ctx.translate(cx2-180,0);chromatin(3,6.3);ctx.restore();
+    ctx.restore();
+  }
+  if(animating&&anim>=1)animating=false;
+  /* 粒子（排序答对时） */
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i],el=(now-p.t0)/p.life;
+    if(el>=1){particles.splice(i,1);continue;}
+    const ee=easeOut(el);
+    ctx.save();ctx.globalAlpha=1-el;ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x+p.vx*ee*70,p.y+p.vy*ee*70-ee*36,p.r*(1-ee*0.5),0,7);ctx.fill();ctx.restore();
+  }
+}
+function burst(x,y,color){
+  for(let i=0;i<20;i++){const a=Math.random()*Math.PI*2;
+    particles.push({x,y,vx:Math.cos(a)*(0.4+Math.random()),vy:Math.sin(a)*(0.4+Math.random())-0.6,r:2+Math.random()*3.5,color:color||'#7ef0dd',t0:performance.now(),life:500+Math.random()*500});}
+}
+function loop(now){
+  if(paused)return;
+  draw(now);
+  rafId=requestAnimationFrame(loop);
+}
+/* ============ 流程 ============ */
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');}
+function startWatch(){
+  screen='watch';phaseIdx=0;
+  show('scr-watch');$('pauseBtn').classList.remove('hidden');
+  const st=$('stepper');st.innerHTML='';
+  for(let i=0;i<5;i++){const d=document.createElement('div');d.className='dot';st.appendChild(d);}
+  renderPhase();
+  cancelAnimationFrame(rafId);paused=false;rafId=requestAnimationFrame(loop);
+}
+function renderPhase(){
+  const p=PHASES[phaseIdx];
+  $('phaseName').textContent=p.emoji+' '+p.name+'（'+(phaseIdx+1)+'/5）';
+  $('phaseDesc').innerHTML=p.desc;
+  $('btnNext').textContent=phaseIdx===4?'开始挑战 ➜':'下一步 ➜';
+  const dots=$('stepper').children;
+  for(let i=0;i<5;i++)dots[i].className='dot'+(i<=phaseIdx?' done':'');
+  animT0=performance.now();animating=true;
+}
+$('btnNext').onclick=()=>{
+  snd('click');
+  if(phaseIdx<4){phaseIdx++;renderPhase();}
+  else startSort();
+};
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function startSort(){
+  screen='sort';score=0;placed=0;particles=[];
+  cancelAnimationFrame(rafId);paused=false;rafId=requestAnimationFrame(loop);
+  $('scoreTxt').textContent='得分：0';$('progTxt').textContent='已排 0/5';
+  $('sortHint').textContent='👆 按正确分裂顺序点击卡片';
+  $('btnToEnd').classList.add('hidden');
+  const slots=$('slots');slots.innerHTML='';
+  for(let i=0;i<5;i++){const s=document.createElement('div');s.className='slot';s.innerHTML='<span class="em">❔</span><span>第'+(i+1)+'位</span>';slots.appendChild(s);}
+  const cards=$('cards');cards.innerHTML='';
+  shuffle(PHASES.map((p,i)=>({p,i}))).forEach(o=>{
+    const b=document.createElement('button');b.className='pcard';b.dataset.idx=o.i;
+    b.innerHTML='<span class="em">'+o.p.emoji+'</span><span>'+o.p.name+'</span>';
+    b.addEventListener('pointerdown',()=>pickCard(b,o.i));
+    cards.appendChild(b);
+  });
+  show('scr-sort');
+}
+function pickCard(btn,idx){
+  if(paused||screen!=='sort'||btn.classList.contains('used'))return;
+  if(idx===placed){
+    btn.classList.add('used');
+    const slot=$('slots').children[placed];
+    slot.classList.add('fill');
+    slot.innerHTML='<span class="em">'+PHASES[idx].emoji+'</span><span>'+PHASES[idx].name+'</span>';
+    score+=10;placed++;snd('correct');
+    const r=btn.getBoundingClientRect(),cr=cv.getBoundingClientRect();
+    burst(r.left+r.width/2-cr.left,r.top+r.height/2-cr.top,'#7ef0dd');
+    $('scoreTxt').textContent='得分：'+score;
+    $('progTxt').textContent='已排 '+placed+'/5';
+    $('sortHint').textContent='✅ '+PHASES[idx].name+' 正确！';
+    if(placed>=5){
+      snd('win');vibrate([60,60,60]);
+      $('sortHint').textContent='🎉 全部排对！点击下方查看实验结论';
+      $('btnToEnd').classList.remove('hidden');
+    }
+  }else{
+    score=Math.max(0,score-5);snd('wrong');vibrate(180);
+    $('scoreTxt').textContent='得分：'+score;
+    const expected=PHASES[placed].name;
+    $('sortHint').textContent='❌ 不对哦，第 '+(placed+1)+' 位应该是「'+expected+'」';
+    btn.classList.remove('err');void btn.offsetWidth;btn.classList.add('err');
+    const scr=$('scr-sort');scr.classList.remove('shake');void scr.offsetWidth;
+    const c=$('cv');c.classList.remove('shake');void c.offsetWidth;c.classList.add('shake');
+  }
+}
+$('btnToEnd').onclick=()=>{snd('click');endGame();};
+function endGame(){
+  cancelAnimationFrame(rafId);screen='end';$('pauseBtn').classList.add('hidden');
+  const best=Math.max(score,+(localStorage.getItem(HSKEY)||0));
+  localStorage.setItem(HSKEY,best);
+  $('endscore').textContent=score+' 分';$('endbest').textContent='历史最高：'+best+' 分';
+  let c='<b>📝 实验结论（有丝分裂各时期关键事件）：</b><br>';
+  for(const p of PHASES)c+='· <b>'+p.emoji+p.name+'</b>：'+p.desc.replace(/<[^>]+>/g,'')+'<br>';
+  $('conclusion').innerHTML=c;
+  show('scr-end');
+}
+/* 暂停 */
+function setPaused(p){
+  paused=p;$('overlay').classList.toggle('on',p);
+  if(!p&&(screen==='watch'||screen==='sort'))rafId=requestAnimationFrame(loop);
+  else if(p)cancelAnimationFrame(rafId);
+}
+$('pauseBtn').onclick=()=>{snd('click');setPaused(true);};
+$('btnResume').onclick=()=>{snd('click');setPaused(false);};
+/* 按钮 */
+$('btnStart').onclick=()=>{snd('click');startWatch();};
+$('btnAgain').onclick=()=>{snd('click');startWatch();};
+$('btnEndHome').onclick=()=>{snd('click');screen='start';show('scr-start');};
+</script>
+</body>
+</html>
