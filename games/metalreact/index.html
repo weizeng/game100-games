@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>金属活动性</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b1622;color:#e8f4fd;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#app{height:100%;max-width:640px;margin:0 auto;display:flex;flex-direction:column;padding:10px}
+.screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center}
+.hidden{display:none!important}
+h1{font-size:30px;letter-spacing:2px}
+h2{font-size:20px}
+p.desc{font-size:15px;line-height:1.8;color:#b8d4e8;background:#13273c;border-radius:12px;padding:14px 16px}
+.btn{min-height:48px;min-width:44px;padding:12px 26px;font-size:17px;border:none;border-radius:12px;background:#1e6fb8;color:#fff;cursor:pointer;touch-action:manipulation;transition:transform .08s}
+.btn:active{transform:scale(.96)}
+.btn.secondary{background:#26445e;color:#e8f4fd}
+.btn:disabled{background:#3a5069;color:#8aa0b4;cursor:default}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 2px}
+.topbar .info{font-size:14px;color:#b8d4e8}
+.iconbtn{min-width:44px;min-height:44px;font-size:20px;background:#13273c;color:#e8f4fd;border:1px solid #26445e;border-radius:10px;cursor:pointer;touch-action:manipulation}
+#tubes{display:flex;justify-content:space-around;gap:6px;margin:8px 0;flex:1;min-height:220px}
+.tube{position:relative;width:64px;height:230px;border:3px solid #7fb3d5;border-top:none;border-radius:0 0 14px 14px;background:rgba(31,111,184,.12);cursor:pointer;touch-action:manipulation;overflow:hidden}
+.tube .acid{position:absolute;bottom:0;left:0;right:0;height:70%;background:rgba(127,179,213,.35);border-radius:0 0 10px 10px}
+.tube .num{position:absolute;top:-26px;left:0;right:0;text-align:center;font-size:14px;color:#b8d4e8}
+.tube .metal{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);width:34px;height:20px;border-radius:4px;font-size:11px;line-height:20px;text-align:center;color:#0b1622;font-weight:bold}
+.bubble{position:absolute;bottom:20px;border-radius:50%;background:rgba(232,244,253,.85);pointer-events:none;transition:bottom linear,opacity ease-out}
+.tube.sel{border-color:#ffd54f;box-shadow:0 0 10px #ffd54f}
+.tube.used .acid{background:rgba(255,213,79,.18)}
+#metals{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:8px 0}
+.metalbtn{min-width:56px;min-height:52px;padding:10px 12px;font-size:16px;border-radius:10px;border:2px solid #7fb3d5;background:#13273c;color:#e8f4fd;cursor:pointer;touch-action:manipulation;font-weight:bold}
+.metalbtn.sel{border-color:#ffd54f;background:#26445e;box-shadow:0 0 8px #ffd54f}
+.metalbtn:disabled{opacity:.45}
+#eq{background:#13273c;border-radius:10px;padding:10px 14px;min-height:48px;font-size:16px;color:#ffd54f;display:flex;align-items:center;justify-content:center;text-align:center}
+#order{display:flex;justify-content:center;gap:8px;margin:10px 0;min-height:64px;flex-wrap:wrap}
+.slot{min-width:56px;min-height:56px;padding:8px 12px;border:2px dashed #7fb3d5;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:bold;color:#ffd54f;background:#13273c}
+.slot.cur{border-style:solid;border-color:#ffd54f}
+#knowpop{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+#knowpop .card{background:#13273c;border-radius:14px;padding:20px;max-width:420px;font-size:15px;line-height:2;color:#e8f4fd}
+#knowpop .card b{color:#ffd54f}
+.scorebig{font-size:44px;color:#ffd54f;font-weight:bold}
+.rowline{font-size:15px;color:#b8d4e8}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 开始界面 -->
+  <div id="scr-start" class="screen">
+    <h1>🔩 金属活动性</h1>
+    <p class="desc">每轮随机抽取 4 种金属（镁 Mg、铝 Al、锌 Zn、铁 Fe、铜 Cu）。<br>
+    <b>第一阶段·观察</b>：点金属按钮再点试管，把金属投入稀盐酸，观察气泡快慢（可重复试验）。<br>
+    <b>第二阶段·排序</b>：按"反应由快到慢"依次点击金属并提交，全对 100 分，每错一位扣 25 分。<br>
+    共 3 轮，取平均分。</p>
+    <div class="rowline">🏆 历史最高：<span id="hs-start">0</span> 分</div>
+    <button class="btn" id="btn-start">开始实验</button>
+  </div>
+
+  <!-- 游戏界面 -->
+  <div id="scr-game" class="hidden" style="flex:1;display:flex;flex-direction:column">
+    <div class="topbar">
+      <div>
+        <button class="iconbtn" id="btn-pause" title="暂停">⏸</button>
+        <button class="iconbtn" id="btn-mute" title="静音">🔊</button>
+      </div>
+      <div class="info">第 <span id="round">1</span>/3 轮 · 得分 <span id="score">0</span> · 🏆<span id="hs">0</span></div>
+      <button class="iconbtn" id="btn-know" title="知识点">📖</button>
+    </div>
+    <div class="tubes" id="tubes"></div>
+    <div id="metals"></div>
+    <div id="eq">👆 先点一种金属，再点一支试管投入</div>
+    <div id="order" class="hidden"></div>
+    <button class="btn hidden" id="btn-tosort">开始排序 →</button>
+    <button class="btn hidden" id="btn-submit">提交排序</button>
+  </div>
+
+  <!-- 暂停界面 -->
+  <div id="scr-pause" class="screen hidden">
+    <h2>⏸ 已暂停</h2>
+    <button class="btn" id="btn-resume">继续</button>
+    <button class="btn secondary" id="btn-restart2">重来</button>
+  </div>
+
+  <!-- 结束界面 -->
+  <div id="scr-end" class="screen hidden">
+    <h1>🎉 实验结束</h1>
+    <div id="roundscores"></div>
+    <div class="scorebig"><span id="final">0</span> 分</div>
+    <div class="rowline">🏆 历史最高：<span id="hs-end">0</span> 分</div>
+    <button class="btn" id="btn-again">再来一次</button>
+  </div>
+</div>
+
+<div id="knowpop" class="hidden">
+  <div class="card">
+    <h2>📖 知识点</h2>
+    <p><b>金属活动性顺序：Mg &gt; Al &gt; Zn &gt; Fe &gt; Cu</b><br>
+    排在氢（H）前面的金属，能把酸中的氢置换出来，生成氢气；<br>
+    金属越活泼，与酸反应越剧烈、气泡产生得越快；<br>
+    排在氢后面的铜不能与稀盐酸反应。</p>
+    <button class="btn" id="btn-knowclose">知道了</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 数据 ============ */
+var METALS = [
+  {s:'Mg', n:'镁', act:0, rate:70,  eq:'Mg + 2HCl → MgCl₂ + H₂↑',    violent:true},
+  {s:'Al', n:'铝', act:1, rate:170, eq:'2Al + 6HCl → 2AlCl₃ + 3H₂↑', violent:false},
+  {s:'Zn', n:'锌', act:2, rate:300, eq:'Zn + 2HCl → ZnCl₂ + H₂↑',    violent:false},
+  {s:'Fe', n:'铁', act:3, rate:480, eq:'Fe + 2HCl → FeCl₂ + H₂↑',    violent:false},
+  {s:'Cu', n:'铜', act:4, rate:0,   eq:'Cu + HCl → 不反应（铜排在氢后）', violent:false}
+];
+var HS_KEY='g100_metalreact_hs', MUTE_KEY='g100_mute';
+var state={round:1, scores:[], metals:[], stage:'observe', selMetal:null, order:[], timers:[], paused:false, total:0};
+
+/* ============ 音效 ============ */
+var AC=null, muted=localStorage.getItem(MUTE_KEY)==='1';
+function ac(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC&&AC.state==='suspended'){AC.resume();} return AC; }
+function beep(f,d,type,g){ if(muted)return; var c=ac(); if(!c)return; var o=c.createOscillator(),v=c.createGain(); o.type=type||'sine'; o.frequency.value=f; v.gain.setValueAtTime(g||.15,c.currentTime); v.gain.exponentialRampToValueAtTime(.001,c.currentTime+d); o.connect(v); v.connect(c.destination); o.start(); o.stop(c.currentTime+d); }
+function sndDing(){ beep(1320,.25,'triangle',.18); beep(1760,.2,'sine',.1); }
+function sndFizz(){ if(muted)return; var c=ac(); if(!c)return; var b=c.createBuffer(1,c.sampleRate*1.2,c.sampleRate),d=b.getChannelData(0); for(var i=0;i<d.length;i++){d[i]=(Math.random()*2-1)*(1-i/d.length)*.12;} var s=c.createBufferSource(); s.buffer=b; var f=c.createBiquadFilter(); f.type='highpass'; f.frequency.value=2500; s.connect(f); f.connect(c.destination); s.start(); }
+function sndGood(){ beep(523,.15,'sine',.18); setTimeout(function(){beep(659,.15,'sine',.18);},140); setTimeout(function(){beep(784,.3,'sine',.2);},280); }
+function sndBad(){ beep(220,.35,'sawtooth',.14); setTimeout(function(){beep(175,.4,'sawtooth',.14);},200); }
+function vibrate(p){ if(navigator.vibrate){ try{navigator.vibrate(p);}catch(e){} } }
+
+/* ============ 工具 ============ */
+function $(id){return document.getElementById(id);}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function clearTimers(){state.timers.forEach(clearInterval);state.timers=[];}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function getHS(){return parseInt(localStorage.getItem(HS_KEY)||'0',10);}
+function setHS(v){localStorage.setItem(HS_KEY,String(v));}
+
+/* ============ 界面搭建 ============ */
+function buildTubes(){
+  var t=$('tubes'); t.innerHTML='';
+  for(var i=0;i<4;i++){
+    var d=document.createElement('div'); d.className='tube'; d.dataset.i=i;
+    d.innerHTML='<div class="num">试管 '+(i+1)+'</div><div class="acid"></div>';
+    (function(idx,el){
+      el.addEventListener('pointerdown',function(){dropMetal(idx);});
+    })(i,d);
+    t.appendChild(d);
+  }
+}
+function buildMetalBtns(){
+  var m=$('metals'); m.innerHTML='';
+  state.metals.forEach(function(mt){
+    var b=document.createElement('button'); b.className='metalbtn'; b.dataset.s=mt.s;
+    b.textContent=mt.n+' '+mt.s;
+    b.addEventListener('pointerdown',function(){onMetalClick(mt,b);});
+    m.appendChild(b);
+  });
+}
+function tubes(){return Array.prototype.slice.call($('tubes').children);}
+
+/* ============ 第一阶段：投入观察 ============ */
+function onMetalClick(mt,btn){
+  if(state.paused)return;
+  if(state.stage==='observe'){
+    state.selMetal=mt;
+    Array.prototype.forEach.call($('metals').children,function(b){b.classList.remove('sel');});
+    btn.classList.add('sel');
+    $('eq').textContent='已选「'+mt.n+'('+mt.s+')」，再点一支试管投入';
+  }else if(state.stage==='sort'){
+    if(state.order.length>=4)return;
+    state.order.push(mt); btn.disabled=true;
+    renderOrder(); beep(660,.1,'sine',.1);
+  }
+}
+function dropMetal(idx){
+  if(state.paused||state.stage!=='observe'||!state.selMetal)return;
+  var mt=state.selMetal, tube=tubes()[idx];
+  sndDing();
+  tube.classList.add('used');
+  var old=tube.querySelector('.metal'); if(old)old.remove();
+  var chip=document.createElement('div'); chip.className='metal';
+  chip.textContent=mt.s;
+  chip.style.background=mt.violent?'#e0e0e0':'#b0bec5';
+  tube.appendChild(chip);
+  $('eq').textContent='🧪 '+mt.eq;
+  spawnBubbles(tube,mt);
+  if(mt.rate>0)sndFizz();
+  if(mt.violent){ vibrate([60,40,60]); }
+  state.selMetal=null;
+  Array.prototype.forEach.call($('metals').children,function(b){b.classList.remove('sel');});
+}
+function spawnBubbles(tube,mt){
+  if(mt.rate<=0){
+    setTimeout(function(){
+      var n=document.createElement('div');
+      n.textContent='💤 无气泡'; n.style.cssText='position:absolute;bottom:60px;left:0;right:0;text-align:center;font-size:12px;color:#8aa0b4';
+      tube.appendChild(n); setTimeout(function(){if(n.parentNode)n.remove();},2500);
+    },300);
+    return;
+  }
+  var acid=tube.querySelector('.acid');
+  var iv=setInterval(function(){
+    if(state.paused)return;
+    var n=mt.act===0?3:(mt.act===1?2:1);
+    for(var k=0;k<n;k++){
+      var b=document.createElement('div'); b.className='bubble';
+      var sz=4+Math.random()*7; b.style.width=sz+'px'; b.style.height=sz+'px';
+      b.style.left=(6+Math.random()*44)+'px'; b.style.bottom='20px'; b.style.opacity='1';
+      tube.appendChild(b);
+      var rise=60+Math.random()*70;
+      requestAnimationFrame((function(el,h){
+        return function(){ el.style.transitionDuration=(h/90)+'s'; el.style.bottom=(20+h)+'px'; el.style.opacity='0'; };
+      })(b,rise));
+      (function(el){ setTimeout(function(){ if(el.parentNode)el.remove(); },1800); })(b);
+    }
+  },mt.rate);
+  state.timers.push(iv);
+}
+
+/* ============ 第二阶段：排序 ============ */
+function startSort(){
+  clearTimers(); state.stage='sort'; state.order=[];
+  tubes().forEach(function(t){t.classList.remove('sel');});
+  Array.prototype.forEach.call($('metals').children,function(b){b.disabled=false;b.classList.remove('sel');});
+  $('eq').textContent='🧭 按「反应由快到慢」依次点击 4 种金属';
+  hide('btn-tosort'); show('order'); show('btn-submit'); renderOrder();
+}
+function renderOrder(){
+  var o=$('order'); o.innerHTML='';
+  for(var i=0;i<4;i++){
+    var s=document.createElement('div'); s.className='slot'+(i===state.order.length?' cur':'');
+    s.textContent=state.order[i]?state.order[i].s:'?';
+    o.appendChild(s);
+  }
+}
+function submitSort(){
+  if(state.order.length<4){$('eq').textContent='⚠️ 请先排完 4 种金属再提交';beep(300,.15,'square',.1);return;}
+  var correct=state.metals.slice().sort(function(a,b){return a.act-b.act;});
+  var ok=0;
+  for(var i=0;i<4;i++){ if(state.order[i].s===correct[i].s)ok++; }
+  var sc=Math.max(0,100-(4-ok)*25);
+  state.scores.push(sc); state.total+=sc;
+  $('score').textContent=state.total;
+  var ans=correct.map(function(m){return m.s;}).join(' > ');
+  if(ok===4){ sndGood(); vibrate(80); $('eq').textContent='✅ 全对！+100 分。正确顺序：'+ans; }
+  else{ sndBad(); $('eq').textContent='❌ 对 '+ok+'/4，得 '+sc+' 分。正确顺序：'+ans; }
+  hide('btn-submit');
+  setTimeout(nextRound,2200);
+}
+function nextRound(){
+  if(state.round>=3){ endGame(); return; }
+  state.round++; $('round').textContent=state.round;
+  startRound();
+}
+function startRound(){
+  clearTimers();
+  state.metals=shuffle(METALS).slice(0,4);
+  state.stage='observe'; state.selMetal=null; state.order=[];
+  hide('order'); hide('btn-submit'); show('btn-tosort');
+  buildTubes(); buildMetalBtns();
+  $('eq').textContent='👆 先点一种金属，再点一支试管投入';
+}
+
+/* ============ 流程 ============ */
+function startGame(){
+  ac();
+  state.round=1; state.scores=[]; state.total=0; state.paused=false;
+  $('round').textContent='1'; $('score').textContent='0'; $('hs').textContent=getHS();
+  hide('scr-start'); hide('scr-end'); hide('scr-pause'); show('scr-game');
+  $('scr-game').style.display='flex';
+  startRound();
+}
+function endGame(){
+  clearTimers();
+  var avg=Math.round(state.total/3);
+  $('final').textContent=avg;
+  var rs=''; state.scores.forEach(function(s,i){ rs+='<div class="rowline">第'+(i+1)+'轮：'+s+' 分</div>'; });
+  $('roundscores').innerHTML=rs+'<div class="rowline">平均分：'+avg+' 分</div>';
+  if(avg>getHS())setHS(avg);
+  $('hs-end').textContent=getHS(); $('hs-start').textContent=getHS();
+  hide('scr-game'); hide('scr-pause'); show('scr-end');
+}
+function togglePause(p){
+  state.paused=p;
+  $('btn-pause').textContent=p?'▶':'⏸';
+  if(p){ hide('scr-game'); show('scr-pause'); $('scr-game').style.display='none'; }
+  else{ hide('scr-pause'); show('scr-game'); $('scr-game').style.display='flex'; }
+}
+
+/* ============ 事件绑定 ============ */
+$('btn-start').addEventListener('pointerdown',startGame);
+$('btn-again').addEventListener('pointerdown',startGame);
+$('btn-restart2').addEventListener('pointerdown',function(){togglePause(false);startGame();});
+$('btn-pause').addEventListener('pointerdown',function(){togglePause(!state.paused);});
+$('btn-resume').addEventListener('pointerdown',function(){togglePause(false);});
+$('btn-tosort').addEventListener('pointerdown',startSort);
+$('btn-submit').addEventListener('pointerdown',submitSort);
+$('btn-know').addEventListener('pointerdown',function(){show('knowpop');});
+$('btn-knowclose').addEventListener('pointerdown',function(){hide('knowpop');});
+$('btn-mute').addEventListener('pointerdown',function(){
+  muted=!muted; localStorage.setItem(MUTE_KEY,muted?'1':'0');
+  $('btn-mute').textContent=muted?'🔇':'🔊';
+  if(!muted)beep(660,.12,'sine',.12);
+});
+$('btn-mute').textContent=muted?'🔇':'🔊';
+$('hs-start').textContent=getHS();
+</script>
+</body>
+</html>
