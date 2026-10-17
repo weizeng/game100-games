@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var featAdapter: FeaturedAdapter
     private lateinit var swipe: SwipeRefreshLayout
 
-    private val categories = listOf("全部", "精品", "街机动作", "益智解谜", "休闲趣味", "经典重温")
+    private val categories = listOf("全部", "精品", "科学实验", "街机动作", "益智解谜", "休闲趣味", "经典重温")
     private var selectedCat = "全部"
     private var searchQuery = ""
     private var allItems: List<GameItem> = emptyList()
@@ -103,6 +103,10 @@ class MainActivity : AppCompatActivity() {
 
         val searchBar = findViewById<android.widget.EditText>(R.id.search_bar)
         searchBar.setText(searchQuery)
+        // 🔬 科学实验室入口
+        findViewById<View>(R.id.science_banner).setOnClickListener {
+            startActivity(Intent(this, ScienceLabActivity::class.java))
+        }
         findViewById<View>(R.id.btn_reset_filters).setOnClickListener {
             selectedCat = "全部"
             searchBar.text.clear()
