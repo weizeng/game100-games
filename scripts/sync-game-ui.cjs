@@ -8,8 +8,13 @@ const root = path.resolve(__dirname, '..');
 const css = fs.readFileSync(path.join(__dirname, 'game-ui/base.css'), 'utf8');
 const runtime = fs.readFileSync(path.join(__dirname, 'game-ui/runtime.js'), 'utf8');
 const check = process.argv.includes('--check');
+const onlyArg = process.argv.find(arg => arg.startsWith('--only='));
+const only = onlyArg ? new Set(onlyArg.slice(7).split(',')) : null;
+let processed = 0;
 let stale = [], changed = 0;
 for (const id of fs.readdirSync(path.join(root, 'games'))) {
+  if (only && !only.has(id)) continue;
+  processed++;
   if (!catalog[id] || !challenges[id]) throw new Error(`Missing game configuration: ${id}`);
   const file = path.join(root, 'games', id, 'index.html');
   const original = fs.readFileSync(file, 'utf8');
@@ -28,4 +33,4 @@ for (const id of fs.readdirSync(path.join(root, 'games'))) {
   }
 }
 if (check && stale.length) { console.error('Run node scripts/sync-game-ui.cjs:', stale.join(', ')); process.exitCode = 1; }
-else console.log(`${check ? 'Verified' : 'Updated'} ${check ? Object.keys(catalog).length : changed} standalone game interfaces.`);
+else console.log(`${check ? 'Verified' : 'Updated'} ${check ? processed : changed} standalone game interfaces.`);

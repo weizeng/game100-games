@@ -2,6 +2,11 @@
 // Each pair changes actual game rules, never the animation clock.
 const c = {};
 function add(id, text, ...rules) { c[id] = { text, rules }; }
+add('connectfour', '电脑从四层搜索提升至六层，更早识破双向威胁');
+add('colorlines', '未消除时每次新增 4 颗彩珠，提前规划通路');
+add('yahtzee', '每轮仅可掷 2 次，在十三个计分项目之间取舍');
+add('columns', '宝石增加到 7 种，初始下落速度更快');
+add('pyramid', '每格需要踩亮两次，初始仅有 2 条命');
 function value(id, text, before, classic, advanced) {
   const at = before.lastIndexOf(String(classic));
   if (at < 0) throw new Error('Missing numeric rule anchor: ' + id);

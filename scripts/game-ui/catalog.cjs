@@ -1,14 +1,14 @@
 // Subject-led palettes. Every game is listed explicitly so new games cannot silently inherit a skin.
 const groups = {
-  wood: 'bagua checkers gomoku hanoi klotski ludo peg reversi touhu xiangqi tangram',
+  wood: 'bagua checkers connectfour gomoku hanoi klotski ludo peg reversi touhu xiangqi tangram',
   paper: 'alienlang battleship bento dotsboxes flow lightsout mastermind math24 maze minesweeper nonogram onestroke pipes puzzle15 rotatemaze sokoban spotthediff sudoku takuzu unblock wordle wordsearch',
   garden: 'bigfish dig digdug duckhunt farm fishing frogger golf lumber snake whackamole',
-  candy: 'balloon bubble catch claw collapse cutrope doodle draw floodit fruitmerge game2048 jewel link memory pop simon slice slot sortcandy zuma',
+  candy: 'balloon bubble catch claw collapse colorlines cutrope doodle draw floodit fruitmerge game2048 jewel link memory pop simon slice slot sortcandy zuma',
   ice: 'frost icebridge icecurl iceslide ski sleigh snowball snowbros snowflake snowman snowplow yeti',
-  sky: 'ballroll bowling dino flappy hoop jump paperfly penalty shuttle stack waiter',
+  sky: 'ballroll bowling dino flappy hoop jump paperfly penalty pyramid shuttle stack waiter',
   space: 'asteroid aurora debrisweep docking invaders jetpack lunarlander missile mooncrawl moonphase orbit plane rocket shieldguard spacelevator starmail',
-  kitchen: 'grill hotpot noodle pizzacut riddle teahouse',
-  arcade: 'airhockey archery billiards bomber bomberman breakout cannon catapult cityskyline copter darts deepdive donkeykong firework laser ninja pacman piano pinball plumpile pong racing rhythm slingshot solitaire swordlane swordparry tank tetris towerdef tugwar volcano',
+  kitchen: 'grill hotpot noodle pizzacut riddle teahouse yahtzee',
+  arcade: 'airhockey archery billiards bomber bomberman breakout cannon catapult cityskyline columns copter darts deepdive donkeykong firework laser ninja pacman piano pinball plumpile pong racing rhythm slingshot solitaire swordlane swordparry tank tetris towerdef tugwar volcano',
 };
 const palettes = {
   wood: ['#eee1c7','#fff7e7','#e5d1ab','#302d23','#70654d','#3f5b43','#ffffff','#bea77a','#654e31'],
