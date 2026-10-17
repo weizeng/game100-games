@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>遗传棋盘</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{background:radial-gradient(1200px 800px at 50% -10%,#241536 0%,#100a1e 60%,#080512 100%);color:#f3eaf7;font-family:-apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;min-height:100vh;user-select:none;-webkit-user-select:none;touch-action:manipulation;}
+#app{max-width:520px;margin:0 auto;padding:10px 14px 40px;}
+#topbar{display:flex;align-items:center;gap:8px;padding:6px 2px;}
+#game-title{font-weight:800;font-size:18px;}
+#hud{flex:1;font-size:13px;color:#ce93d8;font-weight:700;text-align:right;white-space:nowrap;}
+.icon-btn{width:44px;height:44px;font-size:20px;border-radius:12px;background:#2a1e3f;border:1px solid #4a3573;color:#fff;cursor:pointer;}
+.icon-btn:active{transform:scale(.93);}
+.screen{animation:fadeUp .45s cubic-bezier(.22,.9,.3,1.15);}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+.hidden{display:none !important;}
+.card{background:rgba(32,22,52,.9);border:1px solid #4a3573;border-radius:18px;padding:22px 18px;margin-top:12px;box-shadow:0 8px 30px rgba(0,0,0,.45);}
+.card.narrow{width:78%;text-align:center;}
+.big-emoji{font-size:52px;text-align:center;}
+h1{text-align:center;margin:10px 0;}
+h2{font-size:19px;}
+h3{margin:14px 0 6px;}
+.how{line-height:1.9;font-size:15px;color:#d9cbe8;}
+.btn{display:block;width:100%;min-height:48px;margin:12px 0 0;border:none;border-radius:14px;font-size:17px;font-weight:800;color:#2a1140;background:linear-gradient(180deg,#d7b4e3,#AB47BC);cursor:pointer;box-shadow:0 4px 14px rgba(171,71,188,.35);transition:transform .12s ease;}
+.btn:active{transform:scale(.96);}
+.btn.primary{background:linear-gradient(180deg,#ce93d8,#9C27B0);color:#fff;}
+.opt{background:#2a1e3f;color:#fff;text-align:center;padding:6px 16px;box-shadow:none;border:1px solid #4a3573;font-size:19px;}
+.opt.ok{background:linear-gradient(180deg,#a5d6a7,#66bb6a);color:#0b2410;border-color:#66bb6a;}
+.opt.no{background:linear-gradient(180deg,#ef9a9a,#e57373);color:#3d0c0c;border-color:#e57373;animation:shake .4s;}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-7px);}75%{transform:translateX(7px);}}
+#cross-line{text-align:center;font-size:17px;margin-top:10px;background:#181028;border:1px solid #4a3573;border-radius:14px;padding:12px;}
+#cross-line .pA{color:#8BC34A;font-size:20px;}
+#cross-line .pB{color:#64B5F6;font-size:20px;}
+.dim2{display:block;font-size:12px;color:#9b8bb5;margin-top:4px;}
+#board{display:grid;grid-template-columns:76px 1fr 1fr;gap:8px;margin:12px 0;}
+.corner{display:flex;align-items:center;justify-content:center;font-size:12px;color:#9b8bb5;text-align:center;}
+.hdr{min-height:68px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#2c2145;border:2px solid #5c4a8a;cursor:pointer;transition:transform .15s ease,border-color .2s ease;}
+.hdr:active{transform:scale(.94);}
+.hdr .al{font-size:28px;font-weight:800;}
+.hdr .al.dom{color:#8BC34A;}
+.hdr .al.rec{color:#FFB74D;}
+.hdr .sw{font-size:11px;color:#9b8bb5;margin-top:2px;}
+.hdr .sw.lock{opacity:.45;}
+.hdr.bad{border-color:#ef5350;animation:shake .4s;}
+.hdr.wig{animation:wig .35s;}
+@keyframes wig{0%,100%{transform:rotate(0);}25%{transform:rotate(-7deg);}75%{transform:rotate(7deg);}}
+.cell{min-height:68px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#241a3a;border:1px solid #4a3573;}
+.cell .gt{font-size:24px;font-weight:800;color:#e1bee7;}
+.cell .ph{font-size:11px;color:#9b8bb5;margin-top:2px;}
+.cell.pop{animation:pop .5s cubic-bezier(.34,1.56,.64,1);}
+@keyframes pop{from{transform:scale(.3);opacity:0;}}
+#hint{min-height:46px;text-align:center;font-size:14px;color:#ffd54f;line-height:1.6;margin:4px 0;}
+#q-panel{background:rgba(32,22,52,.9);border:1px solid #4a3573;border-radius:16px;padding:16px;margin-top:6px;animation:fadeUp .4s cubic-bezier(.22,.9,.3,1.15);}
+#q-note{font-size:14px;color:#aed581;line-height:1.7;margin-top:10px;min-height:20px;}
+.score-line{text-align:center;font-size:19px;margin:8px 0;}
+.score-line b{color:#ffd54f;font-size:26px;}
+.score-line.dim{font-size:15px;color:#9b8bb5;}
+.concl{line-height:1.9;font-size:15px;color:#e2d6ef;padding-left:20px;margin:6px 0 4px;}
+.overlay{position:fixed;inset:0;background:rgba(6,4,14,.72);display:flex;align-items:center;justify-content:center;z-index:50;animation:fadeUp .25s ease;}
+.p{position:fixed;width:9px;height:9px;border-radius:50%;pointer-events:none;z-index:99;animation:part .8s cubic-bezier(.2,.7,.4,1) forwards;}
+@keyframes part{to{transform:translate(var(--tx),var(--ty)) scale(.15);opacity:0;}}
+.ft{position:fixed;font-weight:800;font-size:24px;pointer-events:none;z-index:99;transform:translate(-50%,-50%);text-shadow:0 2px 6px rgba(0,0,0,.6);animation:floatUp 1.1s ease-out forwards;}
+@keyframes floatUp{to{transform:translate(-50%,-170%);opacity:0;}}
+</style>
+</head>
+<body>
+<div id="app">
+<header id="topbar">
+<span id="game-title">🌱 遗传棋盘</span>
+<span id="hud"></span>
+<button id="btn-mute" class="icon-btn" aria-label="静音开关">🔊</button>
+<button id="btn-pause" class="icon-btn" aria-label="暂停">⏸</button>
+</header>
+
+<section id="scr-start" class="screen">
+<div class="card">
+<div class="big-emoji">🌱🧬</div>
+<h1>遗传棋盘</h1>
+<p class="how">🔬 <b>豌豆杂交实验</b>：高茎 <b>D</b>（显性） vs 矮茎 <b>d</b>（隐性）。<br>① 看清亲本基因型，👆 点击蓝色行列标题放入配子（Dd 亲本可切换 D / d）；<br>② 点「检查并填格」，棋盘自动组合，填对 <b>+10</b>；<br>③ 回答「后代高茎比例？」，答对 <b>+10</b>。<br>🌾 共 3 轮杂交：DD×dd、Dd×Dd、Dd×dd，满分 60 分！</p>
+<button id="btn-start" class="btn primary">开始杂交</button>
+</div>
+</section>
+
+<section id="scr-game" class="screen hidden">
+<div id="cross-line"></div>
+<div id="board"></div>
+<div id="hint"></div>
+<button id="btn-check" class="btn primary">🔍 检查并填格</button>
+<div id="q-panel" class="hidden">
+<h3 id="q-text"></h3>
+<div id="q-opts"></div>
+<div id="q-note"></div>
+</div>
+<button id="btn-next" class="btn hidden">下一轮 ▶</button>
+</section>
+
+<section id="scr-end" class="screen hidden">
+<div class="card">
+<div class="big-emoji">🎉</div>
+<h1>实验完成</h1>
+<div id="final-score" class="score-line"></div>
+<div id="final-hs" class="score-line dim"></div>
+<h3>📝 实验结论</h3>
+<ul id="conclusion" class="concl"></ul>
+<button id="btn-again" class="btn primary">再来一次</button>
+</div>
+</section>
+
+<div id="pause-ov" class="overlay hidden">
+<div class="card narrow">
+<h2>⏸ 已暂停</h2>
+<button id="btn-resume" class="btn primary">继续</button>
+</div>
+</div>
+<div id="fx"></div>
+</div>
+<script>'use strict';
+const $=function(id){return document.getElementById(id);};
+const LS_HS='g100_punnett_hs';
+const LS_MUTE='g100_mute';
+let muted=false;
+try{muted=localStorage.getItem(LS_MUTE)==='1';}catch(e){}
+function vib(p){try{if(navigator.vibrate){navigator.vibrate(p);}}catch(e){}}
+let AC=null;
+function ac(){try{if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(C){AC=new C();}}if(AC&&AC.state==='suspended'){AC.resume();}}catch(e){}return AC;}
+function tone(f,d,type,v,dl){if(muted){return;}const a=ac();if(!a){return;}try{const t=a.currentTime+(dl||0);const o=a.createOscillator();const g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.2,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(620,0.07,'square',0.08,0);}
+function sGood(){tone(523,0.12,'sine',0.2,0);tone(784,0.2,'sine',0.2,0.1);}
+function sBad(){tone(170,0.28,'sawtooth',0.16,0);}
+function sWin(){const fs=[523,659,784,1047];for(let i=0;i<fs.length;i++){tone(fs[i],0.22,'triangle',0.2,i*0.12);}}
+function burst(x,y,c){const layer=$('fx');for(let i=0;i<14;i++){const s=document.createElement('span');s.className='p';const ang=Math.random()*6.283;const dist=40+Math.random()*70;s.style.setProperty('--tx',(Math.cos(ang)*dist).toFixed(1)+'px');s.style.setProperty('--ty',(Math.sin(ang)*dist).toFixed(1)+'px');s.style.background=c||'#AB47BC';s.style.left=x+'px';s.style.top=y+'px';layer.appendChild(s);(function(el){setTimeout(function(){el.remove();},800);})(s);}}
+function floatText(txt,x,y,c){const layer=$('fx');const s=document.createElement('span');s.className='ft';s.textContent=txt;s.style.left=x+'px';s.style.top=y+'px';s.style.color=c||'#fff';layer.appendChild(s);setTimeout(function(){s.remove();},1200);}
+function centerOf(el){const r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};}
+const SCREENS=['scr-start','scr-game','scr-end'];
+function show(id){for(let i=0;i<SCREENS.length;i++){$(SCREENS[i]).classList.toggle('hidden',SCREENS[i]!==id);}try{window.scrollTo(0,0);}catch(e){}}
+function refreshMute(){$('btn-mute').textContent=muted?'🔇':'🔊';}
+function toggleMute(){muted=!muted;try{localStorage.setItem(LS_MUTE,muted?'1':'0');}catch(e){}refreshMute();if(!muted){sClick();}}
+let paused=false;
+let phase='start';
+function setPaused(p){if(phase!=='play'){return;}paused=p;$('pause-ov').classList.toggle('hidden',!p);if(p){sClick();}}
+const ROUNDS=[
+{pa:'DD',pb:'dd',ans:'100%',note:'DD × dd 的后代全是 Dd，D 为显性，所以 100% 高茎。'},
+{pa:'Dd',pb:'Dd',ans:'75%',note:'Dd × Dd 的后代：1DD : 2Dd : 1dd，高茎（DD/Dd）占 3/4。'},
+{pa:'Dd',pb:'dd',ans:'50%',note:'Dd × dd（测交）的后代：1Dd : 1dd，高茎占 1/2。'}
+];
+const CONCL=[
+'孟德尔分离定律：形成配子时，成对的基因彼此分离，分别进入不同的配子',
+'显性与隐性：D（高茎）为显性基因，会掩盖 d（矮茎）；Dd 表现为高茎',
+'基因型 vs 表现型：基因型是遗传组成（DD / Dd / dd），表现型是外在性状（高茎 / 矮茎）',
+'Dd × Dd 杂交：后代基因型 1 : 2 : 1，表现型 高茎 : 矮茎 ＝ 3 : 1（高茎 75%）',
+'测交（Dd × dd）可以测定某个高茎个体的基因型'
+];
+let round=0,score=0,rows=[],cols=[],filled=false,answered=false;
+function gametesOf(g){return g.charAt(0)===g.charAt(1)?[g.charAt(0)]:['D','d'];}
+function updHud(){$('hud').textContent='第 '+(round+1)+'/3 轮 · '+score+' 分';}
+function startGame(){round=0;score=0;phase='play';paused=false;$('pause-ov').classList.add('hidden');show('scr-game');renderRound();}
+function renderRound(){
+const R=ROUNDS[round];filled=false;answered=false;
+rows=[R.pa.charAt(0),R.pa.charAt(1)];cols=[R.pb.charAt(0),R.pb.charAt(1)];
+$('cross-line').innerHTML='亲本：<b class="pA">'+R.pa+'</b> × <b class="pB">'+R.pb+'</b><span class="dim2">行 ＝ 亲本 '+R.pa+' 的配子，列 ＝ 亲本 '+R.pb+' 的配子</span>';
+buildBoard();updHud();
+$('q-panel').classList.add('hidden');$('btn-check').classList.remove('hidden');$('btn-next').classList.add('hidden');$('q-note').textContent='';
+const hetR=gametesOf(R.pa).length>1,hetC=gametesOf(R.pb).length>1;
+$('hint').textContent=(hetR||hetC)?'👆 点击紫色行列标题可切换配子（D / d），放好后点「检查并填格」':'💡 本轮亲本都是纯合子，配子是唯一的，直接点「检查并填格」吧！';
+}
+function hdrHTML(kind,idx,val,can){return '<div class="hdr" data-kind="'+kind+'" data-idx="'+idx+'"><span class="al '+(val==='D'?'dom':'rec')+'">'+val+'</span>'+(can?'<span class="sw">↻ 切换</span>':'<span class="sw lock">🔒 唯一</span>')+'</div>';}
+function buildBoard(){
+const R=ROUNDS[round];
+const canR=gametesOf(R.pa).length>1,canC=gametesOf(R.pb).length>1;
+let h='<div class="corner">配子<br>↓ →</div>';
+h+=hdrHTML('c',0,cols[0],canC)+hdrHTML('c',1,cols[1],canC);
+h+=hdrHTML('r',0,rows[0],canR);
+h+='<div class="cell"><span class="gt">？</span><span class="ph">待填充</span></div>';
+h+='<div class="cell"><span class="gt">？</span><span class="ph">待填充</span></div>';
+h+=hdrHTML('r',1,rows[1],canR);
+h+='<div class="cell"><span class="gt">？</span><span class="ph">待填充</span></div>';
+h+='<div class="cell"><span class="gt">？</span><span class="ph">待填充</span></div>';
+const bd=$('board');bd.innerHTML=h;
+const hdrs=bd.querySelectorAll('.hdr');
+for(let i=0;i<hdrs.length;i++){hdrs[i].addEventListener('pointerdown',function(e){e.preventDefault();tapHdr(this);});}
+}
+function tapHdr(el){
+if(filled){return;}
+const kind=el.getAttribute('data-kind'),idx=parseInt(el.getAttribute('data-idx'),10);
+const R=ROUNDS[round];
+const g=kind==='r'?R.pa:R.pb;
+if(gametesOf(g).length<2){el.classList.remove('wig');void el.offsetWidth;el.classList.add('wig');sClick();return;}
+const arr=kind==='r'?rows:cols;
+arr[idx]=arr[idx]==='D'?'d':'D';
+const al=el.querySelector('.al');al.textContent=arr[idx];al.classList.toggle('dom',arr[idx]==='D');al.classList.toggle('rec',arr[idx]!=='D');
+el.classList.remove('bad');sClick();
+}
+function checkFill(){
+if(filled){return;}
+const R=ROUNDS[round];
+const wantR=R.pa.split('').sort().join(''),wantC=R.pb.split('').sort().join('');
+const gotR=rows.slice().sort().join(''),gotC=cols.slice().sort().join('');
+const okR=gotR===wantR,okC=gotC===wantC;
+if(okR&&okC){doFill();return;}
+sBad();vib([70,40,70]);
+const hdrs=$('board').querySelectorAll('.hdr');
+for(let i=0;i<hdrs.length;i++){const k=hdrs[i].getAttribute('data-kind');hdrs[i].classList.toggle('bad',(k==='r'&&!okR)||(k==='c'&&!okC));}
+$('hint').textContent='❌ 配子放错了：'+(okR?'':'行配子')+((!okR&&!okC)?'、':'')+(okC?'':'列配子')+'与亲本基因型不符，再想想～';
+}
+function doFill(){
+filled=true;score+=10;updHud();sGood();vib(40);
+const cells=$('board').querySelectorAll('.cell');
+for(let i=0;i<cells.length;i++){
+(function(i){
+setTimeout(function(){
+const r=Math.floor(i/2),c=i%2;
+const gt=[rows[r],cols[c]].sort(function(a,b){return a==='D'?-1:1;}).join('');
+const cell=cells[i];
+cell.querySelector('.gt').textContent=gt;
+cell.querySelector('.ph').textContent=gt.indexOf('D')>=0?'🌱 高茎':'🌿 矮茎';
+cell.classList.add('pop');
+const p=centerOf(cell);burst(p.x,p.y,'#AB47BC');
+if(i===0){floatText('+10',p.x,p.y-16,'#CE93D8');}
+},i*170);
+})(i);
+}
+setTimeout(showQuestion,cells.length*170+600);
+}
+function showQuestion(){
+$('q-text').textContent='❓ 后代中高茎所占比例是？（答对 +10 分）';
+const opts=['100%','75%','50%'];
+for(let i=opts.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=opts[i];opts[i]=opts[j];opts[j]=t;}
+const box=$('q-opts');box.innerHTML='';
+for(let i=0;i<opts.length;i++){
+(function(op){
+const b=document.createElement('button');b.className='btn opt';b.textContent=op;
+b.addEventListener('pointerdown',function(e){e.preventDefault();answerQ(op,b);});
+box.appendChild(b);
+})(opts[i]);
+}
+$('q-panel').classList.remove('hidden');$('btn-check').classList.add('hidden');
+const c=centerOf($('q-panel'));burst(c.x,c.y,'#7E57C2');
+}
+function answerQ(op,btn){
+if(answered){return;}answered=true;
+const R=ROUNDS[round];
+const box=$('q-opts');const kids=box.children;
+for(let k=0;k<kids.length;k++){kids[k].style.pointerEvents='none';}
+const c=centerOf(btn);
+if(op===R.ans){score+=10;sGood();vib(40);btn.classList.add('ok');burst(c.x,c.y,'#AB47BC');floatText('+10',c.x,c.y-8,'#CE93D8');}
+else{sBad();vib([70,40,70]);btn.classList.add('no');for(let k=0;k<kids.length;k++){if(kids[k].textContent===R.ans){kids[k].classList.add('ok');}}}
+updHud();
+$('q-note').textContent='💡 '+R.note;
+$('btn-next').textContent=round<2?'下一轮 ▶':'查看实验结论 📝';
+$('btn-next').classList.remove('hidden');
+}
+function nextStep(){sClick();if(round<2){round++;renderRound();}else{endGame();}}
+function endGame(){
+phase='end';
+let hs=0;try{hs=parseInt(localStorage.getItem(LS_HS)||'0',10)||0;}catch(e){}
+const isNew=score>hs;if(isNew){hs=score;try{localStorage.setItem(LS_HS,String(hs));}catch(e){}}
+$('final-score').innerHTML='🏆 本次得分：<b>'+score+'</b> / 60';
+$('final-hs').textContent='📈 历史最高：'+hs+(isNew?'（新纪录 🎉）':'');
+const ul=$('conclusion');ul.innerHTML='';
+for(let i=0;i<CONCL.length;i++){const li=document.createElement('li');li.textContent=CONCL[i];ul.appendChild(li);}
+show('scr-end');sWin();vib([50,50,120]);
+}
+function bind(id,fn){$(id).addEventListener('pointerdown',function(e){e.preventDefault();fn();});}
+bind('btn-start',function(){sClick();startGame();});
+bind('btn-mute',toggleMute);
+bind('btn-pause',function(){setPaused(true);});
+bind('btn-resume',function(){sClick();setPaused(false);});
+bind('btn-check',function(){sClick();checkFill();});
+bind('btn-next',nextStep);
+bind('btn-again',function(){sClick();startGame();});
+document.addEventListener('contextmenu',function(e){e.preventDefault();});
+document.addEventListener('dblclick',function(e){e.preventDefault();});
+refreshMute();updHud();show('scr-start');
+</script>
+</body>
+</html>
