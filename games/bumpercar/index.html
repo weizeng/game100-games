@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>碰碰车</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#14101a;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;touch-action:none;user-select:none;-webkit-user-select:none}
+#wrap{position:relative;width:100%;max-width:420px;height:100%;max-height:800px;margin:0 auto;background:radial-gradient(circle at 50% 30%,#2a1f38,#14101a)}
+canvas{display:block;width:100%;height:100%}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,6,16,.88);z-index:10;text-align:center;padding:24px}
+.overlay h1{font-size:40px;margin-bottom:8px}
+.overlay h2{font-size:22px;color:#FB8C00;margin-bottom:12px}
+.overlay p{font-size:14px;color:#cdbce0;line-height:1.7;margin-bottom:20px;max-width:300px}
+.bigbtn{min-width:200px;min-height:56px;font-size:20px;font-weight:bold;color:#fff;background:linear-gradient(180deg,#ffa726,#FB8C00);border:none;border-radius:28px;box-shadow:0 6px 18px rgba(251,140,0,.45);cursor:pointer;margin:6px}
+.bigbtn:active{transform:scale(.95)}
+.hid{display:none!important}
+#hud{position:absolute;top:8px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;z-index:5;pointer-events:none}
+#hud .pill{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:6px 14px;font-size:15px;font-weight:bold}
+#time.warn{color:#ff5252;animation:blink .5s infinite alternate}
+@keyframes blink{from{opacity:1}to{opacity:.45}}
+#topbtns{position:absolute;top:8px;right:10px;display:none}
+.iconbtn{width:44px;height:44px;font-size:20px;border-radius:22px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.55);color:#fff;margin-left:8px;cursor:pointer;pointer-events:auto}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="360" height="520"></canvas>
+<div id="hud" class="hid">
+  <div class="pill">⭐ <span id="score">0</span></div>
+  <div class="pill" id="time">⏱ 90</div>
+  <div style="width:84px"></div>
+</div>
+<div id="topbtns"><button class="iconbtn" id="mutebtn">🔊</button><button class="iconbtn" id="pausebtn">⏸</button></div>
+<div class="overlay" id="startOv">
+  <h1>🚗</h1><h2>碰碰车</h2>
+  <p>按住屏幕拖动 = 方向盘+油门<br>撞击 AI 碰碰车将其撞晕得分 +50<br>高速撞击 +100 并爆裂粒子💥<br>被 AI 反撞会短暂减速<br>限时 90 秒，看谁分高！</p>
+  <button class="bigbtn" id="startbtn">开始游戏</button>
+</div>
+<div class="overlay hid" id="pauseOv">
+  <h2>⏸ 已暂停</h2>
+  <button class="bigbtn" id="resumebtn">继续</button>
+</div>
+<div class="overlay hid" id="endOv">
+  <h1 id="endEmoji">🏁</h1><h2>时间到！</h2>
+  <p id="endText"></p>
+  <button class="bigbtn" id="restartbtn">再来一局</button>
+</div>
+</div>
+<script>
+'use strict';
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=cv.width,H=cv.height;
+var HS_KEY='g100_bumpercar_hs',SND_KEY='g100_sound';
+var high=parseInt(localStorage.getItem(HS_KEY)||'0',10)||0;
+var muted=localStorage.getItem(SND_KEY)==='1';
+var AC=null;
+function audio(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume()}return AC}
+function tone(f,dur,type,vol,slide){if(muted)return;var ac=audio();if(!ac)return;var o=ac.createOscillator(),g=ac.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,ac.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(slide,ac.currentTime+dur);g.gain.setValueAtTime(vol||.18,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+dur);o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+dur)}
+function noise(dur,vol){if(muted)return;var ac=audio();if(!ac)return;var n=ac.sampleRate*dur,b=ac.createBuffer(1,n,ac.sampleRate),d=b.getChannelData(0);for(var i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);var s=ac.createBufferSource(),g=ac.createGain();s.buffer=b;g.gain.value=vol||.25;s.connect(g);g.connect(ac.destination);s.start()}
+var sClick=function(){tone(660,.08,'square',.12)},sCrash=function(){noise(.18,.3);tone(120,.2,'sawtooth',.2,60)},sScore=function(){tone(880,.1,'sine',.2);setTimeout(function(){tone(1320,.14,'sine',.2)},80)},sStun=function(){tone(400,.12,'triangle',.2,900)},sWin=function(){var n=[523,659,784,1046];n.forEach(function(f,i){setTimeout(function(){tone(f,.2,'sine',.2)},i*130)})};
+function buzz(p){try{if(navigator.vibrate)navigator.vibrate(p)}catch(e){}}
+var mutebtn=document.getElementById('mutebtn');
+function refreshMute(){mutebtn.textContent=muted?'🔇':'🔊'}
+mutebtn.addEventListener('click',function(){muted=!muted;localStorage.setItem(SND_KEY,muted?'1':'0');refreshMute();if(!muted)sClick()});
+refreshMute();
+// ---------- 状态 ----------
+var state='start',score=0,timeLeft=90,lastT=0;
+var player,ais=[],parts=[],floats=[];
+var joy={on:false,sx:0,sy:0,dx:0,dy:0,ox:0,oy:0};
+var ARENA={x:14,y:56,w:W-28,h:H-70};
+var AICOLORS=['#ef4444','#3b82f6','#22c55e'];
+function mkCar(x,y,color,isP){
+  return {x:x,y:y,vx:0,vy:0,a:0,color:color,r:17,stun:0,slow:0,isP:!!isP,wt:0,wander:0,chase:Math.random()<.5};
+}
+function reset(){
+  player=mkCar(W/2,ARENA.y+ARENA.h-70,'#FB8C00',true);
+  ais=[mkCar(ARENA.x+50,ARENA.y+60,AICOLORS[0]),mkCar(ARENA.x+ARENA.w-50,ARENA.y+60,AICOLORS[1]),mkCar(W/2,ARENA.y+ARENA.h/2,AICOLORS[2])];
+  score=0;timeLeft=90;parts=[];floats=[];
+  joy.on=false;
+  document.getElementById('score').textContent='0';
+  document.getElementById('time').textContent='⏱ 90';
+  document.getElementById('time').classList.remove('warn');
+}
+function pt(e){var r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}}
+// ---------- 输入 ----------
+cv.addEventListener('pointerdown',function(e){if(state!=='play')return;e.preventDefault();var p=pt(e);joy.on=true;joy.ox=p.x;joy.oy=p.y;joy.sx=p.x;joy.sy=p.y;joy.dx=0;joy.dy=0;cv.setPointerCapture&&cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',function(e){if(!joy.on||state!=='play')return;var p=pt(e);var dx=p.x-joy.ox,dy=p.y-joy.oy,d=Math.hypot(dx,dy),mx=70;if(d>mx){dx=dx/d*mx;dy=dy/d*mx}joy.dx=dx/mx;joy.dy=dy/mx;joy.sx=joy.ox+dx;joy.sy=joy.oy+dy});
+function joyUp(){joy.on=false;joy.dx=0;joy.dy=0}
+cv.addEventListener('pointerup',joyUp);cv.addEventListener('pointercancel',joyUp);
+// ---------- 粒子/飘字 ----------
+function burst(x,y,color,n){for(var i=0;i<(n||16);i++){var a=Math.random()*Math.PI*2,s=1+Math.random()*3;parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:color,r:2+Math.random()*3})}}
+function addFloat(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color,life:1})}
+// ---------- 碰撞 ----------
+function hit(c1,c2){
+  var dx=c2.x-c1.x,dy=c2.y-c1.y,d=Math.hypot(dx,dy),min=c1.r+c2.r;
+  if(d===0||d>=min)return null;
+  var nx=dx/d,ny=dy/d,ov=(min-d)/2;
+  c1.x-=nx*ov;c1.y-=ny*ov;c2.x+=nx*ov;c2.y+=ny*ov;
+  var rvx=c1.vx-c2.vx,rvy=c1.vy-c2.vy,rel=Math.abs(rvx*nx+rvy*ny);
+  // 简化版速度交换：沿法线交换分量
+  var v1n=c1.vx*nx+c1.vy*ny,v2n=c2.vx*nx+c2.vy*ny;
+  var t1x=c1.vx-v1n*nx,t1y=c1.vy-v1n*ny,t2x=c2.vx-v2n*nx,t2y=c2.vy-v2n*ny;
+  c1.vx=t1x+v2n*nx*0.9;c1.vy=t1y+v2n*ny*0.9;
+  c2.vx=t2x+v1n*nx*0.9;c2.vy=t2y+v1n*ny*0.9;
+  return rel;
+}
+function clampArena(c){
+  if(c.x-c.r<ARENA.x){c.x=ARENA.x+c.r;c.vx=Math.abs(c.vx)*.6}
+  if(c.x+c.r>ARENA.x+ARENA.w){c.x=ARENA.x+ARENA.w-c.r;c.vx=-Math.abs(c.vx)*.6}
+  if(c.y-c.r<ARENA.y){c.y=ARENA.y+c.r;c.vy=Math.abs(c.vy)*.6}
+  if(c.y+c.r>ARENA.y+ARENA.h){c.y=ARENA.y+ARENA.h-c.r;c.vy=-Math.abs(c.vy)*.6}
+}
+// ---------- 更新 ----------
+function update(dt){
+  timeLeft-=dt;
+  if(timeLeft<=10)document.getElementById('time').classList.add('warn');
+  if(timeLeft<=0){timeLeft=0;endGame();return}
+  document.getElementById('time').textContent='⏱ '+Math.ceil(timeLeft);
+  // 玩家
+  if(player.slow>0)player.slow-=dt;else{
+    var ax=joy.dx*340,ay=joy.dy*340;
+    player.vx+=ax*dt;player.vy+=ay*dt;
+  }
+  var fr=Math.pow(.35,dt);
+  player.vx*=fr;player.vy*=fr;
+  var sp=Math.hypot(player.vx,player.vy);
+  if(sp>230){player.vx*=230/sp;player.vy*=230/sp}
+  if(sp>4)player.a=Math.atan2(player.vy,player.vx);
+  player.x+=player.vx*dt;player.y+=player.vy*dt;clampArena(player);
+  // AI
+  for(var i=0;i<ais.length;i++){
+    var a=ais[i];
+    if(a.stun>0){a.stun-=dt;a.vx*=.94;a.vy*=.94}
+    else{
+      a.wt-=dt;
+      if(a.wt<=0){a.wt=1+Math.random()*2;a.wander=Math.random()*Math.PI*2;a.chase=Math.random()<.35}
+      var ta=a.chase?Math.atan2(player.y-a.y,player.x-a.x):a.wander;
+      var da=ta-a.a;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
+      a.a+=da*Math.min(1,4*dt);
+      var asp=a.chase?150:110;
+      a.vx+=(Math.cos(a.a)*asp-a.vx)*Math.min(1,2.5*dt);
+      a.vy+=(Math.sin(a.a)*asp-a.vy)*Math.min(1,2.5*dt);
+    }
+    a.x+=a.vx*dt;a.y+=a.vy*dt;clampArena(a);
+  }
+  // 玩家 vs AI 碰撞：判定主动方
+  for(var j=0;j<ais.length;j++){
+    var b=ais[j];
+    // 记录撞前速度判断主动方
+    var ps=Math.hypot(player.vx,player.vy),as2=Math.hypot(b.vx,b.vy);
+    var rel=hit(player,b);
+    if(rel===null)continue;
+    sCrash();buzz(40);
+    burst((player.x+b.x)/2,(player.y+b.y)/2,'#ffd54f',10);
+    if(ps>=as2&&b.stun<=0){
+      // 玩家主动撞 → AI 眩晕得分
+      var fast=rel>200;
+      b.stun=2;
+      var pts=fast?100:50;
+      score+=pts;
+      document.getElementById('score').textContent=score;
+      sScore();if(fast){sStun();buzz([30,40,30])}
+      burst(b.x,b.y,b.color,fast?26:14);
+      addFloat(b.x,b.y-22,'+'+pts,fast?'#ffeb3b':'#fff');
+      b.vx*=1.6;b.vy*=1.6;
+    }else if(as2>ps&&rel>170&&player.slow<=0){
+      // AI 主动高速撞 → 玩家短暂减速
+      player.slow=.9;player.vx*=.35;player.vy*=.35;
+      addFloat(player.x,player.y-24,'被撞减速!','#ff8a80');
+      tone(200,.25,'sawtooth',.15,80);
+    }
+  }
+  // AI 互撞（不计分）
+  for(var k=0;k<ais.length;k++)for(var m=k+1;m<ais.length;m++){if(hit(ais[k],ais[m])!==null){sCrash()}}
+  // 玩家被 AI 高速撞到 → 短暂减速（主动方判定已处理，这里做兜底低速推挤）
+  // 粒子/飘字
+  for(var p=parts.length-1;p>=0;p--){var q=parts[p];q.x+=q.vx*dt*60*.016*60/60;q.y+=q.vy*dt;q.vx*=.97;q.vy*=.97;q.life-=dt*1.6;if(q.life<=0)parts.splice(p,1)}
+  for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.y-=34*dt;fl.life-=dt*1.2;if(fl.life<=0)floats.splice(f,1)}
+}
+function drawCar(c){
+  ctx.save();ctx.translate(c.x,c.y);
+  ctx.globalAlpha=c.stun>0?(.4+.3*Math.sin(Date.now()/80)):1;
+  ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.ellipse(2,3,c.r,c.r*.85,0,0,7);ctx.fill();
+  ctx.fillStyle=c.color;ctx.beginPath();ctx.arc(0,0,c.r,0,7);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2;ctx.stroke();
+  ctx.rotate(c.a);
+  ctx.fillStyle='#212121';ctx.fillRect(c.r-9,-c.r+5,7,c.r*2-10);
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,5,0,7);ctx.fill();
+  ctx.fillStyle=c.isP?'🚗':'😈';ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(c.isP?'🚗':'👾',-1,1);
+  if(c.stun>0){ctx.rotate(-c.a);ctx.font='16px sans-serif';ctx.fillText('💫',0,-c.r-12)}
+  ctx.restore();
+}
+function draw(){
+  ctx.fillStyle='#1b1426';ctx.fillRect(0,0,W,H);
+  // 地板格子
+  ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;
+  for(var gx=ARENA.x;gx<ARENA.x+ARENA.w;gx+=28){ctx.beginPath();ctx.moveTo(gx,ARENA.y);ctx.lineTo(gx,ARENA.y+ARENA.h);ctx.stroke()}
+  for(var gy=ARENA.y;gy<ARENA.y+ARENA.h;gy+=28){ctx.beginPath();ctx.moveTo(ARENA.x,gy);ctx.lineTo(ARENA.x+ARENA.w,gy);ctx.stroke()}
+  // 围栏
+  ctx.strokeStyle='#FB8C00';ctx.lineWidth=6;ctx.setLineDash([12,8]);
+  ctx.strokeRect(ARENA.x,ARENA.y,ARENA.w,ARENA.h);ctx.setLineDash([]);
+  ctx.font='22px sans-serif';ctx.textAlign='center';
+  ctx.fillText('🎪',ARENA.x+20,ARENA.y-10);ctx.fillText('🎪',ARENA.x+ARENA.w-20,ARENA.y-10);
+  for(var i=0;i<ais.length;i++)drawCar(ais[i]);
+  drawCar(player);
+  // 粒子
+  for(var p=0;p<parts.length;p++){var q=parts[p];ctx.globalAlpha=Math.max(0,q.life);ctx.fillStyle=q.color;ctx.beginPath();ctx.arc(q.x,q.y,q.r*q.life+1,0,7);ctx.fill()}
+  ctx.globalAlpha=1;
+  // 飘字
+  ctx.textAlign='center';ctx.font='bold 16px sans-serif';
+  for(var f=0;f<floats.length;f++){var fl=floats[f];ctx.globalAlpha=Math.max(0,fl.life);ctx.fillStyle=fl.color;ctx.fillText(fl.txt,fl.x,fl.y)}
+  ctx.globalAlpha=1;
+  // 虚拟摇杆
+  if(joy.on&&state==='play'){
+    ctx.globalAlpha=.35;ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(joy.ox,joy.oy,44,0,7);ctx.fill();
+    ctx.globalAlpha=.7;ctx.fillStyle='#FB8C00';
+    ctx.beginPath();ctx.arc(joy.sx,joy.sy,20,0,7);ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // 减速提示圈
+  if(player&&player.slow>0){ctx.strokeStyle='#ff8a80';ctx.lineWidth=3;ctx.setLineDash([6,6]);ctx.beginPath();ctx.arc(player.x,player.y,player.r+7,0,7);ctx.stroke();ctx.setLineDash([])}
+}
+function loop(t){
+  if(state!=='play')return;
+  var dt=Math.min(.05,(t-lastT)/1000||.016);lastT=t;
+  update(dt);draw();
+  requestAnimationFrame(loop);
+}
+// ---------- 流程 ----------
+function startGame(){
+  reset();state='play';sClick();
+  document.getElementById('startOv').classList.add('hid');
+  document.getElementById('endOv').classList.add('hid');
+  document.getElementById('pauseOv').classList.add('hid');
+  document.getElementById('hud').classList.remove('hid');
+  document.getElementById('topbtns').style.display='block';
+  lastT=performance.now();requestAnimationFrame(loop);
+}
+function endGame(){
+  state='end';sWin();buzz([60,50,80]);
+  var nb=score>high;
+  if(nb){high=score;localStorage.setItem(HS_KEY,String(high))}
+  document.getElementById('endEmoji').textContent=nb?'🏆':'🏁';
+  document.getElementById('endText').innerHTML='本局得分 <b style="color:#FB8C00">'+score+'</b><br>最高分 <b>'+high+'</b>'+(nb?'<br>🎉 新纪录！':'');
+  document.getElementById('endOv').classList.remove('hid');
+  document.getElementById('topbtns').style.display='none';
+}
+document.getElementById('startbtn').addEventListener('click',startGame);
+document.getElementById('restartbtn').addEventListener('click',startGame);
+document.getElementById('pausebtn').addEventListener('click',function(){
+  if(state!=='play')return;state='pause';sClick();
+  document.getElementById('pauseOv').classList.remove('hid');
+});
+document.getElementById('resumebtn').addEventListener('click',function(){
+  state='play';sClick();
+  document.getElementById('pauseOv').classList.add('hid');
+  lastT=performance.now();requestAnimationFrame(loop);
+});
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden&&state==='play')document.getElementById('pausebtn').click();
+});
+reset();draw();
+</script>
+</body>
+</html>
