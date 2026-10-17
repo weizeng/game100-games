@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>燃烧条件 - 游戏100</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;background:#0b1622;color:#e8f4fd;font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;min-height:100%;}
+#app{max-width:480px;margin:0 auto;padding:12px 14px 44px;}
+.hidden{display:none!important;}
+h1{font-size:30px;text-align:center;margin:18px 0 6px;}
+h2{font-size:21px;margin:8px 0;}
+.tagline{text-align:center;color:#9fc3e0;margin:0 0 12px;font-size:16px;}
+.panel{background:#13273c;border-radius:14px;padding:16px;margin:12px 0;line-height:1.75;}
+.howto p{margin:10px 0;font-size:15px;}
+.howto b{color:#ffb74d;}
+.bigbtn{display:block;width:100%;min-height:52px;margin:10px 0;padding:12px;font-size:18px;color:#0b1622;background:#ffb74d;border:none;border-radius:12px;font-weight:700;touch-action:manipulation;cursor:pointer;}
+.bigbtn.ghost{background:#1d3a57;color:#e8f4fd;border:1px solid #2f5a85;}
+.bigbtn.disabled,.optbtn.disabled{opacity:.5;}
+.optbtn{display:block;width:100%;min-height:52px;margin:8px 0;padding:12px;font-size:17px;background:#1d3a57;color:#e8f4fd;border:1px solid #2f5a85;border-radius:12px;touch-action:manipulation;cursor:pointer;}
+.optbtn.right{background:#2e7d32;border-color:#66bb6a;}
+.optbtn.wrong{background:#b71c1c;border-color:#ef5350;}
+#topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;}
+.tb-left{display:flex;gap:8px;}
+.iconbtn{min-width:48px;min-height:48px;padding:8px 10px;font-size:22px;background:#13273c;color:#e8f4fd;border:1px solid #2f5a85;border-radius:12px;touch-action:manipulation;cursor:pointer;}
+.tb-score{font-size:15px;white-space:nowrap;}
+.tb-score b{color:#ffb74d;}
+#eqStrip{text-align:center;background:#13273c;border:1px dashed #2f5a85;border-radius:10px;padding:9px 6px;font-size:14px;margin-bottom:10px;color:#ffd9a0;line-height:1.6;}
+#eqStrip .fire{color:#ff8a65;font-weight:700;}
+.stage{position:relative;background:#0e1e30;border-radius:14px;overflow:hidden;margin:10px 0;}
+.stage canvas{display:block;width:100%;height:auto;}
+.beaker{position:absolute;left:50%;top:-175px;transform:translateX(-50%);width:132px;height:162px;border:4px solid rgba(190,225,255,.75);border-bottom:none;border-radius:14px 14px 0 0;background:rgba(160,200,240,.08);transition:top .65s ease-in;pointer-events:none;}
+.beaker.down{top:26px;}
+.hint{min-height:26px;margin:8px 0;line-height:1.75;color:#ffe0b2;font-size:15px;}
+.hint b{color:#ffb74d;}
+.tempwrap{position:relative;height:22px;background:#0e1e30;border:1px solid #2f5a85;border-radius:11px;overflow:hidden;margin:10px 0 4px;}
+.tempbar{height:100%;width:84%;background:linear-gradient(90deg,#ffb74d,#ef5350);}
+.tempbar.cool{background:linear-gradient(90deg,#4fc3f7,#0288d1);}
+.ignline{position:absolute;top:-2px;bottom:-2px;left:60%;width:3px;background:#fff;}
+.templabel{font-size:14px;color:#9fc3e0;margin-bottom:6px;}
+.templabel b{color:#e8f4fd;}
+.exp h3{margin:6px 0;color:#ffb74d;}
+.expdesc{color:#9fc3e0;font-size:15px;line-height:1.7;}
+.qtext{font-size:17px;line-height:1.75;}
+.overlay{position:fixed;inset:0;background:rgba(4,10,18,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+.overlay .panel{max-width:400px;width:100%;}
+.overlay h2{text-align:center;}
+.finalscore{font-size:46px;text-align:center;margin:6px 0;color:#ffb74d;font-weight:800;}
+.center{text-align:center;}
+#newRecord{color:#8bff9e;font-weight:700;}
+.know .eq{text-align:center;color:#ffd9a0;font-size:16px;margin-top:10px;}
+.know b{color:#ffb74d;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar" class="hidden">
+    <div class="tb-left">
+      <button id="btnPause" class="iconbtn" title="暂停">⏸</button>
+      <button id="btnMute" class="iconbtn" title="静音">🔊</button>
+    </div>
+    <div class="tb-score">得分 <b id="score">0</b> · 最高 <b id="high">0</b></div>
+    <button id="btnKnow" class="iconbtn" title="知识点">📖</button>
+  </header>
+  <div id="eqStrip" class="hidden">可燃物 + O<sub>2</sub> <span class="fire">—点燃→</span> CO<sub>2</sub> + H<sub>2</sub>O（以蜡烛为例）</div>
+
+  <section id="startScreen">
+    <h1>🔥 燃烧条件</h1>
+    <p class="tagline">三要素缺一不可</p>
+    <div class="panel howto">
+      <p><b>第一阶段 · 三要素实验</b><br>依次完成 3 个小实验：点按钮看动画，找出让火焰熄灭 / 点不着的原因。</p>
+      <p><b>第二阶段 · 找缺因</b><br>4 道情景题，每题选出缺少的燃烧条件，答对一题得 25 分，共 100 分。</p>
+      <p>可燃物 + O₂ <b>—点燃→</b> CO₂ + H₂O（以蜡烛为例）</p>
+    </div>
+    <button id="btnStart" class="bigbtn">开始实验</button>
+  </section>
+
+  <section id="gameScreen" class="hidden">
+    <h2 id="phaseTitle"></h2>
+    <div id="expArea"></div>
+    <div id="quizArea"></div>
+  </section>
+
+  <section id="endScreen" class="hidden">
+    <h1>🎓 实验完成！</h1>
+    <div class="panel">
+      <p class="center">本局得分</p>
+      <p class="finalscore" id="finalScore">0</p>
+      <p class="center">历史最高：<b id="finalHigh">0</b></p>
+      <p class="center hidden" id="newRecord">🎉 新纪录！</p>
+    </div>
+    <button id="btnAgain" class="bigbtn">再来一次</button>
+  </section>
+</div>
+
+<div id="pauseOverlay" class="overlay hidden">
+  <div class="panel">
+    <h2>⏸ 已暂停</h2>
+    <button id="btnResume" class="bigbtn">继续</button>
+  </div>
+</div>
+
+<div id="knowModal" class="overlay hidden">
+  <div class="panel know">
+    <h2>📖 知识点</h2>
+    <p>燃烧三要素：<b>可燃物</b>、<b>氧气（助燃物）</b>、<b>温度达到着火点</b>，三者缺一不可。</p>
+    <p>灭火就是破坏其中之一：隔绝氧气、清除可燃物、降温到着火点以下。</p>
+    <p class="eq">可燃物 + O₂ —点燃→ CO₂ + H₂O</p>
+    <button id="btnKnowClose" class="bigbtn">知道了</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ---------- 基础工具 ---------- */
+function $(id){ return document.getElementById(id); }
+function show(el){ el.classList.remove('hidden'); }
+function hide(el){ el.classList.add('hidden'); }
+
+/* ---------- 本地存储 ---------- */
+var HS_KEY='g100_combustion_hs', MUTE_KEY='g100_mute';
+var highScore=0, muted=false;
+try{ highScore=parseInt(localStorage.getItem(HS_KEY)||'0',10)||0; }catch(e){}
+try{ muted=localStorage.getItem(MUTE_KEY)==='1'; }catch(e){}
+var score=0, paused=false;
+
+function updateScore(){ $('score').textContent=score; }
+function buzz(){ try{ if(navigator.vibrate){ navigator.vibrate(120); } }catch(e){} }
+
+/* ---------- WebAudio 合成音效 ---------- */
+var AC=null;
+function audio(){
+  try{
+    if(!AC){ var C=window.AudioContext||window.webkitAudioContext; AC=new C(); }
+    if(AC.state==='suspended'){ AC.resume(); }
+    return AC;
+  }catch(e){ return null; }
+}
+document.addEventListener('pointerdown', function init(){
+  audio();
+  document.removeEventListener('pointerdown', init, true);
+}, true);
+
+function noiseBuf(ctx,dur){
+  var b=ctx.createBuffer(1,Math.floor(ctx.sampleRate*dur),ctx.sampleRate);
+  var d=b.getChannelData(0);
+  for(var i=0;i<d.length;i++){ d[i]=Math.random()*2-1; }
+  return b;
+}
+function play(fn){ if(muted){ return; } var ctx=audio(); if(!ctx){ return; } try{ fn(ctx); }catch(e){} }
+function tone(ctx,freq,t,dur,type,vol){
+  var o=ctx.createOscillator(); o.type=type||'sine'; o.frequency.value=freq;
+  var g=ctx.createGain(); g.gain.setValueAtTime(vol||0.25,t);
+  g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+dur+0.03);
+}
+/* 1. 点火声：噪声爆音 + 噼啪 */
+function sndIgnite(){ play(function(ctx){
+  var t=ctx.currentTime;
+  var src=ctx.createBufferSource(); src.buffer=noiseBuf(ctx,0.25);
+  var f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=900; f.Q.value=1.2;
+  var g=ctx.createGain(); g.gain.setValueAtTime(0.5,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.25);
+  src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t+0.3);
+  for(var i=0;i<4;i++){
+    (function(i){
+      var tt=t+0.03*i+Math.random()*0.02;
+      var o=ctx.createOscillator(); o.type='square'; o.frequency.value=1800+Math.random()*1200;
+      var og=ctx.createGain(); og.gain.setValueAtTime(0.06,tt); og.gain.exponentialRampToValueAtTime(0.001,tt+0.05);
+      o.connect(og); og.connect(ctx.destination); o.start(tt); o.stop(tt+0.07);
+    })(i);
+  }
+});}
+/* 2. 熄灭"噗"声 */
+function sndPuff(){ play(function(ctx){
+  var t=ctx.currentTime;
+  var src=ctx.createBufferSource(); src.buffer=noiseBuf(ctx,0.35);
+  var f=ctx.createBiquadFilter(); f.type='lowpass';
+  f.frequency.setValueAtTime(900,t); f.frequency.exponentialRampToValueAtTime(120,t+0.3);
+  var g=ctx.createGain(); g.gain.setValueAtTime(0.6,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.35);
+  src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t+0.4);
+});}
+/* 3. 答对：上行双音 */
+function sndCorrect(){ play(function(ctx){
+  var t=ctx.currentTime; tone(ctx,660,t,0.12,'sine',0.28); tone(ctx,880,t+0.12,0.22,'sine',0.28);
+});}
+/* 4. 答错：下行锯齿 */
+function sndWrong(){ play(function(ctx){
+  var t=ctx.currentTime;
+  var o=ctx.createOscillator(); o.type='sawtooth';
+  o.frequency.setValueAtTime(220,t); o.frequency.exponentialRampToValueAtTime(110,t+0.35);
+  var g=ctx.createGain(); g.gain.setValueAtTime(0.22,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.4);
+  o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.42);
+});}
+/* 5. 浇水声 */
+function sndWater(){ play(function(ctx){
+  var t=ctx.currentTime;
+  var src=ctx.createBufferSource(); src.buffer=noiseBuf(ctx,1.0);
+  var f=ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=1400;
+  var g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.35,t+0.1); g.gain.exponentialRampToValueAtTime(0.001,t+1.0);
+  src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t+1.05);
+});}
+
+/* ---------- 火焰粒子 ---------- */
+function drawCandle(c,x,y){
+  c.fillStyle='#f5e6c8';
+  c.beginPath();
+  if(c.roundRect){ c.roundRect(x-17,y+8,34,118,6); }else{ c.rect(x-17,y+8,34,118); }
+  c.fill();
+  c.fillStyle='#e8d3a0'; c.fillRect(x-17,y+100,34,26);
+  c.strokeStyle='#5a3d1e'; c.lineWidth=3;
+  c.beginPath(); c.moveTo(x,y+8); c.lineTo(x,y); c.stroke();
+  c.fillStyle='#223a55';
+  c.beginPath(); c.ellipse(x,y+132,44,10,0,0,6.2832); c.fill();
+  c.fillStyle='#2f5a85';
+  c.beginPath(); c.ellipse(x,y+128,44,10,0,0,6.2832); c.fill();
+}
+function Flame(canvas,x,y){
+  this.cv=canvas; this.ctx=canvas.getContext('2d');
+  this.x=x; this.y=y; this.parts=[];
+  this.scale=1; this.from=1; this.to=1; this.t=0; this.dur=0; this.onDone=null;
+}
+Flame.prototype.setScale=function(to,dur,onDone){
+  this.from=this.scale; this.to=to; this.t=0; this.dur=dur; this.onDone=onDone||null;
+};
+Flame.prototype.update=function(dt){
+  if(this.dur>0){
+    this.t+=dt;
+    var k=Math.min(1,this.t/this.dur);
+    var e=1-Math.pow(1-k,3); /* easeOutCubic */
+    this.scale=this.from+(this.to-this.from)*e;
+    if(k>=1){ this.dur=0; var cb=this.onDone; this.onDone=null; if(cb){ cb(); } }
+  }
+  var n=Math.round(4*this.scale);
+  for(var i=0;i<n;i++){
+    this.parts.push({
+      x:this.x+(Math.random()-0.5)*10*Math.max(0.2,this.scale),
+      y:this.y,
+      vx:(Math.random()-0.5)*22,
+      vy:-(40+Math.random()*55),
+      life:1,
+      size:(8+Math.random()*10)*Math.max(0.15,this.scale)
+    });
+  }
+  for(var j=this.parts.length-1;j>=0;j--){
+    var p=this.parts[j];
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy-=18*dt; p.life-=dt*1.7;
+    if(p.life<=0||p.y<this.y-80){ this.parts.splice(j,1); }
+  }
+};
+Flame.prototype.draw=function(){
+  var c=this.ctx;
+  c.clearRect(0,0,this.cv.width,this.cv.height);
+  drawCandle(c,this.x,this.y);
+  c.globalCompositeOperation='lighter';
+  for(var i=0;i<this.parts.length;i++){
+    var p=this.parts[i];
+    var a=Math.max(0,p.life)*0.9;
+    if(a<=0.01){ continue; }
+    var g=c.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
+    g.addColorStop(0,'rgba(255,220,120,'+a.toFixed(3)+')');
+    g.addColorStop(0.4,'rgba(255,140,40,'+(a*0.8).toFixed(3)+')');
+    g.addColorStop(1,'rgba(255,60,0,0)');
+    c.fillStyle=g;
+    c.beginPath(); c.arc(p.x,p.y,p.size,0,6.2832); c.fill();
+  }
+  c.globalCompositeOperation='source-over';
+};
+
+/* ---------- 界面流程 ---------- */
+function setPhaseTitle(t){ $('phaseTitle').textContent=t; }
+function lockBtn(id){ var b=$(id); b.disabled=true; b.classList.add('disabled'); }
+
+/* 实验①：氧气 */
+function runExp1(){
+  setPhaseTitle('第一阶段 · 三要素实验（1/3）');
+  $('quizArea').innerHTML='';
+  $('expArea').innerHTML=
+    '<div class="exp"><h3>实验①：氧气</h3>'+
+    '<p class="expdesc">蜡烛正在燃烧。把烧杯扣上去，会发生什么？</p>'+
+    '<div class="stage"><canvas id="cv1" width="300" height="240"></canvas><div id="beaker" class="beaker"></div></div>'+
+    '<div id="hint1" class="hint"></div>'+
+    '<button id="btnAct1" class="bigbtn">🫙 扣上烧杯</button>'+
+    '<button id="btnNext1" class="bigbtn ghost hidden">下一个实验 →</button></div>';
+  var flame=new Flame($('cv1'),150,86);
+  var alive=true,last=performance.now(),raf;
+  function loop(now){
+    if(!alive){ return; }
+    var dt=Math.min(0.05,(now-last)/1000); last=now;
+    if(!paused){ flame.update(dt); }
+    flame.draw();
+    raf=requestAnimationFrame(loop);
+  }
+  loop(last);
+  $('btnAct1').addEventListener('pointerdown',function(){
+    lockBtn('btnAct1');
+    $('beaker').classList.add('down');
+    setTimeout(function(){
+      flame.setScale(0,1.4,function(){
+        sndPuff(); buzz();
+        $('hint1').innerHTML='🔥→💨 火焰熄灭了！<br><b>原因：隔绝氧气</b> —— 烧杯罩住蜡烛，里面的氧气被耗尽。';
+        show($('btnNext1'));
+      });
+    },650);
+  });
+  $('btnNext1').addEventListener('pointerdown',function(){ alive=false; cancelAnimationFrame(raf); runExp2(); });
+}
+
+/* 实验②：可燃物 */
+function runExp2(){
+  setPhaseTitle('第一阶段 · 三要素实验（2/3）');
+  $('expArea').innerHTML=
+    '<div class="exp"><h3>实验②：可燃物</h3>'+
+    '<p class="expdesc">蜡烛正在燃烧。把蜡烛移走，会发生什么？</p>'+
+    '<div class="stage"><canvas id="cv2" width="300" height="240"></canvas></div>'+
+    '<div id="hint2" class="hint"></div>'+
+    '<button id="btnAct2" class="bigbtn">🕯️ 移走蜡烛</button>'+
+    '<button id="btnNext2" class="bigbtn ghost hidden">下一个实验 →</button></div>';
+  var cv=$('cv2'),flame=new Flame(cv,150,86);
+  var alive=true,last=performance.now(),raf,gone=false,gx=0;
+  function loop(now){
+    if(!alive){ return; }
+    var dt=Math.min(0.05,(now-last)/1000); last=now;
+    if(!paused){
+      if(gone){
+        gx+=dt*520;
+        cv.style.transform='translateX('+gx+'px)';
+        cv.style.opacity=Math.max(0,1-gx/220);
+      }
+      flame.update(dt);
+    }
+    flame.draw();
+    raf=requestAnimationFrame(loop);
+  }
+  loop(last);
+  $('btnAct2').addEventListener('pointerdown',function(){
+    lockBtn('btnAct2');
+    gone=true;
+    flame.setScale(0,0.4,function(){
+      sndPuff(); buzz();
+      $('hint2').innerHTML='🔥→💨 火焰消失了！<br><b>原因：清除可燃物</b> —— 蜡烛被移走，火焰失去了燃料。';
+      show($('btnNext2'));
+    });
+  });
+  $('btnNext2').addEventListener('pointerdown',function(){ alive=false; cancelAnimationFrame(raf); runExp3(); });
+}
+
+/* 实验③：着火点 */
+function runExp3(){
+  setPhaseTitle('第一阶段 · 三要素实验（3/3）');
+  $('expArea').innerHTML=
+    '<div class="exp"><h3>实验③：着火点</h3>'+
+    '<p class="expdesc">先给木柴浇水降温（白线是着火点），再尝试点火。</p>'+
+    '<div class="stage"><canvas id="cv3" width="300" height="200"></canvas></div>'+
+    '<div class="tempwrap"><div class="tempbar" id="tempBar"></div><div class="ignline"></div></div>'+
+    '<div class="templabel">木柴温度 <b id="tempVal">420°C</b>（着火点 300°C，白线位置）</div>'+
+    '<div id="hint3" class="hint"></div>'+
+    '<button id="btnWater" class="bigbtn">💧 浇水</button>'+
+    '<button id="btnTryFire" class="bigbtn hidden">🔥 尝试点火</button>'+
+    '<button id="btnNext3" class="bigbtn ghost hidden">进入「找缺因」→</button></div>';
+  var cv=$('cv3'),ctx=cv.getContext('2d');
+  var drops=[],steam=[],sparks=[];
+  var temp=420,tempAnim=null,watering=0,waterDone=false,tryShown=false;
+  var alive=true,last=performance.now(),raf;
+  function drawScene(){
+    ctx.clearRect(0,0,300,200);
+    ctx.fillStyle='#16283d'; ctx.fillRect(0,168,300,32);
+    ctx.fillStyle='#8a5a2b';
+    if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(60,110,180,58,18); ctx.fill(); }
+    else{ ctx.fillRect(60,110,180,58); }
+    ctx.fillStyle='#a06a35';
+    ctx.beginPath(); ctx.ellipse(70,139,12,26,0,0,6.2832); ctx.fill();
+    ctx.strokeStyle='#6e421c'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(70,139,7,15,0,0,6.2832); ctx.stroke();
+    ctx.strokeStyle='rgba(110,66,28,.6)';
+    for(var i=0;i<3;i++){ ctx.beginPath(); ctx.moveTo(100,120+i*12); ctx.lineTo(225,120+i*12); ctx.stroke(); }
+    ctx.fillStyle='rgba(120,180,255,.9)';
+    for(var d=0;d<drops.length;d++){ ctx.fillRect(drops[d].x,drops[d].y,3,11); }
+    for(var s=0;s<steam.length;s++){
+      var q=steam[s];
+      ctx.fillStyle='rgba(200,220,240,'+(q.life*0.4).toFixed(3)+')';
+      ctx.beginPath(); ctx.arc(q.x,q.y,q.size,0,6.2832); ctx.fill();
+    }
+    ctx.globalCompositeOperation='lighter';
+    for(var k=0;k<sparks.length;k++){
+      var sp=sparks[k];
+      ctx.fillStyle='rgba(255,'+Math.floor(120+sp.life*100)+',40,'+sp.life.toFixed(3)+')';
+      ctx.beginPath(); ctx.arc(sp.x,sp.y,3+sp.life*3,0,6.2832); ctx.fill();
+    }
+    ctx.globalCompositeOperation='source-over';
+  }
+  function loop(now){
+    if(!alive){ return; }
+    var dt=Math.min(0.05,(now-last)/1000); last=now;
+    if(!paused){
+      if(watering>0){
+        watering-=dt;
+        for(var w=0;w<5;w++){ drops.push({x:60+Math.random()*180,y:-10,vy:280+Math.random()*80}); }
+        if(watering<=0){ waterDone=true; }
+      }
+      if(tempAnim){
+        tempAnim.t+=dt;
+        var kk=Math.min(1,tempAnim.t/tempAnim.dur);
+        var e=1-Math.pow(1-kk,2); /* easeOutQuad */
+        temp=tempAnim.from+(tempAnim.to-tempAnim.from)*e;
+        $('tempBar').style.width=(temp/500*100)+'%';
+        $('tempVal').textContent=Math.round(temp)+'°C';
+        if(temp<300){ $('tempBar').classList.add('cool'); }
+        if(kk>=1){ tempAnim=null; }
+      }
+      for(var i=drops.length-1;i>=0;i--){
+        var dr=drops[i]; dr.y+=dr.vy*dt;
+        if(dr.y>=128){
+          steam.push({x:dr.x,y:120,vy:-30-Math.random()*20,life:1,size:6+Math.random()*6});
+          drops.splice(i,1);
+        }
+      }
+      for(var j=steam.length-1;j>=0;j--){
+        var st=steam[j]; st.y+=st.vy*dt; st.life-=dt*0.8; st.size+=dt*6;
+        if(st.life<=0){ steam.splice(j,1); }
+      }
+      for(var m=sparks.length-1;m>=0;m--){
+        var sp2=sparks[m];
+        sp2.x+=sp2.vx*dt; sp2.y+=sp2.vy*dt; sp2.vy+=160*dt; sp2.life-=dt*2.2;
+        if(sp2.life<=0){ sparks.splice(m,1); }
+      }
+      if(waterDone&&!tempAnim&&!tryShown){
+        tryShown=true;
+        $('hint3').innerHTML='💧 温度已降到 <b>'+Math.round(temp)+'°C</b>，低于着火点 300°C。';
+        show($('btnTryFire'));
+      }
+    }
+    drawScene();
+    raf=requestAnimationFrame(loop);
+  }
+  loop(last);
+  $('btnWater').addEventListener('pointerdown',function(){
+    lockBtn('btnWater');
+    sndWater();
+    watering=1.2;
+    tempAnim={from:420,to:180,t:0,dur:1.8};
+  });
+  $('btnTryFire').addEventListener('pointerdown',function(){
+    lockBtn('btnTryFire');
+    sndIgnite();
+    for(var i=0;i<16;i++){
+      sparks.push({x:150+(Math.random()-0.5)*120,y:106,vx:(Math.random()-0.5)*120,vy:-40-Math.random()*90,life:1});
+    }
+    setTimeout(function(){
+      buzz();
+      $('hint3').innerHTML='💨 火星熄灭了，点不着！<br><b>原因：温度低于着火点</b> —— 浇水让木柴降温到了着火点以下。';
+      show($('btnNext3'));
+    },900);
+  });
+  $('btnNext3').addEventListener('pointerdown',function(){ alive=false; cancelAnimationFrame(raf); runQuiz(); });
+}
+
+/* ---------- 第二阶段：找缺因 ---------- */
+var OPTS=['可燃物','氧气','着火点温度'];
+var QUIZ=[
+  {q:'密闭罐里的蜡烛熄灭了，缺少的是什么？',a:1,why:'密闭罐隔绝了空气，蜡烛耗尽氧气后熄灭。'},
+  {q:'把柴火全部从火堆里拿走，火灭了，缺少的是什么？',a:0,why:'拿走柴火就是清除了可燃物，没有燃料火就灭了。'},
+  {q:'被水浸湿的木头怎么点都点不着，缺少的是什么？',a:2,why:'水分蒸发带走热量，木头温度达不到着火点。'},
+  {q:'用灭火器对准火焰根部喷射后，火很快灭了，主要破坏的是哪个条件？',a:1,why:'灭火剂覆盖火焰，隔绝了氧气（助燃物）。'}
+];
+function runQuiz(){
+  setPhaseTitle('第二阶段 · 找缺因');
+  $('expArea').innerHTML='';
+  var qi=0;
+  function showQ(){
+    var Q=QUIZ[qi];
+    $('quizArea').innerHTML=
+      '<div class="exp"><h3>第 '+(qi+1)+' / 4 题（答对 +25 分）</h3>'+
+      '<p class="qtext">'+Q.q+'</p><div id="opts"></div>'+
+      '<div id="qhint" class="hint"></div>'+
+      '<button id="btnQNext" class="bigbtn ghost hidden">'+(qi<3?'下一题 →':'查看成绩 →')+'</button></div>';
+    var box=$('opts');
+    for(var i=0;i<OPTS.length;i++){
+      (function(i){
+        var b=document.createElement('button');
+        b.className='optbtn'; b.textContent=OPTS[i];
+        b.addEventListener('pointerdown',function(){ answer(i,b); });
+        box.appendChild(b);
+      })(i);
+    }
+    $('btnQNext').addEventListener('pointerdown',function(){
+      qi++;
+      if(qi<4){ showQ(); }else{ endGame(); }
+    });
+  }
+  function answer(i,btn){
+    var Q=QUIZ[qi];
+    var btns=$('opts').children;
+    for(var k=0;k<btns.length;k++){ btns[k].disabled=true; btns[k].classList.add('disabled'); }
+    if(i===Q.a){
+      score+=25; btn.classList.add('right'); sndCorrect();
+      $('qhint').innerHTML='✅ 答对了！+25 分<br>'+Q.why;
+    }else{
+      btn.classList.add('wrong'); btns[Q.a].classList.add('right'); sndWrong();
+      $('qhint').innerHTML='❌ 答错了。<br>正确答案：<b>'+OPTS[Q.a]+'</b><br>'+Q.why;
+    }
+    updateScore();
+    show($('btnQNext'));
+  }
+  showQ();
+}
+
+/* ---------- 结束 ---------- */
+function endGame(){
+  hide($('gameScreen')); hide($('eqStrip')); hide($('topbar'));
+  show($('endScreen'));
+  $('finalScore').textContent=score;
+  var isNew=score>highScore;
+  if(isNew){
+    highScore=score;
+    try{ localStorage.setItem(HS_KEY,String(score)); }catch(e){}
+  }
+  $('finalHigh').textContent=highScore;
+  if(isNew){ show($('newRecord')); }else{ hide($('newRecord')); }
+  if(score>=75){ sndCorrect(); }
+}
+
+/* ---------- 顶栏与弹窗 ---------- */
+function setPaused(p){
+  paused=p;
+  $('btnPause').textContent=p?'▶':'⏸';
+  if(p){ show($('pauseOverlay')); }else{ hide($('pauseOverlay')); }
+}
+$('btnPause').addEventListener('pointerdown',function(){ setPaused(true); });
+$('btnResume').addEventListener('pointerdown',function(){ setPaused(false); });
+function refreshMute(){ $('btnMute').textContent=muted?'🔇':'🔊'; }
+$('btnMute').addEventListener('pointerdown',function(){
+  muted=!muted;
+  try{ localStorage.setItem(MUTE_KEY,muted?'1':'0'); }catch(e){}
+  refreshMute();
+});
+$('btnKnow').addEventListener('pointerdown',function(){ show($('knowModal')); });
+$('btnKnowClose').addEventListener('pointerdown',function(){ hide($('knowModal')); });
+
+/* ---------- 开始 / 重来 ---------- */
+function startGame(){
+  score=0; updateScore();
+  hide($('startScreen')); hide($('endScreen'));
+  show($('topbar')); show($('eqStrip')); show($('gameScreen'));
+  setPaused(false);
+  sndIgnite();
+  runExp1();
+}
+$('btnStart').addEventListener('pointerdown',startGame);
+$('btnAgain').addEventListener('pointerdown',function(){
+  $('quizArea').innerHTML='';
+  startGame();
+});
+
+/* ---------- 初始化 ---------- */
+$('high').textContent=highScore;
+refreshMute();
+updateScore();
+</script>
+</body>
+</html>

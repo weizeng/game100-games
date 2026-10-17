@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>元素周期表 - 化学学习</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body {
+    background:#0b1622; color:#e8f4fd; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    display:flex; flex-direction:column; align-items:center; min-height:100vh; overflow-x:hidden;
+    user-select:none; -webkit-user-select:none;
+  }
+  #app { width:100%; max-width:480px; min-height:100vh; display:flex; flex-direction:column; padding:12px; }
+  /* 顶部栏 */
+  #topbar { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+  #modeSwitch { display:flex; background:#13273c; border-radius:12px; padding:4px; gap:4px; }
+  #modeSwitch button {
+    border:none; background:transparent; color:#9fb6cc; font-size:15px; min-height:44px; padding:0 14px;
+    border-radius:9px; cursor:pointer; transition:all .25s cubic-bezier(.34,1.56,.64,1);
+  }
+  #modeSwitch button.active { background:#5C6BC0; color:#fff; }
+  .icon-btn {
+    width:44px; height:44px; border-radius:12px; border:none; background:#13273c; color:#e8f4fd;
+    font-size:20px; cursor:pointer; transition:transform .15s ease, background .25s ease;
+    display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .icon-btn:active { transform:scale(.9); }
+  /* 分数条 */
+  #scorebar { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding:0 4px; }
+  #score { font-size:17px; font-weight:bold; color:#ffd54f; }
+  #hs { font-size:13px; color:#9fb6cc; }
+  #quizProgress { font-size:14px; color:#9fb6cc; }
+  /* 网格 */
+  #grid {
+    display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:12px;
+  }
+  .cell {
+    min-height:64px; border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer; border:2px solid transparent; position:relative; overflow:hidden;
+    transition:transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s ease, border-color .22s ease, filter .3s ease;
+  }
+  .cell:active { transform:scale(.93); }
+  .cell .sym { font-size:22px; font-weight:800; line-height:1.15; }
+  .cell .cn { font-size:12px; opacity:.9; }
+  .cell .num { position:absolute; top:5px; left:8px; font-size:11px; opacity:.75; }
+  .cell.metal { background:linear-gradient(135deg,#1565c0,#1e88e5); color:#fff; }
+  .cell.nonmetal { background:linear-gradient(135deg,#1b7a3d,#2e9e52); color:#fff; }
+  .cell.noble { background:linear-gradient(135deg,#6a1b9a,#9c4dc4); color:#fff; }
+  .cell.selected { border-color:#ffd54f; box-shadow:0 0 14px rgba(255,213,79,.65); transform:scale(1.05); }
+  .cell.dim { filter:grayscale(.7) brightness(.55); }
+  .cell.dim.pickable { filter:none; }
+  .cell.shake { animation:shake .4s ease; }
+  @keyframes shake {
+    0%,100% { transform:translateX(0); } 20% { transform:translateX(-8px); }
+    40% { transform:translateX(8px); } 60% { transform:translateX(-6px); } 80% { transform:translateX(6px); }
+  }
+  .cell.pop { animation:pop .45s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes pop { 0% { transform:scale(.6); } 60% { transform:scale(1.12); } 100% { transform:scale(1); } }
+  /* 测验题目条 */
+  #quizQ {
+    display:none; background:#13273c; border-radius:12px; padding:12px 14px; margin-bottom:10px;
+    font-size:16px; text-align:center; border-left:4px solid #ffd54f;
+    animation:slideDown .35s cubic-bezier(.34,1.56,.64,1);
+  }
+  #quizQ.show { display:block; }
+  @keyframes slideDown { from { opacity:0; transform:translateY(-14px); } to { opacity:1; transform:translateY(0); } }
+  /* 信息卡 */
+  #info {
+    background:#13273c; border-radius:16px; padding:14px 16px; min-height:120px; margin-bottom:12px;
+    transition:opacity .25s ease, transform .25s cubic-bezier(.34,1.56,.64,1);
+  }
+  #info.swap { opacity:0; transform:translateY(8px); }
+  #info .i-title { font-size:20px; font-weight:800; margin-bottom:6px; }
+  #info .i-title .z { font-size:13px; color:#9fb6cc; font-weight:400; margin-left:8px; }
+  #info .i-cat { display:inline-block; font-size:12px; padding:3px 10px; border-radius:20px; margin:4px 0 8px; color:#fff; }
+  #info .i-cat.metal { background:#1e88e5; } #info .i-cat.nonmetal { background:#2e9e52; } #info .i-cat.noble { background:#9c4dc4; }
+  #info .i-fact { font-size:14px; color:#c9ddf0; line-height:1.6; }
+  #info .i-hint { font-size:14px; color:#9fb6cc; text-align:center; padding:26px 0; }
+  /* 图例 + 知识点按钮 */
+  #legend { display:flex; align-items:center; justify-content:center; gap:12px; font-size:12px; color:#9fb6cc; margin-bottom:10px; flex-wrap:wrap; }
+  .dot { display:inline-block; width:12px; height:12px; border-radius:4px; margin-right:4px; vertical-align:baseline; }
+  #knowBtn {
+    width:100%; min-height:48px; border:none; border-radius:14px; background:#5C6BC0; color:#fff;
+    font-size:16px; font-weight:700; cursor:pointer; transition:transform .15s ease, background .25s ease;
+  }
+  #knowBtn:active { transform:scale(.97); background:#4a57ab; }
+  /* 遮罩层 */
+  .overlay {
+    position:fixed; inset:0; background:rgba(4,10,18,.82); display:flex; align-items:center; justify-content:center;
+    z-index:50; padding:20px; opacity:0; pointer-events:none; transition:opacity .3s ease;
+  }
+  .overlay.show { opacity:1; pointer-events:auto; }
+  .card {
+    background:#13273c; border-radius:20px; padding:26px 22px; max-width:400px; width:100%; text-align:center;
+    transform:scale(.85) translateY(16px); transition:transform .35s cubic-bezier(.34,1.56,.64,1);
+  }
+  .overlay.show .card { transform:scale(1) translateY(0); }
+  .card h1 { font-size:26px; margin-bottom:6px; }
+  .card h2 { font-size:20px; margin-bottom:10px; }
+  .card p { font-size:14px; color:#c9ddf0; line-height:1.8; margin-bottom:16px; text-align:left; }
+  .card .big { font-size:22px; font-weight:800; color:#ffd54f; margin:8px 0 16px; }
+  .big-btn {
+    width:100%; min-height:52px; border:none; border-radius:14px; background:#5C6BC0; color:#fff;
+    font-size:18px; font-weight:800; cursor:pointer; margin-top:8px; transition:transform .15s ease, background .25s ease;
+  }
+  .big-btn:active { transform:scale(.97); background:#4a57ab; }
+  #knowCard p { margin-bottom:8px; }
+  #knowCard .k { color:#ffd54f; font-weight:700; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="modeSwitch">
+      <button id="btnLearn" class="active">📚 学习</button>
+      <button id="btnQuiz">📝 测验</button>
+    </div>
+    <button id="btnPause" class="icon-btn" title="暂停">⏸</button>
+    <button id="btnMute" class="icon-btn" title="静音">🔊</button>
+  </div>
+  <div id="scorebar">
+    <div id="score">得分 0</div>
+    <div id="quizProgress"></div>
+    <div id="hs">最高 0</div>
+  </div>
+  <div id="quizQ"></div>
+  <div id="grid"></div>
+  <div id="info"><div class="i-hint">👆 点击任意元素，查看它的秘密</div></div>
+  <div id="legend">
+    <span><span class="dot" style="background:#1e88e5"></span>金属</span>
+    <span><span class="dot" style="background:#2e9e52"></span>非金属</span>
+    <span><span class="dot" style="background:#9c4dc4"></span>稀有气体</span>
+  </div>
+  <button id="knowBtn">📖 知识点</button>
+</div>
+
+<!-- 开始界面 -->
+<div id="startOv" class="overlay show">
+  <div class="card">
+    <h1>🧬 元素周期表</h1>
+    <p>
+      🌍 前 20 号元素的化学之旅！<br>
+      📚 <b>学习模式</b>：点击元素卡片，查看名称、类别和一句话特性。<br>
+      📝 <b>测验模式</b>：8 道挑战题，答对 +12.5 分（总分 100），答错震动提醒但不扣分。<br>
+      💡 颜色代表类别：蓝色=金属，绿色=非金属，紫色=稀有气体。
+    </p>
+    <button id="btnStart" class="big-btn">开始学习</button>
+  </div>
+</div>
+
+<!-- 暂停界面 -->
+<div id="pauseOv" class="overlay">
+  <div class="card">
+    <h2>⏸ 游戏已暂停</h2>
+    <div class="big">休息一下吧～</div>
+    <button id="btnResume" class="big-btn">继续</button>
+  </div>
+</div>
+
+<!-- 结束界面 -->
+<div id="endOv" class="overlay">
+  <div class="card">
+    <h2 id="endTitle">🎉 测验完成！</h2>
+    <div class="big" id="endScore">100 分</div>
+    <p id="endDetail" style="text-align:center"></p>
+    <button id="btnRestart" class="big-btn">再来一次</button>
+  </div>
+</div>
+
+<!-- 知识点 -->
+<div id="knowOv" class="overlay">
+  <div class="card" id="knowCard">
+    <h2>📖 实验结论</h2>
+    <p>⚛️ <span class="k">元素按原子序数由小到大排列</span>，形成周期表。</p>
+    <p>↔️ <span class="k">横行叫周期</span>，共 7 个周期，代表电子层数。</p>
+    <p>↕️ <span class="k">纵列叫族</span>，同一族的元素化学性质相似。</p>
+    <p>🔵 <span class="k">金属多在左边</span>，善于导电导热、有金属光泽。</p>
+    <p>🟢 <span class="k">非金属多在右上方</span>，性质活泼多样。</p>
+    <p>🟣 <span class="k">稀有气体最稳定</span>，几乎不和别的元素反应。</p>
+    <button id="btnKnowClose" class="big-btn">知道了</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ---------- 数据：前20号元素 ----------
+var ELEMENTS = [
+  {n:1,  sym:'H',  cn:'氢', cat:'nonmetal', fact:'最轻的元素，宇宙中最多的元素。'},
+  {n:2,  sym:'He', cn:'氦', cat:'noble',    fact:'最稳定的气体之一，气球里的"轻功高手"。'},
+  {n:3,  sym:'Li', cn:'锂', cat:'metal',    fact:'最轻的金属，手机电池的"能量心脏"。'},
+  {n:4,  sym:'Be', cn:'铍', cat:'metal',    fact:'又轻又硬，航天器材爱用它。'},
+  {n:5,  sym:'B',  cn:'硼', cat:'nonmetal', fact:'让玻璃耐高温，硼砂的"主角"。'},
+  {n:6,  sym:'C',  cn:'碳', cat:'nonmetal', fact:'生命的基础，钻石和铅笔芯都是它。'},
+  {n:7,  sym:'N',  cn:'氮', cat:'nonmetal', fact:'空气里最多的气体，植物生长需要它。'},
+  {n:8,  sym:'O',  cn:'氧', cat:'nonmetal', fact:'维持呼吸，助燃，是生命的必需品。'},
+  {n:9,  sym:'F',  cn:'氟', cat:'nonmetal', fact:'最活泼的元素，牙膏里的"护牙卫士"。'},
+  {n:10, sym:'Ne', cn:'氖', cat:'noble',    fact:'霓虹灯里的发光明星，五彩缤纷。'},
+  {n:11, sym:'Na', cn:'钠', cat:'metal',    fact:'柔软的金属，食盐里有它的身影。'},
+  {n:12, sym:'Mg', cn:'镁', cat:'metal',    fact:'燃烧发出耀眼白光，烟花的"闪光弹"。'},
+  {n:13, sym:'Al', cn:'铝', cat:'metal',    fact:'最常见的金属，易拉罐就是它做的。'},
+  {n:14, sym:'Si', cn:'硅', cat:'nonmetal', fact:'芯片和沙子的主要成分，信息时代的基石。'},
+  {n:15, sym:'P',  cn:'磷', cat:'nonmetal', fact:'火柴头一擦就着，夜里会发光的"鬼火"也与它有关。'},
+  {n:16, sym:'S',  cn:'硫', cat:'nonmetal', fact:'有臭鸡蛋味，火药和温泉都离不开它。'},
+  {n:17, sym:'Cl', cn:'氯', cat:'nonmetal', fact:'自来水消毒靠它，食盐里也有它。'},
+  {n:18, sym:'Ar', cn:'氩', cat:'noble',    fact:'空气里第三多的气体，灯泡的"保护神"。'},
+  {n:19, sym:'K',  cn:'钾', cat:'metal',    fact:'香蕉里富含它，植物生长的"营养餐"。'},
+  {n:20, sym:'Ca', cn:'钙', cat:'metal',    fact:'骨骼牙齿的主力，牛奶补钙补的就是它。'}
+];
+var CAT_NAME = { metal:'金属', nonmetal:'非金属', noble:'稀有气体' };
+var HS_KEY = 'g100_periodic_hs';
+var MUTE_KEY = 'g100_mute';
+
+// ---------- 状态 ----------
+var mode = 'learn';          // learn | quiz
+var paused = false;
+var score = 0;
+var mistakes = 0;
+var quizList = [];
+var quizIdx = 0;
+var quizActive = false;
+
+// ---------- DOM ----------
+function $(id){ return document.getElementById(id); }
+var grid = $('grid'), info = $('info'), quizQ = $('quizQ');
+
+// ---------- 音效（WebAudio 合成） ----------
+var actx = null;
+var muted = (localStorage.getItem(MUTE_KEY) === '1');
+function ensureAudio(){
+  if (!actx){
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ actx = null; }
+  }
+  if (actx && actx.state === 'suspended') actx.resume();
+}
+function tone(freq, dur, type, delay){
+  if (muted || !actx) return;
+  var t = actx.currentTime + (delay || 0);
+  var o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function sfxClick(){ tone(520, 0.12, 'triangle'); }                       // 点击
+function sfxRight(){ tone(523, 0.15, 'sine'); tone(659, 0.15, 'sine', 0.12); tone(784, 0.25, 'sine', 0.24); } // 答对
+function sfxWrong(){ tone(180, 0.25, 'sawtooth'); tone(140, 0.3, 'sawtooth', 0.15); }                        // 答错
+function sfxDone(){ tone(523,0.15,'sine'); tone(587,0.15,'sine',0.12); tone(659,0.15,'sine',0.24); tone(784,0.4,'sine',0.36); }
+document.addEventListener('pointerdown', ensureAudio, { passive:true });
+
+// ---------- 构建网格 ----------
+var cells = [];
+function buildGrid(){
+  grid.innerHTML = '';
+  cells = [];
+  ELEMENTS.forEach(function(el){
+    var d = document.createElement('div');
+    d.className = 'cell ' + el.cat;
+    d.innerHTML = '<span class="num">' + el.n + '</span><span class="sym">' + el.sym + '</span><span class="cn">' + el.cn + '</span>';
+    d.addEventListener('pointerdown', function(){ onCellTap(el, d); });
+    grid.appendChild(d);
+    cells.push(d);
+  });
+}
+
+// ---------- 学习模式：信息卡 ----------
+function showInfo(el, animate){
+  function fill(){
+    info.innerHTML =
+      '<div class="i-title">' + el.sym + ' · ' + el.cn + '<span class="z">原子序数 ' + el.n + '</span></div>' +
+      '<span class="i-cat ' + el.cat + '">' + CAT_NAME[el.cat] + '</span>' +
+      '<div class="i-fact">💡 ' + el.cn + '：' + el.fact + '</div>';
+    info.classList.remove('swap');
+  }
+  if (animate){
+    info.classList.add('swap');
+    setTimeout(fill, 180);
+  } else fill();
+}
+function clearSelection(){
+  cells.forEach(function(c){ c.classList.remove('selected'); });
+}
+
+// ---------- 测验：出题 ----------
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function byCat(cat){ return ELEMENTS.filter(function(e){ return e.cat === cat; }); }
+function genQuestion(){
+  var type = Math.floor(Math.random() * 8);
+  var metals = byCat('metal'), nonmetals = byCat('nonmetal'), nobles = byCat('noble');
+  var el, targets;
+  switch (type){
+    case 0: targets = nobles;   return { text:'点出一种稀有气体 🟣', targets:targets };
+    case 1: targets = metals;   return { text:'点出一种金属 🔵', targets:targets };
+    case 2: targets = nonmetals;return { text:'点出一种非金属 🟢', targets:targets };
+    case 3: return { text:'点出原子序数最大的金属 🔵', targets:[ELEMENTS[19]] }; // Ca
+    case 4: return { text:'点出原子序数最小的元素', targets:[ELEMENTS[0]] };
+    case 5: el = pick(ELEMENTS);return { text:'点出元素 ' + el.sym + '（' + el.cn + '）', targets:[el] };
+    case 6: el = pick(ELEMENTS);return { text:'点出原子序数 ' + el.n + ' 的元素', targets:[el] };
+    default: return { text:'点出原子序数最大的稀有气体 🟣', targets:[ELEMENTS[17]] }; // Ar
+  }
+}
+function startQuiz(){
+  score = 0; mistakes = 0; quizIdx = 0; quizActive = true;
+  quizList = [];
+  for (var i = 0; i < 8; i++) quizList.push(genQuestion());
+  updateScore(); clearSelection(); dimNonTargets();
+  nextQuestion();
+}
+function dimNonTargets(){
+  var q = quizList[quizIdx];
+  cells.forEach(function(c, i){
+    c.classList.remove('selected');
+    c.classList.add(q.targets.indexOf(ELEMENTS[i]) >= 0 ? 'pickable' : 'dim');
+  });
+}
+function nextQuestion(){
+  if (quizIdx >= quizList.length){ endQuiz(); return; }
+  var q = quizList[quizIdx];
+  quizQ.textContent = '第 ' + (quizIdx + 1) + ' / 8 题：' + q.text;
+  quizQ.classList.add('show');
+  $('quizProgress').textContent = '第 ' + (quizIdx + 1) + '/8 题';
+  dimNonTargets();
+  // 测验模式信息卡让位给题目
+  info.innerHTML = '<div class="i-hint">🎯 ' + q.text + '</div>';
+}
+function endQuiz(){
+  quizActive = false;
+  quizQ.classList.remove('show');
+  $('quizProgress').textContent = '';
+  cells.forEach(function(c){ c.classList.remove('dim'); c.classList.remove('pickable'); });
+  var finalScore = Math.round(score);
+  var hs = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  var newRecord = finalScore > hs;
+  if (newRecord){ hs = finalScore; localStorage.setItem(HS_KEY, String(hs)); }
+  $('hs').textContent = '最高 ' + hs;
+  $('endTitle').textContent = finalScore >= 75 ? '🎉 测验完成！太棒了！' : (finalScore >= 50 ? '💪 测验完成！继续加油！' : '📚 测验完成！多去学习模式看看～');
+  $('endScore').textContent = finalScore + ' 分';
+  $('endDetail').textContent = '8 题全部答对可得 100 分' + (mistakes > 0 ? ' · 点错 ' + mistakes + ' 次' : ' · 一次都没点错！') + (newRecord ? ' · 🏆 新纪录！' : '');
+  $('endOv').classList.add('show');
+  sfxDone();
+}
+
+// ---------- 点击元素 ----------
+function onCellTap(el, d){
+  ensureAudio();
+  if (paused) return;
+  if (mode === 'learn' && !quizActive){
+    sfxClick();
+    clearSelection();
+    d.classList.add('selected');
+    d.classList.remove('pop'); void d.offsetWidth; d.classList.add('pop');
+    showInfo(el, true);
+    return;
+  }
+  // 测验模式
+  if (!quizActive) return;
+  var q = quizList[quizIdx];
+  if (q.targets.indexOf(el) >= 0){
+    sfxRight();
+    score += 12.5;
+    updateScore();
+    d.classList.remove('pop'); void d.offsetWidth; d.classList.add('pop');
+    quizIdx++;
+    setTimeout(nextQuestion, 350);
+  } else {
+    sfxWrong();
+    mistakes++;
+    if (navigator.vibrate) navigator.vibrate(200);
+    d.classList.remove('shake'); void d.offsetWidth; d.classList.add('shake');
+    showInfo(el, true); // 点错也顺便学一下
+  }
+}
+
+// ---------- 分数 / 最高分 ----------
+function updateScore(){
+  $('score').textContent = '得分 ' + Math.round(score);
+  var hs = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  $('hs').textContent = '最高 ' + hs;
+}
+
+// ---------- 模式切换 ----------
+function setMode(m){
+  mode = m;
+  $('btnLearn').classList.toggle('active', m === 'learn');
+  $('btnQuiz').classList.toggle('active', m === 'quiz');
+  ensureAudio(); sfxClick();
+  if (m === 'quiz'){ startQuiz(); }
+  else {
+    quizActive = false;
+    quizQ.classList.remove('show');
+    $('quizProgress').textContent = '';
+    cells.forEach(function(c){ c.classList.remove('dim'); c.classList.remove('pickable'); c.classList.remove('selected'); });
+    info.innerHTML = '<div class="i-hint">👆 点击任意元素，查看它的秘密</div>';
+  }
+}
+$('btnLearn').addEventListener('click', function(){ setMode('learn'); });
+$('btnQuiz').addEventListener('click', function(){ setMode('quiz'); });
+
+// ---------- 暂停 ----------
+function setPaused(p){
+  paused = p;
+  $('pauseOv').classList.toggle('show', p);
+  $('btnPause').textContent = p ? '▶' : '⏸';
+}
+$('btnPause').addEventListener('click', function(){ ensureAudio(); sfxClick(); setPaused(!paused); });
+$('btnResume').addEventListener('click', function(){ ensureAudio(); sfxClick(); setPaused(false); });
+
+// ---------- 静音 ----------
+function refreshMute(){ $('btnMute').textContent = muted ? '🔇' : '🔊'; }
+$('btnMute').addEventListener('click', function(){
+  ensureAudio();
+  muted = !muted;
+  localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
+  refreshMute();
+  if (!muted) sfxClick();
+});
+refreshMute();
+
+// ---------- 开始 / 重来 / 知识点 ----------
+$('btnStart').addEventListener('click', function(){
+  ensureAudio(); sfxClick();
+  $('startOv').classList.remove('show');
+});
+$('btnRestart').addEventListener('click', function(){
+  ensureAudio(); sfxClick();
+  $('endOv').classList.remove('show');
+  startQuiz();
+});
+$('knowBtn').addEventListener('click', function(){ ensureAudio(); sfxClick(); $('knowOv').classList.add('show'); });
+$('btnKnowClose').addEventListener('click', function(){ ensureAudio(); sfxClick(); $('knowOv').classList.remove('show'); });
+$('knowOv').addEventListener('click', function(e){ if (e.target === $('knowOv')) $('knowOv').classList.remove('show'); });
+
+// ---------- 初始化 ----------
+buildGrid();
+updateScore();
+</script>
+</body>
+</html>
