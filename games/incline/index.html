@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>斜面实验</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#cv{position:fixed;inset:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,14,26,.7);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.pill b{color:#FFD54F}
+.spacer{flex:1}
+.iconBtn{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(10,14,26,.7);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#panel{position:fixed;left:10px;right:10px;bottom:10px;z-index:6;background:rgba(10,14,26,.88);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:10px 14px}
+.ctl{margin:4px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:#c5cae9;margin-bottom:0}
+.ctl label b{color:#FFD54F}
+input[type=range]{width:100%;height:44px;-webkit-appearance:none;appearance:none;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#4FC3F7;margin-top:-11px;box-shadow:0 0 8px rgba(79,195,247,.8)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-radius:50%;background:#4FC3F7}
+.rowBtns{display:flex;gap:10px;margin-top:6px}
+.actBtn{flex:1;min-height:48px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#fff;background:linear-gradient(135deg,#4FC3F7,#7E57C2);cursor:pointer}
+.actBtn:active{transform:scale(.96)}
+.actBtn:disabled{opacity:.45}
+#readout{font-size:13px;color:#c5cae9;line-height:1.6;margin-top:6px;min-height:20px}
+#readout b{color:#FFD54F}
+.overlay{position:fixed;inset:0;background:rgba(3,5,12,.9);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.card{background:linear-gradient(160deg,#141a2e,#0a0e1a);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:26px 24px;max-width:370px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:88vh;overflow-y:auto}
+.card h1{font-size:26px;margin-bottom:6px}
+.card h2{font-size:17px;color:#4FC3F7;margin:12px 0 6px}
+.card p{font-size:14px;color:#c5cae9;line-height:1.7;margin:8px 0;text-align:left}
+.card p.c{text-align:center}
+.formula{background:rgba(79,195,247,.1);border:1px dashed rgba(79,195,247,.5);border-radius:10px;padding:10px;font-size:15px;color:#FFD54F;margin:10px 0;font-family:monospace;word-break:break-all}
+.bigBtn{display:inline-block;margin-top:14px;padding:14px 52px;font-size:18px;border:none;border-radius:999px;background:linear-gradient(135deg,#4FC3F7,#7E57C2);color:#fff;cursor:pointer;min-height:52px}
+.bigBtn:active{transform:scale(.96)}
+.score{font-size:44px;font-weight:bold;color:#FFEB3B;margin:6px 0}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill" id="roundPill">第 <b>1</b>/5 轮</div>
+  <div class="pill">得分 <b id="scorePill">0</b></div>
+  <div class="spacer"></div>
+  <button class="iconBtn" id="muteBtn" title="静音">🔊</button>
+  <button class="iconBtn" id="pauseBtn" title="暂停">⏸</button>
+</div>
+<div id="panel">
+  <div class="ctl"><label>倾角 θ <b id="tv1">25°</b></label><input type="range" id="s1" min="10" max="45" step="1" value="25"></div>
+  <div class="ctl"><label>质量 m <b id="tv2">2.0 kg</b><span style="color:#66BB6A">验证：质量不影响</span></label><input type="range" id="s2" min="1" max="5" step="0.5" value="2"></div>
+  <div class="ctl"><label>预测滑到底时间 tp <b id="tv3">1.50 s</b></label><input type="range" id="s3" min="0.3" max="5" step="0.05" value="1.5"></div>
+  <div class="rowBtns"><button class="actBtn" id="relBtn">🚀 释放小车</button></div>
+  <div id="readout">⏳ 调好倾角、质量和你的预测时间，按「释放」验证。</div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="card">
+    <h1>📐 斜面实验</h1>
+    <p class="c" style="color:#4FC3F7">🔬 初中物理 · 力学实验</p>
+    <p>每轮斜面长随机 3–8m。先调倾角 θ、质量 m（试试 1kg 到 5kg），再用滑杆预测小车滑到底的时间 tp，按「释放」验证。误差 &lt;5% 得 100 分，&lt;15% 得 60 分，否则 20 分。</p>
+    <h2>📏 本实验公式</h2>
+    <div class="formula">a=g·sinθ，t=√(2L/a)</div>
+    <button class="bigBtn" id="startBtn">开始实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h1>⏸ 已暂停</h1>
+    <p class="c">实验已暂停，数据保留</p>
+    <button class="bigBtn" id="resumeBtn">继续实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="quizOv">
+  <div class="card">
+    <h1 id="quizTitle">🤔 预测一下</h1>
+    <p class="c" id="quizQ"></p>
+    <div id="quizOpts"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="card">
+    <h1>🎓 实验完成</h1>
+    <div class="score" id="finalScore">0</div>
+    <p class="c" id="bestLine">历史最高：0</p>
+    <h2>📝 实验结论</h2>
+    <p id="conclusion"></p>
+    <div class="formula" id="endFormula"></div>
+    <button class="bigBtn" id="retryBtn">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 基础框架 ============ */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0,DPR=1,PANEL_H=0;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  PANEL_H=document.getElementById('panel').offsetHeight||150;
+  if(window.onResize)window.onResize();
+}
+window.addEventListener('resize',resize);
+var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,delay){if(muted)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.15,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.06,'square',0.08);}
+function sGood(){tone(660,0.1,'sine',0.15);tone(880,0.15,'sine',0.15,0.1);}
+function sBad(){tone(220,0.2,'sawtooth',0.12);tone(160,0.25,'sawtooth',0.12,0.12);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++){tone(n[i],0.15,'sine',0.15,i*0.12);}}
+function sWhoosh(){tone(180,0.35,'sawtooth',0.07);tone(320,0.3,'sawtooth',0.06,0.08);}
+function buzz(ms){try{if(navigator.vibrate){navigator.vibrate(ms||30);}}catch(e){}}
+var floats=[];
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color||'#FFD54F',life:1});}
+function drawFloats(dt){ctx.textAlign='center';for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.life-=dt*0.7;f.y-=34*dt;if(f.life<=0){floats.splice(i,1);continue;}ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;}}
+var HSKEY='g100_incline_hs';
+function getBest(){return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}
+function setBest(v){if(v>getBest()){localStorage.setItem(HSKEY,String(v));}}
+function $(id){return document.getElementById(id);}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function setMuteBtn(){$('muteBtn').textContent=muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted){sClick();}});
+setMuteBtn();
+/* ============ 游戏状态 ============ */
+var state='start',paused=false,round=1,score=0,lastT=0;
+function updHUD(){$('roundPill').innerHTML='第 <b>'+round+'</b>/5 轮';$('scorePill').textContent=score;}
+function addScore(n,x,y,color){score+=n;updHUD();if(x!==undefined){floatText(x,y,'+'+n,color||(n>=80?'#66BB6A':'#FFD54F'));}buzz(40);}
+$('pauseBtn').addEventListener('click',function(){if(state!=='play')return;sClick();paused=true;show('pauseOv');});
+$('resumeBtn').addEventListener('click',function(){sClick();paused=false;hide('pauseOv');lastT=performance.now();});
+$('startBtn').addEventListener('click',function(){sClick();hide('startOv');startGame();});
+$('retryBtn').addEventListener('click',function(){sClick();hide('endOv');startGame();});
+function startGame(){round=1;score=0;updHUD();state='play';paused=false;if(window.onStart)window.onStart();}
+function endGame(conclusion,formula){
+  state='end';setBest(score);sWin();
+  $('finalScore').textContent=score+' / 500';
+  $('bestLine').textContent='历史最高：'+getBest();
+  $('conclusion').textContent=conclusion;
+  $('endFormula').textContent=formula;
+  show('endOv');
+}
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(state!=='play'||paused)return;
+  ctx.clearRect(0,0,W,H);
+  if(window.onFrame){window.onFrame(dt);}
+  drawFloats(dt);
+}
+resize();updHUD();requestAnimationFrame(function(t){lastT=t;requestAnimationFrame(loop);});
+
+/* ============ 斜面实验游戏逻辑 ============ */
+var g=9.8;
+var L=5,theta=25,mass=2,tp=1.5;
+var a=0,tTh=0,vTh=0;
+var phase='aim'; /* aim | slide | done */
+var animT=0;
+var roundTimer=null;
+function f2(x){return (Math.round(x*100)/100).toFixed(2);}
+$('s1').addEventListener('input',function(){theta=parseFloat($('s1').value);$('tv1').textContent=theta+'°';});
+$('s2').addEventListener('input',function(){mass=parseFloat($('s2').value);$('tv2').textContent=mass.toFixed(1)+' kg';});
+$('s3').addEventListener('input',function(){tp=parseFloat($('s3').value);$('tv3').textContent=tp.toFixed(2)+' s';});
+
+window.onStart=function(){
+  if(roundTimer){clearTimeout(roundTimer);roundTimer=null;}
+  floats.length=0;
+  nextRound();
+};
+function nextRound(){
+  L=Math.round((3+Math.random()*5)*10)/10;
+  phase='aim';animT=0;
+  $('relBtn').disabled=false;$('relBtn').textContent='🚀 释放小车';
+  $('readout').innerHTML='本轮斜面长 <b>L='+L.toFixed(1)+'m</b>。调倾角、质量并预测 tp，按「释放」验证。';
+}
+$('relBtn').addEventListener('click',function(){
+  if(state!=='play'||paused||phase!=='aim')return;
+  sClick();sWhoosh();
+  var rad=theta*Math.PI/180;
+  a=g*Math.sin(rad);
+  tTh=Math.sqrt(2*L/a);
+  vTh=a*tTh;
+  phase='slide';animT=0;
+  $('relBtn').disabled=true;$('relBtn').textContent='🛞 滑行中…';
+  $('readout').innerHTML='a=g·sinθ=<b>'+f2(a)+'</b> m/s² · 理论 t=<b>'+f2(tTh)+'</b>s · 你的预测 <b>'+tp.toFixed(2)+'</b>s';
+});
+function finishSlide(){
+  phase='done';
+  var err=Math.abs(tp-tTh)/tTh;
+  var pts,color,msg;
+  if(err<0.05){pts=100;color='#66BB6A';msg='预测神准！';}
+  else if(err<0.15){pts=60;color='#FFD54F';msg='很接近了！';}
+  else{pts=20;color='#FF8A65';msg='差得有点远。';}
+  var G=geom();var endPos=cartPos(G,1);
+  addScore(pts,endPos.x,endPos.y-60,color);
+  if(pts>=60){sGood();}else{sBad();}
+  $('readout').innerHTML=msg+' 误差 <b>'+(err*100).toFixed(1)+'%</b>（实际 '+f2(tTh)+'s vs 预测 '+tp.toFixed(2)+'s），得 <b>'+pts+'</b> 分。质量 m='+mass.toFixed(1)+'kg 并不影响结果！';
+  $('relBtn').disabled=true;$('relBtn').textContent='✅ 本轮结束';
+  roundTimer=setTimeout(function(){
+    if(round>=5){
+      endGame('实验结论：小车加速度 a=g·sinθ，只由倾角决定——把质量从1kg换到5kg，时间完全一样！这就是伽利略发现的规律。','a=g·sinθ，t=√(2L/a)');
+    }else{round++;updHUD();nextRound();}
+  },3000);
+}
+function geom(){
+  var groundY=H-PANEL_H-30;
+  var basePx=W-60;
+  var rad=theta*Math.PI/180;
+  var hgt=basePx*Math.tan(rad);
+  var maxH=groundY-90;
+  if(hgt>maxH){hgt=maxH;}
+  var x0=30;
+  var slopeLenPx=Math.sqrt(basePx*basePx+hgt*hgt);
+  return {groundY:groundY,basePx:basePx,rad:rad,hgt:hgt,x0:x0,slopeLenPx:slopeLenPx};
+}
+function cartPos(G,frac){
+  var dPx=G.slopeLenPx*frac;
+  return {x:G.x0+dPx*Math.cos(G.rad),y:G.groundY-G.hgt+dPx*Math.sin(G.rad)};
+}
+window.onFrame=function(dt){
+  var G=geom();
+  /* 背景 */
+  ctx.fillStyle='#0d1330';ctx.fillRect(0,0,W,G.groundY);
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  for(var s=0;s<28;s++){var sx=(s*173)%W,sy=(s*97)%Math.max(60,G.groundY-10);ctx.fillRect(sx,sy,1.6,1.6);}
+  ctx.fillStyle='#1b2438';ctx.fillRect(0,G.groundY,W,H-G.groundY);
+  ctx.fillStyle='#2e3a58';ctx.fillRect(0,G.groundY,W,4);
+  /* 斜面 */
+  ctx.fillStyle='#26314d';
+  ctx.beginPath();ctx.moveTo(G.x0,G.groundY);ctx.lineTo(G.x0+G.basePx,G.groundY);ctx.lineTo(G.x0,G.groundY-G.hgt);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#4fc3f7';ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(G.x0,G.groundY-G.hgt);ctx.lineTo(G.x0+G.basePx,G.groundY);ctx.stroke();
+  /* 角度标注 */
+  ctx.strokeStyle='#FFD54F';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(G.x0+G.basePx,G.groundY,34,Math.PI,Math.PI+G.rad);ctx.stroke();
+  ctx.fillStyle='#FFD54F';ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  ctx.fillText('θ='+theta+'°',G.x0+G.basePx-46,G.groundY-14);
+  /* 斜面长度标注 */
+  ctx.fillStyle='#8f9bb8';ctx.font='12px sans-serif';
+  ctx.fillText('L='+L.toFixed(1)+'m',(G.x0+G.x0+G.basePx)/2,G.groundY-G.hgt/2-10);
+  /* 终点旗帜 */
+  var fx=G.x0+G.basePx-4,fy=G.groundY;
+  ctx.strokeStyle='#fff';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(fx,fy);ctx.lineTo(fx,fy-38);ctx.stroke();
+  ctx.fillStyle='#FF5252';
+  ctx.beginPath();ctx.moveTo(fx,fy-38);ctx.lineTo(fx+26,fy-30);ctx.lineTo(fx,fy-22);ctx.closePath();ctx.fill();
+  /* 小车 */
+  var frac=0;
+  if(phase==='slide'){
+    animT+=dt;
+    var dist=0.5*a*animT*animT;
+    frac=Math.min(1,dist/L);
+    if(frac>=1){finishSlide();}
+  }else if(phase==='done'){frac=1;}
+  var cp=cartPos(G,frac);
+  drawCart(cp.x,cp.y,G.rad);
+  /* 实时秒表 */
+  ctx.fillStyle='#fff';ctx.font='bold 16px sans-serif';ctx.textAlign='center';
+  if(phase==='slide'){
+    ctx.fillText('⏱ '+f2(animT)+'s   v='+f2(a*animT)+'m/s',W/2,34);
+  }else if(phase==='aim'){
+    ctx.fillStyle='#4fc3f7';
+    ctx.fillText('🎯 L='+L.toFixed(1)+'m · θ='+theta+'° · m='+mass.toFixed(1)+'kg',W/2,34);
+  }else{
+    ctx.fillText('⏱ '+f2(tTh)+'s   v='+f2(vTh)+'m/s',W/2,34);
+  }
+};
+function drawCart(x,y,rad){
+  ctx.save();ctx.translate(x,y);ctx.rotate(rad);
+  /* 车身 */
+  var w=44,hh=20;
+  var grd=ctx.createLinearGradient(0,-hh,0,0);
+  grd.addColorStop(0,'#4fc3f7');grd.addColorStop(1,'#1565c0');
+  ctx.fillStyle=grd;
+  ctx.beginPath();
+  if(ctx.roundRect){ctx.roundRect(-w/2,-hh-8,w,hh,5);}else{ctx.rect(-w/2,-hh-8,w,hh);}
+  ctx.fill();
+  /* 质量牌 */
+  ctx.fillStyle='#fff';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
+  ctx.fillText(mass.toFixed(1)+'kg',0,-hh+4);
+  /* 轮子 */
+  ctx.fillStyle='#263238';
+  ctx.beginPath();ctx.arc(-w/2+9,-6,7,0,6.29);ctx.fill();
+  ctx.beginPath();ctx.arc(w/2-9,-6,7,0,6.29);ctx.fill();
+  ctx.fillStyle='#90a4ae';
+  ctx.beginPath();ctx.arc(-w/2+9,-6,3,0,6.29);ctx.fill();
+  ctx.beginPath();ctx.arc(w/2-9,-6,3,0,6.29);ctx.fill();
+  ctx.restore();
+}
+window.onResize=function(){};
+</script>
+</body>
+</html>

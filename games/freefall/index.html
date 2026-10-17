@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>自由落体</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#cv{position:fixed;inset:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,14,26,.7);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.pill b{color:#FFD54F}
+.spacer{flex:1}
+.iconBtn{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(10,14,26,.7);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#panel{position:fixed;left:10px;right:10px;bottom:10px;z-index:6;background:rgba(10,14,26,.88);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:10px 14px}
+#readout{font-size:13px;color:#c5cae9;line-height:1.6;margin-top:6px;min-height:44px}
+#readout b{color:#FFD54F}
+.overlay{position:fixed;inset:0;background:rgba(3,5,12,.9);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.card{background:linear-gradient(160deg,#141a2e,#0a0e1a);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:26px 24px;max-width:370px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:88vh;overflow-y:auto}
+.card h1{font-size:26px;margin-bottom:6px}
+.card h2{font-size:17px;color:#4FC3F7;margin:12px 0 6px}
+.card p{font-size:14px;color:#c5cae9;line-height:1.7;margin:8px 0;text-align:left}
+.card p.c{text-align:center}
+.formula{background:rgba(79,195,247,.1);border:1px dashed rgba(79,195,247,.5);border-radius:10px;padding:10px;font-size:15px;color:#FFD54F;margin:10px 0;font-family:monospace;word-break:break-all}
+.bigBtn{display:inline-block;margin-top:14px;padding:14px 52px;font-size:18px;border:none;border-radius:999px;background:linear-gradient(135deg,#4FC3F7,#7E57C2);color:#fff;cursor:pointer;min-height:52px}
+.bigBtn:active{transform:scale(.96)}
+.score{font-size:44px;font-weight:bold;color:#FFEB3B;margin:6px 0}
+.hidden{display:none!important}
+.optBtn{display:block;width:100%;min-height:48px;margin:8px 0;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:16px;cursor:pointer}
+.optBtn:active{transform:scale(.97)}
+.optBtn.right{border-color:#66BB6A;background:rgba(102,187,106,.25)}
+.optBtn.wrong{border-color:#FF5252;background:rgba(255,82,82,.25)}
+.optBtn:disabled{opacity:.8}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill" id="roundPill">第 <b>1</b>/5 轮</div>
+  <div class="pill">得分 <b id="scorePill">0</b></div>
+  <div class="spacer"></div>
+  <button class="iconBtn" id="muteBtn" title="静音">🔊</button>
+  <button class="iconBtn" id="pauseBtn" title="暂停">⏸</button>
+</div>
+<div id="panel">
+  <div id="readout">⏳ 准备实验…</div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="card">
+    <h1>🍎 自由落体</h1>
+    <p class="c" style="color:#4FC3F7">🔬 初中物理 · 力学实验</p>
+    <p>重演伽利略比萨斜塔实验。每轮随机塔高 10–60m：先回答两道预测（无阻力/有阻力时铁球和纸团谁先落地，每问 50 分），再看两球下落动画验证答案。</p>
+    <h2>📏 本实验公式</h2>
+    <div class="formula">h=½gt²，t=√(2h/g)</div>
+    <button class="bigBtn" id="startBtn">开始实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h1>⏸ 已暂停</h1>
+    <p class="c">实验已暂停，数据保留</p>
+    <button class="bigBtn" id="resumeBtn">继续实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="quizOv">
+  <div class="card">
+    <h1 id="quizTitle">🤔 预测一下</h1>
+    <p class="c" id="quizQ"></p>
+    <div id="quizOpts"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="card">
+    <h1>🎓 实验完成</h1>
+    <div class="score" id="finalScore">0</div>
+    <p class="c" id="bestLine">历史最高：0</p>
+    <h2>📝 实验结论</h2>
+    <p id="conclusion"></p>
+    <div class="formula" id="endFormula"></div>
+    <button class="bigBtn" id="retryBtn">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 基础框架 ============ */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0,DPR=1,PANEL_H=0;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  PANEL_H=document.getElementById('panel').offsetHeight||150;
+  if(window.onResize)window.onResize();
+}
+window.addEventListener('resize',resize);
+var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,delay){if(muted)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.15,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.06,'square',0.08);}
+function sGood(){tone(660,0.1,'sine',0.15);tone(880,0.15,'sine',0.15,0.1);}
+function sBad(){tone(220,0.2,'sawtooth',0.12);tone(160,0.25,'sawtooth',0.12,0.12);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++){tone(n[i],0.15,'sine',0.15,i*0.12);}}
+function sThud(){tone(80,0.22,'sine',0.28);tone(55,0.3,'triangle',0.2,0.02);}
+function buzz(ms){try{if(navigator.vibrate){navigator.vibrate(ms||30);}}catch(e){}}
+var floats=[];
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color||'#FFD54F',life:1});}
+function drawFloats(dt){ctx.textAlign='center';for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.life-=dt*0.7;f.y-=34*dt;if(f.life<=0){floats.splice(i,1);continue;}ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;}}
+var HSKEY='g100_freefall_hs';
+function getBest(){return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}
+function setBest(v){if(v>getBest()){localStorage.setItem(HSKEY,String(v));}}
+function $(id){return document.getElementById(id);}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function setMuteBtn(){$('muteBtn').textContent=muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted){sClick();}});
+setMuteBtn();
+/* ============ 游戏状态 ============ */
+var state='start',paused=false,round=1,score=0,lastT=0;
+function updHUD(){$('roundPill').innerHTML='第 <b>'+round+'</b>/5 轮';$('scorePill').textContent=score;}
+function addScore(n,x,y){score+=n;updHUD();if(x!==undefined){floatText(x,y,'+'+n,n>=80?'#66BB6A':'#FFD54F');}}
+$('pauseBtn').addEventListener('click',function(){if(state!=='play')return;sClick();paused=true;show('pauseOv');});
+$('resumeBtn').addEventListener('click',function(){sClick();paused=false;hide('pauseOv');lastT=performance.now();});
+$('startBtn').addEventListener('click',function(){sClick();hide('startOv');startGame();});
+$('retryBtn').addEventListener('click',function(){sClick();hide('endOv');startGame();});
+function startGame(){round=1;score=0;updHUD();state='play';paused=false;if(window.onStart)window.onStart();}
+var quizCb=null;
+function askQuiz(title,question,options,cb){
+  $('quizTitle').textContent=title;$('quizQ').textContent=question;
+  var box=$('quizOpts');box.innerHTML='';quizCb=cb;
+  options.forEach(function(op,i){
+    var b=document.createElement('button');b.className='optBtn';b.textContent=op;
+    b.addEventListener('click',function(){cb(i,b);});
+    box.appendChild(b);
+  });
+  show('quizOv');
+}
+function markQuiz(chosen,correct){
+  var btns=$('quizOpts').children;
+  for(var i=0;i<btns.length;i++){btns[i].disabled=true;if(i===correct){btns[i].classList.add('right');}}
+  if(chosen!==correct&&btns[chosen]){btns[chosen].classList.add('wrong');}
+  setTimeout(function(){hide('quizOv');if(window.onQuizDone){window.onQuizDone(chosen===correct);}},900);
+}
+function endGame(conclusion,formula){
+  state='end';setBest(score);sWin();
+  $('finalScore').textContent=score+' / 500';
+  $('bestLine').textContent='历史最高：'+getBest();
+  $('conclusion').textContent=conclusion;
+  $('endFormula').textContent=formula;
+  show('endOv');
+}
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(state!=='play'||paused)return;
+  ctx.clearRect(0,0,W,H);
+  if(window.onFrame){window.onFrame(dt);}
+  drawFloats(dt);
+}
+resize();updHUD();requestAnimationFrame(function(t){lastT=t;requestAnimationFrame(loop);});
+
+/* ============ 自由落体游戏逻辑 ============ */
+var g=9.8,ANIM_SPEED=2;
+var h=20,tN=0,vN=0,tA=0,tB=0;
+var quizStage=0,phase='quiz';
+var animT=0,restT=0,landedN=false,landedA=false,landedB=false;
+var dust=[];
+var roundTimer=null;
+function f2(x){return (Math.round(x*100)/100).toFixed(2);}
+
+window.onStart=function(){
+  if(roundTimer){clearTimeout(roundTimer);roundTimer=null;}
+  dust=[];floats.length=0;
+  nextRound();
+};
+function nextRound(){
+  h=Math.round((10+Math.random()*50)*10)/10;
+  tN=Math.sqrt(2*h/g); vN=Math.sqrt(2*g*h);
+  tA=tN*1.03; var vt=6; tB=h/vt+vt/g;
+  quizStage=1; phase='quiz'; animT=0;
+  landedN=landedA=landedB=false; dust=[];
+  $('readout').innerHTML='塔高 <b>'+h.toFixed(1)+'</b> m。先做出你的预测，再看实验验证。';
+  askQuiz('🤔 第1问：无空气阻力','塔高 '+h.toFixed(1)+'m。如果没有空气阻力，铁球A和纸团B谁先落地？',['A 铁球先落地','B 纸团先落地','同时落地'],onPick);
+}
+function onPick(i){
+  sClick();
+  if(quizStage===1){markQuiz(i,2);}else{markQuiz(i,0);}
+}
+window.onQuizDone=function(ok){
+  if(ok){addScore(50,W/2,150);sGood();buzz(40);}else{sBad();}
+  if(quizStage===1){
+    quizStage=2;
+    askQuiz('🤔 第2问：有空气阻力','塔高 '+h.toFixed(1)+'m。现在有空气阻力，铁球A和纸团B谁先落地？',['A 铁球先落地','B 纸团先落地','同时落地'],onPick);
+  }else{
+    phase='drop1'; animT=0; landedN=false;
+    $('readout').innerHTML='🚫 <b>无空气阻力</b>：两球同步下落，t=√(2h/g)=<b>'+f2(tN)+'</b>s（动画2倍速）';
+  }
+};
+function addDust(x,y){
+  for(var i=0;i<14;i++){
+    dust.push({x:x+(Math.random()-0.5)*16,y:y-2,vx:(Math.random()-0.5)*90,vy:-Math.random()*70-10,life:0.7+Math.random()*0.4,r:2+Math.random()*3});
+  }
+  sThud();
+}
+function updDust(dt){
+  for(var i=dust.length-1;i>=0;i--){
+    var p=dust[i];p.life-=dt;if(p.life<=0){dust.splice(i,1);continue;}
+    p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=300*dt;
+  }
+}
+function drawDust(){
+  for(var i=0;i<dust.length;i++){
+    var p=dust[i];
+    ctx.globalAlpha=Math.max(0,Math.min(1,p.life));
+    ctx.fillStyle='#c9b48a';
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.29);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+function geom(){
+  var towerPx=H-PANEL_H-260;
+  if(towerPx<150)towerPx=150;
+  if(towerPx>H*0.62)towerPx=H*0.62;
+  var groundY=H-PANEL_H-22;
+  var topY=groundY-towerPx;
+  var tw=Math.max(34,Math.min(52,W*0.11));
+  var tx=Math.max(16,W*0.16);
+  var ax=tx+tw+Math.max(20,W*0.06),bx=ax+Math.max(34,W*0.1);
+  return {towerPx:towerPx,groundY:groundY,topY:topY,tw:tw,tx:tx,ax:ax,bx:bx,scale:towerPx/h};
+}
+function drawScene(G,ya,yb,tagText){
+  /* 星空 */
+  ctx.fillStyle='#0d1330';
+  ctx.fillRect(0,0,W,G.groundY);
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  for(var s=0;s<28;s++){var sx=(s*173)%W,sy=(s*97)%Math.max(60,G.groundY-10);ctx.fillRect(sx,sy,1.6,1.6);}
+  /* 地面 */
+  ctx.fillStyle='#1b2438';ctx.fillRect(0,G.groundY,W,H-G.groundY);
+  ctx.fillStyle='#2e3a58';ctx.fillRect(0,G.groundY,W,4);
+  /* 比萨斜塔简笔画 */
+  ctx.save();
+  var lean=G.towerPx*0.10;
+  ctx.translate(G.tx,G.topY);
+  ctx.fillStyle='#a89f93';
+  ctx.beginPath();
+  ctx.moveTo(0,0);ctx.lineTo(G.tw,0);ctx.lineTo(G.tw+lean,G.towerPx);ctx.lineTo(lean,G.towerPx);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#7d7466';ctx.lineWidth=2;
+  for(var l=1;l<6;l++){
+    var yy=G.towerPx*l/6,off=lean*l/6;
+    ctx.beginPath();ctx.moveTo(off,yy);ctx.lineTo(off+G.tw,yy);ctx.stroke();
+  }
+  /* 顶层钟楼 */
+  ctx.fillStyle='#b7ae9f';ctx.fillRect(-lean*0.4,-22,G.tw+lean*0.8,24);
+  ctx.fillStyle='#0a0e1a';ctx.fillRect(-lean*0.4+6,-16,G.tw+lean*0.8-12,12);
+  ctx.restore();
+  ctx.fillStyle='#8f8678';ctx.font='12px sans-serif';ctx.textAlign='center';
+  ctx.fillText('比萨斜塔',G.tx+G.tw/2+lean/2,G.groundY+14);
+  /* A铁球 */
+  drawBall(G.ax,ya,13,'#90a4ae','#546e7a','A 铁球');
+  /* B纸团 */
+  drawBall(G.bx,yb,10,'#fff176','#f9a825','B 纸团');
+  /* 阶段标签 */
+  if(tagText){ctx.fillStyle='#4fc3f7';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(tagText,W/2,34);}
+}
+function drawBall(x,ym,r,c1,c2,label){
+  var G=geomCache;
+  var y=G.topY+16+ym*G.scale;
+  var grd=ctx.createRadialGradient(x-r*0.3,y-r*0.3,r*0.2,x,y,r);
+  grd.addColorStop(0,c1);grd.addColorStop(1,c2);
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(x,y,r,0,6.29);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#e8eaf6';ctx.font='12px sans-serif';ctx.textAlign='center';
+  ctx.fillText(label,x,y+r+14);
+}
+var geomCache=null;
+window.onFrame=function(dt){
+  updDust(dt);
+  var G=geom();geomCache=G;
+  var ya=0,yb=0,tag='';
+  if(phase==='quiz'){
+    tag='🔭 等待预测…';
+  }else if(phase==='drop1'){
+    animT+=dt*ANIM_SPEED;
+    var ym=Math.min(h,0.5*g*animT*animT);
+    ya=yb=ym; tag='🚫 无空气阻力：同步下落';
+    if(animT>=tN&&!landedN){
+      landedN=true;addDust(G.ax,G.groundY);addDust(G.bx,G.groundY);
+      floatText(W/2,G.groundY-70,'同时落地','#66BB6A');
+      buzz(60);
+      $('readout').innerHTML='✅ 无阻力：两球<b>同时落地</b>！t='+f2(tN)+'s，末速v=√(2gh)='+f2(vN)+'m/s';
+      phase='rest';restT=0;
+    }
+  }else if(phase==='rest'){
+    ya=yb=h;
+    restT+=dt;tag='⏳ 切换：加入空气阻力…';
+    if(restT>0.9){phase='drop2';animT=0;landedA=landedB=false;
+      $('readout').innerHTML='🌬️ <b>有空气阻力</b>：铁球快、纸团飘。铁球 t≈'+f2(tA)+'s，纸团 t≈'+f2(tB)+'s（动画2倍速）';}
+  }else if(phase==='drop2'){
+    animT+=dt*ANIM_SPEED;
+    var aA=2*h/(tA*tA);
+    ya=Math.min(h,0.5*aA*animT*animT);
+    var vt=6,tacc=vt/g,yacc=0.5*g*tacc*tacc;
+    if(animT<=tacc){yb=0.5*g*animT*animT;}else{yb=Math.min(h,yacc+vt*(animT-tacc));}
+    tag='🌬️ 有空气阻力：铁球领先';
+    if(animT>=tA&&!landedA){landedA=true;addDust(G.ax,G.groundY);floatText(G.ax,G.groundY-70,'铁球先落地','#FFD54F');}
+    if(animT>=tB&&!landedB){landedB=true;addDust(G.bx,G.groundY);floatText(G.bx,G.groundY-70,'纸团后落地','#90a4ae');}
+    if(animT>=Math.max(tA,tB)){
+      phase='done';ya=yb=h;
+      $('readout').innerHTML='✅ 本轮：无阻力同时落地；有阻力<b>铁球快 '+f2(tB-tA)+'s</b>。';
+      roundTimer=setTimeout(function(){
+        if(round>=5){
+          endGame('实验结论：无空气阻力时，轻重物体同时落地（伽利略）；有阻力时，重物下落更快——羽毛和铁球的差别来自空气阻力，不是重量本身。','h=½gt²，t=√(2h/g)');
+        }else{round++;updHUD();nextRound();}
+      },2600);
+    }
+  }else if(phase==='done'){
+    ya=yb=h;tag='✅ 本轮完成';
+  }
+  drawScene(G,ya,yb,tag);
+  drawDust();
+};
+window.onResize=function(){};
+</script>
+</body>
+</html>
