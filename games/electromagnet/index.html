@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>电磁铁</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0d1020;color:#e8ecf8;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px}
+header{width:100%;max-width:480px;display:flex;justify-content:space-between;align-items:center;padding:6px 2px}
+h1{font-size:20px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #2a3358;background:#161c34;color:#fff}
+canvas{width:100%;max-width:480px;border-radius:14px;background:#0a0d1a;border:1px solid #232c52}
+.panel{width:100%;max-width:480px;background:#141a33;border:1px solid #232c52;border-radius:14px;padding:12px;margin-top:10px}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.row label{width:78px;font-size:14px;color:#9fb0d8}
+.row output{width:76px;text-align:right;font-size:15px;color:#ffd75e;font-weight:bold}
+input[type=range]{flex:1;height:34px;accent-color:#4d7cff}
+.btn{width:100%;min-height:48px;border:none;border-radius:12px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-size:17px;font-weight:bold;margin-top:6px}
+.btn:active{transform:scale(.97)}
+.data{display:flex;justify-content:space-around;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px;flex-wrap:wrap}
+.data div{text-align:center;min-width:70px}
+.data .v{font-size:18px;font-weight:bold;color:#5ef2b8}
+.data .k{font-size:12px;color:#9fb0d8;margin-top:2px}
+.formula{text-align:center;color:#ffd75e;font-size:16px;margin-top:8px;font-weight:bold}
+.conclusion{font-size:14px;line-height:1.7;color:#c6d2f2;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,20,.92);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:30px;text-align:center}
+#overlay h2{font-size:28px;margin-bottom:12px}
+#overlay p{font-size:15px;color:#9fb0d8;line-height:1.8;margin-bottom:20px}
+#overlay button{min-width:200px;min-height:52px;font-size:18px;border:none;border-radius:14px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-weight:bold}
+.score{font-size:14px;color:#ffd75e}
+</style>
+</head>
+<body>
+<header>
+<h1>🧲 电磁铁</h1>
+<div class="hbtns">
+<button id="bMute">🔊</button>
+<button id="bPause">⏸</button>
+<button id="bReset">↺</button>
+</div>
+</header>
+<div class="score" id="scoreLine">成功 0 次 · 最高 <span id="hs">0</span> 次</div>
+<canvas id="cv" width="480" height="400"></canvas>
+<div class="panel">
+<div class="row"><label>线圈匝数 N</label><input type="range" id="nR" min="50" max="500" step="10" value="200"><output id="nV">200 匝</output></div>
+<div class="row"><label>电流 I</label><input type="range" id="iR" min="0" max="3" step="0.1" value="1"><output id="iV">1.0 A</output></div>
+<button class="btn" id="bCheck">🎯 验证：吸起目标数量回形针</button>
+<div class="data">
+<div><div class="v" id="dB">—</div><div class="k">磁场强度(相对)</div></div>
+<div><div class="v" id="dC">0</div><div class="k">吸起回形针</div></div>
+<div><div class="v" id="dT">—</div><div class="k">目标数量</div></div>
+</div>
+<div class="formula">B ∝ N·I（匝数×电流越大，磁性越强）</div>
+<div class="conclusion">📝 <b>实验结论：</b>通电螺线管周围存在磁场，插入铁芯就成了<b>电磁铁</b>。磁性强弱由<b>电流大小</b>和<b>线圈匝数</b>决定；断电后磁性消失——这是电磁铁区别于永磁铁的最大优点，可用来做电磁起重机、电铃！</div>
+</div>
+<div id="overlay"><h2>🧲 电磁铁</h2><p>拖动滑杆改变<b>线圈匝数</b>和<b>电流</b>，看磁感线密度、小磁针偏转和吸起的回形针。<br>挑战：调出能吸起<b>目标数量</b>回形针的组合！<br>电流调到 0 会发生什么？</p><button id="bStart">开始实验</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let N=200,I=1,target=null,hits=0,flash=0,running=false,paused=false;
+let hs=parseInt(localStorage.getItem('g100_electromagnet_hs')||'0',10);
+let muted=localStorage.getItem('g100_mute')==='1';
+document.getElementById('hs').textContent=hs;
+document.getElementById('bMute').textContent=muted?'🔇':'🔊';
+let AC=null;
+function beep(f,d,type){ if(muted)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain(); o.type=type||'sine'; o.frequency.value=f; g.gain.setValueAtTime(.15,AC.currentTime); g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d); o.connect(g);g.connect(AC.destination); o.start(); o.stop(AC.currentTime+d);}catch(e){} }
+const B=()=>N*I/100; // 相对磁场强度 0~15
+const clips=()=>Math.min(12,Math.floor(B()*1.1));
+function newTarget(){ target=2+Math.floor(Math.random()*9); document.getElementById('dT').textContent=target+' 个'; }
+function upd(){ document.getElementById('nV').textContent=N+' 匝'; document.getElementById('iV').textContent=I.toFixed(1)+' A';
+  document.getElementById('dB').textContent=B().toFixed(1);
+  document.getElementById('dC').textContent=clips()+' 个'; }
+document.getElementById('nR').addEventListener('input',e=>{ N=+e.target.value; upd(); beep(400+N,.05); });
+document.getElementById('iR').addEventListener('input',e=>{ I=+e.target.value; upd(); beep(300+I*200,.05); });
+document.getElementById('bCheck').addEventListener('click',()=>{ if(!running||paused||target===null)return;
+  beep(880,.12,'square');
+  if(clips()===target){ hits++; flash=20; beep(660,.15); setTimeout(()=>beep(990,.2),120); if(navigator.vibrate)navigator.vibrate(60);
+    if(hits>hs){hs=hits;localStorage.setItem('g100_electromagnet_hs',String(hs));} newTarget(); }
+  else { beep(220,.25,'sawtooth'); }
+  document.getElementById('scoreLine').innerHTML='成功 '+hits+' 次 · 最高 <span id="hs">'+hs+'</span> 次';
+});
+function draw(){
+  ctx.clearRect(0,0,480,400);
+  const b=B(), cx=240, cy=150;
+  // 铁芯
+  ctx.fillStyle='#5b6478'; roundRect(cx-110,cy-26,220,52,10); ctx.fill();
+  ctx.fillStyle='#8a94b8'; ctx.font='13px sans-serif'; ctx.fillText('铁芯',cx-14,cy+5);
+  // 线圈（匝数示意：画 min(14,N/35) 圈）
+  const loops=Math.max(3,Math.min(14,Math.round(N/36)));
+  ctx.strokeStyle=I>0?'#ffb050':'#3a4570'; ctx.lineWidth=5;
+  for(let k=0;k<loops;k++){ const x=cx-100+k*(200/(loops-1));
+    ctx.beginPath(); ctx.ellipse(x,cy,12,34,0,0,7); ctx.stroke(); }
+  // 电源线
+  ctx.strokeStyle='#8a94b8'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(cx-100,cy+34); ctx.lineTo(cx-100,cy+70); ctx.lineTo(cx+100,cy+70); ctx.lineTo(cx+100,cy+34); ctx.stroke();
+  ctx.fillStyle='#1d2547'; ctx.fillRect(cx-40,cy+58,80,26);
+  ctx.fillStyle='#ffd75e'; ctx.font='bold 14px sans-serif'; ctx.fillText(I.toFixed(1)+'A',cx-20,cy+77);
+  // 磁感线（密度∝B）
+  if(b>0.05){
+    ctx.strokeStyle='rgba(120,160,255,.6)'; ctx.lineWidth=1.5;
+    const nL=Math.min(9,2+Math.floor(b));
+    for(let k=0;k<nL;k++){ const off=(k-(nL-1)/2)*22;
+      ctx.beginPath();
+      ctx.moveTo(cx-130,cy+off);
+      ctx.bezierCurveTo(cx-170,cy+off*1.6,cx-170,cy-off*1.6,cx-130,cy-off);
+      ctx.moveTo(cx+130,cy+off);
+      ctx.bezierCurveTo(cx+170,cy+off*1.6,cx+170,cy-off*1.6,cx+130,cy-off);
+      ctx.stroke();
+    }
+    // N/S 极标注（右端N，电流方向假设）
+    ctx.fillStyle='#e5484d'; ctx.font='bold 16px sans-serif'; ctx.fillText('N',cx+118,cy-34);
+    ctx.fillStyle='#3b82f6'; ctx.fillText('S',cx-132,cy-34);
+  }
+  // 小磁针（3个，有磁场时沿磁感线方向排列）
+  [[90,cy],[390,cy],[240,60]].forEach(([x,y],idx)=>{
+    ctx.save(); ctx.translate(x,y);
+    if(b>0.05) ctx.rotate(x<cx?Math.PI:0); else ctx.rotate(0.5+idx*0.7);
+    ctx.fillStyle='#e5484d'; ctx.fillRect(0,-4,20,8);
+    ctx.fillStyle='#3b82f6'; ctx.fillRect(-20,-4,20,8);
+    ctx.fillStyle='#0d1020'; ctx.beginPath(); ctx.arc(0,0,3,0,7); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle='#9fb0d8'; ctx.font='11px sans-serif'; ctx.fillText('小磁针',x-18,y+22);
+  });
+  // 回形针
+  const n=clips();
+  const perRow=6;
+  for(let k=0;k<n;k++){ const col=k%perRow,row=Math.floor(k/perRow);
+    const x=150+col*36, y=300+row*30;
+    // 被吸起：靠近铁芯底部
+    const lift=Math.min(1,b/3);
+    const yy=y-lift*44;
+    ctx.strokeStyle='#c6d2f2'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.ellipse(x,yy,7,12,0.2,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x,yy,3.5,7,0.2,0,7); ctx.stroke();
+  }
+  ctx.fillStyle='#9fb0d8'; ctx.font='13px sans-serif';
+  ctx.fillText('回形针堆（磁性越强吸起越多）',140,372);
+  if(b<=0.05){ ctx.fillStyle='#ff7b7b'; ctx.font='bold 16px sans-serif'; ctx.fillText('⚠ 电流为 0，电磁铁无磁性！',130,110); }
+  if(flash>0){ flash--; ctx.fillStyle='rgba(255,215,94,'+(flash/40)+')'; ctx.fillRect(0,0,480,400);
+    ctx.fillStyle='#ffd75e'; ctx.font='bold 26px sans-serif'; ctx.fillText('✓ 达标！',200,200); }
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function loop(){ if(running&&!paused) draw(); requestAnimationFrame(loop); }
+document.getElementById('bStart').addEventListener('click',()=>{ document.getElementById('overlay').style.display='none'; running=true; upd(); newTarget(); beep(523,.15); loop(); });
+document.getElementById('bPause').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+document.getElementById('bReset').addEventListener('click',()=>{ hits=0; N=200;I=1; document.getElementById('nR').value=200; document.getElementById('iR').value=1; upd(); newTarget(); document.getElementById('scoreLine').innerHTML='成功 0 次 · 最高 <span id="hs">'+hs+'</span> 次'; });
+document.getElementById('bMute').addEventListener('click',e=>{ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); e.target.textContent=muted?'🔇':'🔊'; });
+upd(); loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>共振实验</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0d1020;color:#e8ecf8;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px}
+header{width:100%;max-width:480px;display:flex;justify-content:space-between;align-items:center;padding:6px 2px}
+h1{font-size:20px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #2a3358;background:#161c34;color:#fff}
+canvas{width:100%;max-width:480px;border-radius:14px;background:#0a0d1a;border:1px solid #232c52}
+.panel{width:100%;max-width:480px;background:#141a33;border:1px solid #232c52;border-radius:14px;padding:12px;margin-top:10px}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.row label{width:86px;font-size:14px;color:#9fb0d8}
+.row output{width:76px;text-align:right;font-size:15px;color:#ffd75e;font-weight:bold}
+input[type=range]{flex:1;height:34px;accent-color:#4d7cff}
+.btn{width:100%;min-height:48px;border:none;border-radius:12px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-size:17px;font-weight:bold;margin-top:6px}
+.btn:active{transform:scale(.97)}
+.data{display:flex;justify-content:space-around;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+.data div{text-align:center}
+.data .v{font-size:18px;font-weight:bold;color:#5ef2b8}
+.data .k{font-size:12px;color:#9fb0d8;margin-top:2px}
+.formula{text-align:center;color:#ffd75e;font-size:15px;margin-top:8px;font-weight:bold}
+.conclusion{font-size:14px;line-height:1.7;color:#c6d2f2;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,20,.92);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:30px;text-align:center}
+#overlay h2{font-size:28px;margin-bottom:12px}
+#overlay p{font-size:15px;color:#9fb0d8;line-height:1.8;margin-bottom:20px}
+#overlay button{min-width:200px;min-height:52px;font-size:18px;border:none;border-radius:14px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-weight:bold}
+.score{font-size:14px;color:#ffd75e}
+</style>
+</head>
+<body>
+<header>
+<h1>🔔 共振实验</h1>
+<div class="hbtns">
+<button id="bMute">🔊</button>
+<button id="bPause">⏸</button>
+<button id="bReset">↺</button>
+</div>
+</header>
+<div class="score" id="scoreLine">找到共振 0 次 · 最高 <span id="hs">0</span> 次</div>
+<canvas id="cv" width="480" height="430"></canvas>
+<div class="panel">
+<div class="row"><label>驱动频率 f</label><input type="range" id="fR" min="200" max="680" step="2" value="300"><output id="fV">300 Hz</output></div>
+<button class="btn" id="bCheck">🎯 验证：找到共振点（±5Hz）</button>
+<div class="data">
+<div><div class="v" id="dF">300Hz</div><div class="k">驱动频率</div></div>
+<div><div class="v">440Hz</div><div class="k">音叉固有频率</div></div>
+<div><div class="v" id="dA">—</div><div class="k">B叉振幅</div></div>
+</div>
+<div class="formula">f<sub>驱动</sub> = f<sub>固有</sub> 时发生共振，振幅最大</div>
+<div class="conclusion">📝 <b>实验结论：</b>当驱动力频率等于物体的<b>固有频率</b>时，振幅达到最大——这就是<b>共振</b>。军队过桥不能齐步走、歌手能震碎玻璃杯、秋千越荡越高，都是共振现象。共振曲线在固有频率处出现尖锐峰值。</div>
+</div>
+<div id="overlay"><h2>🔔 共振实验</h2><p>左边音叉 A 用<b>可调频率</b>敲击，右边音叉 B 固有频率 <b>440Hz</b>。<br>拖动滑杆，观察 B 叉振幅随频率的变化曲线。<br>挑战：找到让 B 叉振幅最大的<b>共振点</b>！</p><button id="bStart">开始实验</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const F0=440, GAMMA=28;
+let f=300,hits=0,flash=0,t=0,running=false,paused=false,found=false;
+let hs=parseInt(localStorage.getItem('g100_resonance_hs')||'0',10);
+let muted=localStorage.getItem('g100_mute')==='1';
+document.getElementById('hs').textContent=hs;
+document.getElementById('bMute').textContent=muted?'🔇':'🔊';
+let AC=null;
+function beep(fr,d,type){ if(muted)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain(); o.type=type||'sine'; o.frequency.value=fr; g.gain.setValueAtTime(.12,AC.currentTime); g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d); o.connect(g);g.connect(AC.destination); o.start(); o.stop(AC.currentTime+d);}catch(e){} }
+// 共振响应（洛伦兹线型），归一化 0~1
+function amp(ff){ const d=F0*F0-ff*ff; return 1/Math.sqrt(d*d+(GAMMA*ff)*(GAMMA*ff))* (F0*F0/(GAMMA*F0)); }
+function upd(){ document.getElementById('fV').textContent=f+' Hz';
+  document.getElementById('dF').textContent=f+'Hz';
+  document.getElementById('dA').textContent=Math.round(amp(f)*100)+'%';
+  found=false; }
+document.getElementById('fR').addEventListener('input',e=>{ f=+e.target.value; upd(); beep(200+f*0.8,.06); });
+document.getElementById('bCheck').addEventListener('click',()=>{ if(!running||paused)return;
+  if(Math.abs(f-F0)<=5&&!found){ found=true; hits++; flash=25;
+    beep(660,.15); setTimeout(()=>beep(880,.15),120); setTimeout(()=>beep(1320,.25),240);
+    if(navigator.vibrate)navigator.vibrate([60,40,60]);
+    if(hits>hs){hs=hits;localStorage.setItem('g100_resonance_hs',String(hs));}
+    document.getElementById('scoreLine').innerHTML='找到共振 '+hits+' 次 · 最高 <span id="hs">'+hs+'</span> 次';
+  } else if(!found){ beep(220,.25,'sawtooth'); }
+});
+function fork(x,y,a,label,sub){
+  // 音叉：底座+两臂，振幅 a 控制张开抖动
+  ctx.fillStyle='#39415f'; roundRect(x-34,y,68,16,6); ctx.fill();
+  ctx.strokeStyle='#9fc4ff'; ctx.lineWidth=9; ctx.lineCap='round';
+  const wob=Math.sin(t*10)*a*10;
+  ctx.beginPath(); ctx.moveTo(x-16,y); ctx.lineTo(x-16-wob,y-92); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x+16,y); ctx.lineTo(x+16+wob,y-92); ctx.stroke();
+  // 声波
+  if(a>0.06){ ctx.strokeStyle='rgba(120,180,255,'+Math.min(.8,a)+')'; ctx.lineWidth=2;
+    for(let k=1;k<=3;k++){ const r=k*16+a*8;
+      ctx.beginPath(); ctx.arc(x-16-wob,y-70,r,r*0.6,r*1.15,Math.PI*1.35,Math.PI*1.65); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x+16+wob,y-70,r,Math.PI*1.35,Math.PI*1.65,Math.PI*0.35,Math.PI*0.65); ctx.stroke(); } }
+  ctx.fillStyle='#9fb0d8'; ctx.font='14px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(label,x,y+36); ctx.font='12px sans-serif'; ctx.fillText(sub,x,y+54); ctx.textAlign='left';
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function draw(){
+  ctx.clearRect(0,0,480,430);
+  t+=0.05;
+  const aA=0.55, aB=amp(f);
+  fork(130,180,aA,'音叉 A','驱动 '+f+'Hz');
+  fork(350,180,aB,'音叉 B','固有 '+F0+'Hz');
+  // 共振曲线
+  const gx=40,gy=300,gw=400,gh=100;
+  ctx.strokeStyle='#3a4570'; ctx.lineWidth=1.5; ctx.strokeRect(gx,gy,gw,gh);
+  ctx.fillStyle='#9fb0d8'; ctx.font='12px sans-serif';
+  ctx.fillText('振幅-频率响应曲线',gx+8,gy-8);
+  ctx.fillText('200Hz',gx,gy+gh+14); ctx.fillText('680Hz',gx+gw-44,gy+gh+14);
+  // F0 标记线
+  const x0=gx+(F0-200)/480*gw;
+  ctx.setLineDash([5,5]); ctx.strokeStyle='#ffd75e';
+  ctx.beginPath(); ctx.moveTo(x0,gy); ctx.lineTo(x0,gy+gh); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#ffd75e'; ctx.fillText('f₀=440',x0-20,gy+gh+14);
+  // 曲线
+  ctx.strokeStyle='#5ef2b8'; ctx.lineWidth=2.5; ctx.beginPath();
+  for(let k=0;k<=120;k++){ const ff=200+480*k/120;
+    const x=gx+k/120*gw, y=gy+gh-amp(ff)*gh*0.96;
+    if(k===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); }
+  ctx.stroke();
+  // 当前点
+  const cxp=gx+(f-200)/480*gw, cyp=gy+gh-amp(f)*gh*0.96;
+  ctx.fillStyle='#ff5050'; ctx.beginPath(); ctx.arc(cxp,cyp,7,0,7); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(cxp,cyp,3,0,7); ctx.fill();
+  // 振幅条
+  ctx.fillStyle='#3a4570'; ctx.fillRect(gx,gy+gh+26,gw,10);
+  const gr=ctx.createLinearGradient(gx,0,gx+gw,0); gr.addColorStop(0,'#4d7cff'); gr.addColorStop(1,'#ff5050');
+  ctx.fillStyle=gr; ctx.fillRect(gx,gy+gh+26,gw*aB,10);
+  ctx.fillStyle='#9fb0d8'; ctx.fillText('B叉振幅 '+Math.round(aB*100)+'%',gx+gw+4,gy+gh+36);
+  if(Math.abs(f-F0)<=5){ ctx.fillStyle='#5ef2b8'; ctx.font='bold 15px sans-serif'; ctx.fillText('✦ 共振区！',200,268); }
+  if(flash>0){ flash--; ctx.fillStyle='rgba(94,242,184,'+(flash/50)+')'; ctx.fillRect(0,0,480,430);
+    ctx.fillStyle='#5ef2b8'; ctx.font='bold 26px sans-serif'; ctx.textAlign='center'; ctx.fillText('🔔 找到共振点！',240,120); ctx.textAlign='left'; }
+}
+function loop(){ if(running&&!paused){ t+=0.05; draw(); } requestAnimationFrame(loop); }
+document.getElementById('bStart').addEventListener('click',()=>{ document.getElementById('overlay').style.display='none'; running=true; upd(); beep(523,.15); loop(); });
+document.getElementById('bPause').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+document.getElementById('bReset').addEventListener('click',()=>{ hits=0; f=300; document.getElementById('fR').value=300; upd(); document.getElementById('scoreLine').innerHTML='找到共振 0 次 · 最高 <span id="hs">'+hs+'</span> 次'; });
+document.getElementById('bMute').addEventListener('click',e=>{ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); e.target.textContent=muted?'🔇':'🔊'; });
+upd(); loop();
+</script>
+</body>
+</html>
