@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>极限跳伞</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#0b0a14;overflow:hidden}
+body{font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#fff}
+#wrap{max-width:430px;height:100%;margin:0 auto;position:relative;background:#141021}
+canvas{display:block;width:100%;aspect-ratio:360/520;touch-action:none;background:#141021}
+.hud{position:absolute;top:6px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;z-index:5}
+#scoreBox{background:rgba(0,0,0,.45);border:1px solid #039be5;border-radius:10px;padding:4px 10px;font-size:14px;font-weight:bold}
+#windBox{background:rgba(0,0,0,.45);border:1px solid #546e7a;border-radius:10px;padding:4px 10px;font-size:13px;margin-top:4px;min-height:26px}
+.hudbtns{pointer-events:auto}
+.iconbtn{width:44px;height:44px;font-size:22px;background:rgba(0,0,0,.45);border:1px solid #555;border-radius:12px;color:#fff;margin-left:6px}
+.ovl{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,8,22,.88);z-index:10;text-align:center;padding:24px}
+.hidden{display:none!important}
+.ovl h1{font-size:34px;margin-bottom:6px}
+.ovl h2{font-size:26px;margin-bottom:10px;color:#4fc3f7}
+.ovl p{font-size:14px;line-height:1.9;color:#cfc6e8;margin-bottom:14px;max-width:300px}
+.bigbtn{min-width:170px;min-height:52px;font-size:20px;font-weight:bold;color:#fff;background:linear-gradient(135deg,#039be5,#01579b);border:none;border-radius:16px;margin:6px;box-shadow:0 4px 14px rgba(3,155,229,.5)}
+.bigbtn:active{transform:scale(.95)}
+.bigbtn:disabled{background:#546e7a;box-shadow:none;opacity:.7}
+.rec{color:#ffea00;font-weight:bold;margin:6px 0;animation:pop .5s ease}
+@keyframes pop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}
+#chuteBtn{position:absolute;right:12px;bottom:18px;width:96px;height:96px;border-radius:50%;font-size:17px;font-weight:bold;color:#fff;background:radial-gradient(circle at 35% 30%,#4fc3f7,#01579b);border:3px solid #b3e5fc;z-index:6;box-shadow:0 4px 16px rgba(3,155,229,.6)}
+#chuteBtn:active{transform:scale(.92)}
+#chuteBtn:disabled{background:#455a64;border-color:#78909c;opacity:.55;box-shadow:none}
+.steer{position:absolute;bottom:18px;width:64px;height:64px;border-radius:50%;font-size:26px;background:rgba(0,0,0,.5);border:2px solid #78909c;color:#fff;z-index:6}
+#btnL{left:12px}#btnR{left:88px}
+.steer:active{background:rgba(3,155,229,.5)}
+.tip{font-size:12px;color:#8f86ad;margin-top:10px}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="cv" width="360" height="520"></canvas>
+<div class="hud">
+<div><div id="scoreBox">总分 0 · 第1/3跳</div><div id="windBox">🌬 风：·</div></div>
+<div class="hudbtns"><button id="muteBtn" class="iconbtn">🔊</button><button id="pauseBtn" class="iconbtn">⏸</button></div>
+</div>
+<button id="btnL" class="steer">◀</button>
+<button id="btnR" class="steer">▶</button>
+<button id="chuteBtn" disabled>拉伞<br>🪂</button>
+<div id="menu" class="ovl">
+<h1>🪂 极限跳伞</h1>
+<p>马戏高空跳伞表演！<br>👆 左右拖动屏幕 / 按 ◀ ▶ 控制漂移<br>🌬 注意风向箭头，风会把你吹偏<br>🪂 接近地面点「拉伞」减速（只能拉一次）<br>命中靶心：内圈100 / 中圈60 / 外圈30<br>速度太快触地 = 重摔 0 分！单局 3 跳累分。</p>
+<button id="startBtn" class="bigbtn">开始跳伞</button>
+<div class="tip" id="menuBest"></div>
+</div>
+<div id="pause" class="ovl hidden">
+<h2>⏸ 已暂停</h2>
+<button id="resumeBtn" class="bigbtn">继续</button>
+<button id="quitBtn" class="bigbtn" style="background:linear-gradient(135deg,#546e7a,#37474f)">重来</button>
+</div>
+<div id="jump" class="ovl hidden">
+<h2 id="jumpTitle"></h2>
+<p id="jumpInfo"></p>
+<button id="nextBtn" class="bigbtn">下一跳</button>
+</div>
+<div id="over" class="ovl hidden">
+<h2>🪂 3 跳结束</h2>
+<div id="newRec" class="rec hidden">🏆 新纪录！</div>
+<p id="overInfo"></p>
+<button id="againBtn" class="bigbtn">再来一次</button>
+</div>
+</div>
+<script>
+'use strict';
+(function(){
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=cv.width,H=cv.height;
+var HS='g100_parachute_hs';
+var best=parseInt(localStorage.getItem(HS)||'0',10)||0;
+var muted=localStorage.getItem('g100_sound')==='0';
+var AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f0,f1,dur,type,vol,delay){
+  if(muted)return;var a=ac();if(!a)return;
+  var t=a.currentTime+(delay||0);
+  var o=a.createOscillator(),g=a.createGain();
+  o.type=type||'sine';o.frequency.setValueAtTime(Math.max(1,f0),t);
+  if(f1&&f1!==f0)o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t+dur);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol||0.16,t+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+dur+0.05);
+}
+function noiseSfx(dur,vol,fc){
+  if(muted)return;var a=ac();if(!a)return;
+  var n=Math.floor(a.sampleRate*dur),buf=a.createBuffer(1,n,a.sampleRate),d=buf.getChannelData(0);
+  for(var i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);
+  var src=a.createBufferSource();src.buffer=buf;
+  var f=a.createBiquadFilter();f.type='lowpass';f.frequency.value=fc||800;
+  var g=a.createGain();g.gain.value=vol||0.25;
+  src.connect(f);f.connect(g);g.connect(a.destination);src.start();
+}
+function sfx(n){
+  if(n==='click')tone(660,660,0.07,'square',0.1);
+  else if(n==='whoosh')noiseSfx(0.5,0.22,1400);
+  else if(n==='score'){tone(660,660,0.09,'sine',0.16);tone(990,990,0.14,'sine',0.16,0.09);}
+  else if(n==='miss')tone(330,220,0.25,'triangle',0.15);
+  else if(n==='crash'){noiseSfx(0.4,0.3,400);tone(120,40,0.4,'sine',0.28);}
+  else if(n==='win'){var f=[523,659,784,1046,1318];for(var i=0;i<f.length;i++)tone(f[i],f[i],0.12,'triangle',0.16,i*0.1);}
+}
+function buzz(p){if(navigator.vibrate){try{navigator.vibrate(p);}catch(e){}}}
+var GROUND=H-44;
+var mode='menu',jphase='fall';
+var jn=0,total=0,jumpScore=0;
+var pl={x:180,y:-40,vx:0,vy:0};
+var open=false,canopyK=0;
+var wind={amp:60,freq:0.8,ph:0},windAx=0,gt=0;
+var targetX=180,lastVy=0;
+var drag={on:false,tx:180},btnDir=0;
+var parts=[],floats=[],clouds=[];
+for(var i=0;i<5;i++)clouds.push({x:Math.random()*W,y:60+Math.random()*180,r:22+Math.random()*26,v:6+Math.random()*10});
+function startJump(){
+  jn++;jumpScore=0;open=false;canopyK=0;jphase='fall';
+  pl.x=90+Math.random()*180;pl.y=-40;pl.vx=0;pl.vy=0;
+  wind={amp:45+Math.random()*55,freq:0.5+Math.random()*0.7,ph:Math.random()*6.28};
+  targetX=60+Math.random()*240;
+  parts=[];floats=[];
+  hide('jump');hide('over');
+  document.getElementById('chuteBtn').disabled=true;
+  updHud();
+}
+function updHud(){
+  document.getElementById('scoreBox').textContent='总分 '+total+' · 第'+jn+'/3跳';
+  var arrow='·',mag='';
+  if(windAx>8){arrow='→';}else if(windAx<-8){arrow='←';}
+  if(arrow!=='·'){var n=Math.min(3,Math.round(Math.abs(windAx)/45));mag=new Array(n+1).join(arrow);}
+  document.getElementById('windBox').textContent='🌬 风：'+(arrow==='·'?'微风':mag);
+}
+function addFloat(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color,life:1.4,max:1.4});}
+function burst(x,y,color,n){
+  for(var i=0;i<n;i++){var a=Math.random()*6.28,sp=60+Math.random()*160;
+    parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-80,life:1,max:1,color:color,r:2+Math.random()*3});}
+}
+function land(){
+  jphase='done';lastVy=pl.vy;
+  var d=Math.abs(pl.x-targetX);
+  if(pl.vy>240){
+    jumpScore=0;sfx('crash');buzz([80,50,80]);burst(pl.x,GROUND-10,'#ff7043',34);
+    addFloat(pl.x,GROUND-80,'💥 重摔！0分','#ff8a80');
+  }else{
+    if(d<=36)jumpScore=100;else if(d<=72)jumpScore=60;else if(d<=120)jumpScore=30;else jumpScore=0;
+    total+=jumpScore;
+    if(jumpScore>0){sfx('score');buzz(25);burst(pl.x,GROUND-16,'#ffd54f',22);}
+    else sfx('miss');
+    addFloat(pl.x,GROUND-80,(jumpScore>0?'+':'')+jumpScore+' 分',jumpScore>0?'#a7ffeb':'#b0bec5');
+  }
+  document.getElementById('jumpTitle').textContent='第 '+jn+' 跳：'+jumpScore+' 分';
+  document.getElementById('jumpInfo').innerHTML=
+    (lastVy>240?'💥 触地速度太快，重摔！':'🪂 落点距靶心 '+Math.round(d)+' px')+
+    '<br>当前总分：<b>'+total+'</b>';
+  document.getElementById('nextBtn').textContent=jn>=3?'查看总分':'下一跳 →';
+  show('jump');
+  document.getElementById('chuteBtn').disabled=true;
+  updHud();
+}
+function finish(){
+  mode='over';hide('jump');
+  var rec=false;
+  if(total>best){best=total;localStorage.setItem(HS,String(best));rec=true;sfx('win');}
+  document.getElementById('overInfo').innerHTML=
+    '3 跳总分：<b>'+total+'</b><br>历史最高：<b>'+best+'</b>';
+  document.getElementById('newRec').classList.toggle('hidden',!rec);
+  show('over');
+  document.getElementById('pauseBtn').textContent='⏸';
+}
+function pullChute(){
+  if(mode!=='play'||jphase!=='fall'||open||pl.y<240)return;
+  open=true;pl.vy=Math.min(pl.vy,60);
+  sfx('whoosh');buzz(20);
+  document.getElementById('chuteBtn').disabled=true;
+  addFloat(pl.x,pl.y-40,'开伞！','#4fc3f7');
+}
+var lastT=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(!lastT)lastT=ts;
+  var dt=Math.min(0.05,(ts-lastT)/1000);lastT=ts;
+  if(mode==='play'&&jphase==='fall'){
+    gt+=dt;
+    windAx=wind.amp*Math.sin(wind.freq*gt+wind.ph);
+    pl.vx+=windAx*dt;
+    if(drag.on){
+      var want=(drag.tx-pl.x)*5;
+      pl.vx+=(want-pl.vx)*Math.min(1,dt*6);
+    }else if(btnDir!==0){
+      pl.vx+=btnDir*520*dt;
+    }
+    pl.vx*=Math.pow(0.5,dt);
+    if(pl.vx>260)pl.vx=260;if(pl.vx<-260)pl.vx=-260;
+    pl.vy+=(open?70:300)*dt;
+    var term=open?110:520;
+    if(pl.vy>term)pl.vy=term;
+    pl.x+=pl.vx*dt;pl.y+=pl.vy*dt;
+    if(pl.x<12)pl.x=12;if(pl.x>348)pl.x=348;
+    if(open&&canopyK<1)canopyK=Math.min(1,canopyK+dt*3);
+    var cb=document.getElementById('chuteBtn');
+    cb.disabled=open||pl.y<240;
+    if(Math.floor(gt*4)!==Math.floor((gt-dt)*4))updHud();
+    for(var i=clouds.length-1;i>=0;i--){var c=clouds[i];c.x+=c.v*dt;if(c.x-c.r>W+30){c.x=-c.r;c.y=60+Math.random()*180;}}
+    for(i=parts.length-1;i>=0;i--){var q=parts[i];q.life-=dt;
+      if(q.life<=0){parts.splice(i,1);continue;}q.vy+=420*dt;q.x+=q.vx*dt;q.y+=q.vy*dt;}
+    for(i=floats.length-1;i>=0;i--){var f=floats[i];f.life-=dt;f.y-=34*dt;
+      if(f.life<=0)floats.splice(i,1);}
+    if(pl.y>=GROUND){pl.y=GROUND;land();}
+  }else if(mode==='play'&&jphase==='done'){
+    for(var k=parts.length-1;k>=0;k--){var q2=parts[k];q2.life-=0.016;
+      if(q2.life<=0){parts.splice(k,1);continue;}q2.vy+=420*0.016;q2.x+=q2.vx*0.016;q2.y+=q2.vy*0.016;}
+    for(var m=floats.length-1;m>=0;m--){var f2=floats[m];f2.life-=0.016;f2.y-=0.55;
+      if(f2.life<=0)floats.splice(m,1);}
+  }
+  draw(ts/1000);
+}
+function draw(t){
+  var g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#12082e');g.addColorStop(0.5,'#3d1450');g.addColorStop(0.78,'#a03d2d');g.addColorStop(1,'#2b1a12');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#ffca7a';ctx.beginPath();ctx.arc(W/2,H-150,34,0,6.29);ctx.fill();
+  ctx.fillStyle='rgba(255,202,122,.25)';ctx.beginPath();ctx.arc(W/2,H-150,52,0,6.29);ctx.fill();
+  var i;
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  for(i=0;i<clouds.length;i++){var c=clouds[i];
+    ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,6.29);ctx.arc(c.x-c.r*0.9,c.y+6,c.r*0.7,0,6.29);ctx.arc(c.x+c.r*0.9,c.y+6,c.r*0.7,0,6.29);ctx.fill();}
+  ctx.fillStyle='#20242c';ctx.fillRect(0,GROUND,W,H-GROUND);
+  ctx.fillStyle='rgba(3,155,229,.2)';ctx.fillRect(0,GROUND,W,3);
+  var cols=['#d32f2f','#f5f5f5','#d32f2f'];
+  var rr=[120,72,36];
+  for(i=0;i<3;i++){
+    ctx.fillStyle=cols[i];
+    ctx.beginPath();ctx.ellipse(targetX,GROUND+18,rr[i],rr[i]*0.3,0,0,6.29);ctx.fill();
+  }
+  ctx.fillStyle='#ffd54f';ctx.beginPath();ctx.arc(targetX,GROUND+18,6,0,6.29);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  ctx.fillText('🎯',targetX,GROUND-6);
+  if(open){
+    var cw=64*canopyK;
+    ctx.save();ctx.translate(pl.x,pl.y-34);
+    ctx.fillStyle='#29b6f6';
+    ctx.beginPath();ctx.arc(0,0,cw,Math.PI,0);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#01579b';
+    ctx.beginPath();ctx.arc(0,0,cw,Math.PI,Math.PI*1.5);ctx.lineTo(0,0);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.arc(0,0,cw,Math.PI*1.5,0);ctx.lineTo(0,0);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#e1f5fe';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(-cw,0);ctx.lineTo(0,34);ctx.moveTo(cw,0);ctx.lineTo(0,34);ctx.moveTo(0,-cw);ctx.lineTo(0,34);ctx.stroke();
+    ctx.restore();
+    ctx.font='26px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🧍',pl.x,pl.y);
+  }else{
+    ctx.save();ctx.translate(pl.x,pl.y);ctx.rotate(pl.vx*0.0012);
+    ctx.font='28px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🧍',0,0);ctx.restore();
+  }
+  var j;
+  for(j=0;j<parts.length;j++){var q3=parts[j];
+    ctx.globalAlpha=Math.max(0,q3.life/q3.max);
+    ctx.fillStyle=q3.color;ctx.fillRect(q3.x-q3.r/2,q3.y-q3.r/2,q3.r,q3.r);}
+  ctx.globalAlpha=1;
+  ctx.textAlign='center';
+  for(j=0;j<floats.length;j++){var f3=floats[j];
+    ctx.globalAlpha=Math.max(0,f3.life/f3.max);
+    ctx.fillStyle=f3.color;ctx.font='bold 17px sans-serif';
+    ctx.fillText(f3.txt,f3.x,f3.y);}
+  ctx.globalAlpha=1;
+  var alt=Math.max(0,(GROUND-pl.y)/GROUND);
+  ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(W-18,60,8,200);
+  ctx.fillStyle='#4fc3f7';ctx.fillRect(W-18,60+200*(1-alt),8,200*alt);
+  ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('高',W-14,54);
+  if(mode==='play'&&jphase==='fall'&&!open&&pl.y>120&&pl.y<240){
+    ctx.fillStyle='rgba(255,255,255,.92)';ctx.font='bold 15px sans-serif';
+    ctx.fillText('👇 快到地面了，准备拉伞！',W/2,120);
+  }
+}
+function mapX(e){
+  var r=cv.getBoundingClientRect();
+  return (e.clientX-r.left)*cv.width/r.width;
+}
+cv.addEventListener('pointerdown',function(e){
+  e.preventDefault();ac();drag.on=true;drag.tx=mapX(e);
+  try{cv.setPointerCapture(e.pointerId);}catch(err){}
+});
+cv.addEventListener('pointermove',function(e){if(drag.on)drag.tx=mapX(e);});
+function endDrag(){drag.on=false;}
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',endDrag);
+cv.addEventListener('contextmenu',function(e){e.preventDefault();});
+function bindHold(id,dir){
+  var b=document.getElementById(id);
+  b.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();ac();btnDir=dir;});
+  var off=function(){if(btnDir===dir)btnDir=0;};
+  b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);b.addEventListener('pointerleave',off);
+}
+bindHold('btnL',-1);bindHold('btnR',1);
+document.getElementById('chuteBtn').addEventListener('click',function(e){e.stopPropagation();pullChute();});
+function show(id){document.getElementById(id).classList.remove('hidden');}
+function hide(id){document.getElementById(id).classList.add('hidden');}
+document.getElementById('startBtn').addEventListener('click',function(){
+  ac();sfx('click');jn=0;total=0;mode='play';startJump();hide('menu');hide('over');
+});
+document.getElementById('againBtn').addEventListener('click',function(){
+  ac();sfx('click');jn=0;total=0;mode='play';startJump();hide('over');
+});
+document.getElementById('nextBtn').addEventListener('click',function(){
+  ac();sfx('click');
+  if(jn>=3)finish();else startJump();
+});
+document.getElementById('pauseBtn').addEventListener('click',function(){
+  if(mode==='play'&&jphase==='fall'){mode='pause';show('pause');this.textContent='▶';sfx('click');}
+  else if(mode==='pause'){mode='play';hide('pause');this.textContent='⏸';sfx('click');}
+});
+document.getElementById('resumeBtn').addEventListener('click',function(){
+  sfx('click');mode='play';hide('pause');document.getElementById('pauseBtn').textContent='⏸';
+});
+document.getElementById('quitBtn').addEventListener('click',function(){
+  sfx('click');jn=0;total=0;mode='play';startJump();hide('pause');document.getElementById('pauseBtn').textContent='⏸';
+});
+var muteBtn=document.getElementById('muteBtn');
+function updMute(){muteBtn.textContent=muted?'🔇':'🔊';}
+muteBtn.addEventListener('click',function(){
+  muted=!muted;localStorage.setItem('g100_sound',muted?'0':'1');updMute();
+  if(!muted)sfx('click');
+});
+updMute();
+document.getElementById('menuBest').textContent=best>0?('历史最高：'+best+' 分'):'';
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
