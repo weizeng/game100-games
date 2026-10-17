@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>串联与并联</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0d1020;color:#e8ecf8;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px}
+header{width:100%;max-width:480px;display:flex;justify-content:space-between;align-items:center;padding:6px 2px}
+h1{font-size:20px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #2a3358;background:#161c34;color:#fff}
+canvas{width:100%;max-width:480px;border-radius:14px;background:#0a0d1a;border:1px solid #232c52;touch-action:none}
+.panel{width:100%;max-width:480px;background:#141a33;border:1px solid #232c52;border-radius:14px;padding:12px;margin-top:10px}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.row label{width:78px;font-size:14px;color:#9fb0d8}
+.row output{width:76px;text-align:right;font-size:15px;color:#ffd75e;font-weight:bold}
+input[type=range]{flex:1;height:34px;accent-color:#4d7cff}
+.data{display:flex;justify-content:space-around;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px;flex-wrap:wrap}
+.data div{text-align:center;min-width:70px}
+.data .v{font-size:17px;font-weight:bold;color:#5ef2b8}
+.data .k{font-size:12px;color:#9fb0d8;margin-top:2px}
+.formula{text-align:center;color:#ffd75e;font-size:14px;margin-top:8px;font-weight:bold;line-height:1.8}
+.conclusion{font-size:14px;line-height:1.7;color:#c6d2f2;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,20,.92);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:30px;text-align:center}
+#overlay h2{font-size:28px;margin-bottom:12px}
+#overlay p{font-size:15px;color:#9fb0d8;line-height:1.8;margin-bottom:20px}
+#overlay button{min-width:200px;min-height:52px;font-size:18px;border:none;border-radius:14px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-weight:bold}
+</style>
+</head>
+<body>
+<header>
+<h1>🔀 串联与并联</h1>
+<div class="hbtns">
+<button id="bMute">🔊</button>
+<button id="bPause">⏸</button>
+<button id="bReset">↺</button>
+</div>
+</header>
+<canvas id="cv" width="480" height="430"></canvas>
+<div class="panel">
+<div class="row"><label>电源电压</label><input type="range" id="vR" min="2" max="12" step="1" value="6"><output id="vV">6 V</output></div>
+<div class="tip" style="font-size:14px;color:#9fb0d8">👆 点击任意一个<b>开关</b>闭合/断开该电路，对比两边灯泡亮度。</div>
+<div class="data">
+<div><div class="v" id="dSI">—</div><div class="k">串联电流</div></div>
+<div><div class="v" id="dSB">—</div><div class="k">串联单灯电压</div></div>
+<div><div class="v" id="dPI">—</div><div class="k">并联干路电流</div></div>
+<div><div class="v" id="dPB">—</div><div class="k">并联单灯电压</div></div>
+</div>
+<div class="formula">串联：I处处相等，U总=U₁+U₂　|　并联：U各支路相等，I总=I₁+I₂</div>
+<div class="conclusion">📝 <b>实验结论：</b><b>串联</b>电路电流处处相等，两灯<b>分电压</b>（各 U/2），所以比并联暗；<b>并联</b>各支路电压都等于电源电压，两灯一样亮，干路电流是支路之和。家里用电器都是并联的——这样一盏坏了不影响其他！</div>
+</div>
+<div id="overlay"><h2>🔀 串联与并联</h2><p>左右两个电路用<b>相同的电池</b>和<b>相同的灯泡</b>：<br>左边两灯<b>串联</b>，右边两灯<b>并联</b>。<br>闭合开关，对比亮度、电流、电压有什么不同？</p><button id="bStart">开始实验</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let U=6,swS=false,swP=false,running=false,paused=false,flow=0;
+let muted=localStorage.getItem('g100_mute')==='1';
+document.getElementById('bMute').textContent=muted?'🔇':'🔊';
+let AC=null;
+function beep(f,d){ if(muted)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain(); o.frequency.value=f; g.gain.setValueAtTime(.12,AC.currentTime); g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d); o.connect(g);g.connect(AC.destination); o.start(); o.stop(AC.currentTime+d);}catch(e){} }
+const RB=10; // 单灯电阻
+const sI=()=>swS?U/(2*RB):0, pIb=()=>swP?U/RB:0, pIt=()=>swP?2*U/RB:0;
+function upd(){ document.getElementById('vV').textContent=U+' V';
+  document.getElementById('dSI').textContent=swS?sI().toFixed(2)+'A':'—';
+  document.getElementById('dSB').textContent=swS?(U/2).toFixed(1)+'V':'—';
+  document.getElementById('dPI').textContent=swP?pIt().toFixed(2)+'A':'—';
+  document.getElementById('dPB').textContent=swP?U.toFixed(1)+'V':'—'; }
+document.getElementById('vR').addEventListener('input',e=>{ U=+e.target.value; upd(); beep(300+U*40,.05); });
+// 开关位置
+const SWS={x:120,y:330}, SWP={x:360,y:330};
+cv.addEventListener('pointerdown',e=>{
+  if(!running||paused)return;
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)*480/r.width, y=(e.clientY-r.top)*400/r.height;
+  if(Math.hypot(x-SWS.x,y-SWS.y)<40){ swS=!swS; beep(swS?700:400,.1,'square'); if(swS&&swP&&navigator.vibrate)navigator.vibrate(40); upd(); }
+  if(Math.hypot(x-SWP.x,y-SWP.y)<40){ swP=!swP; beep(swP?700:400,.1,'square'); if(swS&&swP&&navigator.vibrate)navigator.vibrate(40); upd(); }
+});
+function bulb(x,y,bright,label){
+  ctx.fillStyle='#1d2547'; ctx.beginPath(); ctx.arc(x,y,24,0,7); ctx.fill();
+  ctx.strokeStyle='#8a94b8'; ctx.lineWidth=2.5; ctx.stroke();
+  ctx.fillStyle='rgba(255,215,94,'+(0.12+0.88*bright)+')';
+  ctx.beginPath(); ctx.arc(x,y,14,0,7); ctx.fill();
+  if(bright>0.05){ const gr=ctx.createRadialGradient(x,y,6,x,y,60);
+    gr.addColorStop(0,'rgba(255,215,94,'+(0.45*bright)+')'); gr.addColorStop(1,'rgba(255,215,94,0)');
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(x,y,60,0,7); ctx.fill(); }
+  if(label){ ctx.fillStyle='#9fb0d8'; ctx.font='12px sans-serif'; ctx.fillText(label,x-14,y+42); }
+}
+function drawSwitch(x,y,closed,label){
+  ctx.strokeStyle=closed?'#5ef2b8':'#8a94b8'; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x-20,y); ctx.lineTo(x+20,y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x-20,y); ctx.lineTo(closed?x+20:x+12, closed?y:y-22); ctx.stroke();
+  ctx.fillStyle='#9fb0d8'; ctx.font='13px sans-serif'; ctx.fillText(label,x-16,y+24);
+  ctx.fillStyle=closed?'#5ef2b8':'#5b6a9e'; ctx.fillText(closed?'闭合':'断开',x-14,y+40);
+}
+function draw(){
+  ctx.clearRect(0,0,480,430);
+  // ===== 左：串联 =====
+  ctx.fillStyle='#ffd75e'; ctx.font='bold 16px sans-serif'; ctx.fillText('串联',104,36);
+  ctx.strokeStyle='#8a94b8'; ctx.lineWidth=5;
+  ctx.strokeRect(40,60,160,240);
+  // 电池
+  ctx.fillStyle='#1d2547'; ctx.fillRect(104,44,32,34);
+  ctx.fillStyle='#ffd75e'; ctx.font='bold 13px sans-serif'; ctx.fillText(U+'V',106,67);
+  bulb(200,120,swS?Math.min(1,(U/2)*(U/2)/RB/3.6):0,'L1');
+  bulb(200,240,swS?Math.min(1,(U/2)*(U/2)/RB/3.6):0,'L2');
+  drawSwitch(SWS.x,SWS.y,swS,'开关');
+  if(swS){ ctx.fillStyle='#5ef2b8'; ctx.font='13px sans-serif'; ctx.fillText('I='+sI().toFixed(2)+'A 处处相等',56,300); }
+  // ===== 右：并联 =====
+  ctx.fillStyle='#5ef2b8'; ctx.font='bold 16px sans-serif'; ctx.fillText('并联',344,36);
+  ctx.strokeStyle='#8a94b8'; ctx.lineWidth=5;
+  ctx.strokeRect(280,60,160,240);
+  ctx.fillStyle='#1d2547'; ctx.fillRect(344,44,32,34);
+  ctx.fillStyle='#ffd75e'; ctx.font='bold 13px sans-serif'; ctx.fillText(U+'V',346,67);
+  // 两条支路
+  ctx.beginPath(); ctx.moveTo(280,180); ctx.lineTo(440,180); ctx.stroke();
+  bulb(340,180,swP?Math.min(1,U*U/RB/14.4):0,'L3');
+  bulb(400,180,swP?Math.min(1,U*U/RB/14.4):0,'L4');
+  drawSwitch(SWP.x,SWP.y,swP,'开关');
+  if(swP){ ctx.fillStyle='#5ef2b8'; ctx.font='13px sans-serif'; ctx.fillText('干路 I='+pIt().toFixed(2)+'A',296,300); ctx.fillText('支路各 '+pIb().toFixed(2)+'A',300,318); }
+  // 电流点
+  flow+=0.04; if(flow>1)flow-=1;
+  ctx.fillStyle='#ffd75e';
+  if(swS){ const pts=[[40,60,200,60],[200,60,200,300],[200,300,40,300],[40,300,40,60]];
+    pts.forEach(([x1,y1,x2,y2])=>{ for(let j=0;j<3;j++){ const t=(flow+j/3)%1;
+      ctx.beginPath(); ctx.arc(x1+(x2-x1)*t,y1+(y2-y1)*t,3.5,0,7); ctx.fill(); } }); }
+  if(swP){ const pts=[[280,60,440,60],[440,60,440,180],[280,180,280,300],[280,300,440,300],[440,300,440,180],[440,180,280,180]];
+    // 简化：干路+支路
+    [[280,60,440,60],[280,300,440,300],[280,60,280,300],[440,60,440,300],[280,180,440,180]].forEach(([x1,y1,x2,y2])=>{ for(let j=0;j<2;j++){ const t=(flow+j/2)%1;
+      ctx.beginPath(); ctx.arc(x1+(x2-x1)*t,y1+(y2-y1)*t,3.5,0,7); ctx.fill(); } }); }
+  // 结论条
+  ctx.fillStyle='#ffd75e'; ctx.font='bold 15px sans-serif';
+  if(swS&&swP){ ctx.fillText('💡 看：并联灯泡明显更亮！串联分压，每灯只分到 '+(U/2).toFixed(1)+'V',30,392); }
+  else { ctx.fillStyle='#9fb0d8'; ctx.fillText('闭合两边开关，对比亮度差异',140,392); }
+}
+function loop(){ if(running&&!paused) draw(); requestAnimationFrame(loop); }
+document.getElementById('bStart').addEventListener('click',()=>{ document.getElementById('overlay').style.display='none'; running=true; upd(); beep(523,.15); loop(); });
+document.getElementById('bPause').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+document.getElementById('bReset').addEventListener('click',()=>{ swS=false;swP=false;U=6; document.getElementById('vR').value=6; upd(); });
+document.getElementById('bMute').addEventListener('click',e=>{ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); e.target.textContent=muted?'🔇':'🔊'; });
+upd(); loop();
+</script>
+</body>
+</html>

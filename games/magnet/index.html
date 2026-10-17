@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>磁铁实验</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0d1020;color:#e8ecf8;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px}
+header{width:100%;max-width:480px;display:flex;justify-content:space-between;align-items:center;padding:6px 2px}
+h1{font-size:20px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #2a3358;background:#161c34;color:#fff}
+canvas{width:100%;max-width:480px;border-radius:14px;background:#0a0d1a;border:1px solid #232c52;touch-action:none}
+.panel{width:100%;max-width:480px;background:#141a33;border:1px solid #232c52;border-radius:14px;padding:12px;margin-top:10px}
+.seg{display:flex;gap:8px;margin:8px 0}
+.seg button{flex:1;min-height:48px;border-radius:10px;border:1px solid #2a3358;background:#161c34;color:#e8ecf8;font-size:15px}
+.seg button:active{background:#4d7cff}
+.data{display:flex;justify-content:space-around;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+.data div{text-align:center}
+.data .v{font-size:18px;font-weight:bold;color:#5ef2b8}
+.data .k{font-size:12px;color:#9fb0d8;margin-top:2px}
+.formula{text-align:center;color:#ffd75e;font-size:15px;margin-top:8px;font-weight:bold}
+.conclusion{font-size:14px;line-height:1.7;color:#c6d2f2;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,20,.92);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:30px;text-align:center}
+#overlay h2{font-size:28px;margin-bottom:12px}
+#overlay p{font-size:15px;color:#9fb0d8;line-height:1.8;margin-bottom:20px}
+#overlay button{min-width:200px;min-height:52px;font-size:18px;border:none;border-radius:14px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-weight:bold}
+.score{font-size:14px;color:#ffd75e}
+</style>
+</head>
+<body>
+<header>
+<h1>🧲 磁铁实验</h1>
+<div class="hbtns">
+<button id="bMute">🔊</button>
+<button id="bPause">⏸</button>
+<button id="bReset">↺</button>
+</div>
+</header>
+<div class="score" id="scoreLine">配对成功 0 次 · 最高 <span id="hs">0</span> 次</div>
+<canvas id="cv" width="480" height="400"></canvas>
+<div class="panel">
+<div class="seg">
+<button id="bFlipA">🔄 翻转左磁铁</button>
+<button id="bFlipB">🔄 翻转右磁铁</button>
+</div>
+<div class="tip" style="font-size:14px;color:#9fb0d8">👆 <b>拖动</b>磁铁靠近或远离，观察磁感线和受力箭头。<br>挑战：让两块磁铁<b>异极相对吸在一起</b>（接触）得分！</div>
+<div class="data">
+<div><div class="v" id="dFace">—</div><div class="k">相对磁极</div></div>
+<div><div class="v" id="dForce">—</div><div class="k">相互作用</div></div>
+<div><div class="v" id="dDist">—</div><div class="k">中心距离</div></div>
+</div>
+<div class="formula">同名磁极相斥，异名磁极相吸</div>
+<div class="conclusion">📝 <b>实验结论：</b>磁体两端磁性最强，叫<b>磁极</b>（N极/S极）。磁感线从N极出发回到S极（外部），永不相交；磁极间作用力随距离增大迅速减小。把磁铁摔断，每段仍是完整磁体——N、S极不可分割！</div>
+</div>
+<div id="overlay"><h2>🧲 磁铁实验</h2><p>拖动两块条形磁铁，磁感线会实时变化。<br>试试：N对N、N对S，箭头方向有什么不同？<br>挑战：异极相对，让它们<b>吸到一起</b>得分！</p><button id="bStart">开始实验</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+// 磁铁：x,y中心，flip=false表示左端N
+let A={x:140,y:200,flip:false}, B={x:340,y:200,flip:true};
+let drag=null,score=0,flash=0,running=false,paused=false,paired=false;
+let hs=parseInt(localStorage.getItem('g100_magnet_hs')||'0',10);
+let muted=localStorage.getItem('g100_mute')==='1';
+document.getElementById('hs').textContent=hs;
+document.getElementById('bMute').textContent=muted?'🔇':'🔊';
+const MW=120,MH=44;
+let AC=null;
+function beep(f,d,type){ if(muted)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain(); o.type=type||'sine'; o.frequency.value=f; g.gain.setValueAtTime(.15,AC.currentTime); g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d); o.connect(g);g.connect(AC.destination); o.start(); o.stop(AC.currentTime+d);}catch(e){} }
+function poleAt(m,side){ // side: -1左端,1右端 → 返回'N'或'S'
+  const leftIsN=!m.flip;
+  return (side===-1)?(leftIsN?'N':'S'):(leftIsN?'S':'N');
+}
+function facing(){ // A右端 vs B左端
+  return [poleAt(A,1),poleAt(B,-1)];
+}
+function interact(){
+  const d=Math.hypot(B.x-A.x,B.y-A.y);
+  const [pa,pb]=facing();
+  const attract=pa!==pb;
+  const F=Math.min(99,Math.round(9000/(d*d)));
+  return {d,attract,F,pa,pb};
+}
+function updPanel(){
+  const {d,attract,F,pa,pb}=interact();
+  document.getElementById('dFace').textContent=pa+' — '+pb;
+  const el=document.getElementById('dForce');
+  el.textContent=attract?'🤝 相吸':'💥 相斥';
+  el.style.color=attract?'#5ef2b8':'#ff7b7b';
+  document.getElementById('dDist').textContent=Math.round(d)+'px';
+}
+function pos(e){ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)*480/r.width, y:(e.clientY-r.top)*400/r.height}; }
+cv.addEventListener('pointerdown',e=>{ if(!running||paused)return; const p=pos(e);
+  [A,B].forEach(m=>{ if(Math.abs(p.x-m.x)<MW/2+14&&Math.abs(p.y-m.y)<MH/2+14) drag=m; });
+  if(drag) cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove',e=>{ if(!drag||!running||paused)return; const p=pos(e);
+  drag.x=Math.max(70,Math.min(410,p.x)); drag.y=Math.max(60,Math.min(340,p.y)); updPanel(); checkPair();
+});
+cv.addEventListener('pointerup',()=>{ drag=null; });
+document.getElementById('bFlipA').addEventListener('click',()=>{ A.flip=!A.flip; paired=false; beep(500,.08); updPanel(); });
+document.getElementById('bFlipB').addEventListener('click',()=>{ B.flip=!B.flip; paired=false; beep(500,.08); updPanel(); });
+function checkPair(){
+  const {d,attract}=interact();
+  if(attract&&d<MW+8&&!paired){ paired=true; score++; flash=25;
+    beep(660,.12); setTimeout(()=>beep(990,.2),120); if(navigator.vibrate)navigator.vibrate(60);
+    if(score>hs){hs=score;localStorage.setItem('g100_magnet_hs',String(hs));}
+    document.getElementById('scoreLine').innerHTML='配对成功 '+score+' 次 · 最高 <span id="hs">'+hs+'</span> 次';
+    setTimeout(()=>{ A={x:140,y:200,flip:Math.random()<0.5}; B={x:340,y:200,flip:Math.random()<0.5}; paired=false; updPanel(); },1500);
+  }
+}
+function drawMagnet(m){
+  const x0=m.x-MW/2;
+  // 左半红(N)右半蓝(S)，按flip
+  const leftN=!m.flip;
+  ctx.fillStyle=leftN?'#e5484d':'#3b82f6'; roundRect(x0,m.y-MH/2,MW/2,MH,8); ctx.fill();
+  ctx.fillStyle=leftN?'#3b82f6':'#e5484d'; roundRect(x0+MW/2,m.y-MH/2,MW/2,MH,8); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='bold 20px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(leftN?'N':'S',x0+MW/4,m.y+7);
+  ctx.fillText(leftN?'S':'N',x0+MW*3/4,m.y+7);
+  ctx.textAlign='left';
+  ctx.strokeStyle='#0d1020'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(m.x,m.y-MH/2); ctx.lineTo(m.x,m.y+MH/2); ctx.stroke();
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function fieldLines(m){
+  // 偶极子磁感线 r=a·sin²θ（局域坐标，N端为+θ方向）
+  const nx=m.flip?-1:1; // N端方向
+  ctx.strokeStyle='rgba(120,160,255,.55)'; ctx.lineWidth=1.5;
+  [46,64,86,112].forEach(a=>{
+    for(const s of [-1,1]){
+      ctx.beginPath();
+      for(let k=0;k<=40;k++){ const th=0.12+(Math.PI-0.24)*k/40;
+        const r=a*Math.sin(th)*Math.sin(th);
+        const lx=nx*r*Math.cos(th), ly=s*r*Math.sin(th);
+        const x=m.x+lx, y=m.y+ly;
+        if(k===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+  });
+  // 箭头（N→S方向示意）
+  ctx.fillStyle='rgba(120,160,255,.8)'; ctx.font='11px sans-serif';
+  ctx.fillText('磁感线 N→S',m.x-34,m.y-MH/2-64);
+}
+function draw(){
+  ctx.clearRect(0,0,480,400);
+  fieldLines(A); fieldLines(B);
+  drawMagnet(A); drawMagnet(B);
+  const {d,attract,F}=interact();
+  // 受力箭头
+  if(d<320){
+    const mx=(A.x+B.x)/2, my=(A.y+B.y)/2-70;
+    const sgn=Math.sign(B.x-A.x)||1;
+    const aLen=Math.min(60,15+F*0.45);
+    ctx.lineWidth=4; ctx.strokeStyle=attract?'#5ef2b8':'#ff7b7b';
+    // A受力：相吸指向B，相斥背离B；B反之
+    arrow(A.x,A.y-60,A.x+sgn*(attract?aLen:-aLen),A.y-60);
+    arrow(B.x,B.y-60,B.x-sgn*(attract?aLen:-aLen),B.y-60);
+    ctx.fillStyle=attract?'#5ef2b8':'#ff7b7b'; ctx.font='bold 14px sans-serif';
+    ctx.fillText((attract?'相吸 F≈':'相斥 F≈')+F, mx-44, my-14);
+  }
+  if(flash>0){ flash--; ctx.fillStyle='rgba(94,242,184,'+(flash/50)+')'; ctx.fillRect(0,0,480,400);
+    ctx.fillStyle='#5ef2b8'; ctx.font='bold 26px sans-serif'; ctx.textAlign='center'; ctx.fillText('🤝 吸在一起！',240,120); ctx.textAlign='left'; }
+}
+function arrow(x1,y1,x2,y2){
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-10*Math.cos(a-0.4),y2-10*Math.sin(a-0.4)); ctx.lineTo(x2-10*Math.cos(a+0.4),y2-10*Math.sin(a+0.4)); ctx.closePath(); ctx.fillStyle=ctx.strokeStyle; ctx.fill();
+}
+function loop(){ if(running&&!paused) draw(); requestAnimationFrame(loop); }
+document.getElementById('bStart').addEventListener('click',()=>{ document.getElementById('overlay').style.display='none'; running=true; updPanel(); beep(523,.15); loop(); });
+document.getElementById('bPause').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+document.getElementById('bReset').addEventListener('click',()=>{ A={x:140,y:200,flip:false}; B={x:340,y:200,flip:true}; score=0; paired=false; updPanel(); document.getElementById('scoreLine').innerHTML='配对成功 0 次 · 最高 <span id="hs">'+hs+'</span> 次'; });
+document.getElementById('bMute').addEventListener('click',e=>{ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); e.target.textContent=muted?'🔇':'🔊'; });
+updPanel(); loop();
+</script>
+</body>
+</html>
