@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>摩擦力实验</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#cv{position:fixed;inset:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,14,26,.7);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.pill b{color:#FFD54F}
+.spacer{flex:1}
+.iconBtn{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(10,14,26,.7);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#panel{position:fixed;left:10px;right:10px;bottom:10px;z-index:6;background:rgba(10,14,26,.88);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:10px 14px}
+.ctl{margin:4px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:#c5cae9;margin-bottom:0}
+.ctl label b{color:#FFD54F}
+input[type=range]{width:100%;height:44px;-webkit-appearance:none;appearance:none;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#4FC3F7;margin-top:-11px;box-shadow:0 0 8px rgba(79,195,247,.8)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-radius:50%;background:#4FC3F7}
+.rowBtns{display:flex;gap:10px;margin-top:6px}
+.actBtn{flex:1;min-height:48px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#fff;background:linear-gradient(135deg,#4FC3F7,#7E57C2);cursor:pointer}
+.actBtn:active{transform:scale(.96)}
+.actBtn.ghost{background:rgba(255,255,255,.12)}
+.actBtn:disabled{opacity:.45}
+#readout{font-size:13px;color:#c5cae9;line-height:1.6;margin-top:6px;min-height:20px}
+#readout b{color:#FFD54F}
+.overlay{position:fixed;inset:0;background:rgba(3,5,12,.9);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.card{background:linear-gradient(160deg,#141a2e,#0a0e1a);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:26px 24px;max-width:370px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:88vh;overflow-y:auto}
+.card h1{font-size:26px;margin-bottom:6px}
+.card h2{font-size:17px;color:#4FC3F7;margin:12px 0 6px}
+.card p{font-size:14px;color:#c5cae9;line-height:1.7;margin:8px 0;text-align:left}
+.card p.c{text-align:center}
+.formula{background:rgba(79,195,247,.1);border:1px dashed rgba(79,195,247,.5);border-radius:10px;padding:10px;font-size:15px;color:#FFD54F;margin:10px 0;font-family:monospace;word-break:break-all}
+.bigBtn{display:inline-block;margin-top:14px;padding:14px 52px;font-size:18px;border:none;border-radius:999px;background:linear-gradient(135deg,#4FC3F7,#7E57C2);color:#fff;cursor:pointer;min-height:52px}
+.bigBtn:active{transform:scale(.96)}
+.score{font-size:44px;font-weight:bold;color:#FFEB3B;margin:6px 0}
+.hidden{display:none!important}
+.optBtn{display:block;width:100%;min-height:48px;margin:8px 0;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:16px;cursor:pointer}
+.optBtn:active{transform:scale(.97)}
+.optBtn.right{border-color:#66BB6A;background:rgba(102,187,106,.25)}
+.optBtn.wrong{border-color:#FF5252;background:rgba(255,82,82,.25)}
+.optBtn:disabled{opacity:.8}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill" id="roundPill">第 <b>1</b>/5 轮</div>
+  <div class="pill">得分 <b id="scorePill">0</b></div>
+  <div class="spacer"></div>
+  <button class="iconBtn" id="muteBtn" title="静音">🔊</button>
+  <button class="iconBtn" id="pauseBtn" title="暂停">⏸</button>
+</div>
+<div id="panel">
+  <div class="ctl">
+    <label>⚖️ 木块质量 <b id="massVal">2.0 kg</b></label>
+    <input type="range" id="massSlider" min="1" max="5" step="0.5" value="2">
+  </div>
+  <div id="timeRow" class="hidden">
+    <div class="ctl">
+      <label>⏱️ 猜：木块滑到底用时 <b id="timeVal">2.0 s</b></label>
+      <input type="range" id="timeSlider" min="0.5" max="6" step="0.1" value="2">
+    </div>
+    <div class="rowBtns"><button class="actBtn" id="submitBtn">提交猜测</button></div>
+  </div>
+  <div id="readout"></div>
+  <div class="rowBtns">
+    <button class="actBtn" id="releaseBtn" disabled>🚀 释放验证</button>
+    <button class="actBtn hidden" id="nextBtn">下一轮 ▶</button>
+  </div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="card">
+    <h1>🧱 摩擦力实验</h1>
+    <p class="c" style="color:#4FC3F7">🔬 初中物理 · 力学实验</p>
+    <p>每轮随机给出斜面<strong>表面</strong>与<strong>倾角</strong>。<br>① 先预测木块会「静止」还是「下滑」（答对 +60）；<br>② 按「释放验证」观察实验，可拖动<strong>质量滑杆</strong>，验证结论与质量无关；<br>③ 若下滑，用滑杆猜木块滑到底的时间（误差 &lt;10% 再 +40）；若静止且预测正确，直接 +40。<br>5 轮后揭晓实验结论。</p>
+    <h2>📏 本实验公式</h2>
+    <div class="formula">f = μN，tanθ > μ 则下滑</div>
+    <button class="bigBtn" id="startBtn">开始实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h1>⏸ 已暂停</h1>
+    <p class="c">实验已暂停，数据保留</p>
+    <button class="bigBtn" id="resumeBtn">继续实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="quizOv">
+  <div class="card">
+    <h1 id="quizTitle">🤔 预测一下</h1>
+    <p class="c" id="quizQ"></p>
+    <div id="quizOpts"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="card">
+    <h1>🎓 实验完成</h1>
+    <div class="score" id="finalScore">0</div>
+    <p class="c" id="bestLine">历史最高：0</p>
+    <h2>📝 实验结论</h2>
+    <p id="conclusion"></p>
+    <div class="formula" id="endFormula"></div>
+    <button class="bigBtn" id="retryBtn">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 基础框架（勿改） ============ */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0,DPR=1,PANEL_H=0;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  PANEL_H=document.getElementById('panel').offsetHeight||150;
+  if(window.onResize)window.onResize();
+}
+window.addEventListener('resize',resize);
+var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,delay){if(muted)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.15,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.06,'square',0.08);}
+function sGood(){tone(660,0.1,'sine',0.15);tone(880,0.15,'sine',0.15,0.1);}
+function sBad(){tone(220,0.2,'sawtooth',0.12);tone(160,0.25,'sawtooth',0.12,0.12);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++){tone(n[i],0.15,'sine',0.15,i*0.12);}}
+function sTick(){tone(440,0.05,'square',0.06);}
+function buzz(ms){try{if(navigator.vibrate){navigator.vibrate(ms||30);}}catch(e){}}
+var floats=[];
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color||'#FFD54F',life:1});}
+function drawFloats(dt){ctx.textAlign='center';for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.life-=dt*0.7;f.y-=34*dt;if(f.life<=0){floats.splice(i,1);continue;}ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;}}
+var HSKEY='g100_friction_hs';
+function getBest(){return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}
+function setBest(v){if(v>getBest()){localStorage.setItem(HSKEY,String(v));}}
+function $(id){return document.getElementById(id);}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function setMuteBtn(){$('muteBtn').textContent=muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted){sClick();}});
+setMuteBtn();
+/* ============ 游戏状态（按需改） ============ */
+var state='start',paused=false,round=1,score=0,lastT=0;
+function updHUD(){$('roundPill').innerHTML='第 <b>'+round+'</b>/5 轮';$('scorePill').textContent=score;}
+function addScore(n,x,y){score+=n;updHUD();if(x!==undefined){floatText(x,y,'+'+n,n>=80?'#66BB6A':'#FFD54F');}}
+$('pauseBtn').addEventListener('click',function(){if(state!=='play')return;sClick();paused=true;show('pauseOv');});
+$('resumeBtn').addEventListener('click',function(){sClick();paused=false;hide('pauseOv');lastT=performance.now();});
+$('startBtn').addEventListener('click',function(){sClick();hide('startOv');startGame();});
+$('retryBtn').addEventListener('click',function(){sClick();hide('endOv');startGame();});
+function startGame(){round=1;score=0;updHUD();state='play';paused=false;if(window.onStart)window.onStart();}
+var quizCb=null;
+function askQuiz(title,question,options,cb){
+  $('quizTitle').textContent=title;$('quizQ').textContent=question;
+  var box=$('quizOpts');box.innerHTML='';quizCb=cb;
+  options.forEach(function(op,i){
+    var b=document.createElement('button');b.className='optBtn';b.textContent=op;
+    b.addEventListener('click',function(){cb(i,b);});
+    box.appendChild(b);
+  });
+  show('quizOv');
+}
+function markQuiz(chosen,correct){
+  var btns=$('quizOpts').children;
+  for(var i=0;i<btns.length;i++){btns[i].disabled=true;if(i===correct){btns[i].classList.add('right');}}
+  if(chosen!==correct&&btns[chosen]){btns[chosen].classList.add('wrong');}
+  setTimeout(function(){hide('quizOv');if(window.onQuizDone){window.onQuizDone(chosen===correct);}},900);
+}
+function endGame(conclusion,formula){
+  state='end';setBest(score);sWin();
+  $('finalScore').textContent=score+' / 500';
+  $('bestLine').textContent='历史最高：'+getBest();
+  $('conclusion').textContent=conclusion;
+  $('endFormula').textContent=formula;
+  show('endOv');
+}
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(state!=='play'||paused)return;
+  ctx.clearRect(0,0,W,H);
+  if(window.onFrame){window.onFrame(dt);}
+  drawFloats(dt);
+}
+resize();updHUD();requestAnimationFrame(function(t){lastT=t;requestAnimationFrame(loop);});
+/* ============ 游戏逻辑：摩擦力实验 ============ */
+var G=9.8,SLOPE=4;
+var surf=null,th=30,mBlock=2,willSlide=false,acc=0,tReal=0;
+var phase='quiz',animT=0,animDur=1,quizOK=false,outcomes=[];
+var surfaces=[
+  {n:'冰面',e:'🧊',mu:0.05,col:'rgba(79,195,247,.30)'},
+  {n:'木面',e:'🪵',mu:0.30,col:'rgba(141,110,99,.45)'},
+  {n:'砂纸',e:'🧽',mu:0.60,col:'rgba(176,160,138,.40)'}
+];
+var CONC='实验结论：最大静摩擦 f = μN；当 tanθ > μ 时木块下滑。μ越大、θ越小，越难下滑；结论与质量无关。';
+var FORM='f = μN，tanθ > μ 则下滑';
+var stars=[];
+for(var si=0;si<60;si++){stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.4+0.5});}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawBG(){
+  ctx.fillStyle='#0a0e1a';ctx.fillRect(0,0,W,H-PANEL_H);
+  ctx.fillStyle='rgba(255,255,255,.35)';
+  for(var i=0;i<stars.length;i++){var s=stars[i];ctx.beginPath();ctx.arc(s.x*W,s.y*(H-PANEL_H),s.r,0,6.283);ctx.fill();}
+}
+function arrow(x,y,dx,dy,color,label){
+  var ex=x+dx,ey=y+dy,a=Math.atan2(dy,dx);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(ex,ey);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(ex,ey);
+  ctx.lineTo(ex-10*Math.cos(a-0.42),ey-10*Math.sin(a-0.42));
+  ctx.lineTo(ex-10*Math.cos(a+0.42),ey-10*Math.sin(a+0.42));
+  ctx.closePath();ctx.fill();
+  ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  ctx.fillText(label,ex+dx*0.10,ey+dy*0.10-8);
+}
+function pickRound(){
+  surf=surfaces[Math.floor(Math.random()*3)];
+  th=10+Math.floor(Math.random()*31);
+  willSlide=Math.tan(th*Math.PI/180)>surf.mu;
+  if(round===5&&outcomes.length===4){
+    var allS=outcomes.every(function(o){return o;}),allT=outcomes.every(function(o){return !o;});
+    if(allS&&willSlide){surf=surfaces[2];th=12;willSlide=false;}
+    if(allT&&!willSlide){surf=surfaces[0];th=35;willSlide=true;}
+  }
+  if(willSlide){
+    var thR=th*Math.PI/180,guard=0;
+    acc=G*(Math.sin(thR)-surf.mu*Math.cos(thR));
+    tReal=Math.sqrt(2*SLOPE/acc);
+    while(tReal>5.5&&th<40&&guard++<20){
+      th+=2;thR=th*Math.PI/180;
+      acc=G*(Math.sin(thR)-surf.mu*Math.cos(thR));
+      tReal=Math.sqrt(2*SLOPE/acc);
+    }
+  }
+}
+function updReadout(){
+  var thR=th*Math.PI/180;
+  var f=surf.mu*mBlock*G*Math.cos(thR);
+  $('readout').innerHTML=surf.e+' '+surf.n+'　μ=<b>'+surf.mu.toFixed(2)+'</b>　θ=<b>'+th+'°</b><br>'+
+    '最大静摩擦 f=μmg·cosθ=<b>'+f.toFixed(1)+'</b> N　质量=<b>'+mBlock.toFixed(1)+'</b> kg';
+}
+function setupRound(){
+  pickRound();mBlock=2;
+  $('massSlider').value=2;$('massSlider').disabled=false;$('massVal').textContent='2.0 kg';
+  $('timeSlider').value=2;$('timeVal').textContent='2.0 s';
+  $('timeRow').classList.add('hidden');
+  $('nextBtn').classList.add('hidden');
+  $('releaseBtn').classList.remove('hidden');$('releaseBtn').disabled=true;
+  phase='quiz';updReadout();
+  var correct=willSlide?1:0;
+  askQuiz('🤔 预测一下','表面：'+surf.e+surf.n+'（μ='+surf.mu.toFixed(2)+'），倾角 θ='+th+'°。木块会静止还是下滑？',
+    ['🧊 会静止','🛷 会下滑'],
+    function(i){
+      quizOK=(i===correct);
+      if(quizOK){addScore(60,W/2,120);sGood();buzz(40);}else{sBad();}
+      markQuiz(i,correct);
+    });
+}
+window.onQuizDone=function(){phase='ready';$('releaseBtn').disabled=false;};
+window.onStart=function(){outcomes=[];setupRound();};
+$('massSlider').addEventListener('input',function(){
+  mBlock=parseFloat(this.value);
+  $('massVal').textContent=mBlock.toFixed(1)+' kg';updReadout();
+});
+$('timeSlider').addEventListener('input',function(){
+  $('timeVal').textContent=parseFloat(this.value).toFixed(1)+' s';
+});
+$('releaseBtn').addEventListener('click',function(){
+  if(phase!=='ready')return;
+  sClick();buzz(20);
+  phase='anim';animT=0;
+  $('releaseBtn').disabled=true;$('massSlider').disabled=true;
+  if(willSlide){animDur=tReal;}else{animDur=1.0;sBad();}
+});
+function finishAnim(){
+  outcomes.push(willSlide);
+  if(willSlide){
+    phase='guess';$('timeRow').classList.remove('hidden');$('submitBtn').disabled=false;
+    floatText(W/2,140,'🏁 滑到底了！猜猜用时','#4FC3F7');
+  }else{
+    phase='done';
+    if(quizOK){addScore(40,W/2,150);sGood();buzz(60);floatText(W/2,150,'🔒 预测完美！','#66BB6A');}
+    else{floatText(W/2,150,'木块纹丝不动','#c5cae9');}
+    $('nextBtn').classList.remove('hidden');$('releaseBtn').classList.add('hidden');
+  }
+}
+$('submitBtn').addEventListener('click',function(){
+  if(phase!=='guess')return;
+  sClick();
+  var g=parseFloat($('timeSlider').value);
+  var err=Math.abs(g-tReal)/tReal;
+  if(err<0.10){addScore(40,W/2,150);sGood();buzz(60);floatText(W/2,190,'⏱ 时间精准！','#66BB6A');}
+  else{sBad();floatText(W/2,190,'实际 '+tReal.toFixed(1)+'s','#FF5252');}
+  phase='done';$('submitBtn').disabled=true;
+  $('nextBtn').classList.remove('hidden');$('releaseBtn').classList.add('hidden');
+});
+$('nextBtn').addEventListener('click',function(){
+  sClick();round++;
+  if(round>5){endGame(CONC,FORM);return;}
+  updHUD();setupRound();
+});
+window.onFrame=function(dt){
+  var thR=th*Math.PI/180;
+  var s=Math.min((W-70)/(SLOPE*Math.cos(thR)+1.8),(H-PANEL_H-200)/(SLOPE*Math.sin(thR)+1.2));
+  s=Math.max(22,Math.min(85,s));
+  var xB=55,yB=H-PANEL_H-64;
+  var tx=xB+SLOPE*s*Math.cos(thR),ty=yB-SLOPE*s*Math.sin(thR);
+  drawBG();
+  // 地面线
+  ctx.strokeStyle='#3a4358';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(24,yB);ctx.lineTo(W-24,yB);ctx.stroke();
+  // 斜面楔体
+  ctx.fillStyle=surf.col;
+  ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(xB,yB);ctx.lineTo(tx,yB);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#8d9bb5';ctx.lineWidth=6;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(xB,yB);ctx.stroke();
+  // 角度弧
+  ctx.strokeStyle='#FFD54F';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(xB,yB,44,-thR,0);ctx.stroke();
+  ctx.fillStyle='#FFD54F';ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  ctx.fillText('θ='+th+'°',xB+66*Math.cos(-thR/2),yB+66*Math.sin(-thR/2)+5);
+  // 表面标签
+  var mx=(tx+xB)/2,my=(ty+yB)/2;
+  ctx.fillStyle='#fff';ctx.font='bold 16px sans-serif';
+  ctx.fillText(surf.e+surf.n+'  S=4m',mx+14*Math.sin(thR),my-14*Math.cos(thR));
+  // 木块位置
+  var d=0,v=0;
+  if(phase==='anim'){
+    animT+=dt;
+    if(willSlide){
+      var tt=Math.min(animT,tReal);
+      d=0.5*acc*tt*tt;v=acc*tt;
+      if(animT>=tReal){d=SLOPE;finishAnim();}
+    }else if(animT>=animDur){finishAnim();}
+  }else if(phase==='guess'||phase==='done'){
+    d=willSlide?SLOPE:0;v=willSlide?acc*tReal:0;
+  }
+  var bx=tx-d*s*Math.cos(thR),by=ty+d*s*Math.sin(thR);
+  var jx=0;
+  if(phase==='anim'&&!willSlide){jx=Math.sin(animT*55)*5*(1-animT/animDur);}
+  // 受力箭头
+  if(phase!=='quiz'){
+    arrow(bx,by,0,34+7*mBlock,'#FF5252','mg');
+    arrow(bx,by,46*Math.sin(thR),-46*Math.cos(thR),'#4FC3F7','N');
+    arrow(bx,by,-48*Math.cos(thR),-48*Math.sin(thR),'#FFD54F','f');
+  }
+  // 木块
+  ctx.save();ctx.translate(bx+jx,by);ctx.rotate(-thR);
+  ctx.fillStyle='#A1887F';ctx.strokeStyle='#4E342E';ctx.lineWidth=2;
+  rr(-27,-44,54,36,6);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  ctx.fillText(mBlock.toFixed(1)+'kg',0,-20);
+  ctx.restore();
+  // 实时速度
+  if(willSlide&&phase!=='quiz'&&phase!=='ready'){
+    ctx.fillStyle='#4FC3F7';ctx.font='bold 15px sans-serif';ctx.textAlign='left';
+    ctx.fillText('v = '+v.toFixed(2)+' m/s',16,68);
+  }
+};
+</script>
+</body>
+</html>

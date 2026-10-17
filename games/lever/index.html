@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>杠杆平衡</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#cv{position:fixed;inset:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,14,26,.7);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.pill b{color:#FFD54F}
+.spacer{flex:1}
+.iconBtn{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(10,14,26,.7);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#panel{position:fixed;left:10px;right:10px;bottom:10px;z-index:6;background:rgba(10,14,26,.88);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:10px 14px}
+.ctl{margin:4px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:#c5cae9;margin-bottom:0}
+.ctl label b{color:#FFD54F}
+input[type=range]{width:100%;height:44px;-webkit-appearance:none;appearance:none;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#4FC3F7;margin-top:-11px;box-shadow:0 0 8px rgba(79,195,247,.8)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-radius:50%;background:#4FC3F7}
+.rowBtns{display:flex;gap:10px;margin-top:6px}
+.actBtn{flex:1;min-height:48px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#fff;background:linear-gradient(135deg,#FFD54F,#FF8F00);color:#3E2723;cursor:pointer}
+.actBtn:active{transform:scale(.96)}
+.actBtn.ghost{background:rgba(255,255,255,.12)}
+.actBtn:disabled{opacity:.45}
+#readout{font-size:13px;color:#c5cae9;line-height:1.6;margin-top:6px;min-height:20px}
+#readout b{color:#FFD54F}
+.overlay{position:fixed;inset:0;background:rgba(3,5,12,.9);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.card{background:linear-gradient(160deg,#141a2e,#0a0e1a);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:26px 24px;max-width:370px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:88vh;overflow-y:auto}
+.card h1{font-size:26px;margin-bottom:6px}
+.card h2{font-size:17px;color:#4FC3F7;margin:12px 0 6px}
+.card p{font-size:14px;color:#c5cae9;line-height:1.7;margin:8px 0;text-align:left}
+.card p.c{text-align:center}
+.formula{background:rgba(79,195,247,.1);border:1px dashed rgba(79,195,247,.5);border-radius:10px;padding:10px;font-size:15px;color:#FFD54F;margin:10px 0;font-family:monospace;word-break:break-all}
+.bigBtn{display:inline-block;margin-top:14px;padding:14px 52px;font-size:18px;border:none;border-radius:999px;background:linear-gradient(135deg,#FFD54F,#FF8F00);color:#3E2723;font-weight:bold;cursor:pointer;min-height:52px}
+.bigBtn:active{transform:scale(.96)}
+.score{font-size:44px;font-weight:bold;color:#FFEB3B;margin:6px 0}
+.hidden{display:none!important}
+.optBtn{display:block;width:100%;min-height:48px;margin:8px 0;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:16px;cursor:pointer}
+.optBtn:active{transform:scale(.97)}
+.optBtn.right{border-color:#66BB6A;background:rgba(102,187,106,.25)}
+.optBtn.wrong{border-color:#FF5252;background:rgba(255,82,82,.25)}
+.optBtn:disabled{opacity:.8}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill" id="roundPill">第 <b>1</b>/5 轮</div>
+  <div class="pill">得分 <b id="scorePill">0</b></div>
+  <div class="spacer"></div>
+  <button class="iconBtn" id="muteBtn" title="静音">🔊</button>
+  <button class="iconBtn" id="pauseBtn" title="暂停">⏸</button>
+</div>
+<div id="panel">
+  <div class="ctl">
+    <label>📏 右臂长度 L₂ <b id="lrVal">2.50 m</b></label>
+    <input type="range" id="lrSlider" min="1" max="5" step="0.25" value="2.5">
+  </div>
+  <div class="ctl">
+    <label>🏋️ 右砝码质量 m₂ <b id="mrVal">2.0 kg</b></label>
+    <input type="range" id="mrSlider" min="1" max="5" step="0.5" value="2">
+  </div>
+  <div id="readout"></div>
+  <div class="rowBtns">
+    <button class="actBtn" id="dropBtn">✋ 放手</button>
+    <button class="actBtn hidden" id="nextBtn">下一轮 ▶</button>
+  </div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="card">
+    <h1>⚖️ 杠杆平衡</h1>
+    <p class="c" style="color:#4FC3F7">🔬 初中物理 · 力学实验</p>
+    <p>中央支点杠杆，总长 10m（左右各 5m）。<br>每轮左侧随机放置重物（质量 × 左臂固定）。<br>拖动滑杆调整<strong>右臂长度</strong>与<strong>右砝码质量</strong>，按「放手」让杠杆运动：<br>力矩误差 &lt;5% → 100 分「完美平衡！」<br>误差 &lt;15% → 60 分，否则 20 分。<br>5 轮后揭晓实验结论。</p>
+    <h2>📏 本实验公式</h2>
+    <div class="formula">M₁ = F₁·L₁ = F₂·L₂ = M₂</div>
+    <button class="bigBtn" id="startBtn">开始实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h1>⏸ 已暂停</h1>
+    <p class="c">实验已暂停，数据保留</p>
+    <button class="bigBtn" id="resumeBtn">继续实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="quizOv">
+  <div class="card">
+    <h1 id="quizTitle">🤔 预测一下</h1>
+    <p class="c" id="quizQ"></p>
+    <div id="quizOpts"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="card">
+    <h1>🎓 实验完成</h1>
+    <div class="score" id="finalScore">0</div>
+    <p class="c" id="bestLine">历史最高：0</p>
+    <h2>📝 实验结论</h2>
+    <p id="conclusion"></p>
+    <div class="formula" id="endFormula"></div>
+    <button class="bigBtn" id="retryBtn">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 基础框架（勿改） ============ */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0,DPR=1,PANEL_H=0;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  PANEL_H=document.getElementById('panel').offsetHeight||150;
+  if(window.onResize)window.onResize();
+}
+window.addEventListener('resize',resize);
+var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,delay){if(muted)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.15,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.06,'square',0.08);}
+function sGood(){tone(660,0.1,'sine',0.15);tone(880,0.15,'sine',0.15,0.1);}
+function sBad(){tone(220,0.2,'sawtooth',0.12);tone(160,0.25,'sawtooth',0.12,0.12);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++){tone(n[i],0.15,'sine',0.15,i*0.12);}}
+function sTick(){tone(440,0.05,'square',0.06);}
+function buzz(ms){try{if(navigator.vibrate){navigator.vibrate(ms||30);}}catch(e){}}
+var floats=[];
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color||'#FFD54F',life:1});}
+function drawFloats(dt){ctx.textAlign='center';for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.life-=dt*0.7;f.y-=34*dt;if(f.life<=0){floats.splice(i,1);continue;}ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;}}
+var HSKEY='g100_lever_hs';
+function getBest(){return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}
+function setBest(v){if(v>getBest()){localStorage.setItem(HSKEY,String(v));}}
+function $(id){return document.getElementById(id);}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function setMuteBtn(){$('muteBtn').textContent=muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted){sClick();}});
+setMuteBtn();
+/* ============ 游戏状态（按需改） ============ */
+var state='start',paused=false,round=1,score=0,lastT=0;
+function updHUD(){$('roundPill').innerHTML='第 <b>'+round+'</b>/5 轮';$('scorePill').textContent=score;}
+function addScore(n,x,y){score+=n;updHUD();if(x!==undefined){floatText(x,y,'+'+n,n>=80?'#66BB6A':'#FFD54F');}}
+$('pauseBtn').addEventListener('click',function(){if(state!=='play')return;sClick();paused=true;show('pauseOv');});
+$('resumeBtn').addEventListener('click',function(){sClick();paused=false;hide('pauseOv');lastT=performance.now();});
+$('startBtn').addEventListener('click',function(){sClick();hide('startOv');startGame();});
+$('retryBtn').addEventListener('click',function(){sClick();hide('endOv');startGame();});
+function startGame(){round=1;score=0;updHUD();state='play';paused=false;if(window.onStart)window.onStart();}
+var quizCb=null;
+function askQuiz(title,question,options,cb){
+  $('quizTitle').textContent=title;$('quizQ').textContent=question;
+  var box=$('quizOpts');box.innerHTML='';quizCb=cb;
+  options.forEach(function(op,i){
+    var b=document.createElement('button');b.className='optBtn';b.textContent=op;
+    b.addEventListener('click',function(){cb(i,b);});
+    box.appendChild(b);
+  });
+  show('quizOv');
+}
+function markQuiz(chosen,correct){
+  var btns=$('quizOpts').children;
+  for(var i=0;i<btns.length;i++){btns[i].disabled=true;if(i===correct){btns[i].classList.add('right');}}
+  if(chosen!==correct&&btns[chosen]){btns[chosen].classList.add('wrong');}
+  setTimeout(function(){hide('quizOv');if(window.onQuizDone){window.onQuizDone(chosen===correct);}},900);
+}
+function endGame(conclusion,formula){
+  state='end';setBest(score);sWin();
+  $('finalScore').textContent=score+' / 500';
+  $('bestLine').textContent='历史最高：'+getBest();
+  $('conclusion').textContent=conclusion;
+  $('endFormula').textContent=formula;
+  show('endOv');
+}
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(state!=='play'||paused)return;
+  ctx.clearRect(0,0,W,H);
+  if(window.onFrame){window.onFrame(dt);}
+  drawFloats(dt);
+}
+resize();updHUD();requestAnimationFrame(function(t){lastT=t;requestAnimationFrame(loop);});
+/* ============ 游戏逻辑：杠杆平衡 ============ */
+var mL=3,LL=2,LR=2.5,mR=2,ang=0,target=0,phase='aim',settle=false;
+var CONC='实验结论：杠杆平衡条件是动力×动力臂=阻力×阻力臂，即 M₁=M₂。力臂越长，越小的力就能平衡重物。';
+var FORM='M₁ = F₁·L₁ = F₂·L₂ = M₂';
+var stars=[];
+for(var si=0;si<60;si++){stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.4+0.5});}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawBG(){
+  ctx.fillStyle='#0a0e1a';ctx.fillRect(0,0,W,H-PANEL_H);
+  ctx.fillStyle='rgba(255,255,255,.35)';
+  for(var i=0;i<stars.length;i++){var s=stars[i];ctx.beginPath();ctx.arc(s.x*W,s.y*(H-PANEL_H),s.r,0,6.283);ctx.fill();}
+}
+function moments(){return {L:mL*9.8*LL,R:mR*9.8*LR};}
+function updReadout(){
+  var mm=moments();
+  $('readout').innerHTML='左：<b>'+mL+'kg</b> × 左臂 <b>'+LL+'m</b> → M₁=<b>'+mm.L.toFixed(1)+'</b> N·m<br>'+
+    '右：<b>'+mR+'kg</b> × 右臂 <b>'+LR.toFixed(2)+'m</b> → M₂=<b>'+mm.R.toFixed(1)+'</b> N·m';
+}
+function setupRound(){
+  var ms=[1,1.5,2,2.5,3,3.5,4,4.5,5];
+  mL=ms[Math.floor(Math.random()*ms.length)];
+  LL=ms.slice(0,7)[Math.floor(Math.random()*7)];
+  LR=2.5;mR=2;ang=0;target=0;settle=false;phase='aim';
+  $('lrSlider').value=LR;$('lrSlider').disabled=false;$('lrVal').textContent=LR.toFixed(2)+' m';
+  $('mrSlider').value=mR;$('mrSlider').disabled=false;$('mrVal').textContent=mR.toFixed(1)+' kg';
+  $('dropBtn').classList.remove('hidden');$('dropBtn').disabled=false;
+  $('nextBtn').classList.add('hidden');
+  updReadout();
+}
+window.onStart=function(){setupRound();};
+$('lrSlider').addEventListener('input',function(){
+  LR=parseFloat(this.value);$('lrVal').textContent=LR.toFixed(2)+' m';updReadout();
+});
+$('mrSlider').addEventListener('input',function(){
+  mR=parseFloat(this.value);$('mrVal').textContent=mR.toFixed(1)+' kg';updReadout();
+});
+$('dropBtn').addEventListener('click',function(){
+  if(phase!=='aim')return;
+  sClick();buzz(20);
+  var mm=moments();
+  var mx=Math.max(mm.L,mm.R);
+  target=Math.max(-20,Math.min(20,(mm.R-mm.L)/mx*20));
+  phase='anim';settle=false;
+  $('dropBtn').disabled=true;$('lrSlider').disabled=true;$('mrSlider').disabled=true;
+});
+function scoreDrop(x,y){
+  var mm=moments();
+  var err=Math.abs(mm.R-mm.L)/mm.L;
+  phase='done';
+  if(err<0.05){
+    addScore(100,x,y);sGood();buzz(60);
+    floatText(x,y-30,'⚖️ 完美平衡！','#66BB6A');
+    for(var i=0;i<6;i++){floatText(x+(Math.random()*220-110),y-70-Math.random()*70,'✨','#FFD54F');}
+  }else if(err<0.15){
+    addScore(60,x,y);sGood();buzz(40);floatText(x,y-30,'基本平衡','#FFD54F');
+  }else{
+    addScore(20,x,y);sBad();buzz(90);floatText(x,y-30,'倾倒了！','#FF5252');
+  }
+  $('nextBtn').classList.remove('hidden');$('dropBtn').classList.add('hidden');
+}
+$('nextBtn').addEventListener('click',function(){
+  sClick();round++;
+  if(round>5){endGame(CONC,FORM);return;}
+  updHUD();setupRound();
+});
+function drawWeight(x,m,color){
+  ctx.strokeStyle='#cfd8dc';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,16);ctx.stroke();
+  var side=20+6*m;
+  ctx.fillStyle=color;rr(x-side/2,16,side,side,5);ctx.fill();
+  ctx.fillStyle='#0a0e1a';ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+  ctx.fillText(m+'kg',x,16+side/2+5);
+}
+window.onFrame=function(dt){
+  drawBG();
+  var scale=Math.min(W/11,40);
+  var cx=W/2,cy=(H-PANEL_H)*0.42;
+  if(phase==='anim'&&!settle){
+    ang+=(target-ang)*Math.min(1,dt*5);
+    if(Math.abs(target-ang)<0.15){ang=target;settle=true;scoreDrop(cx,cy-120);}
+  }
+  // 支点三角
+  ctx.fillStyle='#78909C';
+  ctx.beginPath();ctx.moveTo(cx-28,cy+8);ctx.lineTo(cx+28,cy+8);ctx.lineTo(cx,cy-16);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#455A64';ctx.fillRect(cx-3,cy-2,6,26);
+  // 杠杆杆体（旋转）
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(ang*Math.PI/180);
+  ctx.fillStyle='#5C6BC0';rr(-5*scale,-7,10*scale,14,7);ctx.fill();
+  ctx.strokeStyle='#9FA8DA';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(-5*scale,-7);ctx.lineTo(5*scale,-7);ctx.stroke();
+  // 力臂刻度尺（每0.5m一格，整米标注）
+  ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';
+  for(var k=-10;k<=10;k++){
+    var x=k*0.5*scale;
+    ctx.fillRect(x-0.75,k%2===0?-18:-13,1.5,k%2===0?9:6);
+    if(k%2===0&&k!==0){ctx.fillText(Math.abs(k/2)+'m',x,-24);}
+  }
+  ctx.fillStyle='#FFD54F';ctx.font='bold 12px sans-serif';
+  ctx.fillText('▲支点',0,-38);
+  drawWeight(-LL*scale,mL,'#FFB74D');
+  drawWeight(LR*scale,mR,'#4FC3F7');
+  ctx.restore();
+  // 左/右标签
+  ctx.fillStyle='#FFB74D';ctx.font='bold 14px sans-serif';ctx.textAlign='left';
+  ctx.fillText('左：'+mL+'kg × '+LL+'m',14,66);
+  ctx.fillStyle='#4FC3F7';ctx.textAlign='right';
+  ctx.fillText('右：'+mR+'kg × '+LR.toFixed(2)+'m',W-14,66);
+};
+</script>
+</body>
+</html>
