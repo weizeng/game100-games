@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>猜杯子</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:linear-gradient(160deg,#2b1a3d 0%,#141020 55%,#08070d 100%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none;overflow-x:hidden}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;z-index:1}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:9px 12px;font-size:14px}
+.topbar .title{font-weight:700;font-size:16px}
+.topbar .stat{color:#e6d9f5;font-size:12px}
+.topbar .stat b{color:#fff;font-size:14px}
+.tbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:17px;min-width:42px;height:42px;border-radius:11px;cursor:pointer;transition:transform .08s}
+.tbtn:active{transform:scale(.9)}
+.screen{width:100%;display:none;flex-direction:column;align-items:center;gap:10px}
+.screen.on{display:flex}
+.card{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.card h1{font-size:26px;margin-bottom:8px;background:linear-gradient(90deg,#fff59d,#fdd835);-webkit-background-clip:text;background-clip:text;color:transparent}
+.card h2{font-size:22px;margin-bottom:8px}
+.card p{color:#e9e2f2;font-size:14px;line-height:1.9;margin-bottom:12px;text-align:left}
+.card p b{color:#ffd54f}
+.bigbtn{background:linear-gradient(135deg,#fdd835,#fff59d);border:none;color:#3d2f00;font-size:18px;font-weight:700;padding:14px 44px;border-radius:999px;cursor:pointer;box-shadow:0 6px 18px rgba(253,216,53,.45);transition:transform .1s;min-height:48px}
+.bigbtn:active{transform:scale(.93)}
+.ghostbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:14px;padding:10px 22px;border-radius:999px;cursor:pointer;min-height:44px}
+.ghostbtn:active{transform:scale(.93)}
+.best{color:#ffd76a;font-size:14px;margin-top:8px}
+#cvwrap{width:100%;display:flex;justify-content:center}
+#cv{border-radius:14px;background:rgba(255,255,255,.03);touch-action:none;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.hint{color:#d9cdf0;font-size:13px;text-align:center;line-height:1.7}
+.hint b{color:#ffd54f}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px)}
+.ov.on{display:flex}
+.pausecard{background:#1d1526;border:1px solid rgba(253,216,53,.3);border-radius:18px;padding:28px 32px;text-align:center;display:flex;flex-direction:column;gap:12px;max-width:86vw}
+.pausecard h2{font-size:20px}
+#toast{position:fixed;top:38%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.82);border:1px solid rgba(253,216,53,.4);color:#fff;font-size:16px;font-weight:700;padding:12px 26px;border-radius:999px;z-index:70;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;max-width:92vw}
+.float{position:fixed;pointer-events:none;z-index:60;font-weight:800;font-size:22px;animation:floatup 1.1s ease-out forwards;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+@keyframes floatup{0%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-52px)}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div class="wrap">
+  <div class="topbar">
+    <span class="title">🥤 猜杯子</span>
+    <span class="stat">第<b id="level">1</b>关 · ❤️<b id="lives">3</b> · 🔥<b id="combo">0</b> · ⭐<b id="score">0</b></span>
+    <span><button class="tbtn" id="sndBtn" aria-label="静音开关">🔊</button><button class="tbtn" id="pauseBtn" aria-label="暂停">⏸</button></span>
+  </div>
+  <div class="screen on" id="s-start">
+    <div class="card">
+      <h1>🥤 猜杯子</h1>
+      <p>经典街头猜杯，嘉年华版！<br>
+      👀 <b>记住</b>：先看 2 秒小球在哪只杯子下<br>
+      🌀 <b>盯紧</b>：杯子快速交换洗牌，关卡越高越快（3→5→8次…）<br>
+      👆 <b>点选</b>：停稳后点你认为有球的杯子<br>
+      ✅ 猜对 <b>+100</b>，<b>连击翻倍</b>（100→200→400…）<br>
+      ❌ 猜错扣 1 命，共 <b>3 条命</b>，冲击最高连击！</p>
+      <button class="bigbtn" id="startBtn">开始挑战</button>
+      <div class="best">🏅 最高分：<b id="best0">0</b> · 🔥最高连击：<b id="bestc0">0</b></div>
+    </div>
+  </div>
+  <div class="screen" id="s-game">
+    <div id="cvwrap"><canvas id="cv" width="360" height="520"></canvas></div>
+    <div class="hint" id="hint">👀 记住小球的位置！</div>
+  </div>
+  <div class="screen" id="s-end">
+    <div class="card">
+      <h2 id="endTitle">🎪 游戏结束</h2>
+      <p id="endDesc" style="text-align:center"></p>
+      <div class="best">🏅 最高分：<b id="best1">0</b> · 🔥最高连击：<b id="bestc1">0</b></div>
+      <button class="bigbtn" id="againBtn">再来一局</button>
+    </div>
+  </div>
+</div>
+<div class="ov" id="pauseov"><div class="pausecard"><h2>⏸ 中场休息</h2><button class="bigbtn" id="resumeBtn">继续</button><button class="ghostbtn" id="quitBtn">重开一局</button></div></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+/* ===== 音效 ===== */
+let AC=null;
+let soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,when){if(!soundOn)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.value=f;const t=a.currentTime+(when||0);g.gain.setValueAtTime(v||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.03);}catch(e){}}
+function sweep(f0,f1,d,type,v){if(!soundOn)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain();o.type=type||'sine';const t=a.currentTime;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+d);g.gain.setValueAtTime(v||0.1,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.03);}catch(e){}}
+const sClick=()=>tone(640,0.07,'square',0.07);
+const sSwish=()=>sweep(220,660,0.18,'triangle',0.08);
+const sRight=()=>{[880,1175].forEach((f,i)=>tone(f,0.12,'sine',0.13,i*0.08));};
+const sWrong=()=>{tone(200,0.2,'sawtooth',0.13);tone(140,0.28,'sawtooth',0.11,0.08);};
+const sWin=()=>{[523,659,784,1047,1319].forEach((f,i)=>tone(f,0.16,'triangle',0.12,i*0.11));};
+/* ===== 工具 ===== */
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._tm);t._tm=setTimeout(()=>{t.style.opacity='0';},1300);}
+function floatTxt(txt,color){const d=document.createElement('div');d.className='float';d.textContent=txt;d.style.color=color||'#ffd54f';d.style.left='50%';d.style.top='28%';document.body.appendChild(d);setTimeout(()=>d.remove(),1150);}
+function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');}
+/* ===== 常量/状态 ===== */
+const HSKEY='g100_shellgame_hs',HCKEY='g100_shellgame_hc';
+const cv=$('cv'),ctx=cv.getContext('2d');
+const SLOTS=[70,180,290],CUPY=250;
+let running=false,paused=false;
+let level=1,lives=3,combo=0,score=0,maxCombo=0;
+let state='idle';           // show|cover|shuffle|guess|reveal|wait
+let cups=[],ballCup=0,lift=1,stateT=0;
+let swaps=[],curSwap=null,chosen=-1,revealBall=false,parts=[];
+function best(){return parseInt(localStorage.getItem(HSKEY)||'0',10);}
+function bestC(){return parseInt(localStorage.getItem(HCKEY)||'0',10);}
+function saveBest(){if(score>best())localStorage.setItem(HSKEY,String(score));if(maxCombo>bestC())localStorage.setItem(HCKEY,String(maxCombo));}
+function refreshBest(){$('best0').textContent=best();$('bestc0').textContent=bestC();$('best1').textContent=best();$('bestc1').textContent=bestC();}
+function refreshHud(){$('level').textContent=level;$('lives').textContent=lives;$('combo').textContent=combo;$('score').textContent=score;}
+function setHint(t){$('hint').innerHTML=t;}
+function swapCount(){if(level===1)return 3;if(level===2)return 5;return Math.min(16,5+3*(level-2));}
+function swapDur(){return Math.max(200,480-45*level);}
+/* ===== 回合 ===== */
+function startGame(){
+  running=true;paused=false;level=1;lives=3;combo=0;score=0;maxCombo=0;parts=[];
+  $('pauseov').classList.remove('on');
+  showScreen('s-game');refreshHud();refreshBest();
+  newRound();sClick();
+}
+function newRound(){
+  cups=SLOTS.map(x=>({x:x}));
+  ballCup=Math.floor(Math.random()*3);
+  swaps=[];curSwap=null;
+  lift=1;state='show';stateT=0;chosen=-1;revealBall=false;
+  refreshHud();
+  setHint('👀 <b>记住</b>：小球在第 <b>'+(ballCup+1)+'</b> 只杯子下！');
+}
+function buildSwaps(){
+  swaps=[];
+  const n=swapCount();
+  for(let i=0;i<n;i++){
+    let a=Math.floor(Math.random()*3),b=Math.floor(Math.random()*3);
+    if(a===b)b=(b+1)%3;
+    swaps.push({a:a,b:b,t:0,dur:swapDur(),ax:cups[a].x,bx:cups[b].x});
+  }
+}
+function easeIO(p){return p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2;}
+function quad(ax,ay,cx,cy,bx,by,p){
+  const q=1-p;
+  return{x:q*q*ax+2*q*p*cx+p*p*bx,y:q*q*ay+2*q*p*cy+p*p*by};
+}
+/* ===== 输入 ===== */
+function cvPos(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height};}
+cv.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  if(!running||paused||state!=='guess')return;
+  const p=cvPos(e);
+  let hit=-1,hd=1e9;
+  cups.forEach((c,i)=>{const d=Math.hypot(p.x-c.x,p.y-CUPY);if(d<70&&d<hd){hd=d;hit=i;}});
+  if(hit<0)return;
+  chosen=hit;state='reveal';stateT=0;
+  revealBall=(chosen===ballCup);
+  sClick();
+});
+/* ===== 结算 ===== */
+function resolveGuess(){
+  if(revealBall){
+    const award=100*Math.pow(2,combo);
+    score+=award;combo++;maxCombo=Math.max(maxCombo,combo);
+    sRight();buzz(60);floatTxt('+'+award,'#ffd54f');
+    setHint('✅ <b>猜对了！</b>+'+award+(combo>1?'（'+combo+'连击）':''));
+    for(let i=0;i<26;i++){parts.push({x:cups[chosen].x+(Math.random()-0.5)*90,y:CUPY-40+(Math.random()-0.5)*90,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4-1.5,life:1,c:['#ffd54f','#fff59d','#fff','#fdd835'][i%4],r:2+Math.random()*3});}
+  }else{
+    lives--;combo=0;
+    sWrong();buzz(140);floatTxt('猜错了','#ef9a9a');
+    setHint('❌ <b>猜错了！</b>球在第 <b>'+(ballCup+1)+'</b> 只杯子下，还剩 <b>'+lives+'</b> 命');
+  }
+  refreshHud();
+  state='wait';stateT=0;
+}
+function endGame(){
+  running=false;paused=false;state='idle';
+  $('pauseov').classList.remove('on');
+  const nb=score>best();
+  saveBest();refreshBest();
+  $('endTitle').textContent=nb?'🏆 新纪录！':'🎪 游戏结束';
+  $('endDesc').innerHTML='闯到第 <b>'+level+'</b> 关<br>本局得分 <b style="color:#ffd54f;font-size:22px">'+score+'</b><br>最高连击 <b>'+maxCombo+'</b>';
+  showScreen('s-end');
+  if(nb)sWin();else tone(220,0.4,'sine',0.1);
+}
+/* ===== 绘制 ===== */
+function drawBall(x,y,r){
+  const g=ctx.createRadialGradient(x-r*0.3,y-r*0.3,r*0.2,x,y,r);
+  g.addColorStop(0,'#ffffff');g.addColorStop(1,'#b0bec5');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+}
+function drawCupShape(x,y,scale){
+  ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
+  ctx.font='72px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🥤',0,0);
+  ctx.restore();
+}
+function draw(dt){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // 顶部彩灯
+  ctx.font='26px serif';ctx.textAlign='center';
+  const lights='🎪🎈🎪🎈🎪';
+  for(let i=0;i<5;i++){ctx.fillText(lights[i],40+i*70,44+Math.sin(performance.now()/500+i)*4);}
+  // 关卡/交换次数提示
+  ctx.fillStyle='#cfc3e8';ctx.font='14px sans-serif';
+  if(state==='shuffle')ctx.fillText('第 '+level+' 关 · 洗牌中…（'+(swaps.length)+'次交换）',180,84);
+  else ctx.fillText('第 '+level+' 关 · '+swapCount()+' 次交换',180,84);
+  // 桌台
+  ctx.fillStyle='rgba(255,255,255,.06)';
+  ctx.beginPath();ctx.ellipse(180,360,165,26,0,0,7);ctx.fill();
+  ctx.strokeStyle='rgba(253,216,53,.25)';ctx.lineWidth=2;ctx.stroke();
+  // 槽位标记
+  SLOTS.forEach(x=>{
+    ctx.strokeStyle='rgba(255,255,255,.14)';ctx.lineWidth=2;ctx.setLineDash([5,5]);
+    ctx.beginPath();ctx.ellipse(x,CUPY+52,40,10,0,0,7);ctx.stroke();ctx.setLineDash([]);
+  });
+  // 小球（展示阶段 / 揭示阶段 / 答错后展示正确答案）
+  if(state==='show'){
+    drawBall(cups[ballCup].x,CUPY+34,15);
+  }
+  if(state==='reveal'&&revealBall&&stateT>0.45){
+    const p=Math.min(1,(stateT-0.45)/0.3);
+    drawBall(cups[chosen].x,CUPY+34*p,15);
+  }
+  if(state==='wait'&&!revealBall){
+    drawBall(cups[ballCup].x,CUPY+34,15);
+  }
+  // 杯子
+  cups.forEach((c,i)=>{
+    let y;
+    if(c.y!==undefined){y=c.y;}
+    else if(state==='reveal'&&i===chosen){
+      const p=Math.min(1,stateT/0.45);
+      y=CUPY-(1-Math.pow(1-p,2))*90;
+    }
+    else if(state==='wait'&&!revealBall&&i===ballCup){y=CUPY-60;}
+    else{y=CUPY-lift*70;}
+    drawCupShape(c.x,y,1);
+    if(state==='guess'){
+      ctx.fillStyle='rgba(253,216,53,.55)';ctx.font='15px sans-serif';ctx.textAlign='center';
+      ctx.fillText('👆',c.x,y-58+Math.sin(performance.now()/400+i)*3);
+    }
+  });
+  // 粒子
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life-=dt*0.9;
+    if(p.life<=0){parts.splice(i,1);continue;}
+    ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.c;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();ctx.globalAlpha=1;
+  }
+}
+/* ===== 主循环 ===== */
+let lastT=0;
+function loop(t){
+  requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(!running||paused){if(!running)return;draw(0);return;}
+  stateT+=dt;
+  if(state==='show'){
+    lift=1;
+    if(stateT>=2){state='cover';stateT=0;setHint('🌀 洗牌中…盯紧杯子！');}
+  }else if(state==='cover'){
+    lift=Math.max(0,1-stateT/0.35);
+    if(stateT>=0.35){lift=0;buildSwaps();state='shuffle';stateT=0;sSwish();}
+  }else if(state==='shuffle'){
+    if(!curSwap){
+      if(swaps.length===0){state='guess';stateT=0;setHint('👆 <b>点选</b>有球的杯子！');}
+      else curSwap=swaps.shift();
+    }else{
+      curSwap.t+=dt*1000;
+      const p=easeIO(Math.min(1,curSwap.t/curSwap.dur));
+      const mx=(curSwap.ax+curSwap.bx)/2;
+      const pa=quad(curSwap.ax,CUPY,mx,CUPY-110,curSwap.bx,CUPY,p);
+      const pb=quad(curSwap.bx,CUPY,mx,CUPY+110,curSwap.ax,CUPY,p);
+      cups[curSwap.a].x=pa.x;cups[curSwap.a].y=pa.y;
+      cups[curSwap.b].x=pb.x;cups[curSwap.b].y=pb.y;
+      if(p>=1){
+        cups[curSwap.a].x=curSwap.bx;cups[curSwap.b].x=curSwap.ax;
+        delete cups[curSwap.a].y;delete cups[curSwap.b].y;
+        curSwap=null;
+      }
+    }
+  }else if(state==='guess'){
+    // 等待点选
+  }else if(state==='reveal'){
+    if(stateT>=1.1)resolveGuess();
+  }else if(state==='wait'){
+    if(stateT>=1.4){
+      if(lives<=0){endGame();return;}
+      level++;newRound();
+    }
+  }
+  draw(dt);
+}
+requestAnimationFrame(loop);
+/* ===== 暂停/静音 ===== */
+$('pauseBtn').addEventListener('click',()=>{
+  if(!running||paused)return;
+  paused=true;$('pauseov').classList.add('on');sClick();
+});
+$('resumeBtn').addEventListener('click',()=>{paused=false;$('pauseov').classList.remove('on');sClick();});
+$('quitBtn').addEventListener('click',()=>{sClick();running=false;paused=false;state='idle';$('pauseov').classList.remove('on');showScreen('s-start');refreshBest();});
+function refreshSnd(){$('sndBtn').textContent=soundOn?'🔊':'🔇';}
+$('sndBtn').addEventListener('click',()=>{soundOn=!soundOn;localStorage.setItem('g100_sound',soundOn?'1':'0');refreshSnd();if(soundOn)sClick();});
+$('startBtn').addEventListener('click',startGame);
+$('againBtn').addEventListener('click',startGame);
+refreshSnd();refreshBest();
+</script>
+</body>
+</html>
