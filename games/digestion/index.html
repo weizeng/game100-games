@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>消化之旅</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{background:#14101c;color:#f3ead9;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#app{position:fixed;inset:0;max-width:520px;margin:0 auto;display:flex;flex-direction:column;background:radial-gradient(120% 90% at 50% 0%,#241a3a 0%,#14101c 70%)}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(0,0,0,.35);border-bottom:1px solid #3a2c58;z-index:5}
+header.ttl{font-size:17px;font-weight:700;color:#ffb74d}
+.iconbtn{width:46px;height:46px;border-radius:12px;border:1px solid #5a457f;background:#2b2140;color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#scoreBox{font-size:15px;color:#ffe082;font-weight:700}
+.screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;overflow-y:auto}
+.hidden{display:none!important}
+h1{font-size:34px;margin:6px 0 4px;color:#ffb74d;text-shadow:0 2px 12px rgba(255,167,38,.35)}
+.sub{color:#cbb8e8;font-size:15px;margin-bottom:14px}
+.rulebox{background:rgba(255,183,77,.08);border:1px solid #5a457f;border-radius:14px;padding:14px 16px;font-size:14.5px;line-height:1.75;color:#e8dcf5;max-width:440px;margin-bottom:18px}
+.bigbtn{min-height:52px;min-width:200px;padding:12px 34px;font-size:19px;font-weight:700;border:none;border-radius:16px;background:linear-gradient(135deg,#ff9800,#ff5722);color:#fff;cursor:pointer;box-shadow:0 4px 18px rgba(255,120,40,.45);transition:transform.15s ease}
+.bigbtn:active{transform:scale(.95)}
+.midbtn{min-height:46px;padding:10px 22px;font-size:16px;font-weight:700;border:none;border-radius:14px;background:linear-gradient(135deg,#7e57c2,#5c6bc0);color:#fff;cursor:pointer;transition:transform.15s ease}
+.midbtn:active{transform:scale(.95)}
+.midbtn:disabled{opacity:.45;cursor:default}
+#track{position:relative;width:100%;max-width:430px;height:44vh;min-height:300px;background:rgba(0,0,0,.25);border:1px solid #3a2c58;border-radius:16px;overflow:hidden;margin-bottom:10px}
+#track svg{position:absolute;inset:0;width:100%;height:100%}
+.st{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2}
+.st.dot{width:40px;height:40px;border-radius:50%;background:#2b2140;border:2px solid #5a457f;display:flex;align-items:center;justify-content:center;font-size:22px;transition:border-color.3s,box-shadow.3s}
+.st.lbl{font-size:11px;color:#cbb8e8;margin-top:2px;text-shadow:0 1px 3px #000}
+.st.done.dot{border-color:#66bb6a;box-shadow:0 0 10px rgba(102,187,106,.6)}
+.st.now.dot{border-color:#ffb74d;box-shadow:0 0 14px rgba(255,183,77,.8);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+#food{position:absolute;width:52px;height:52px;margin:-26px 0 0 -26px;font-size:40px;display:flex;align-items:center;justify-content:center;z-index:3;transition:left 1.15s cubic-bezier(.65,0,.35,1),top 1.15s cubic-bezier(.65,0,.35,1)}
+#food.squish{animation:squish 1.15s ease-in-out}
+@keyframes squish{0%,100%{transform:scale(1,1)}20%{transform:scale(1.25,.75)}40%{transform:scale(.8,1.2)}60%{transform:scale(1.2,.8)}80%{transform:scale(.85,1.15)}}
+#panel{width:100%;max-width:430px;min-height:210px;background:rgba(20,14,32,.85);border:1px solid #5a457f;border-radius:16px;padding:14px 14px 16px}
+#panel h2{margin:0 0 6px;font-size:19px;color:#ffb74d}
+.kcard{background:rgba(126,87,194,.18);border-left:4px solid #7e57c2;border-radius:8px;padding:10px 12px;font-size:14.5px;line-height:1.7;color:#efe6fb;margin:8px 0;animation:slidein.4s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes slidein{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.quiz{margin-top:8px}
+.quiz.q{font-size:15.5px;font-weight:700;margin-bottom:8px;color:#ffe082}
+.opt{display:block;width:100%;min-height:46px;margin:6px 0;padding:10px 12px;font-size:15px;text-align:left;border:1px solid #5a457f;border-radius:12px;background:#241a3a;color:#f3ead9;cursor:pointer;transition:background.2s,transform.12s}
+.opt:active{transform:scale(.98)}
+.opt.right{background:#2e7d32;border-color:#66bb6a}
+.opt.wrong{background:#b71c1c;border-color:#ef5350}
+.float{position:fixed;z-index:60;font-size:22px;font-weight:800;pointer-events:none;text-shadow:0 2px 6px #000}
+.particle{position:fixed;z-index:59;font-size:18px;pointer-events:none}
+#pauseOv{position:fixed;inset:0;z-index:50;background:rgba(8,5,14,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+#pauseOv.pt{font-size:26px;font-weight:800;color:#ffb74d}
+.endcard{background:rgba(255,183,77,.07);border:1px solid #5a457f;border-radius:16px;padding:16px;max-width:440px;width:100%;margin-bottom:14px}
+.endcard.sc{font-size:44px;font-weight:800;color:#ffe082;text-align:center;margin:4px 0}
+.endcard.hs{font-size:15px;color:#cbb8e8;text-align:center;margin-bottom:8px}
+.concl{font-size:14px;line-height:1.8;color:#e8dcf5}
+.concl b{color:#ffb74d}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+<button class="iconbtn" id="btnPause" aria-label="暂停">⏸</button>
+<div class="ttl">🍎 消化之旅</div>
+<div id="scoreBox">0分</div>
+<button class="iconbtn" id="btnMute" aria-label="静音">🔊</button>
+</header>
+
+<div class="screen" id="scrStart">
+<h1>🍎 消化之旅</h1>
+<div class="sub">食物的奇妙消化道旅行 · 初中生物实验</div>
+<div class="rulebox">
+🧪 <b>玩法说明</b><br>
+1️⃣ 一块食物 🍔 将沿消化道经过 <b>7 个站点</b>：口腔→咽→食道→胃→小肠→大肠→肛门。<br>
+2️⃣ 每到一站，点「开始消化」观看消化小动画，学习<b>知识卡</b>。<br>
+3️⃣ 每站回答 1 道选择题，答对 <b>+10 分</b>，共 70 分。<br>
+4️⃣ 通关后查看你的<b>实验结论</b>！
+</div>
+<button class="bigbtn" id="btnStart">▶ 开始实验</button>
+</div>
+
+<div class="screen hidden" id="scrGame" style="justify-content:flex-start;padding-top:10px">
+<div id="track">
+<svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M22,12 Q40,13 55,18 Q70,24 78,32 Q74,42 62,50 Q48,58 30,62 Q34,72 48,80 Q62,86 76,90" fill="none" stroke="#ff9800" stroke-width="1.6" stroke-dasharray="3 2" opacity=".55"/></svg>
+<div id="food">🍔</div>
+</div>
+<div id="panel"></div>
+</div>
+
+<div class="screen hidden" id="scrEnd">
+<h1>🎓 实验报告</h1>
+<div class="endcard">
+<div class="sc" id="endScore">0分</div>
+<div class="hs" id="endHigh">🏆 最高分：0分</div>
+<div class="concl" id="endConcl"></div>
+</div>
+<button class="bigbtn" id="btnAgain">🔄 再来一次</button>
+</div>
+
+<div id="pauseOv" class="hidden">
+<div class="pt">⏸ 已暂停</div>
+<button class="bigbtn" id="btnResume">▶ 继续</button>
+</div>
+</div>
+<script>'use strict';
+var $=function(id){return document.getElementById(id);};
+var HSKEY='g100_digestion_hs',MUTEKEY='g100_mute';
+var ST=[
+{n:'口腔',x:22,y:12,e:'🦷',k:'牙齿把食物切碎磨细；唾液腺分泌唾液，唾液中的<b>唾液淀粉酶</b>把淀粉初步分解为麦芽糖。',q:'口腔里初步消化淀粉的是？',o:['唾液（含唾液淀粉酶）','胃液','胆汁'],a:0},
+{n:'咽',x:55,y:18,e:'🗣️',k:'咽是食物和空气的共同通道。吞咽时<b>会厌软骨</b>盖住喉口，食团进入食道，不会误入气管。',q:'吞咽时防止食物进入气管的结构是？',o:['会厌软骨','牙齿','胃酸'],a:0},
+{n:'食道',x:78,y:32,e:'🎢',k:'食道没有消化作用，管壁肌肉有节奏地<b>蠕动</b>，像挤牙膏一样把食团送入胃。',q:'食道把食物送入胃靠的是？',o:['肌肉蠕动','胃酸溶解','胆汁乳化'],a:0},
+{n:'胃',x:62,y:50,e:'🫃',k:'胃能蠕动搅拌食物；胃腺分泌胃液，<b>胃酸</b>杀菌并激活<b>胃蛋白酶</b>，把蛋白质初步分解成多肽。',q:'胃初步消化的营养物质是？',o:['淀粉','蛋白质','脂肪'],a:1},
+{n:'小肠',x:30,y:62,e:'🌀',k:'肝脏分泌的<b>胆汁</b>乳化脂肪；胰腺分泌<b>胰液</b>、肠腺分泌<b>肠液</b>，把淀粉、蛋白质、脂肪彻底消化；营养物质被吸收进入血液。',q:'消化和吸收的主要场所是？',o:['胃','小肠','大肠'],a:1},
+{n:'大肠',x:48,y:80,e:'🚰',k:'大肠<b>吸收</b>食物残渣中的水分和部分无机盐，残渣逐渐浓缩形成粪便。',q:'大肠的主要作用是？',o:['吸收水分，形成粪便','消化蛋白质','乳化脂肪'],a:0},
+{n:'肛门',x:76,y:90,e:'🚪',k:'消化后的食物残渣（粪便）经<b>肛门</b>排出体外，整个消化过程完成！',q:'粪便排出体外的出口是？',o:['肛门','小肠','食道'],a:0}
+];
+var score=0,cur=0,answered=false,muted=false,paused=false,AC=null;
+function loadMute(){try{muted=localStorage.getItem(MUTEKEY)==='1';}catch(e){muted=false;}$('btnMute').textContent=muted?'🔇':'🔊';}
+function saveMute(){try{localStorage.setItem(MUTEKEY,muted?'1':'0');}catch(e){}}
+function getHigh(){try{return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}catch(e){return 0;}}
+function setHigh(v){try{localStorage.setItem(HSKEY,String(v));}catch(e){}}
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,g,t0){var c=ac();if(!c||muted)return;var o=c.createOscillator(),g2=c.createGain();o.type=type||'sine';o.frequency.value=f;var t=c.currentTime+(t0||0);g2.gain.setValueAtTime(0.0001,t);g2.gain.exponentialRampToValueAtTime(g||0.18,t+0.01);g2.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g2);g2.connect(c.destination);o.start(t);o.stop(t+d+0.05);}
+function snd(n){if(muted)return;if(n==='click'){tone(620,0.07,'square',0.12);}else if(n==='right'){tone(523,0.12,'sine',0.2);tone(784,0.18,'sine',0.2,0.11);}else if(n==='wrong'){tone(150,0.28,'sawtooth',0.2);}else if(n==='win'){var f=[523,659,784,1047];for(var i=0;i<f.length;i++){tone(f[i],0.22,'triangle',0.2,i*0.14);}}}
+function buzz(p){if(navigator.vibrate){try{navigator.vibrate(p);}catch(e){}}}
+function floatText(txt,x,y,color){var d=document.createElement('div');d.className='float';d.textContent=txt;d.style.color=color||'#ffe082';d.style.left=x+'px';d.style.top=y+'px';document.body.appendChild(d);d.animate([{transform:'translate(-50%,-50%) scale(.6)',opacity:0},{transform:'translate(-50%,-90%) scale(1.15)',opacity:1,offset:.35},{transform:'translate(-50%,-190%) scale(1)',opacity:0}],{duration:1100,easing:'cubic-bezier(.2,.7,.3,1)'}).onfinish=function(){d.remove();};}
+function burst(x,y,em,n){for(var i=0;i<(n||10);i++){var p=document.createElement('div');p.className='particle';p.textContent=em||'✨';p.style.left=x+'px';p.style.top=y+'px';document.body.appendChild(p);var ang=Math.random()*Math.PI*2,dist=40+Math.random()*70;p.animate([{transform:'translate(0,0) scale(1)',opacity:1},{transform:'translate('+(Math.cos(ang)*dist)+'px,'+(Math.sin(ang)*dist-30)+'px) scale(.4)',opacity:0}],{duration:700+Math.random()*500,easing:'cubic-bezier(.2,.7,.3,1)'}).onfinish=(function(el){return function(){el.remove();};})(p);}}
+function updScore(){$('scoreBox').textContent=score+'分';}
+function buildTrack(){var t=$('track');var olds=t.querySelectorAll('.st');for(var i=olds.length-1;i>=0;i--){olds[i].remove();}for(var j=0;j<ST.length;j++){var d=document.createElement('div');d.className='st';d.id='st'+j;d.style.left=ST[j].x+'%';d.style.top=ST[j].y+'%';d.innerHTML='<div class="dot">'+ST[j].e+'</div><div class="lbl">'+ST[j].n+'</div>';t.appendChild(d);}}
+function markNow(){for(var j=0;j<ST.length;j++){var d=$('st'+j);d.classList.remove('now');if(j<cur)d.classList.add('done');}if(cur<ST.length)$('st'+cur).classList.add('now');}
+function showStation(){answered=false;markNow();var s=ST[cur];var p=$('panel');p.innerHTML='<h2>'+(cur+1)+'/7 · '+s.n+' '+s.e+'</h2><div style="font-size:14px;color:#cbb8e8">食物已到达，点击下方按钮开始消化。</div><div style="margin-top:10px"><button class="midbtn" id="btnDigest">🧪 开始消化</button></div><div id="stage"></div>';$('btnDigest').addEventListener('pointerdown',function(ev){ev.preventDefault();digest();});}
+function digest(){var s=ST[cur];var btn=$('btnDigest');if(btn)btn.disabled=true;snd('click');var food=$('food');food.classList.remove('squish');void food.offsetWidth;food.classList.add('squish');var r=food.getBoundingClientRect();burst(r.left+r.width/2,r.top+r.height/2,'✨',12);buzz(30);setTimeout(function(){var st=$('stage');st.innerHTML='<div class="kcard">📖 <b>知识卡 · '+s.n+'</b><br>'+s.k+'</div><div class="quiz"><div class="q">❓ '+s.q+'（答对+10分）</div><div id="opts"></div></div>';var box=$('opts');for(var i=0;i<s.o.length;i++){(function(i){var b=document.createElement('button');b.className='opt';b.textContent=String.fromCharCode(65+i)+'．'+s.o[i];b.addEventListener('pointerdown',function(ev){ev.preventDefault();answer(i,b);});box.appendChild(b);})(i);}},1100);}
+function answer(i,btn){if(answered||paused)return;answered=true;var s=ST[cur];var opts=document.querySelectorAll('#opts.opt');for(var k=0;k<opts.length;k++){opts[k].style.pointerEvents='none';}var r=btn.getBoundingClientRect();if(i===s.a){btn.classList.add('right');score+=10;updScore();snd('right');floatText('+10',r.left+r.width/2,r.top,'#a5d6a7');burst(r.left+r.width/2,r.top,'🎉',10);buzz([40,40,40]);}else{btn.classList.add('wrong');opts[s.a].classList.add('right');snd('wrong');floatText('答错了',r.left+r.width/2,r.top,'#ef9a9a');buzz(120);}setTimeout(function(){var st=$('stage');var nx=document.createElement('div');nx.style.marginTop='10px';nx.innerHTML='<button class="midbtn" id="btnNext">'+(cur<ST.length-1?'下一站 ➜':'查看实验报告 🎓')+'</button>';st.appendChild(nx);$('btnNext').addEventListener('pointerdown',function(ev){ev.preventDefault();snd('click');nextStation();});},1300);}
+function nextStation(){var food=$('food');if(cur===5){food.textContent='💩';}if(cur>=ST.length-1){endGame();return;}cur++;var s=ST[cur];food.classList.remove('squish');void food.offsetWidth;food.classList.add('squish');food.style.left=s.x+'%';food.style.top=s.y+'%';var r=$('track').getBoundingClientRect();burst(r.left+r.width*s.x/100,r.top+r.height*s.y/100,'💨',8);setTimeout(showStation,1250);}
+function startGame(){score=0;cur=0;updScore();$('food').textContent='🍔';$('food').style.left=ST[0].x+'%';$('food').style.top=ST[0].y+'%';buildTrack();$('scrStart').classList.add('hidden');$('scrEnd').classList.add('hidden');$('scrGame').classList.remove('hidden');setTimeout(showStation,400);}
+function endGame(){snd('win');var h=getHigh();if(score>h){setHigh(score);h=score;}floatText('🎉',window.innerWidth/2,120,'#ffe082');$('endScore').textContent=score+'分 / 70分';$('endHigh').textContent='🏆 最高分：'+h+'分';$('endConcl').innerHTML='<b>🔬 实验结论</b><br>① 消化道由<b>口腔、咽、食道、胃、小肠、大肠、肛门</b>组成，是食物的通道。<br>② 消化腺有唾液腺、胃腺、<b>肝脏</b>、胰腺、肠腺，分泌消化液参与化学性消化。<br>③ <b>小肠是消化和吸收的主要场所</b>：很长、有皱襞和小肠绒毛、含多种消化液、绒毛内毛细血管丰富。<br>④ 淀粉→口腔开始消化，蛋白质→胃开始消化，脂肪→小肠开始消化。';$('scrGame').classList.add('hidden');$('scrEnd').classList.remove('hidden');}
+function setPaused(v){paused=v;$('pauseOv').classList.toggle('hidden',!v);if(v){$('btnPause').textContent='▶';var c=ac();if(c)c.suspend();}else{$('btnPause').textContent='⏸';var c2=ac();if(c2)c2.resume();}}
+$('btnStart').addEventListener('pointerdown',function(e){e.preventDefault();snd('click');startGame();});
+$('btnAgain').addEventListener('pointerdown',function(e){e.preventDefault();snd('click');startGame();});
+$('btnPause').addEventListener('pointerdown',function(e){e.preventDefault();if($('scrGame').classList.contains('hidden'))return;setPaused(true);});
+$('btnResume').addEventListener('pointerdown',function(e){e.preventDefault();setPaused(false);});
+$('btnMute').addEventListener('pointerdown',function(e){e.preventDefault();muted=!muted;saveMute();$('btnMute').textContent=muted?'🔇':'🔊';if(!muted)snd('click');});
+loadMute();updScore();
+</script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>食物链</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{background:#0e1611;color:#f1f5ec;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#app{position:fixed;inset:0;max-width:520px;margin:0 auto;display:flex;flex-direction:column;background:radial-gradient(120% 90% at 50% 0%,#16281a 0%,#0e1611 70%)}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(0,0,0,.35);border-bottom:1px solid #2e4a34;z-index:5}
+header.ttl{font-size:17px;font-weight:700;color:#a5d6a7}
+.iconbtn{width:46px;height:46px;border-radius:12px;border:1px solid #3f6148;background:#1c2f21;color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#scoreBox{font-size:15px;color:#ffe082;font-weight:700}
+.screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;overflow-y:auto}
+.hidden{display:none!important}
+h1{font-size:32px;margin:6px 0 4px;color:#a5d6a7;text-shadow:0 2px 12px rgba(102,187,106,.35)}
+.sub{color:#b9cdbd;font-size:15px;margin-bottom:12px}
+.rulebox{background:rgba(102,187,106,.08);border:1px solid #3f6148;border-radius:14px;padding:14px 16px;font-size:14.5px;line-height:1.75;color:#e3ecdf;max-width:440px;margin-bottom:16px}
+.bigbtn{min-height:52px;min-width:200px;padding:12px 34px;font-size:19px;font-weight:700;border:none;border-radius:16px;background:linear-gradient(135deg,#43a047,#1b5e20);color:#fff;cursor:pointer;box-shadow:0 4px 18px rgba(67,160,71,.45);transition:transform.15s ease}
+.bigbtn:active{transform:scale(.95)}
+.midbtn{min-height:46px;padding:10px 22px;font-size:16px;font-weight:700;border:none;border-radius:14px;background:linear-gradient(135deg,#66bb6a,#2e7d32);color:#fff;cursor:pointer;transition:transform.15s ease}
+.midbtn:active{transform:scale(.95)}
+.midbtn:disabled{opacity:.45}
+.stageTitle{font-size:19px;font-weight:800;color:#c5e1a5;margin:4px 0 2px;text-align:center}
+.stageHint{font-size:13.5px;color:#b9cdbd;margin-bottom:8px;text-align:center;line-height:1.6}
+#chainBar{display:flex;align-items:center;justify-content:center;gap:4px;margin:6px 0 10px;min-height:56px;flex-wrap:wrap}
+.slot{min-width:52px;min-height:52px;padding:6px 8px;border:2px dashed #3f6148;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#8fa695;background:rgba(0,0,0,.25);transition:all.25s cubic-bezier(.2,.9,.3,1.3)}
+.slot.fill{border-style:solid;border-color:#a5d6a7;color:#fff;background:#2e4a34;transform:scale(1.05)}
+.arrow{font-size:20px;color:#66bb6a}
+#cardGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%;max-width:430px;margin-bottom:10px}
+.card{min-height:64px;border:2px solid #3f6148;border-radius:14px;background:#1c2f21;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:transform.15s,border-color.2s,box-shadow.2s}
+.card:active{transform:scale(.93)}
+.card.e{font-size:30px;line-height:1.1}
+.card.n{font-size:12.5px;color:#dfe9dc;margin-top:2px}
+.card.used{opacity:.35;pointer-events:none}
+.card.err{border-color:#ef5350;box-shadow:0 0 12px rgba(239,83,80,.7);animation:shake.4s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}50%{transform:translateX(7px)}75%{transform:translateX(-4px)}}
+#popList{width:100%;max-width:430px;margin:6px 0}
+.poprow{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.25);border:1px solid #2e4a34;border-radius:12px;padding:8px 12px;margin:6px 0;font-size:15px}
+.poprow.e{font-size:26px;width:34px;text-align:center}
+.poprow.n{width:44px;font-weight:700}
+.poprow.bar{flex:1;height:12px;background:#0a0f0b;border-radius:6px;overflow:hidden}
+.poprow.bar i{display:block;height:100%;background:linear-gradient(90deg,#66bb6a,#a5d6a7);border-radius:6px;transition:width 1.2s cubic-bezier(.25,.8,.3,1)}
+.poprow.cnt{width:52px;text-align:right;font-weight:800;color:#ffe082}
+.poprow.chg{width:46px;text-align:right;font-weight:800;font-size:16px}
+.up{color:#a5d6a7}.down{color:#ef9a9a}
+.opt{display:block;width:100%;max-width:430px;min-height:48px;margin:6px 0;padding:10px 12px;font-size:16px;text-align:left;border:1px solid #3f6148;border-radius:12px;background:#1c2f21;color:#f1f5ec;cursor:pointer;transition:background.2s,transform.12s}
+.opt:active{transform:scale(.98)}
+.opt.right{background:#2e7d32;border-color:#a5d6a7}
+.opt.wrong{background:#b71c1c;border-color:#ef5350}
+.kcard{background:rgba(102,187,106,.14);border-left:4px solid #66bb6a;border-radius:8px;padding:10px 12px;font-size:14.5px;line-height:1.7;color:#eef5ea;margin:8px 0;max-width:430px;animation:slidein.4s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes slidein{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.float{position:fixed;z-index:60;font-size:22px;font-weight:800;pointer-events:none;text-shadow:0 2px 6px #000}
+.particle{position:fixed;z-index:59;font-size:18px;pointer-events:none}
+#pauseOv{position:fixed;inset:0;z-index:50;background:rgba(5,9,6,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+#pauseOv.pt{font-size:26px;font-weight:800;color:#a5d6a7}
+.endcard{background:rgba(102,187,106,.07);border:1px solid #3f6148;border-radius:16px;padding:16px;max-width:440px;width:100%;margin-bottom:14px}
+.endcard.sc{font-size:44px;font-weight:800;color:#ffe082;text-align:center;margin:4px 0}
+.endcard.hs{font-size:15px;color:#b9cdbd;text-align:center;margin-bottom:8px}
+.concl{font-size:14px;line-height:1.8;color:#e3ecdf}
+.concl b{color:#a5d6a7}
+.rmvGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%;max-width:430px;margin:6px 0 10px}
+.rmv{min-height:56px;border:2px solid #3f6148;border-radius:12px;background:#241a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:#f1f5ec}
+.rmv.e{font-size:26px}
+.rmv.sel{border-color:#ef5350;background:#3a1f1f;box-shadow:0 0 12px rgba(239,83,80,.5)}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+<button class="iconbtn" id="btnPause" aria-label="暂停">⏸</button>
+<div class="ttl">🌿 食物链</div>
+<div id="scoreBox">0分</div>
+<button class="iconbtn" id="btnMute" aria-label="静音">🔊</button>
+</header>
+
+<div class="screen" id="scrStart">
+<h1>🌿 食物链</h1>
+<div class="sub">生态组装 · 初中生物实验</div>
+<div class="rulebox">
+🧪 <b>玩法说明</b><br>
+<b>挑战1 · 组装食物链</b>：按正确顺序点击生物卡，组出两条食物链：<br>
+　① 草 → 兔 → 鹰　② 草 → 蝗虫 → 蛙 → 蛇 → 鹰<br>
+　每条正确 <b>+20分</b>，点错一次 <b>-5分</b>。<br>
+<b>挑战2 · 生态平衡实验</b>：选择移除一个物种，观察其他物种数量变化，再回答预测题（<b>+10分</b>）。
+</div>
+<button class="bigbtn" id="btnStart">▶ 开始实验</button>
+</div>
+
+<div class="screen hidden" id="scrGame" style="justify-content:flex-start;padding-top:10px">
+<div id="play"></div>
+</div>
+
+<div class="screen hidden" id="scrEnd">
+<h1>🎓 实验报告</h1>
+<div class="endcard">
+<div class="sc" id="endScore">0分</div>
+<div class="hs" id="endHigh">🏆 最高分：0分</div>
+<div class="concl" id="endConcl"></div>
+</div>
+<button class="bigbtn" id="btnAgain">🔄 再来一次</button>
+</div>
+
+<div id="pauseOv" class="hidden">
+<div class="pt">⏸ 已暂停</div>
+<button class="bigbtn" id="btnResume">▶ 继续</button>
+</div>
+</div>
+<script>'use strict';
+var $=function(id){return document.getElementById(id);};
+var HSKEY='g100_foodchain_hs',MUTEKEY='g100_mute';
+var SP=[
+{n:'草',e:'🌱',pop:100},{n:'蝗虫',e:'🦗',pop:60},{n:'兔',e:'🐇',pop:50},
+{n:'鼠',e:'🐭',pop:45},{n:'蛙',e:'🐸',pop:35},{n:'鸟',e:'🐦',pop:30},
+{n:'蛇',e:'🐍',pop:20},{n:'鹰',e:'🦅',pop:12}
+];
+var EAT={'鹰':['兔','鼠','鸟'],'蛇':['蛙','鼠'],'蛙':['蝗虫'],'鸟':['蝗虫'],'兔':['草'],'鼠':['草'],'蝗虫':['草']};
+var CHAINS=[['草','兔','鹰'],['草','蝗虫','蛙','蛇','鹰']];
+var score=0,muted=false,paused=false,AC=null,round=0,idx=0,locked=false;
+function emojiOf(n){for(var i=0;i<SP.length;i++){if(SP[i].n===n)return SP[i].e;}return '❓';}
+function loadMute(){try{muted=localStorage.getItem(MUTEKEY)==='1';}catch(e){muted=false;}$('btnMute').textContent=muted?'🔇':'🔊';}
+function saveMute(){try{localStorage.setItem(MUTEKEY,muted?'1':'0');}catch(e){}}
+function getHigh(){try{return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}catch(e){return 0;}}
+function setHigh(v){try{localStorage.setItem(HSKEY,String(v));}catch(e){}}
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,g,t0){var c=ac();if(!c||muted)return;var o=c.createOscillator(),g2=c.createGain();o.type=type||'sine';o.frequency.value=f;var t=c.currentTime+(t0||0);g2.gain.setValueAtTime(0.0001,t);g2.gain.exponentialRampToValueAtTime(g||0.18,t+0.01);g2.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g2);g2.connect(c.destination);o.start(t);o.stop(t+d+0.05);}
+function snd(n){if(muted)return;if(n==='click'){tone(620,0.07,'square',0.12);}else if(n==='right'){tone(523,0.12,'sine',0.2);tone(784,0.18,'sine',0.2,0.11);}else if(n==='wrong'){tone(150,0.28,'sawtooth',0.2);}else if(n==='win'){var f=[523,659,784,1047];for(var i=0;i<f.length;i++){tone(f[i],0.22,'triangle',0.2,i*0.14);}}}
+function buzz(p){if(navigator.vibrate){try{navigator.vibrate(p);}catch(e){}}}
+function floatText(txt,x,y,color){var d=document.createElement('div');d.className='float';d.textContent=txt;d.style.color=color||'#ffe082';d.style.left=x+'px';d.style.top=y+'px';document.body.appendChild(d);d.animate([{transform:'translate(-50%,-50%) scale(.6)',opacity:0},{transform:'translate(-50%,-90%) scale(1.15)',opacity:1,offset:.35},{transform:'translate(-50%,-190%) scale(1)',opacity:0}],{duration:1100,easing:'cubic-bezier(.2,.7,.3,1)'}).onfinish=function(){d.remove();};}
+function burst(x,y,em,n){for(var i=0;i<(n||10);i++){var p=document.createElement('div');p.className='particle';p.textContent=em||'✨';p.style.left=x+'px';p.style.top=y+'px';document.body.appendChild(p);var ang=Math.random()*Math.PI*2,dist=40+Math.random()*70;p.animate([{transform:'translate(0,0) scale(1)',opacity:1},{transform:'translate('+(Math.cos(ang)*dist)+'px,'+(Math.sin(ang)*dist-30)+'px) scale(.4)',opacity:0}],{duration:700+Math.random()*500,easing:'cubic-bezier(.2,.7,.3,1)'}).onfinish=(function(el){return function(){el.remove();};})(p);}}
+function updScore(){$('scoreBox').textContent=score+'分';}
+function showScr(id){var ss=['scrStart','scrGame','scrEnd'];for(var i=0;i<ss.length;i++){$(ss[i]).classList.toggle('hidden',ss[i]!==id);}}
+function startGame(){score=0;round=0;idx=0;updScore();showScr('scrGame');stageChain();}
+function stageChain(){locked=false;var exp=CHAINS[round];var h='<div class="stageTitle">🔗 挑战1 · 组装食物链（'+(round+1)+'/2）</div><div class="stageHint">按“谁吃谁”的顺序点击生物卡：'+exp.join(' → ')+'<br>组对 +20分，点错 -5分</div><div id="chainBar"></div><div id="cardGrid"></div><div id="msg" style="min-height:24px;font-size:14px;color:#ffe082;text-align:center"></div>';$('play').innerHTML=h;renderSlots();var g=$('cardGrid');for(var i=0;i<SP.length;i++){var c=document.createElement('div');c.className='card';c.dataset.n=SP[i].n;c.innerHTML='<div class="e">'+SP[i].e+'</div><div class="n">'+SP[i].n+'</div>';(function(card){card.addEventListener('pointerdown',function(ev){ev.preventDefault();pickCard(card);});})(c);g.appendChild(card);}}
+function renderSlots(){var exp=CHAINS[round];var bar=$('chainBar');bar.innerHTML='';for(var i=0;i<exp.length;i++){if(i>0){var a=document.createElement('div');a.className='arrow';a.textContent='➜';bar.appendChild(a);}var s=document.createElement('div');s.className='slot'+(i<idx?' fill':'');s.textContent=i<idx?emojiOf(exp[i])+' '+exp[i]:'?';bar.appendChild(s);}}
+function pickCard(card){if(locked||paused)return;var exp=CHAINS[round];var name=card.dataset.n;var r=card.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top;if(name===exp[idx]){snd('click');card.classList.add('used');idx++;renderSlots();burst(cx,cy,'✨',6);if(idx>=exp.length){locked=true;score+=20;updScore();snd('right');floatText('+20',cx,cy,'#a5d6a7');burst(cx,cy,'🎉',14);buzz([40,40,40]);$('msg').textContent='✅ 食物链正确！'+exp.join(' → ');setTimeout(function(){if(round<CHAINS.length-1){round++;idx=0;stageChain();}else{stageRemove();}},1600);}}else{score=Math.max(0,score-5);updScore();snd('wrong');card.classList.add('err');setTimeout(function(){card.classList.remove('err');},450);floatText('-5',cx,cy,'#ef9a9a');buzz(120);$('msg').textContent='❌ 点错了！想想“谁吃谁”，再试一次（-5分）。';}}
+function stageRemove(){var h='<div class="stageTitle">⚖️ 挑战2 · 生态平衡实验</div><div class="stageHint">选择<b>移除一个物种</b>，观察其他物种数量如何变化<br>（↑ 数量上升　↓ 数量下降）</div><div class="rmvGrid" id="rmvGrid"></div><div id="popList"></div><div id="quizBox"></div>';$('play').innerHTML=h;var g=$('rmvGrid');for(var i=0;i<SP.length;i++){var b=document.createElement('button');b.className='rmv';b.dataset.n=SP[i].n;b.innerHTML='<div class="e">'+SP[i].e+'</div><div>'+SP[i].n+'</div>';(function(btn){btn.addEventListener('pointerdown',function(ev){ev.preventDefault();doRemove(btn);});})(b);g.appendChild(b);}renderPops(null);}
+function preyOf(p){return EAT[p]||[];}
+function renderPops(chg){var box=$('popList');box.innerHTML='';for(var i=0;i<SP.length;i++){var s=SP[i];var row=document.createElement('div');row.className='poprow';var c=chg&&chg[s.n]?chg[s.n]:null;var mark=c?(c.dir>0?'<span class="up">↑</span>':'<span class="down">↓</span>'):'<span style="opacity:.25">–</span>';row.innerHTML='<div class="e">'+s.e+'</div><div class="n">'+s.n+'</div><div class="bar"><i id="bar_'+i+'"></i></div><div class="cnt" id="cnt_'+i+'">'+s.pop+'</div><div class="chg">'+mark+'</div>';box.appendChild(row);var barEl=row.querySelector('i');barEl.style.width=(s.pop)+'%';}}
+function doRemove(btn){if(paused)return;var R=btn.dataset.n;var btns=document.querySelectorAll('.rmv');for(var i=0;i<btns.length;i++){btns[i].style.pointerEvents='none';btns[i].classList.remove('sel');}btn.classList.add('sel');snd('click');var chg={};var prey=preyOf(R);for(var p=0;p<prey.length;p++){chg[prey[p]]={dir:1};}for(var q=0;q<SP.length;q++){var s2=SP[q].n;if(s2===R)continue;var eats=preyOf(s2);if(eats.indexOf(R)>=0){chg[s2]={dir:-1};}}
+var news={};for(var k in chg){var old=0;for(var m=0;m<SP.length;m++){if(SP[m].n===k)old=SP[m].pop;}news[k]=chg[k].dir>0?Math.round(old*1.5):Math.max(2,Math.round(old*0.5));}
+renderPops(chg);animatePops(news);buzz(40);
+var qn=null,qdir=0;for(var kk in chg){qn=kk;qdir=chg[kk].dir;break;}
+setTimeout(function(){showQuiz(R,qn,qdir);},1500);}
+function animatePops(news){for(var i=0;i<SP.length;i++){(function(i){var s=SP[i];var target=news[s.n];if(target===undefined)return;var from=s.pop,to=target;var t0=null,dur=1200;var cnt=$('cnt_'+i),bar=$('bar_'+i);function step(t){if(paused){requestAnimationFrame(step);return;}if(!t0)t0=t;var p=Math.min(1,(t-t0)/dur);var e=1-Math.pow(1-p,3);var v=Math.round(from+(to-from)*e);cnt.textContent=v;bar.style.width=v+'%';if(p<1)requestAnimationFrame(step);else{s.pop=to;}}requestAnimationFrame(step);})(i);}}
+function showQuiz(R,qn,dir){var box=$('quizBox');var word=dir>0?'上升':'下降';box.innerHTML='<div class="kcard">🔬 <b>实验现象</b>：移除了后，'+emojiOf(qn)+' '+qn+' 的数量'+(dir>0?'⬆️ 上升':'⬇️ 下降')+'了。<br>这说明：一种生物的数量变化，会影响整个生态系统！</div><div style="font-size:16px;font-weight:800;color:#ffe082;margin:8px 0">❓ 预测题（答对+10分）：移除后，的数量会？</div><button class="opt" id="qa">A．上升 ⬆️</button><button class="opt" id="qb">B．下降 ⬇️</button>';function done(ok,btn){var btns=box.querySelectorAll('.opt');for(var i=0;i<btns.length;i++){btns[i].style.pointerEvents='none';}var r=btn.getBoundingClientRect();if(ok){btn.classList.add('right');score+=10;updScore();snd('right');floatText('+10',r.left+r.width/2,r.top,'#a5d6a7');buzz([40,40,40]);}else{btn.classList.add('wrong');snd('wrong');buzz(120);(dir>0?$('qa'):$('qb')).classList.add('right');}setTimeout(endGame,1800);}$('qa').addEventListener('pointerdown',function(e){e.preventDefault();done(dir>0,this);});$('qb').addEventListener('pointerdown',function(e){e.preventDefault();done(dir<0,this);});}
+function endGame(){snd('win');var h=getHigh();if(score>h){setHigh(score);h=score;}floatText('🎉',window.innerWidth/2,120,'#ffe082');$('endScore').textContent=score+'分 / 50分';$('endHigh').textContent='🏆 最高分：'+h+'分';$('endConcl').innerHTML='<b>🔬 实验结论</b><br>① <b>生产者</b>（草）制造有机物，<b>消费者</b>（蝗虫、兔、鼠、蛙、鸟、蛇、鹰）直接或间接吃生产者，<b>分解者</b>（细菌、真菌）分解动植物遗体。<br>② 食物链：生产者 → 初级消费者 → 次级消费者……如 草→兔→鹰。多条食物链交织成<b>食物网</b>。<br>③ <b>生态平衡</b>：一种生物数量的变化会影响整个系统——移除鹰，兔、鼠、鸟因天敌减少而数量上升。<br>④ 物质和能量沿着食物链和食物网流动。';showScr('scrEnd');}
+function setPaused(v){paused=v;$('pauseOv').classList.toggle('hidden',!v);if(v){$('btnPause').textContent='▶';var c=ac();if(c)c.suspend();}else{$('btnPause').textContent='⏸';var c2=ac();if(c2)c2.resume();}}
+$('btnStart').addEventListener('pointerdown',function(e){e.preventDefault();snd('click');startGame();});
+$('btnAgain').addEventListener('pointerdown',function(e){e.preventDefault();snd('click');startGame();});
+$('btnPause').addEventListener('pointerdown',function(e){e.preventDefault();if($('scrGame').classList.contains('hidden'))return;setPaused(true);});
+$('btnResume').addEventListener('pointerdown',function(e){e.preventDefault();setPaused(false);});
+$('btnMute').addEventListener('pointerdown',function(e){e.preventDefault();muted=!muted;saveMute();$('btnMute').textContent=muted?'🔇':'🔊';if(!muted)snd('click');});
+loadMute();updScore();
+</script>
+</body>
+</html>
