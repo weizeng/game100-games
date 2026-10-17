@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>晶体生长</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;background:#0b1622;color:#e8f4fd;font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;}
+#app{max-width:560px;margin:0 auto;padding:10px 12px 28px;}
+header{display:flex;align-items:center;justify-content:space-between;margin:6px 0 10px;}
+h1{font-size:22px;margin:0;}
+.hbtns{display:flex;gap:8px;}
+.iconbtn{min-width:48px;min-height:48px;font-size:22px;background:#13273c;color:#e8f4fd;border:1px solid #2a4a6b;border-radius:12px;padding:6px 10px;}
+.iconbtn:active{transform:scale(.94);}
+#stageBar{background:#13273c;border-radius:10px;padding:9px 12px;margin-bottom:10px;font-size:15px;color:#9fd8ff;border:1px solid #1e3a57;}
+#cv{width:100%;height:360px;display:block;background:#0e1c2d;border-radius:14px;border:1px solid #1e3a57;touch-action:none;}
+.panel{background:#13273c;border-radius:14px;padding:12px;margin-top:10px;border:1px solid #1e3a57;}
+.row{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;align-items:center;}
+button.act{flex:1;min-height:48px;font-size:16px;border:none;border-radius:12px;background:#7E57C2;color:#fff;font-weight:600;padding:10px 8px;cursor:pointer;}
+button.act:active{transform:scale(.97);}
+button.act:disabled{opacity:.4;}
+button.alt{background:#1d3a5c;}
+.kv{display:flex;justify-content:space-between;font-size:15px;margin:5px 0;}
+.kv b{color:#ffd76a;}
+.hint{font-size:13px;color:#8fb6d8;margin-top:6px;line-height:1.6;}
+.warn{font-size:14px;color:#ffb3b3;margin-top:6px;min-height:20px;}
+input[type=range]{width:100%;min-height:44px;accent-color:#7E57C2;}
+.seglabels{display:flex;justify-content:space-between;font-size:14px;color:#9fd8ff;margin-top:-4px;}
+.overlay{position:fixed;inset:0;background:rgba(4,10,18,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+.overlay.hidden{display:none;}
+.card{background:#13273c;border-radius:18px;padding:22px;max-width:440px;width:100%;text-align:center;border:1px solid #2a4a6b;max-height:92vh;overflow:auto;}
+.card h2{margin:0 0 10px;font-size:24px;}
+.card p{font-size:15px;line-height:1.75;color:#c9e2f5;text-align:left;margin:8px 0;}
+.card .big{font-size:52px;}
+.score{font-size:18px;margin:6px 0;}
+.score b{color:#ffd76a;font-size:32px;}
+.comment{font-size:16px;color:#9fd8ff;margin:10px 0;line-height:1.6;}
+#resCv{width:200px;height:200px;margin:4px auto;display:block;}
+.hidden{display:none!important;}
+.hsline{font-size:14px;color:#8fb6d8;margin-top:8px;}
+.hsline b{color:#ffd76a;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>💎 晶体生长</h1>
+    <div class="hbtns">
+      <button class="iconbtn" id="knowBtn" title="知识点">📖</button>
+      <button class="iconbtn" id="muteBtn" title="静音">🔊</button>
+      <button class="iconbtn" id="pauseBtn" title="暂停">⏸</button>
+    </div>
+  </header>
+  <div id="stageBar">阶段① 配制溶液</div>
+  <canvas id="cv"></canvas>
+
+  <div class="panel" id="panelMix">
+    <div class="kv"><span>🌡 温度</span><b id="mixTemp">25 ℃</b></div>
+    <div class="kv"><span>🧪 KNO₃ 已加</span><b id="mixSolute">0 g</b></div>
+    <div class="kv"><span>💧 溶解度 S(T)</span><b id="mixSol">—</b></div>
+    <div class="kv"><span>🎯 还差</span><b id="mixNeed">—</b></div>
+    <div class="row">
+      <button class="act alt" id="heatBtn">🔥 加热 +5℃</button>
+      <button class="act alt" id="coolBtn">❄️ 冷却 −5℃</button>
+    </div>
+    <div class="row">
+      <button class="act" id="addBtn">➕ 加溶质 10g</button>
+    </div>
+    <div class="hint">目标：<b style="color:#ffd76a">65℃ 以上</b>配出<b style="color:#ffd76a">接近饱和</b>的溶液（溶质 ≥ 90% 溶解度）。S=13+1.9T+0.012T²。长按「加溶质」可连续加料，达标自动进入下一阶段。</div>
+    <div class="warn" id="mixWarn"></div>
+  </div>
+
+  <div class="panel hidden" id="panelSeed">
+    <div class="kv"><span>🪝 状态</span><b id="seedState">正在把晶种悬入溶液…</b></div>
+    <div class="hint">细线吊着小晶种缓缓放入饱和溶液，给晶体一个生长的"种子"。</div>
+  </div>
+
+  <div class="panel hidden" id="panelGrow">
+    <div class="kv"><span>📅 时间</span><b id="growDay">第 0 / 10 天</b></div>
+    <div class="kv"><span>🌡 溶液温度</span><b id="growTemp">—</b></div>
+    <div class="kv"><span>💎 晶体尺寸</span><b id="growSize">—</b></div>
+    <div class="hint">降温速度：</div>
+    <input type="range" id="coolRange" min="0" max="2" step="1" value="0">
+    <div class="seglabels"><span>🐢 慢速</span><span>🚶 中速</span><span>🐇 快速</span></div>
+    <div class="row">
+      <button class="act" id="harvestBtn">🌟 收获</button>
+    </div>
+    <div class="hint">降温越慢，晶体越大越透亮；降温太快只会得到细小浑浊的晶体。第 10 天自动收获。</div>
+  </div>
+</div>
+
+<div class="overlay" id="startScreen">
+  <div class="card">
+    <div class="big">💎</div>
+    <h2>晶体生长</h2>
+    <p>① <b>配制</b>：加热烧杯、加入 KNO₃，在 65℃ 以上配出接近饱和的溶液；<br>
+    ② <b>挂晶种</b>：把小晶种悬入溶液；<br>
+    ③ <b>生长</b>：选择降温速度，等待 10 天——降温越慢，晶体越大越透亮！</p>
+    <div class="row"><button class="act" id="startBtn">开始实验</button></div>
+    <div class="hsline">🏆 本地最高分：<b id="startHs">0</b></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endScreen">
+  <div class="card">
+    <div class="big">🌟</div>
+    <h2>收获晶体！</h2>
+    <canvas id="resCv" width="200" height="200"></canvas>
+    <div class="score">尺寸 <b id="sizeScore">0</b> / 60 ＋ 纯净 <b id="pureScore">0</b> / 40</div>
+    <div class="score">总分 <b id="totalScore">0</b> / 100</div>
+    <div class="comment" id="endComment"></div>
+    <div class="hsline">🏆 本地最高分：<b id="endHs">0</b></div>
+    <div class="row"><button class="act" id="againBtn">🔄 再来一次</button></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="knowModal">
+  <div class="card">
+    <div class="big">📖</div>
+    <h2>实验结论</h2>
+    <p><b>降温结晶原理</b>：硝酸钾这类固体的溶解度随温度降低而减小（S=13+1.9T+0.012T²）。先在高温下配出接近饱和的溶液，再缓慢降温，溶解度随之减小，多余的溶质便以晶体的形式析出。<br><br>降温越慢，溶质分子排列越有序，晶体长得越大、越完整、越透亮；降温太快，只会得到细小浑浊的晶体——<b>慢工出细活</b>！</p>
+    <div class="row"><button class="act" id="knowClose">知道了</button></div>
+  </div>
+</div>
+
+<script>'use strict';
+/* ============ 工具 ============ */
+const $ = id => document.getElementById(id);
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const easeInOut = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const buzz = ms => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} };
+
+/* ============ 音频（WebAudio 合成） ============ */
+let actx = null;
+let muted = false;
+try { muted = localStorage.getItem('g100_mute') === '1'; } catch (e) {}
+function ensureAudio() {
+  if (!actx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) actx = new AC();
+  }
+  if (actx && actx.state === 'suspended') actx.resume();
+}
+function tone(freq, dur, type, vol, when, slideTo) {
+  if (muted || !actx) return;
+  when = when || 0;
+  const t = actx.currentTime + when;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol || 0.15, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+const sndClick = () => tone(420, 0.06, 'square', 0.07);
+const sndAdd = () => { tone(620, 0.09, 'triangle', 0.14); tone(930, 0.08, 'triangle', 0.1, 0.05); };
+const sndHang = () => tone(520, 0.45, 'sine', 0.16, 0, 240);
+const sndMilestone = () => { tone(880, 0.12, 'sine', 0.13); tone(1318, 0.18, 'sine', 0.11, 0.09); };
+const sndHarvest = () => {
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, 0.22, 'triangle', 0.15, i * 0.13));
+  tone(1568, 0.45, 'sine', 0.09, 0.55);
+};
+
+/* ============ 游戏状态 ============ */
+const sol = t => 13 + 1.9 * t + 0.012 * t * t;   // 溶解度公式 g/100g水
+const DAY_LEN = 1.2;                              // 每"天"现实秒数
+const COOL = [
+  { name: '慢速', days: 10, size: 60, pure: 40 },
+  { name: '中速', days: 6,  size: 45, pure: 28 },
+  { name: '快速', days: 3,  size: 30, pure: 14 }
+];
+const S = {
+  phase: 'start', paused: false,
+  temp: 25, shownTemp: 25, solute: 0,
+  seedP: 0, splashed: false,
+  tStart: 25, growT: 0, day: 0, coolSpeed: 0,
+  r: 6, maxR: 70, rot: 0,
+  grains: [], bubbles: [], sparkles: [], ripples: [],
+  milestoneHit: {}, harvested: false,
+  banner: null
+};
+const cv = $('cv'), ctx = cv.getContext('2d');
+const resCv = $('resCv'), rctx = resCv.getContext('2d');
+let W = 300, H = 360;
+function fitCanvas() {
+  const rect = cv.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = Math.max(280, rect.width); H = 360;
+  cv.width = W * dpr; cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', fitCanvas);
+
+/* ============ 粒子 ============ */
+function spawnGrains() {
+  const cx = W / 2;
+  for (let i = 0; i < 9; i++)
+    S.grains.push({ x: cx + (Math.random() - .5) * 120, y: 40 + Math.random() * 20, vy: 60 + Math.random() * 60 });
+}
+function spawnBubbles() {
+  if (S.shownTemp < 50 || Math.random() > 0.35) return;
+  const m = beaker();
+  S.bubbles.push({ x: m.cx + (Math.random() - .5) * m.wBot * 0.7, y: m.bottom - 14, r: 1.5 + Math.random() * 3, vy: 40 + Math.random() * 40 });
+}
+function spawnSparkleAmbient(cx, cy, r) {
+  const a = Math.random() * Math.PI * 2, d = Math.random() * r;
+  S.sparkles.push({ x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d * 1.1, life: 0, max: 0.9 + Math.random() * 0.6 });
+}
+function burst(cx, cy, r, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, d = r * (0.4 + Math.random() * 0.9);
+    S.sparkles.push({ x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, life: 0, max: 1.1 + Math.random() * 0.7 });
+  }
+}
+function banner(text, secs) { S.banner = { text, until: performance.now() + secs * 1000 }; }
+
+/* ============ 绘制 ============ */
+function beaker() {
+  const cx = W / 2, top = 64, bottom = H - 26;
+  const wTop = Math.min(210, W * 0.62), wBot = wTop * 0.78;
+  const liquidY = top + 74;
+  return { cx, top, bottom, wTop, wBot, liquidY };
+}
+function tempColor(t) {
+  const hue = 210 - clamp(t / 90, 0, 1) * 200;   // 冷蓝 → 热橙红
+  return 'hsl(' + hue.toFixed(0) + ',72%,42%)';
+}
+function drawBeaker(m, liquidAlpha) {
+  ctx.save();
+  // 溶液
+  ctx.globalAlpha = liquidAlpha == null ? 1 : liquidAlpha;
+  ctx.fillStyle = tempColor(S.shownTemp);
+  ctx.beginPath();
+  const hw = m.wTop / 2, hw2 = m.wBot / 2;
+  const k = (m.liquidY - m.top) / (m.bottom - m.top);
+  const hwL = hw + (hw2 - hw) * k;
+  ctx.moveTo(m.cx - hwL, m.liquidY);
+  ctx.lineTo(m.cx + hwL, m.liquidY);
+  ctx.lineTo(m.cx + hw2, m.bottom - 6);
+  ctx.quadraticCurveTo(m.cx, m.bottom + 6, m.cx - hw2, m.bottom - 6);
+  ctx.closePath(); ctx.fill();
+  // 液面
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.beginPath(); ctx.ellipse(m.cx, m.liquidY, hwL, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  // 玻璃杯壁
+  ctx.strokeStyle = 'rgba(200,230,255,0.55)'; ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(m.cx - hw, m.top); ctx.lineTo(m.cx - hw2, m.bottom - 6);
+  ctx.quadraticCurveTo(m.cx, m.bottom + 8, m.cx + hw2, m.bottom - 6);
+  ctx.lineTo(m.cx + hw, m.top); ctx.stroke();
+  ctx.restore();
+}
+function drawThermometer(m) {
+  const x = m.cx - m.wTop / 2 - 34, y0 = m.top + 6, y1 = m.bottom - 6;
+  ctx.save();
+  ctx.fillStyle = '#0a1520'; ctx.strokeStyle = '#3a5a7d'; ctx.lineWidth = 2;
+  roundRect(x - 8, y0, 16, y1 - y0, 8); ctx.fill(); ctx.stroke();
+  const f = clamp(S.shownTemp / 90, 0, 1);
+  ctx.fillStyle = tempColor(S.shownTemp);
+  const hh = (y1 - y0 - 10) * f;
+  roundRect(x - 4, y1 - 5 - hh, 8, hh, 4); ctx.fill();
+  ctx.fillStyle = '#e8f4fd'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(Math.round(S.shownTemp) + '℃', x, y1 + 16);
+  ctx.restore();
+}
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function drawCrystal(c, x, y, r, rot, purity) {
+  c.save(); c.translate(x, y); c.rotate(rot);
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 3 * i - Math.PI / 2;
+    pts.push([Math.cos(a) * r, Math.sin(a) * r * 1.12]);
+  }
+  const poly = p => { c.beginPath(); p.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.closePath(); };
+  const g = c.createLinearGradient(-r, -r, r, r);
+  g.addColorStop(0, 'rgba(215,240,255,0.96)');
+  g.addColorStop(0.5, 'rgba(150,190,250,0.92)');
+  g.addColorStop(1, 'rgba(126,87,194,0.95)');
+  poly(pts); c.fillStyle = g; c.fill();
+  // 刻面线
+  c.strokeStyle = 'rgba(255,255,255,0.55)'; c.lineWidth = 1.5;
+  pts.forEach(q => { c.beginPath(); c.moveTo(0, 0); c.lineTo(q[0], q[1]); c.stroke(); });
+  poly(pts.map(q => [q[0] * 0.45, q[1] * 0.45]));
+  c.strokeStyle = 'rgba(255,255,255,0.4)'; c.stroke();
+  // 浑浊层（降温越快越浑浊）
+  const cloud = 1 - purity / 40;
+  if (cloud > 0.03) {
+    poly(pts); c.fillStyle = 'rgba(235,238,245,' + (cloud * 0.6).toFixed(2) + ')'; c.fill();
+  }
+  // 高光
+  c.fillStyle = 'rgba(255,255,255,0.75)';
+  c.beginPath(); c.ellipse(-r * 0.32, -r * 0.42, r * 0.16, r * 0.3, -0.5, 0, Math.PI * 2); c.fill();
+  c.restore();
+}
+function drawThread(c, x, yTop, yBot) {
+  c.save();
+  c.strokeStyle = 'rgba(220,235,250,0.85)'; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(x, yTop); c.lineTo(x, yBot); c.stroke();
+  c.restore();
+}
+function drawSparkles(c) {
+  c.save();
+  S.sparkles.forEach(p => {
+    const t = p.life / p.max;
+    if (t >= 1) return;
+    const a = t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75;
+    const s = 3 + 5 * Math.sin(t * Math.PI);
+    c.strokeStyle = 'rgba(255,250,210,' + (a * 0.95).toFixed(2) + ')';
+    c.lineWidth = 1.6;
+    c.beginPath();
+    c.moveTo(p.x - s, p.y); c.lineTo(p.x + s, p.y);
+    c.moveTo(p.x, p.y - s); c.lineTo(p.x, p.y + s);
+    c.stroke();
+  });
+  c.restore();
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+  const m = beaker();
+  S.maxR = Math.min(72, (m.bottom - m.liquidY) * 0.52);
+
+  if (S.phase === 'mix' || S.phase === 'start') {
+    drawBeaker(m);
+    drawThermometer(m);
+    // 溶质颗粒下落溶解
+    ctx.save();
+    S.grains.forEach(p => {
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.4, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+    // 气泡
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5;
+    S.bubbles.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke(); });
+    ctx.restore();
+  } else {
+    // seed / grow / end：溶液 + 悬线 + 晶体
+    const cx = m.cx, ccy = m.liquidY + (m.bottom - m.liquidY) * 0.55;
+    drawBeaker(m);
+    drawThermometer(m);
+    let cr = 12, cy = ccy;
+    if (S.phase === 'seed') {
+      const e = easeInOut(clamp(S.seedP, 0, 1));
+      cy = lerp(m.top - 26, ccy, e);
+      drawThread(ctx, cx, m.top - 40, cy - 12);
+      drawCrystal(ctx, cx, cy, 12, S.rot, 40);
+      if (S.seedP > 0 && S.seedP < 1 && cy > m.liquidY - 4 && !S.splashed) {
+        S.splashed = true;
+        for (let i = 0; i < 3; i++) S.ripples.push({ x: cx, y: m.liquidY, r: 6, max: 46, a: 0.7 });
+      }
+    } else {
+      cr = Math.max(6, S.r);
+      const cfg = COOL[S.coolSpeed];
+      drawThread(ctx, cx, m.top - 40, cy - cr * 1.1);
+      drawCrystal(ctx, cx, cy, cr, S.rot, cfg.pure);
+      if (S.shownTemp > 45) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5;
+        S.bubbles.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke(); });
+        ctx.restore();
+      }
+      if (Math.random() < (cfg.pure / 40) * 0.3) spawnSparkleAmbient(cx, cy, cr);
+    }
+    // 涟漪
+    ctx.save();
+    S.ripples.forEach(rp => {
+      ctx.strokeStyle = 'rgba(255,255,255,' + rp.a.toFixed(2) + ')'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(rp.x, rp.y, rp.r, rp.r * 0.32, 0, 0, Math.PI * 2); ctx.stroke();
+    });
+    ctx.restore();
+    drawSparkles(ctx);
+  }
+
+  // 中央横幅
+  if (S.banner && performance.now() < S.banner.until) {
+    ctx.save();
+    ctx.font = 'bold 19px sans-serif'; ctx.textAlign = 'center';
+    const tw = ctx.measureText(S.banner.text).width;
+    ctx.fillStyle = 'rgba(10,20,34,0.82)';
+    roundRect(W / 2 - tw / 2 - 16, H / 2 - 52, tw + 32, 44, 12); ctx.fill();
+    ctx.fillStyle = '#ffd76a';
+    ctx.fillText(S.banner.text, W / 2, H / 2 - 22);
+    ctx.restore();
+  }
+  if (S.paused && S.phase !== 'start' && S.phase !== 'end') {
+    ctx.save();
+    ctx.fillStyle = 'rgba(4,10,18,0.55)'; ctx.fillRect(0, 0, W, H);
+    ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#e8f4fd';
+    ctx.fillText('⏸ 已暂停', W / 2, H / 2);
+    ctx.restore();
+  }
+}
+
+/* ============ 更新 ============ */
+function update(dt) {
+  // 溶液颜色缓动：显示温度追赶实际温度
+  S.shownTemp = lerp(S.shownTemp, S.temp, 1 - Math.exp(-3 * dt));
+  S.rot += dt * 0.25;
+  spawnBubbles();
+  S.grains = S.grains.filter(p => {
+    p.y += p.vy * dt;
+    return p.y < beaker().liquidY + 4;
+  });
+  S.bubbles = S.bubbles.filter(b => { b.y -= b.vy * dt; return b.y > beaker().top + 70; });
+  S.ripples = S.ripples.filter(rp => {
+    rp.r += 42 * dt; rp.a -= 0.9 * dt; return rp.a > 0 && rp.r < rp.max;
+  });
+  S.sparkles = S.sparkles.filter(p => { p.life += dt; return p.life < p.max; });
+
+  if (S.phase === 'seed') {
+    S.seedP += dt / 1.8;
+    if (S.seedP >= 1) toGrow();
+  } else if (S.phase === 'grow') {
+    S.growT += dt;
+    const df = S.growT / DAY_LEN;
+    const dayNow = Math.min(10, Math.floor(df));
+    if (dayNow !== S.day) { S.day = dayNow; updateGrowPanel(); }
+    const cfg = COOL[S.coolSpeed];
+    S.temp = S.tStart - (S.tStart - 20) * Math.min(1, df / cfg.days);
+    [3, 6, 9].forEach(ms => {
+      if (dayNow >= ms && !S.milestoneHit[ms]) {
+        S.milestoneHit[ms] = 1;
+        const m = beaker(), cy = m.liquidY + (m.bottom - m.liquidY) * 0.55;
+        burst(m.cx, cy, Math.max(20, S.r), 10 + Math.round(cfg.pure / 40 * 18));
+        sndMilestone(); buzz(40);
+      }
+    });
+    const targetR = Math.max(6, S.maxR * (cfg.size / 60) * Math.min(1, df / 10));
+    S.r = lerp(S.r, targetR, 1 - Math.exp(-2.2 * dt));   // 晶体生长缓动
+    updateGrowTemp();
+    if (df >= 10) harvest();
+  }
+}
+
+/* ============ 阶段流程 ============ */
+function showPanel(which) {
+  $('panelMix').classList.toggle('hidden', which !== 'mix');
+  $('panelSeed').classList.toggle('hidden', which !== 'seed');
+  $('panelGrow').classList.toggle('hidden', which !== 'grow');
+}
+function setStage(t) { $('stageBar').textContent = t; }
+function startGame() {
+  ensureAudio(); sndClick();
+  resetState();
+  S.phase = 'mix';
+  $('startScreen').classList.add('hidden');
+  showPanel('mix'); setStage('阶段① 配制溶液');
+  updateMixPanel();
+  banner('配制高温饱和溶液', 2.2);
+}
+function resetState() {
+  S.phase = 'mix'; S.paused = false;
+  S.temp = 25; S.shownTemp = 25; S.solute = 0;
+  S.seedP = 0; S.splashed = false;
+  S.tStart = 25; S.growT = 0; S.day = 0; S.coolSpeed = 0;
+  S.r = 6; S.rot = 0;
+  S.grains = []; S.bubbles = []; S.sparkles = []; S.ripples = [];
+  S.milestoneHit = {}; S.harvested = false; S.banner = null;
+  $('coolRange').value = '0';
+  $('pauseBtn').textContent = '⏸';
+  $('mixWarn').textContent = '';
+  $('endScreen').classList.add('hidden');
+}
+function updateMixPanel() {
+  const cap = sol(S.temp);
+  $('mixTemp').textContent = Math.round(S.temp) + ' ℃';
+  $('mixSolute').textContent = Math.round(S.solute) + ' g';
+  $('mixSol').textContent = cap.toFixed(1) + ' g / 100g水';
+  const need = Math.max(0, 0.9 * cap - S.solute);
+  $('mixNeed').textContent = S.temp >= 65 ? (need < 0.5 ? '已达标 ✅' : '再加约 ' + Math.ceil(need / 10) * 10 + ' g') : '先加热到 65℃ 以上';
+}
+function checkMixDone() {
+  const cap = sol(S.temp);
+  if (S.temp >= 65 && S.solute >= 0.9 * cap) {
+    S.phase = 'seed';
+    showPanel('seed'); setStage('阶段② 悬挂晶种');
+    $('seedState').textContent = '正在把晶种悬入溶液…';
+    banner('✅ 高温饱和溶液配制成功！', 2.4);
+    sndMilestone();
+    const waitSeed = () => {
+      if (S.phase !== 'seed') return;
+      if (S.paused) { setTimeout(waitSeed, 500); return; }
+      beginSeedDrop();
+    };
+    setTimeout(waitSeed, 1200);
+  }
+}
+function beginSeedDrop() {
+  S.seedP = 0.0001; S.splashed = false;
+  sndHang();
+}
+function toGrow() {
+  S.phase = 'grow';
+  showPanel('grow'); setStage('阶段③ 晶体生长');
+  S.tStart = S.temp; S.growT = 0; S.day = 0;
+  S.r = 12;
+  banner('🌱 晶种就位，开始降温！', 2.2);
+  updateGrowPanel();
+}
+function updateGrowPanel() {
+  $('growDay').textContent = '第 ' + S.day + ' / 10 天';
+  const cfg = COOL[S.coolSpeed];
+  const frac = Math.min(1, (S.growT / DAY_LEN) / 10);
+  const est = Math.round(cfg.size * frac);
+  $('growSize').textContent = '约 ' + est + ' 分（' + cfg.name + '降温）';
+}
+function updateGrowTemp() {
+  $('growTemp').textContent = S.shownTemp.toFixed(1) + ' ℃';
+}
+function commentFor(t) {
+  if (t >= 90) return '晶莹剔透的宝石级晶体！实验室之星诞生了！';
+  if (t >= 75) return '又大又透的漂亮晶体，降温节奏掌握得很好！';
+  if (t >= 60) return '不错的晶体！试试更慢的降温，冲击宝石级。';
+  if (t >= 40) return '晶体偏小或不够透，下次把降温调慢一些。';
+  return '浑浊的小晶体——降温太快了，慢工出细活！';
+}
+function harvest() {
+  if (S.harvested || S.phase !== 'grow') return;
+  S.harvested = true;
+  const cfg = COOL[S.coolSpeed];
+  const frac = Math.min(1, (S.growT / DAY_LEN) / 10);
+  const sizePts = Math.round(cfg.size * frac);
+  const purePts = Math.round(cfg.pure * frac);
+  const total = sizePts + purePts;
+  sndHarvest(); buzz([60, 60, 60]);
+  const m = beaker(), cy = m.liquidY + (m.bottom - m.liquidY) * 0.55;
+  burst(m.cx, cy, Math.max(24, S.r), 60);
+  let hs = 0;
+  try {
+    hs = parseInt(localStorage.getItem('g100_crystal_hs') || '0', 10) || 0;
+    if (total > hs) { hs = total; localStorage.setItem('g100_crystal_hs', String(hs)); }
+  } catch (e) {}
+  // 绘制结算晶体
+  rctx.setTransform(1, 0, 0, 1, 0, 0);
+  rctx.clearRect(0, 0, 200, 200);
+  drawCrystal(rctx, 100, 100, 30 + (sizePts / 60) * 55, 0.4, purePts);
+  $('sizeScore').textContent = sizePts;
+  $('pureScore').textContent = purePts;
+  $('totalScore').textContent = total;
+  $('endComment').textContent = commentFor(total);
+  $('endHs').textContent = hs;
+  S.phase = 'end';
+  setStage('✅ 实验完成');
+  $('endScreen').classList.remove('hidden');
+}
+
+/* ============ 输入 ============ */
+function onTap(el, fn) {
+  el.addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); fn(); });
+}
+function holdRepeat(el, fn) {
+  let t1 = null, iv = null;
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault(); ensureAudio(); fn();
+    t1 = setTimeout(() => { iv = setInterval(fn, 110); }, 380);
+  });
+  const stop = () => { clearTimeout(t1); clearInterval(iv); t1 = iv = null; };
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => el.addEventListener(ev, stop));
+}
+function mixTemp(d) {
+  if (S.phase !== 'mix' || S.paused) return;
+  S.temp = clamp(S.temp + d, 20, 90);
+  sndClick(); updateMixPanel();
+}
+function mixAddSolute() {
+  if (S.phase !== 'mix' || S.paused) return;
+  const cap = sol(S.temp);
+  if (S.solute >= cap - 0.01) {
+    $('mixWarn').textContent = '已达该温度的溶解上限，加热才能继续加料！';
+    return;
+  }
+  $('mixWarn').textContent = '';
+  S.solute = Math.min(cap, S.solute + 10);
+  spawnGrains(); sndAdd(); updateMixPanel(); checkMixDone();
+}
+holdRepeat($('heatBtn'), () => mixTemp(5));
+holdRepeat($('coolBtn'), () => mixTemp(-5));
+holdRepeat($('addBtn'), mixAddSolute);
+
+$('coolRange').addEventListener('input', e => {
+  S.coolSpeed = parseInt(e.target.value, 10);
+  sndClick(); updateGrowPanel();
+});
+onTap($('harvestBtn'), () => { if (S.phase === 'grow' && !S.paused) harvest(); });
+onTap($('startBtn'), startGame);
+onTap($('againBtn'), () => {
+  sndClick(); resetState();
+  S.phase = 'mix';
+  showPanel('mix'); setStage('阶段① 配制溶液');
+  updateMixPanel();
+  banner('配制高温饱和溶液', 2.2);
+});
+onTap($('pauseBtn'), () => {
+  if (S.phase === 'start' || S.phase === 'end') return;
+  ensureAudio(); sndClick();
+  S.paused = !S.paused;
+  $('pauseBtn').textContent = S.paused ? '▶' : '⏸';
+});
+onTap($('muteBtn'), () => {
+  muted = !muted;
+  try { localStorage.setItem('g100_mute', muted ? '1' : '0'); } catch (e) {}
+  $('muteBtn').textContent = muted ? '🔇' : '🔊';
+  if (!muted) { ensureAudio(); sndClick(); }
+});
+onTap($('knowBtn'), () => { ensureAudio(); sndClick(); $('knowModal').classList.remove('hidden'); });
+onTap($('knowClose'), () => { sndClick(); $('knowModal').classList.add('hidden'); });
+
+/* ============ 启动 ============ */
+function init() {
+  $('muteBtn').textContent = muted ? '🔇' : '🔊';
+  let hs = 0;
+  try { hs = parseInt(localStorage.getItem('g100_crystal_hs') || '0', 10) || 0; } catch (e) {}
+  $('startHs').textContent = hs;
+  fitCanvas();
+  let last = performance.now();
+  const loop = now => {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (!S.paused && S.phase !== 'start') update(dt);
+    render();
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+init();
+</script>
+</body>
+</html>

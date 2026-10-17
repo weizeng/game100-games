@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>pH试纸 - 化学实验</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:#0b1622;color:#e8f4fd;font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;min-height:100vh;user-select:none;-webkit-user-select:none}
+.screen{max-width:980px;margin:0 auto;padding:10px}
+.panel{background:#13273c;border-radius:14px;padding:14px;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+.card{max-width:540px;margin:6vh auto;text-align:center}
+.card.wide{max-width:660px;text-align:left}
+h1{margin:.4em 0;font-size:28px}
+h2{font-size:16px;margin:10px 0 8px;color:#9fd0f0}
+button{font-family:inherit;touch-action:manipulation}
+.primary{display:block;width:100%;min-height:52px;margin-top:14px;font-size:18px;font-weight:700;color:#06281c;background:linear-gradient(180deg,#7ee2a8,#4caf7d);border:none;border-radius:12px;cursor:pointer}
+.primary:active{transform:scale(.97)}
+.iconbtn{min-width:44px;min-height:44px;font-size:20px;background:#1d3a5c;color:#e8f4fd;border:1px solid #2c537e;border-radius:10px;cursor:pointer}
+.topbar{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.logo{font-weight:700;font-size:17px}
+.pill{background:#13273c;border:1px solid #2c537e;border-radius:20px;padding:6px 12px;font-size:14px;white-space:nowrap}
+.sp{flex:1}
+.hint{background:#13273c;border-left:4px solid #ffd54f;border-radius:8px;padding:10px 12px;margin-bottom:10px;min-height:44px;font-size:15px;line-height:1.5}
+.layout{display:flex;gap:10px;align-items:flex-start}
+.left{flex:1;min-width:0}
+.right{width:212px;flex-shrink:0}
+.bottles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.bottle{min-height:100px;background:#1d3a5c;border:2px solid #2c537e;border-radius:12px;color:#e8f4fd;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px}
+.bottle .bemoji{font-size:34px;line-height:1}
+.bottle .bname{font-size:16px;font-weight:700}
+.bottle .bstat{font-size:12px;color:#9fb6cc;min-height:16px}
+.bottle.next{border-color:#ffd54f;box-shadow:0 0 12px rgba(255,213,79,.45)}
+.bottle.active{border-color:#7ee2a8;box-shadow:0 0 12px rgba(126,226,168,.45)}
+.bottle.done{opacity:.8;border-color:#43a047}
+.bottle:disabled{cursor:default}
+.dipzone{position:relative;height:196px;background:#0e1d2e;border-radius:12px;overflow:hidden;margin-top:4px}
+.dipzone::after{content:'试纸浸入区';position:absolute;left:0;right:0;bottom:8px;text-align:center;color:#5b7a99;font-size:13px}
+.paper{position:absolute;left:50%;top:12px;width:46px;height:120px;margin-left:-23px;background:linear-gradient(180deg,#ffffff,#e2e8ee);border-radius:6px;border:1px solid #b9c7d4;z-index:2}
+.papercolor{position:absolute;inset:0;border-radius:6px;opacity:0;transition:opacity 1.2s ease}
+@keyframes dipAnim{0%{transform:translateY(0)}35%{transform:translateY(48px)}65%{transform:translateY(48px)}100%{transform:translateY(0)}}
+.paper.dip{animation:dipAnim 1.4s ease-in-out}
+.chart{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.phcell{min-height:44px;border:none;border-radius:8px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;text-shadow:0 1px 3px rgba(0,0,0,.65)}
+.phcell.sel{outline:3px solid #fff;box-shadow:0 0 10px rgba(255,255,255,.7)}
+.bigicon{font-size:56px;line-height:1}
+.sub{color:#9fb6cc;margin-top:0}
+.howto{text-align:left;background:#0e1d2e;border-radius:10px;padding:12px 14px;font-size:14.5px;line-height:1.7}
+.howto p{margin:.45em 0}
+.hsline{color:#9fb6cc;margin-top:12px}
+.bigscore{font-size:44px;font-weight:800;margin:.3em 0}
+.tier{font-size:20px;margin:.4em 0}
+.overlay{position:fixed;inset:0;background:rgba(4,10,18,.8);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:60}
+.pt{position:absolute;width:9px;height:9px;border-radius:50%;animation:fly .85s ease-out forwards}
+@keyframes fly{to{transform:translate(var(--dx),var(--dy)) scale(.35);opacity:0}}
+#knowModal ul{line-height:1.75;font-size:15px;padding-left:1.2em;margin:.6em 0}
+#knowModal li{margin-bottom:.6em}
+@media(max-width:680px){
+.layout{flex-direction:column}
+.right{width:100%}
+.chart{display:flex;overflow-x:auto;padding-bottom:6px}
+.phcell{flex:0 0 62px}
+}
+</style>
+</head>
+<body>
+<div id="fx"></div>
+
+<!-- 开始界面 -->
+<div id="screen-start" class="screen">
+  <div class="panel card">
+    <div class="bigicon">📏</div>
+    <h1>pH试纸</h1>
+    <p class="sub">化学小实验 · 测溶液酸碱度</p>
+    <div class="howto">
+      <p>🧪 每轮从 <b>白醋 / 柠檬汁 / 纯净水 / 肥皂水 / 小苏打水</b> 中随机摆出 <b>4 瓶</b>。</p>
+      <p>👆 点溶液瓶，试纸浸入后会按标准比色变色。</p>
+      <p>🎨 对照右侧<b>标准比色卡</b>，点选你判断的 pH 值，再按「✅ 提交」。每瓶只有一次机会！</p>
+      <p>⭐ 评分：猜中（误差 ≤ 0.5）得 <b>25</b> 分，误差 ≤ 1 得 <b>15</b> 分，否则 5 分，满分 100。</p>
+      <p>🏅 最高分保存在本机，下次继续挑战。</p>
+    </div>
+    <button id="startBtn" class="primary">开始实验</button>
+    <p class="hsline">本地最高分：<span id="startHs">0</span></p>
+  </div>
+</div>
+
+<!-- 游戏界面 -->
+<div id="screen-game" class="screen" style="display:none">
+  <header class="topbar">
+    <span class="logo">📏 pH试纸</span>
+    <span class="pill">得分 <b id="score">0</b></span>
+    <span class="pill">进度 <b id="prog">0/4</b></span>
+    <span class="sp"></span>
+    <button id="knowBtn" class="iconbtn" title="知识点">📖</button>
+    <button id="muteBtn" class="iconbtn" title="静音开关">🔊</button>
+    <button id="pauseBtn" class="iconbtn" title="暂停">⏸</button>
+  </header>
+  <div id="hint" class="hint">点一瓶溶液开始实验</div>
+  <main class="layout">
+    <section class="panel left">
+      <h2>🧪 溶液瓶（按顺序点高亮的瓶）</h2>
+      <div id="bottles" class="bottles"></div>
+      <h2>📏 试纸</h2>
+      <div class="dipzone">
+        <div id="paper" class="paper"><div id="paperColor" class="papercolor"></div></div>
+      </div>
+    </section>
+    <aside class="panel right">
+      <h2>🎨 标准比色卡</h2>
+      <div id="chart" class="chart"></div>
+      <button id="submitBtn" class="primary">✅ 提交</button>
+    </aside>
+  </main>
+</div>
+
+<!-- 结束界面 -->
+<div id="screen-end" class="screen" style="display:none">
+  <div class="panel card">
+    <div class="bigicon">🎉</div>
+    <h1>实验完成</h1>
+    <p id="tier" class="tier"></p>
+    <p class="bigscore"><span id="finalScore">0</span> / 100</p>
+    <p class="hsline">本地最高分：<span id="finalHs">0</span></p>
+    <button id="againBtn" class="primary">🔁 再来一轮</button>
+  </div>
+</div>
+
+<!-- 暂停遮罩 -->
+<div id="pauseOverlay" class="overlay" style="display:none">
+  <div class="panel card">
+    <h1>⏸ 已暂停</h1>
+    <button id="resumeBtn" class="primary">▶ 继续</button>
+  </div>
+</div>
+
+<!-- 知识点弹窗 -->
+<div id="knowModal" class="overlay" style="display:none">
+  <div class="panel card wide">
+    <h1>📖 实验结论</h1>
+    <ul>
+      <li><b>pH &lt; 7</b>：酸性；<b>pH = 7</b>：中性；<b>pH &gt; 7</b>：碱性。</li>
+      <li>pH 试纸使用前<b>不能润湿</b>！润湿会稀释待测溶液，测出的 pH 不准（酸性测出来偏大、碱性测出来偏小）。</li>
+      <li>常见溶液 pH 范围表：
+        胃液 1.5–2、柠檬汁约 2、白醋约 3、雨水约 5.6、纯净水 7、
+        血液 7.35–7.45、小苏打水约 8、肥皂水 9–10、漂白水 12–13。</li>
+      <li>本轮 5 种溶液：柠檬汁(pH≈2) &lt; 白醋(pH≈3) &lt; 纯净水(pH=7) &lt; 小苏打水(pH≈8) &lt; 肥皂水(pH≈9)。</li>
+    </ul>
+    <button id="knowClose" class="primary">知道了</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 数据 ============ */
+var SOLUTIONS=[
+ {name:'白醋',emoji:'🍶',ph:3},
+ {name:'柠檬汁',emoji:'🍋',ph:2},
+ {name:'纯净水',emoji:'💧',ph:7},
+ {name:'肥皂水',emoji:'🧼',ph:9},
+ {name:'小苏打水',emoji:'🥛',ph:8}
+];
+var PHC={1:'#e53935',2:'#ef5350',3:'#f4511e',4:'#fb8c00',5:'#ffb300',6:'#fdd835',7:'#9ccc65',8:'#66bb6a',9:'#43a047',10:'#5c6bc0',11:'#7e57c2',12:'#8e24aa',13:'#7b1fa2',14:'#4a148c'};
+var state={bottles:[],idx:0,score:0,done:0,selected:0,revealed:false,dipping:false,paused:false,muted:false,hs:0};
+var AC=null;
+function $(id){return document.getElementById(id);}
+
+/* ============ 存档 ============ */
+function loadPrefs(){
+ try{state.hs=parseInt(localStorage.getItem('g100_phtest_hs')||'0',10)||0;}catch(e){state.hs=0;}
+ try{state.muted=localStorage.getItem('g100_mute')==='1';}catch(e){state.muted=false;}
+ $('muteBtn').textContent=state.muted?'🔇':'🔊';
+ $('startHs').textContent=state.hs;
+}
+function saveMute(){try{localStorage.setItem('g100_mute',state.muted?'1':'0');}catch(e){}}
+function saveHs(){try{localStorage.setItem('g100_phtest_hs',String(state.hs));}catch(e){}}
+
+/* ============ WebAudio 合成音效 ============ */
+function ac(){
+ if(state.muted)return null;
+ if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}
+ if(AC.state==='suspended'){AC.resume();}
+ return AC;
+}
+function tone(freq,dur,type,when,vol){
+ var c=ac();if(!c)return;
+ var t=c.currentTime+(when||0);
+ var o=c.createOscillator(),g=c.createGain();
+ o.type=type||'sine';o.frequency.value=freq;
+ g.gain.setValueAtTime(0.0001,t);
+ g.gain.exponentialRampToValueAtTime(vol||0.25,t+0.02);
+ g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+ o.connect(g);g.connect(c.destination);
+ o.start(t);o.stop(t+dur+0.05);
+}
+function sndDip(){ /* 浸入水声：噪声经低通扫频 */
+ var c=ac();if(!c)return;
+ var dur=0.7,sr=c.sampleRate,buf=c.createBuffer(1,Math.floor(sr*dur),sr),d=buf.getChannelData(0);
+ for(var i=0;i<d.length;i++){d[i]=(Math.random()*2-1)*(1-i/d.length);}
+ var src=c.createBufferSource();src.buffer=buf;
+ var f=c.createBiquadFilter();f.type='lowpass';
+ f.frequency.setValueAtTime(2200,c.currentTime);
+ f.frequency.exponentialRampToValueAtTime(280,c.currentTime+dur);
+ var g=c.createGain();
+ g.gain.setValueAtTime(0.32,c.currentTime);
+ g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+dur);
+ src.connect(f);f.connect(g);g.connect(c.destination);src.start();
+}
+function sndSubmit(){tone(660,0.12,'square',0,0.14);}
+function sndGreat(){tone(523.25,0.15,'sine',0,0.25);tone(659.25,0.15,'sine',0.12,0.25);tone(783.99,0.28,'sine',0.24,0.25);}
+function sndOk(){tone(440,0.18,'sine',0,0.22);tone(587.33,0.24,'sine',0.1,0.22);}
+function sndBad(){tone(165,0.35,'sawtooth',0,0.18);}
+document.addEventListener('pointerdown',function(){ac();},{once:true,capture:true});
+
+/* ============ 粒子 & 震动反馈 ============ */
+function burst(cx,cy,colors,n){
+ var layer=$('fx');
+ for(var i=0;i<n;i++){
+  var s=document.createElement('div');s.className='pt';
+  s.style.background=colors[i%colors.length];
+  s.style.left=cx+'px';s.style.top=cy+'px';
+  var a=Math.random()*Math.PI*2,r=40+Math.random()*90;
+  s.style.setProperty('--dx',Math.cos(a)*r+'px');
+  s.style.setProperty('--dy',Math.sin(a)*r+'px');
+  layer.appendChild(s);
+  (function(el){setTimeout(function(){el.remove();},900);})(s);
+ }
+}
+function vibrate(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+
+/* ============ 游戏流程 ============ */
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function show(id){
+ var ss=document.querySelectorAll('.screen');
+ for(var i=0;i<ss.length;i++)ss[i].style.display='none';
+ $(id).style.display='block';
+}
+function hint(t){$('hint').textContent=t;}
+function updateScore(){$('score').textContent=state.score;$('prog').textContent=state.done+'/4';}
+
+function startGame(){
+ state.bottles=shuffle(SOLUTIONS.slice()).slice(0,4);
+ state.idx=0;state.score=0;state.done=0;state.selected=0;
+ state.revealed=false;state.dipping=false;state.paused=false;
+ $('pauseOverlay').style.display='none';$('pauseBtn').textContent='⏸';
+ $('knowModal').style.display='none';
+ renderBottles();renderChart();resetPaper();updateScore();
+ show('screen-game');
+ hint('第 1 瓶：点高亮（黄框）的溶液瓶，把试纸浸进去');
+}
+
+function renderBottles(){
+ var box=$('bottles');box.innerHTML='';
+ state.bottles.forEach(function(b,i){
+  var btn=document.createElement('button');
+  btn.className='bottle';btn.id='bottle'+i;
+  var em=document.createElement('div');em.className='bemoji';em.textContent=b.emoji;
+  var nm=document.createElement('div');nm.className='bname';nm.textContent=b.name;
+  var st=document.createElement('div');st.className='bstat';st.id='bstat'+i;st.textContent='待测';
+  btn.appendChild(em);btn.appendChild(nm);btn.appendChild(st);
+  btn.addEventListener('pointerdown',function(){clickBottle(i);});
+  box.appendChild(btn);
+ });
+ $('bottle0').classList.add('next');
+}
+
+function renderChart(){
+ var box=$('chart');box.innerHTML='';
+ for(var p=1;p<=14;p++){
+  (function(ph){
+   var c=document.createElement('button');
+   c.className='phcell';c.id='ph'+ph;
+   c.style.background=PHC[ph];
+   c.textContent='pH '+ph;
+   c.addEventListener('pointerdown',function(){selectPH(ph);});
+   box.appendChild(c);
+  })(p);
+ }
+}
+
+function shade(hex){
+ var n=parseInt(hex.slice(1),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+ r=Math.round(r*0.72);g=Math.round(g*0.72);b=Math.round(b*0.72);
+ return 'rgb('+r+','+g+','+b+')';
+}
+function resetPaper(){
+ var ov=$('paperColor');
+ ov.style.transition='none';ov.style.opacity='0';
+ void ov.offsetWidth;
+ ov.style.transition='opacity 1.2s ease';
+ $('paper').classList.remove('dip');
+}
+
+function clickBottle(i){
+ if(state.paused||state.dipping||state.revealed)return;
+ if(i!==state.idx){hint('按顺序来：先点第 '+(state.idx+1)+' 瓶（黄框高亮那瓶）');return;}
+ state.dipping=true;
+ var btn=$('bottle'+i);
+ btn.classList.remove('next');btn.classList.add('active');
+ hint(state.bottles[i].name+'：试纸浸入中…');
+ sndDip();
+ var paper=$('paper');
+ paper.classList.remove('dip');void paper.offsetWidth;paper.classList.add('dip');
+ setTimeout(function(){
+  state.dipping=false;state.revealed=true;
+  var ph=state.bottles[i].ph;
+  var ov=$('paperColor');
+  ov.style.background='linear-gradient(180deg,'+PHC[ph]+' 0%,'+shade(PHC[ph])+' 100%)';
+  ov.style.opacity='1';
+  hint('试纸变色了！点右侧比色卡选一个 pH 值，再按「✅ 提交」');
+ },1450);
+}
+
+function selectPH(ph){
+ if(state.paused||state.dipping||!state.revealed)return;
+ state.selected=ph;
+ var cells=document.querySelectorAll('.phcell');
+ for(var i=0;i<cells.length;i++)cells[i].classList.remove('sel');
+ $('ph'+ph).classList.add('sel');
+}
+
+function submitGuess(){
+ if(state.paused)return;
+ if(state.dipping){hint('试纸还在浸入…稍等一下');return;}
+ if(!state.revealed){hint('先点一瓶溶液，把试纸浸进去');return;}
+ if(state.selected<=0){hint('先点比色卡选择一个 pH 值');return;}
+ sndSubmit();
+ var b=state.bottles[state.idx],real=b.ph,g=state.selected,d=Math.abs(g-real),pts,msg;
+ if(d<=0.5){pts=25;msg='完全正确！+25';}
+ else if(d<=1){pts=15;msg='很接近！+15';}
+ else{pts=5;msg='差得有点远 +5';}
+ state.score+=pts;state.done++;
+ var r=$('paper').getBoundingClientRect(),fx=$('fx').getBoundingClientRect();
+ var cx=r.left+r.width/2-fx.left,cy=r.top+r.height/2-fx.top;
+ if(pts===25){burst(cx,cy,['#ffd54f','#fff176','#ffffff','#ffca28'],22);sndGreat();vibrate(40);}
+ else if(pts===15){burst(cx,cy,['#9ccc65','#dcedc8','#ffffff'],12);sndOk();vibrate(30);}
+ else{sndBad();vibrate([90,40,90]);}
+ $('bstat'+state.idx).textContent='✓ 真实 pH '+real;
+ var doneBtn=$('bottle'+state.idx);
+ doneBtn.classList.remove('active');doneBtn.classList.add('done');doneBtn.disabled=true;
+ hint(b.name+' 真实 pH≈'+real+'，你猜了 '+g+'：'+msg);
+ updateScore();
+ state.idx++;state.selected=0;state.revealed=false;
+ var cells=document.querySelectorAll('.phcell');
+ for(var i=0;i<cells.length;i++)cells[i].classList.remove('sel');
+ setTimeout(function(){
+  resetPaper();
+  if(state.idx>=state.bottles.length){endGame();}
+  else{
+   $('bottle'+state.idx).classList.add('next');
+   hint('第 '+(state.idx+1)+' 瓶：点黄框高亮的溶液瓶继续');
+  }
+ },1700);
+}
+
+function endGame(){
+ if(state.score>state.hs){state.hs=state.score;saveHs();}
+ $('finalScore').textContent=state.score;
+ $('finalHs').textContent=state.hs;
+ var t=$('tier');
+ if(state.score>=90)t.textContent='🏆 化学小达人！';
+ else if(state.score>=70)t.textContent='👍 相当不错！';
+ else if(state.score>=50)t.textContent='🙂 继续加油！';
+ else t.textContent='🔬 多练练比色吧！';
+ show('screen-end');
+}
+
+function togglePause(){
+ if($('screen-game').style.display!=='block')return;
+ state.paused=!state.paused;
+ $('pauseOverlay').style.display=state.paused?'flex':'none';
+ $('pauseBtn').textContent=state.paused?'▶':'⏸';
+}
+
+/* ============ 事件绑定 & 初始化 ============ */
+$('startBtn').addEventListener('pointerdown',function(){startGame();});
+$('againBtn').addEventListener('pointerdown',function(){startGame();});
+$('submitBtn').addEventListener('pointerdown',function(){submitGuess();});
+$('pauseBtn').addEventListener('pointerdown',function(){togglePause();});
+$('resumeBtn').addEventListener('pointerdown',function(){togglePause();});
+$('muteBtn').addEventListener('pointerdown',function(){
+ state.muted=!state.muted;
+ $('muteBtn').textContent=state.muted?'🔇':'🔊';
+ saveMute();
+ if(!state.muted)sndSubmit();
+});
+$('knowBtn').addEventListener('pointerdown',function(){$('knowModal').style.display='flex';});
+$('knowClose').addEventListener('pointerdown',function(){$('knowModal').style.display='none';});
+$('knowModal').addEventListener('pointerdown',function(e){if(e.target===$('knowModal'))$('knowModal').style.display='none';});
+
+loadPrefs();
+show('screen-start');
+</script>
+</body>
+</html>
