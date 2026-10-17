@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>酸碱中和 · 滴定实验</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:#0b1622;color:#e8f4fd;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  display:flex;flex-direction:column;align-items:center;min-height:100vh;overflow-x:hidden;
+  user-select:none;-webkit-user-select:none;
+}
+header{
+  width:100%;max-width:720px;display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;gap:8px;
+}
+header h1{font-size:20px;letter-spacing:1px;white-space:nowrap}
+.hud{display:flex;align-items:center;gap:10px;font-size:14px}
+.hud .hs{color:#ffd54f}
+.iconbtn{
+  width:44px;height:44px;border-radius:12px;border:1px solid #2a4a66;background:#13273c;color:#e8f4fd;
+  font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:transform .15s ease,background .2s ease;
+}
+.iconbtn:active{transform:scale(.92);background:#1b3a56}
+#main{width:100%;max-width:720px;padding:0 14px 18px;display:flex;flex-direction:column;gap:12px;flex:1}
+.panel{
+  background:#13273c;border:1px solid #1f3a56;border-radius:16px;padding:14px;
+  box-shadow:0 4px 18px rgba(0,0,0,.35);
+}
+.lab{display:flex;gap:14px;align-items:stretch;justify-content:center;flex-wrap:wrap}
+/* ---------- 滴定管 ---------- */
+.burette{position:relative;width:110px;display:flex;flex-direction:column;align-items:center}
+.burette .tube{
+  width:34px;height:200px;border:2px solid #5c8cab;border-bottom:none;border-radius:10px 10px 0 0;
+  background:linear-gradient(180deg,rgba(79,195,247,.55),rgba(79,195,247,.35));
+  position:relative;overflow:hidden;
+}
+.burette .scale{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:6px 0;align-items:flex-end}
+.burette .scale span{font-size:8px;color:#bfe3ff;background:rgba(11,22,34,.65);padding:0 2px;border-radius:3px;margin-right:1px}
+.burette .neck{width:10px;height:44px;background:#5c8cab;border-radius:0 0 5px 5px}
+.burette .tip{width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:14px solid #5c8cab}
+.burette .label{font-size:12px;color:#9fc3dd;margin-top:6px;text-align:center;line-height:1.4}
+.burette .rem{font-size:12px;color:#ffd54f;margin-top:2px}
+/* ---------- 烧杯 ---------- */
+.beaker-wrap{display:flex;flex-direction:column;align-items:center;gap:6px}
+.beaker{
+  position:relative;width:190px;height:220px;border:3px solid #5c8cab;border-top:none;
+  border-radius:0 0 26px 26px;overflow:hidden;background:rgba(19,39,60,.6);
+  clip-path:polygon(0 0,100% 0,93% 100%,7% 100%);
+}
+.liquid{
+  position:absolute;left:0;right:0;bottom:0;height:50%;
+  background:linear-gradient(180deg,rgba(255,120,180,0),rgba(255,120,180,0));
+  transition:height .45s cubic-bezier(.34,1.35,.44,1),background .6s ease;
+}
+.liquid::before{
+  content:"";position:absolute;top:-6px;left:0;right:0;height:12px;border-radius:50%;
+  background:inherit;opacity:.85;filter:brightness(1.15);
+}
+.beaker .drop{position:absolute;left:50%;top:-14px;width:12px;height:14px;margin-left:-6px;
+  background:radial-gradient(circle at 35% 30%,#cdeaff,#4fc3f7 70%);
+  border-radius:50% 50% 50% 50%/60% 60% 40% 40%;z-index:5;pointer-events:none}
+.beaker .grad{position:absolute;left:6px;top:10px;bottom:10px;display:flex;flex-direction:column;justify-content:space-between;z-index:2}
+.beaker .grad span{font-size:9px;color:#8fb4d1}
+.phstrip{
+  position:absolute;right:8px;top:12px;z-index:3;background:rgba(11,22,34,.75);border:1px solid #2a4a66;
+  border-radius:8px;padding:4px 8px;font-size:11px;color:#9fc3dd;text-align:center;
+}
+.beaker-cap{font-size:12px;color:#9fc3dd;text-align:center;line-height:1.5}
+/* ---------- pH 计 ---------- */
+.phmeter{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ph-read{
+  font-variant-numeric:tabular-nums;font-size:34px;font-weight:700;color:#7ef7a2;
+  background:#08131d;border:1px solid #1f3a56;border-radius:12px;padding:8px 18px;min-width:150px;text-align:center;
+  transition:color .5s ease,text-shadow .5s ease;
+}
+.ph-read small{font-size:14px;color:#9fc3dd;display:block;font-weight:400}
+.ph-meta{font-size:13px;color:#9fc3dd;line-height:1.7}
+/* ---------- 按钮 ---------- */
+.controls{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.btn{
+  min-height:48px;min-width:120px;padding:12px 20px;border:none;border-radius:14px;font-size:17px;font-weight:700;
+  cursor:pointer;color:#062033;background:linear-gradient(180deg,#7fd7ff,#4fc3f7);
+  box-shadow:0 4px 0 #2b7ba8,0 6px 14px rgba(0,0,0,.4);
+  transition:transform .12s ease,box-shadow .12s ease,filter .2s ease;touch-action:none;
+}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #2b7ba8;filter:brightness(1.05)}
+.btn:disabled{filter:grayscale(.8) brightness(.7);cursor:not-allowed;transform:none}
+.btn.danger{background:linear-gradient(180deg,#ff9d8a,#ef5350);color:#3d0d0b;box-shadow:0 4px 0 #a12a28,0 6px 14px rgba(0,0,0,.4)}
+.btn.ghost{background:#1b3a56;color:#e8f4fd;box-shadow:0 4px 0 #0e2033,0 6px 14px rgba(0,0,0,.4)}
+.eq{text-align:center;font-size:16px;color:#cfe9fb;letter-spacing:1px}
+.eq b{color:#7fd7ff}
+/* ---------- 滴定曲线 ---------- */
+#curve{width:100%;height:230px;display:block;border-radius:12px;background:#0e1e30;border:1px solid #1f3a56}
+.curve-cap{font-size:12px;color:#9fc3dd;text-align:center;margin-top:6px}
+/* ---------- 覆盖层 ---------- */
+.overlay{
+  position:fixed;inset:0;background:rgba(4,10,17,.88);display:flex;align-items:center;justify-content:center;
+  z-index:50;padding:20px;opacity:0;pointer-events:none;transition:opacity .35s ease;
+}
+.overlay.show{opacity:1;pointer-events:auto}
+.card{
+  background:#13273c;border:1px solid #2a4a66;border-radius:20px;padding:28px 24px;max-width:420px;width:100%;
+  text-align:center;transform:translateY(24px) scale(.96);transition:transform .35s cubic-bezier(.34,1.45,.44,1);
+  box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:86vh;overflow-y:auto;
+}
+.overlay.show .card{transform:translateY(0) scale(1)}
+.card h2{font-size:26px;margin-bottom:12px}
+.card p{font-size:15px;line-height:1.9;color:#cfe9fb;text-align:left}
+.card .big{font-size:44px;margin:6px 0}
+.card .score{font-size:30px;font-weight:800;color:#ffd54f;margin:8px 0}
+.card .row{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+.card ul{font-size:14px;line-height:2;color:#cfe9fb;text-align:left;padding-left:20px;margin:8px 0}
+.particle{position:fixed;width:10px;height:10px;border-radius:50%;pointer-events:none;z-index:99}
+#toast{
+  position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:#1b3a56;
+  border:1px solid #2a4a66;color:#e8f4fd;padding:10px 20px;border-radius:12px;font-size:15px;
+  opacity:0;transition:opacity .3s ease,transform .3s ease;z-index:60;pointer-events:none;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (max-width:480px){
+  .lab{flex-direction:row}
+  .beaker{width:160px;height:200px}
+  header h1{font-size:17px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧪 酸碱中和</h1>
+  <div class="hud">
+    <span>得分 <b id="score">0</b></span>
+    <span class="hs">最高 <b id="highscore">0</b></span>
+    <button class="iconbtn" id="btnPause" title="暂停">⏸</button>
+    <button class="iconbtn" id="btnMute" title="静音">🔊</button>
+  </div>
+</header>
+
+<div id="main">
+  <!-- 实验台 -->
+  <div class="panel">
+    <div class="lab">
+      <div class="burette">
+        <div class="tube"><div class="scale" id="bScale"></div></div>
+        <div class="neck"></div><div class="tip"></div>
+        <div class="label">滴定管<br>0.1mol/L NaOH</div>
+        <div class="rem">剩余 <span id="naohRem">60.0</span>mL</div>
+      </div>
+      <div class="beaker-wrap">
+        <div class="beaker" id="beaker">
+          <div class="liquid" id="liquid"></div>
+          <div class="grad" id="bGrad"></div>
+          <div class="phstrip">酚酞<br><span id="phenol">无色</span></div>
+        </div>
+        <div class="beaker-cap">烧杯：50mL 0.1mol/L HCl<br>+ 2 滴酚酞指示剂</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- pH 计 -->
+  <div class="panel">
+    <div class="phmeter">
+      <div class="ph-read"><span id="phVal">1.0</span><small>pH 计读数</small></div>
+      <div class="ph-meta">
+        已滴加 NaOH：<b id="vol" style="color:#7fd7ff">0.0</b> mL<br>
+        溶液总体积：<b id="totVol">50.0</b> mL<br>
+        状态：<b id="solState" style="color:#9fc3dd">酸性</b>
+      </div>
+    </div>
+  </div>
+
+  <!-- 曲线 -->
+  <div class="panel">
+    <canvas id="curve"></canvas>
+    <div class="curve-cap">滴定曲线：横轴 NaOH 体积（0–60mL），纵轴 pH（1–13）</div>
+  </div>
+
+  <!-- 控制 -->
+  <div class="panel">
+    <div class="eq"><b>HCl</b> + <b>NaOH</b> → <b>NaCl</b> + <b>H₂O</b></div>
+    <div style="height:12px"></div>
+    <div class="controls">
+      <button class="btn" id="btnDrip">💧 滴加 NaOH（按住连滴）</button>
+      <button class="btn danger" id="btnStop">⏹ 停止滴定</button>
+      <button class="btn ghost" id="btnKnow">📖 知识点</button>
+    </div>
+  </div>
+</div>
+
+<!-- 开始界面 -->
+<div class="overlay show" id="startScreen">
+  <div class="card">
+    <div class="big">🧪</div>
+    <h2>酸碱中和 · 滴定实验</h2>
+    <p>
+      烧杯里有 <b>50mL 0.1mol/L 盐酸</b>，已加入 <b>2 滴酚酞</b>（无色）。<br>
+      👉 点击「滴加 NaOH」每次加入 <b>0.5mL 0.1mol/L NaOH</b>，也可以<b>按住连续滴加</b>。<br>
+      👉 右侧 pH 计实时显示读数，酚酞在 <b>pH &gt; 8.2</b> 时变粉红。<br>
+      👉 觉得到达中和点了就点「停止滴定」：最终 pH 在 <b>6.5～7.5</b> 算成功！<br>
+      🏆 得分 = 100 − |V−50| × 4（理论终点 50.0mL，精确到 0.5mL）。
+    </p>
+    <div class="row"><button class="btn" id="btnStart">▶ 开始实验</button></div>
+  </div>
+</div>
+
+<!-- 暂停 -->
+<div class="overlay" id="pauseScreen">
+  <div class="card">
+    <div class="big">⏸</div>
+    <h2>已暂停</h2>
+    <p style="text-align:center">实验已暂停，滴定操作暂时锁定。</p>
+    <div class="row"><button class="btn" id="btnResume">▶ 继续实验</button></div>
+  </div>
+</div>
+
+<!-- 结束界面 -->
+<div class="overlay" id="endScreen">
+  <div class="card">
+    <div class="big" id="endEmoji">🎉</div>
+    <h2 id="endTitle">滴定成功！</h2>
+    <p id="endDesc" style="text-align:center"></p>
+    <div class="score">得分：<span id="endScore">0</span></div>
+    <p style="text-align:center">🏆 本地最高分：<span id="endHigh">0</span></p>
+    <div class="row"><button class="btn" id="btnRestart">🔄 重新实验</button></div>
+  </div>
+</div>
+
+<!-- 知识点 -->
+<div class="overlay" id="knowScreen">
+  <div class="card">
+    <div class="big">📖</div>
+    <h2>实验结论</h2>
+    <ul>
+      <li>酸碱中和反应的实质：<b>H⁺ + OH⁻ → H₂O</b></li>
+      <li>滴定终点附近 pH 会发生<b>突跃</b>——少量 NaOH 引起 pH 剧烈变化</li>
+      <li>酚酞的变色范围：<b>pH 8.2 ~ 10.0</b>（无色 → 粉红色）</li>
+      <li>理论终点：50.0mL NaOH 恰好中和全部 H⁺，此时 pH = 7.0</li>
+    </ul>
+    <div class="row"><button class="btn ghost" id="btnKnowClose">关闭</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ================= 状态 ================= */
+var state = {
+  started:false, paused:false, ended:false,
+  vol:0,            // 已滴加 NaOH 体积 mL（步长 0.5）
+  history:[],       // 曲线描点 [vol, ph]
+  dripping:false,
+  muted:localStorage.getItem('g100_mute')==='1',
+  score:0,
+  high:parseInt(localStorage.getItem('g100_acidbase_hs')||'0',10)||0
+};
+var STEP=0.5, VMAX=60;
+
+/* ================= 化学计算 ================= */
+function calcPH(v){
+  var nAcid=5.0, nBase=0.1*v, total=50+v;
+  if(Math.abs(nBase-nAcid)<1e-9) return 7.0;
+  if(nBase<nAcid) return -Math.log10((nAcid-nBase)/total);
+  return 14+Math.log10((nBase-nAcid)/total);
+}
+function phenolAlpha(ph){           // 酚酞粉色强度 0~1
+  if(ph<=8.2) return 0;
+  var a=(ph-8.2)/1.8; return a>1?1:a;
+}
+
+/* ================= 音效（WebAudio 合成） ================= */
+var AC=null;
+function audioInit(){
+  if(AC) return;
+  try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; }
+  if(AC && AC.state==='suspended') AC.resume();
+}
+function tone(freq,dur,type,gain,delay,slideTo){
+  if(!AC||state.muted) return;
+  var t=AC.currentTime+(delay||0);
+  var o=AC.createOscillator(), g=AC.createGain();
+  o.type=type||'sine'; o.frequency.setValueAtTime(freq,t);
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo,t+dur);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(gain||0.25,t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g); g.connect(AC.destination);
+  o.start(t); o.stop(t+dur+0.05);
+}
+function sndDrip(){ tone(880,0.12,'sine',0.22,0,440); }                    // 水滴声：高音滑落
+function sndSuccess(){                                                       // 成功琶音 C E G C
+  [523.25,659.25,783.99,1046.5].forEach(function(f,i){ tone(f,0.22,'triangle',0.28,i*0.13); });
+}
+function sndFail(){ tone(140,0.7,'sawtooth',0.22,0,70); }                  // 失败低鸣
+function sndClick(){ tone(600,0.06,'square',0.08); }
+
+/* ================= 粒子 / 震动 ================= */
+function burst(x,y,n,color){
+  for(var i=0;i<n;i++){
+    var p=document.createElement('div');
+    p.className='particle';
+    p.style.background=color||'#4fc3f7';
+    p.style.left=x+'px'; p.style.top=y+'px';
+    document.body.appendChild(p);
+    var ang=Math.random()*Math.PI*2, dist=30+Math.random()*70;
+    var dx=Math.cos(ang)*dist, dy=Math.sin(ang)*dist-20;
+    p.animate([
+      {transform:'translate(0,0) scale(1)',opacity:1},
+      {transform:'translate('+dx+'px,'+dy+'px) scale(.3)',opacity:0}
+    ],{duration:500+Math.random()*400,easing:'cubic-bezier(.17,.67,.35,1)'}).onfinish=(function(el){return function(){el.remove()};})(p);
+  }
+}
+function vibrate(ms){ if(navigator.vibrate){ try{navigator.vibrate(ms);}catch(e){} } }
+
+/* ================= 界面引用 ================= */
+var $=function(id){return document.getElementById(id)};
+var liquid=$('liquid'), phVal=$('phVal'), volEl=$('vol'), totVolEl=$('totVol'),
+    solState=$('solState'), phenolEl=$('phenol'), naohRem=$('naohRem'),
+    btnDrip=$('btnDrip'), btnStop=$('btnStop');
+
+/* 刻度 */
+(function(){
+  var s=$('bScale'), h='';
+  for(var v=0;v<=60;v+=10) h+='<span>'+v+'</span>';
+  s.innerHTML=h;
+  var g=$('bGrad'), hh='';
+  for(var m=100;m>=0;m-=25) hh+='<span>'+m+'</span>';
+  g.innerHTML=hh;
+})();
+
+function toast(msg){
+  var t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._tm); t._tm=setTimeout(function(){t.classList.remove('show')},1600);
+}
+
+/* ================= 滴定曲线画布 ================= */
+var cv=$('curve'), ctx=cv.getContext('2d');
+function sizeCanvas(){
+  var r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  cv.width=r.width*dpr; cv.height=r.height*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  drawCurve();
+}
+var PADL=34, PADR=12, PADT=12, PADB=26;
+function xOf(v,w){ return PADL+(v/60)*(w-PADL-PADR); }
+function yOf(ph,h){ return PADT+(1-(ph-1)/12)*(h-PADT-PADB); }
+function drawCurve(){
+  var w=cv.getBoundingClientRect().width, h=cv.getBoundingClientRect().height;
+  if(!w||!h) return;
+  ctx.clearRect(0,0,w,h);
+  ctx.font='10px sans-serif'; ctx.textAlign='center';
+  // 网格
+  for(var ph=1;ph<=13;ph+=2){
+    var y=yOf(ph,h);
+    ctx.strokeStyle=ph===7?'rgba(126,247,162,.35)':'rgba(120,160,200,.14)';
+    ctx.beginPath(); ctx.moveTo(PADL,y); ctx.lineTo(w-PADR,y); ctx.stroke();
+    ctx.fillStyle='#8fb4d1'; ctx.textAlign='right';
+    ctx.fillText(ph,PADL-5,y+3.5); ctx.textAlign='center';
+  }
+  for(var v=0;v<=60;v+=10){
+    var x=xOf(v,w);
+    ctx.strokeStyle='rgba(120,160,200,.14)';
+    ctx.beginPath(); ctx.moveTo(x,PADT); ctx.lineTo(x,h-PADB); ctx.stroke();
+    ctx.fillStyle='#8fb4d1'; ctx.fillText(v,x,h-PADB+14);
+  }
+  // 轴标签
+  ctx.fillStyle='#9fc3dd';
+  ctx.fillText('NaOH 体积 (mL)',(PADL+w-PADR)/2,h-4);
+  // 理论终点虚线
+  var xe=xOf(50,w);
+  ctx.setLineDash([5,4]); ctx.strokeStyle='rgba(255,213,79,.55)';
+  ctx.beginPath(); ctx.moveTo(xe,PADT); ctx.lineTo(xe,h-PADB); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#ffd54f'; ctx.fillText('终点50',xe,PADT+2+12);
+  // 描点
+  if(state.history.length>1){
+    ctx.strokeStyle='#7fd7ff'; ctx.lineWidth=2.5; ctx.lineJoin='round';
+    ctx.shadowColor='#4fc3f7'; ctx.shadowBlur=8;
+    ctx.beginPath();
+    state.history.forEach(function(p,i){
+      var x=xOf(p[0],w), y=yOf(p[1],h);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke(); ctx.shadowBlur=0; ctx.lineWidth=1;
+  }
+  // 当前点
+  if(state.history.length){
+    var last=state.history[state.history.length-1];
+    var lx=xOf(last[0],w), ly=yOf(last[1],h);
+    ctx.fillStyle='#ff8ab3'; ctx.beginPath(); ctx.arc(lx,ly,5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.stroke();
+  }
+}
+
+/* ================= 状态刷新 ================= */
+function refresh(){
+  var ph=calcPH(state.vol), a=phenolAlpha(ph);
+  // pH 读数（1位小数）
+  phVal.textContent=ph.toFixed(1);
+  phVal.parentElement.style.color = ph<7 ? '#ffb3a7' : (ph>7 ? '#c58af9' : '#7ef7a2');
+  phVal.parentElement.style.textShadow = ph===7 ? '0 0 14px rgba(126,247,162,.8)' : 'none';
+  // 溶液颜色渐变（CSS transition 缓动）
+  liquid.style.height=(8+ (50+state.vol)/100*80)+'%';
+  liquid.style.background='linear-gradient(180deg,rgba(255,120,180,'+(a*0.55).toFixed(2)+'),rgba(255,105,175,'+(a*0.85).toFixed(2)+'))';
+  phenolEl.textContent = a<=0 ? '无色' : (a<0.5?'淡粉':'粉红');
+  phenolEl.style.color = a<=0 ? '#9fc3dd' : '#ff9ec4';
+  // 文本
+  volEl.textContent=state.vol.toFixed(1);
+  totVolEl.textContent=(50+state.vol).toFixed(1);
+  naohRem.textContent=(VMAX-state.vol).toFixed(1);
+  var st, col;
+  if(ph<6.5){st='酸性';col='#ffb3a7';} else if(ph<=7.5){st='中性 ✓';col='#7ef7a2';}
+  else{st='碱性';col='#c58af9';}
+  solState.textContent=st; solState.style.color=col;
+  // 按钮状态
+  btnDrip.disabled = !state.started||state.paused||state.ended||state.vol>=VMAX;
+  btnStop.disabled = !state.started||state.paused||state.ended;
+  if(state.vol>=VMAX&&!state.ended) toast('滴定管已空，请停止滴定');
+  drawCurve();
+}
+
+/* ================= 滴加 ================= */
+function addDrop(){
+  if(!state.started||state.paused||state.ended||state.vol>=VMAX) return;
+  state.vol=Math.min(VMAX, +(state.vol+STEP).toFixed(1));
+  state.history.push([state.vol, calcPH(state.vol)]);
+  sndDrip(); vibrate(25);
+  dropAnim();
+  refresh();
+  // 当前点粒子
+  var r=cv.getBoundingClientRect(), w=r.width, h=r.height;
+  burst(r.left+xOf(state.vol,w), r.top+yOf(calcPH(state.vol),h), 4, '#7fd7ff');
+}
+function dropAnim(){
+  var bk=$('beaker'), br=bk.getBoundingClientRect();
+  var d=document.createElement('div');
+  d.className='drop';
+  bk.appendChild(d);
+  var targetY=br.height*(1-parseFloat(liquid.style.height||'50')/100)-10;
+  d.animate([
+    {transform:'translateY(0)',opacity:1},
+    {transform:'translateY('+Math.max(targetY,60)+'px)',opacity:1}
+  ],{duration:280,easing:'cubic-bezier(.55,.06,.68,.19)'}).onfinish=function(){
+    d.remove();
+    burst(br.left+br.width/2, br.top+Math.max(targetY,60)+14, 5, '#9fd8ff');
+  };
+}
+/* 按住连续滴加 */
+var dripTimer=null;
+function startDrip(e){ if(e)e.preventDefault(); audioInit(); if(state.paused||!state.started||state.ended)return;
+  if(state.dripping)return; state.dripping=true; addDrop();
+  dripTimer=setInterval(addDrop, 320);
+}
+function stopDrip(){ state.dripping=false; if(dripTimer){clearInterval(dripTimer);dripTimer=null;} }
+btnDrip.addEventListener('pointerdown',startDrip);
+window.addEventListener('pointerup',stopDrip);
+window.addEventListener('pointercancel',stopDrip);
+
+/* ================= 停止 / 结算 ================= */
+function finish(){
+  if(state.ended||!state.started) return;
+  stopDrip();
+  state.ended=true;
+  var ph=calcPH(state.vol);
+  var ok = ph>=6.5 && ph<=7.5;
+  var score=0, title, emoji, desc;
+  if(ok){
+    score=Math.max(0, Math.round(100-Math.abs(state.vol-50)*4));
+    state.score=score;
+    title='🎉 滴定成功！'; emoji='🎉';
+    desc='最终 pH = '+ph.toFixed(1)+'，滴加 '+state.vol.toFixed(1)+'mL，接近理论终点 50.0mL！';
+    sndSuccess(); vibrate([40,60,40,60,80]);
+    var cx=window.innerWidth/2, cy=window.innerHeight/2;
+    burst(cx-120,cy-40,26,'#ffd54f'); burst(cx+120,cy-40,26,'#7fd7ff'); burst(cx,cy+60,26,'#ff8ab3');
+  }else{
+    title = ph>7.5 ? '⚠️ NaOH 过量了' : '⚠️ NaOH 不足';
+    emoji='😅';
+    desc='最终 pH = '+ph.toFixed(1)+'（'+state.vol.toFixed(1)+'mL）。'+(ph>7.5?'溶液已偏碱，酚酞变粉说明滴过头了。':'溶液仍偏酸，继续滴加至 pH 突跃区。');
+    sndFail(); vibrate([120,80,120]);
+  }
+  if(score>state.high){ state.high=score; localStorage.setItem('g100_acidbase_hs',String(score)); }
+  $('score').textContent=score;
+  $('endEmoji').textContent=emoji;
+  $('endTitle').textContent=title;
+  $('endDesc').textContent=desc;
+  $('endScore').textContent=score;
+  $('endHigh').textContent=state.high;
+  $('highscore').textContent=state.high;
+  setTimeout(function(){ $('endScreen').classList.add('show'); }, ok?900:500);
+  refresh();
+}
+btnStop.addEventListener('click',function(){ audioInit(); sndClick(); finish(); });
+
+/* ================= 暂停 / 重来 / 知识点 ================= */
+function setPaused(p){
+  state.paused=p; stopDrip();
+  $('pauseScreen').classList.toggle('show',p);
+  $('btnPause').textContent=p?'▶':'⏸';
+  refresh();
+}
+$('btnPause').addEventListener('click',function(){ audioInit(); sndClick();
+  if(!state.started||state.ended) return; setPaused(!state.paused); });
+$('btnResume').addEventListener('click',function(){ audioInit(); sndClick(); setPaused(false); });
+
+function reset(){
+  stopDrip();
+  state.vol=0; state.history=[[0,calcPH(0)]]; state.ended=false; state.paused=false;
+  state.score=0; $('score').textContent='0';
+  $('endScreen').classList.remove('show'); $('pauseScreen').classList.remove('show');
+  $('btnPause').textContent='⏸';
+  refresh();
+}
+$('btnRestart').addEventListener('click',function(){ audioInit(); sndClick(); reset(); });
+
+$('btnKnow').addEventListener('click',function(){ audioInit(); sndClick(); $('knowScreen').classList.add('show'); });
+$('btnKnowClose').addEventListener('click',function(){ sndClick(); $('knowScreen').classList.remove('show'); });
+
+/* 静音 */
+function applyMute(){ $('btnMute').textContent=state.muted?'🔇':'🔊';
+  localStorage.setItem('g100_mute', state.muted?'1':'0'); }
+$('btnMute').addEventListener('click',function(){ audioInit(); state.muted=!state.muted; applyMute();
+  if(!state.muted) sndClick(); });
+
+/* 开始 */
+$('btnStart').addEventListener('click',function(){
+  audioInit(); sndClick();
+  state.started=true;
+  $('startScreen').classList.remove('show');
+  state.history=[[0,calcPH(0)]];
+  refresh();
+  toast('点击或按住「滴加 NaOH」开始滴定');
+});
+
+/* ================= 初始化 ================= */
+applyMute();
+$('highscore').textContent=state.high;
+state.history=[[0,calcPH(0)]];
+refresh();
+window.addEventListener('resize',sizeCanvas);
+setTimeout(sizeCanvas,50);
+document.addEventListener('pointerdown',audioInit,{once:true});
+</script>
+</body>
+</html>

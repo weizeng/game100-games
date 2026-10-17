@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>酸碱指示剂</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+html,body{margin:0;padding:0;background:#0b1622;color:#e8f4fd;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;min-height:100vh;}
+.screen{display:none;min-height:100vh;padding:20px 16px 40px;max-width:640px;margin:0 auto;}
+.screen.active{display:block;}
+h1{text-align:center;font-size:30px;margin:26px 0 10px;}
+.subtitle{text-align:center;color:#9fc3dd;margin:0 0 24px;font-size:15px;}
+.card{background:#13273c;border-radius:14px;padding:18px;margin-bottom:14px;border:1px solid #1e3a57;}
+.rule-line{font-size:14px;line-height:2;color:#cfe6f5;}
+.rule-line b{color:#ffd54f;}
+.btn{display:block;width:100%;min-height:48px;margin:10px 0;padding:12px;border:none;border-radius:12px;background:#2b7fff;color:#fff;font-size:17px;touch-action:manipulation;cursor:pointer;}
+.btn:active{transform:scale(.97);}
+.btn.green{background:#2e9e5b;}
+.btn.orange{background:#e08a1d;}
+.btn.ghost{background:#1e3a57;color:#e8f4fd;}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap;}
+.topbar .score{font-size:15px;color:#ffd54f;font-weight:bold;}
+.iconbtn{min-width:44px;min-height:44px;border:none;border-radius:10px;background:#1e3a57;color:#e8f4fd;font-size:20px;touch-action:manipulation;cursor:pointer;padding:6px 12px;}
+.tubes{display:flex;justify-content:space-around;align-items:flex-end;gap:8px;margin:18px 0 8px;}
+.tube-wrap{display:flex;flex-direction:column;align-items:center;flex:1;}
+.tube{position:relative;width:74px;height:170px;border:3px solid #9fc3dd;border-top:none;border-radius:0 0 26px 26px;overflow:hidden;background:rgba(255,255,255,.04);cursor:pointer;touch-action:manipulation;}
+.tube-label{position:absolute;top:6px;left:0;right:0;text-align:center;font-weight:bold;font-size:16px;color:#fff;text-shadow:0 1px 3px #000;z-index:3;pointer-events:none;}
+.liquid{position:absolute;bottom:0;left:0;right:0;height:72%;background:rgba(232,244,253,.18);transition:background-color 1.4s ease,box-shadow 1.4s ease;}
+.tube.touched{outline:2px solid #2b7fff;outline-offset:3px;}
+.ph-strip{position:absolute;left:50%;top:8px;transform:translateX(-50%) rotate(8deg);width:18px;height:64px;background:#fff;border-radius:3px;border:1px solid #bbb;z-index:2;transition:background-color 1.2s ease;display:none;}
+.drop{position:absolute;left:50%;top:-14px;width:14px;height:20px;margin-left:-7px;border-radius:50% 50% 60% 60%;z-index:4;}
+@keyframes fall{0%{top:-16px;opacity:1;}80%{top:44px;opacity:1;}100%{top:60px;opacity:0;}}
+.judgebtn{min-width:44px;min-height:44px;margin-top:10px;padding:8px 18px;border:none;border-radius:10px;background:#6a4bd6;color:#fff;font-size:15px;touch-action:manipulation;cursor:pointer;}
+.judgebtn:disabled{background:#2a3d55;color:#7d97ad;}
+.reagents{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:12px 0;}
+.reagent{min-width:44px;min-height:52px;padding:10px 14px;border:3px solid transparent;border-radius:12px;background:#1e3a57;color:#e8f4fd;font-size:14px;touch-action:manipulation;cursor:pointer;}
+.reagent.sel{border-color:#ffd54f;background:#2a4a6e;}
+.reagent .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:baseline;}
+.reagent.done{opacity:.45;}
+.hint{text-align:center;color:#9fc3dd;font-size:13px;min-height:20px;margin:6px 0;}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;align-items:center;justify-content:center;padding:20px;}
+.modal.show{display:flex;}
+.modal-box{background:#13273c;border:1px solid #2b7fff;border-radius:16px;padding:22px;max-width:460px;width:100%;max-height:80vh;overflow:auto;}
+.modal-box h3{margin:0 0 12px;font-size:19px;text-align:center;}
+.modal-box table{width:100%;border-collapse:collapse;font-size:14px;margin:10px 0;}
+.modal-box th,.modal-box td{border:1px solid #2a4a6e;padding:8px;text-align:center;}
+.modal-box th{background:#1e3a57;}
+.modal-box p{font-size:14px;line-height:1.9;color:#cfe6f5;}
+.judopts button{display:block;width:100%;min-height:48px;margin:8px 0;border:none;border-radius:10px;background:#1e3a57;color:#e8f4fd;font-size:16px;touch-action:manipulation;cursor:pointer;}
+.judopts button:active{background:#2b7fff;}
+.judged-tag{margin-top:8px;font-size:14px;color:#ffd54f;min-height:20px;}
+.round-info{text-align:center;color:#9fc3dd;font-size:14px;margin-bottom:4px;}
+.eqn{font-size:14px;color:#9fc3dd;background:#0f1e30;border-radius:10px;padding:10px 12px;margin:12px 0;line-height:1.9;}
+.eqn b{color:#ffd54f;}
+.settle{font-size:17px;line-height:2.1;text-align:center;}
+.settle .ok{color:#66e08a;}
+.settle .bad{color:#ff8a80;}
+.particle{position:absolute;width:8px;height:8px;border-radius:50%;pointer-events:none;z-index:60;animation:pop .7s ease-out forwards;}
+@keyframes pop{0%{transform:scale(1);opacity:1;}100%{transform:translateY(-46px) scale(.2);opacity:0;}}
+.result-row{display:flex;justify-content:space-between;font-size:15px;padding:6px 0;border-bottom:1px solid #1e3a57;}
+.pause-overlay{position:fixed;inset:0;background:rgba(11,22,34,.92);z-index:70;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+.pause-overlay.show{display:flex;}
+.pause-overlay h2{font-size:26px;margin:0;}
+.hs{text-align:center;color:#ffd54f;font-size:15px;margin-top:10px;}
+</style>
+</head>
+<body>
+
+<!-- 开始界面 -->
+<div class="screen active" id="scr-start">
+  <h1>🌈 酸碱指示剂</h1>
+  <p class="subtitle">石蕊酚酞变色记 · 化学小实验</p>
+  <div class="card">
+    <div class="rule-line">
+      🧪 每轮有 <b>3 支试管 A / B / C</b>，分别装着<b>酸性、碱性、中性</b>溶液（顺序随机，身份未知）<br>
+      💧 先点底部<b>试剂</b>，再点试管，滴加后观察液体变色<br>
+      🧠 试管下方的<b>判定</b>按钮猜出它的酸碱性；3 支全判定后结算<br>
+      🏆 全对得 <b>100 分</b>，错一支扣 <b>30 分</b>，共 <b>3 轮</b><br>
+      📋 右上角<b>变色规律表</b>随时可查（这是开卷考试！）
+    </div>
+  </div>
+  <div class="hs" id="start-hs"></div>
+  <button class="btn green" id="btn-start">开始实验</button>
+</div>
+
+<!-- 游戏界面 -->
+<div class="screen" id="scr-game">
+  <div class="topbar">
+    <div><button class="iconbtn" id="btn-pause" title="暂停">⏸</button>
+    <button class="iconbtn" id="btn-mute" title="静音">🔊</button></div>
+    <div class="score" id="score-line">第 1 / 3 轮 · 总分 0</div>
+    <div><button class="iconbtn" id="btn-cheat" title="变色规律表">📋</button>
+    <button class="iconbtn" id="btn-know" title="知识点">📖</button></div>
+  </div>
+  <div class="round-info" id="round-info">观察并判定每支试管的酸碱性</div>
+  <div class="tubes" id="tubes"></div>
+  <div class="hint" id="hint">👆 先选择一种试剂，再点击试管滴加</div>
+  <div class="reagents" id="reagents"></div>
+  <div class="eqn" id="eqn-box"><b>示例方程式：</b>HCl → H⁺ + Cl⁻<br>H⁺ 使紫色石蕊试液变红，使无色酚酞试液仍无色。</div>
+  <button class="btn orange" id="btn-next" style="display:none">下一轮 ➜</button>
+</div>
+
+<!-- 结束界面 -->
+<div class="screen" id="scr-end">
+  <h1>🎉 实验结束</h1>
+  <div class="card"><div class="settle" id="final-text"></div></div>
+  <div class="hs" id="end-hs"></div>
+  <button class="btn green" id="btn-restart">重来一轮</button>
+</div>
+
+<!-- 变色规律表 -->
+<div class="modal" id="modal-cheat">
+  <div class="modal-box">
+    <h3>📋 变色规律表（小抄）</h3>
+    <table>
+      <tr><th>试剂</th><th>酸性</th><th>中性</th><th>碱性</th></tr>
+      <tr><td>紫色石蕊试液</td><td>🔴 变红</td><td>🟣 仍紫色</td><td>🔵 变蓝</td></tr>
+      <tr><td>无色酚酞试液</td><td>⚪ 无色</td><td>⚪ 无色</td><td>🔴 变红</td></tr>
+      <tr><td>pH 试纸</td><td>🔴 红色</td><td>🟢 绿色</td><td>🔵 蓝紫色</td></tr>
+    </table>
+    <button class="btn" id="btn-cheat-close">知道了</button>
+  </div>
+</div>
+
+<!-- 知识点 -->
+<div class="modal" id="modal-know">
+  <div class="modal-box">
+    <h3>📖 知识点 · 实验结论</h3>
+    <p>
+      1️⃣ <b>紫色石蕊试液</b>：遇酸变红，遇碱变蓝；<br>
+      2️⃣ <b>无色酚酞试液</b>：遇碱变红，遇酸和中性溶液仍无色；<br>
+      3️⃣ 酸碱指示剂本身是<b>有机弱酸或有机弱碱</b>：<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;HIn（分子型，一种颜色） ⇌ H⁺ + In⁻（离子型，另一种颜色）<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;溶液酸碱性改变时，平衡移动，分子结构变化，于是呈现不同颜色——变色是<b>结构变化</b>所致；<br>
+      4️⃣ 同一指示剂变色范围有限，多种指示剂配合使用才能准确判断酸碱性。
+    </p>
+    <button class="btn" id="btn-know-close">知道了</button>
+  </div>
+</div>
+
+<!-- 判定选择 -->
+<div class="modal" id="modal-judge">
+  <div class="modal-box">
+    <h3 id="judge-title">判定试管 A</h3>
+    <div class="judopts">
+      <button data-v="acid">🔴 酸性溶液</button>
+      <button data-v="base">🔵 碱性溶液</button>
+      <button data-v="neutral">⚪ 中性溶液</button>
+    </div>
+    <button class="btn ghost" id="btn-judge-cancel">取消</button>
+  </div>
+</div>
+
+<div class="pause-overlay" id="pause-overlay">
+  <h2>⏸ 已暂停</h2>
+  <button class="btn green" id="btn-resume" style="width:220px">继续实验</button>
+</div>
+
+<script>
+'use strict';
+// ===== 酸碱指示剂游戏 =====
+var HS_KEY='g100_indicator_hs', MUTE_KEY='g100_mute';
+var tubes=[], selReagent=null, judging=null, round=1, totalScore=0, roundScore=0, paused=false;
+var highScore=parseInt(localStorage.getItem(HS_KEY)||'0',10);
+var muted=localStorage.getItem(MUTE_KEY)==='1';
+
+// 音频
+var actx=null;
+function audio(){ if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(actx&&actx.state==='suspended'){ actx.resume(); } return actx; }
+function tone(freq,t0,dur,type,vol){
+  if(muted) return; var a=audio(); if(!a) return;
+  var o=a.createOscillator(), g=a.createGain();
+  o.type=type||'sine'; o.frequency.value=freq;
+  g.gain.setValueAtTime(0.0001,a.currentTime+t0);
+  g.gain.exponentialRampToValueAtTime(vol||0.25,a.currentTime+t0+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t0+dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(a.currentTime+t0); o.stop(a.currentTime+t0+dur+0.05);
+}
+function sfx(name){
+  if(name==='drip'){ tone(880,0,0.12,'sine',0.2); tone(660,0.1,0.15,'sine',0.18); }
+  else if(name==='correct'){ tone(523,0,0.15,'triangle',0.25); tone(659,0.12,0.15,'triangle',0.25); tone(784,0.24,0.3,'triangle',0.25); }
+  else if(name==='wrong'){ tone(220,0,0.25,'sawtooth',0.15); tone(174,0.18,0.35,'sawtooth',0.15); }
+  else if(name==='click'){ tone(440,0,0.06,'sine',0.12); }
+}
+function buzz(p){ if(navigator.vibrate){ try{ navigator.vibrate(p); }catch(e){} } }
+function sparkle(x,y,color){
+  for(var i=0;i<8;i++){
+    var d=document.createElement('div'); d.className='particle';
+    d.style.left=(x+(Math.random()*40-20))+'px'; d.style.top=(y+(Math.random()*20-10))+'px';
+    d.style.background=color||'#ffd54f'; document.body.appendChild(d);
+    (function(el){ setTimeout(function(){ el.remove(); },750); })(d);
+  }
+}
+document.addEventListener('pointerdown',function(){ audio(); },{once:true});
+
+// pH 颜色（1~14 红→橙→黄→绿→蓝→蓝紫）
+function phColor(ph){
+  var stops=[[1,'#e53935'],[3,'#ef6c00'],[5,'#fdd835'],[7,'#43a047'],[9,'#1e88e5'],[11,'#3949ab'],[14,'#6a1b9a']];
+  for(var i=0;i<stops.length-1;i++){
+    if(ph<=stops[i+1][0]){
+      var a=stops[i],b=stops[i+1],t=(ph-a[0])/(b[0]-a[0]);
+      return mix(a[1],b[1],t);
+    }
+  }
+  return stops[stops.length-1][1];
+}
+function mix(c1,c2,t){
+  function p(c){ return [parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]; }
+  var A=p(c1),B=p(c2);
+  return 'rgb('+Math.round(A[0]+(B[0]-A[0])*t)+','+Math.round(A[1]+(B[1]-A[1])*t)+','+Math.round(A[2]+(B[2]-A[2])*t)+')';
+}
+
+// 试剂定义
+var REAGENTS=[
+  {id:'litmus', name:'紫色石蕊试液', dot:'#7c4dff'},
+  {id:'phenol', name:'无色酚酞试液', dot:'#e8f4fd'},
+  {id:'ph',    name:'pH 试纸', dot:'#43a047'}
+];
+var LABELS={acid:'🔴 酸性', base:'🔵 碱性', neutral:'⚪ 中性'};
+var PH_OF={acid:3, base:10, neutral:7};
+
+function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+
+function newRound(){
+  var kinds=shuffle(['acid','base','neutral']);
+  tubes=['A','B','C'].map(function(L,i){
+    return {label:L, kind:kinds[i], litmus:null, phenol:false, phPaper:false, judged:null};
+  });
+  selReagent=null;
+  renderTubes(); renderReagents();
+  document.getElementById('btn-next').style.display='none';
+  document.getElementById('round-info').textContent='观察并判定每支试管的酸碱性';
+  document.getElementById('score-line').textContent='第 '+round+' / 3 轮 · 总分 '+totalScore;
+  setHint('👆 先选择一种试剂，再点击试管滴加');
+}
+
+function renderTubes(){
+  var box=document.getElementById('tubes'); box.innerHTML='';
+  tubes.forEach(function(t,idx){
+    var w=document.createElement('div'); w.className='tube-wrap';
+    var tube=document.createElement('div'); tube.className='tube'; tube.dataset.idx=idx;
+    var lab=document.createElement('div'); lab.className='tube-label'; lab.textContent='试管 '+t.label;
+    var liq=document.createElement('div'); liq.className='liquid';
+    var strip=document.createElement('div'); strip.className='ph-strip';
+    // 恢复已变色状态
+    if(t.litmus){ liq.style.backgroundColor=t.litmus; liq.style.boxShadow='0 0 18px '+t.litmus; }
+    else if(t.phenol){ liq.style.backgroundColor='rgba(229,57,53,.85)'; liq.style.boxShadow='0 0 18px rgba(229,57,53,.8)'; }
+    tube.appendChild(lab); tube.appendChild(strip); tube.appendChild(liq);
+    if(t.phPaper){ strip.style.display='block'; strip.style.backgroundColor=phColor(PH_OF[t.kind]); }
+    tube.addEventListener('pointerdown',function(e){ onTubeTap(idx,e); });
+    w.appendChild(tube);
+    var jb=document.createElement('button'); jb.className='judgebtn';
+    jb.textContent=t.judged?('已判定：'+LABELS[t.judged]):'判定';
+    jb.disabled=!!t.judged;
+    jb.addEventListener('click',function(){ openJudge(idx); });
+    w.appendChild(jb);
+    var tag=document.createElement('div'); tag.className='judged-tag';
+    tag.textContent=t.judged?(t.judged===t.kind?'✔ 正确！':'✘ 正确答案：'+LABELS[t.kind]):'';
+    tag.style.color=t.judged?(t.judged===t.kind?'#66e08a':'#ff8a80'):'#ffd54f';
+    w.appendChild(tag);
+    box.appendChild(w);
+  });
+}
+
+function renderReagents(){
+  var box=document.getElementById('reagents'); box.innerHTML='';
+  REAGENTS.forEach(function(r){
+    var b=document.createElement('button'); b.className='reagent'+(selReagent===r.id?' sel':'');
+    b.innerHTML='<span class="dot" style="background:'+r.dot+'"></span>'+r.name;
+    b.addEventListener('click',function(){ selReagent=r.id; sfx('click'); renderReagents(); setHint('✅ 已选「'+r.name+'」，点击试管进行滴加'); });
+    box.appendChild(b);
+  });
+}
+
+function setHint(s){ document.getElementById('hint').textContent=s; }
+function show(id){ document.getElementById(id).classList.add('active'); }
+function hide(id){ document.getElementById(id).classList.remove('active'); }
+
+function onTubeTap(idx,e){
+  if(paused) return;
+  var t=tubes[idx];
+  if(!selReagent){ setHint('⚠️ 请先选择一种试剂！'); buzz(40); return; }
+  sfx('drip');
+  var tubeEl=e.currentTarget;
+  // 滴加动画
+  var d=document.createElement('div'); d.className='drop';
+  var col=selReagent==='litmus'?'#7c4dff':(selReagent==='phenol'?'#e8f4fd':'#fff');
+  d.style.background=col; d.style.animation='fall .6s ease-in forwards';
+  tubeEl.appendChild(d);
+  setTimeout(function(){ d.remove(); },700);
+  var r=tubeEl.getBoundingClientRect();
+  sparkle(r.left+r.width/2, r.top+30, col);
+  buzz(15);
+  // 变色
+  var liq=tubeEl.querySelector('.liquid'), strip=tubeEl.querySelector('.ph-strip');
+  if(selReagent==='litmus'){
+    t.litmus=(t.kind==='acid')?'#e53935':(t.kind==='base')?'#1e88e5':'#7c4dff';
+    liq.style.backgroundColor=t.litmus; liq.style.boxShadow='0 0 18px '+t.litmus;
+    setHint('💧 石蕊试液滴入试管 '+t.label+'：'+(t.kind==='acid'?'液体变红 🔴':(t.kind==='base'?'液体变蓝 🔵':'仍为紫色 🟣')));
+  }else if(selReagent==='phenol'){
+    t.phenol=true;
+    if(t.kind==='base'){ liq.style.backgroundColor='rgba(229,57,53,.85)'; liq.style.boxShadow='0 0 18px rgba(229,57,53,.8)'; setHint('💧 酚酞试液滴入试管 '+t.label+'：液体变红 🔴'); }
+    else { setHint('💧 酚酞试液滴入试管 '+t.label+'：仍无色 ⚪'); }
+  }else if(selReagent==='ph'){
+    t.phPaper=true;
+    strip.style.display='block';
+    var c=phColor(PH_OF[t.kind]);
+    strip.style.backgroundColor=c;
+    setHint('📏 pH 试纸浸入试管 '+t.label+'：试纸呈 '+(t.kind==='acid'?'红色（pH≈3）':(t.kind==='base'?'蓝紫色（pH≈10）':'绿色（pH≈7）')));
+  }
+}
+
+// 判定
+function openJudge(idx){
+  if(paused) return;
+  var t=tubes[idx]; if(t.judged) return;
+  judging=idx; sfx('click');
+  document.getElementById('judge-title').textContent='判定试管 '+t.label;
+  document.getElementById('modal-judge').classList.add('show');
+}
+document.querySelectorAll('#modal-judge .judopts button').forEach(function(b){
+  b.addEventListener('click',function(){
+    var v=b.dataset.v, t=tubes[judging];
+    t.judged=v;
+    var ok=(v===t.kind);
+    if(ok){ sfx('correct'); buzz([30,40,30]); } else { sfx('wrong'); buzz(120); }
+    document.getElementById('modal-judge').classList.remove('show');
+    renderTubes();
+    setHint(ok?('✔ 试管 '+t.label+' 判定正确！') : ('✘ 试管 '+t.label+' 判定错误，正确答案是 '+LABELS[t.kind]));
+    checkSettle();
+  });
+});
+document.getElementById('btn-judge-cancel').addEventListener('click',function(){
+  document.getElementById('modal-judge').classList.remove('show');
+});
+
+function checkSettle(){
+  if(tubes.some(function(t){ return !t.judged; })) return;
+  var wrong=0;
+  tubes.forEach(function(t){ if(t.judged!==t.kind) wrong++; });
+  roundScore=100-wrong*30; if(roundScore<0) roundScore=0;
+  totalScore+=roundScore;
+  document.getElementById('score-line').textContent='第 '+round+' / 3 轮 · 总分 '+totalScore;
+  document.getElementById('round-info').textContent=
+    '本轮得分 '+roundScore+' 分（错 '+wrong+' 支）'+(wrong===0?' 🎉 全对！':'');
+  if(wrong===0){ sfx('correct'); buzz([40,60,40,60,80]); } else { sfx('wrong'); buzz(150); }
+  if(highScore<totalScore){ highScore=totalScore; localStorage.setItem(HS_KEY,String(highScore)); }
+  if(round<3){ document.getElementById('btn-next').style.display='block'; }
+  else{
+    setTimeout(function(){
+      document.getElementById('final-text').innerHTML=
+        '三轮实验完成！<br>🏅 总分：<b>'+totalScore+' / 300</b><br>'+
+        (totalScore>=270?'🌟 满分化学家！':(totalScore>=180?'👍 实验功底扎实！':'💪 再复习下变色规律，加油！'));
+      document.getElementById('end-hs').textContent='🏆 本地最高分：'+highScore;
+      hide('scr-game'); show('scr-end');
+    },1200);
+  }
+}
+document.getElementById('btn-next').addEventListener('click',function(){
+  round++; sfx('click'); newRound();
+});
+
+// 模态框
+document.getElementById('btn-cheat').addEventListener('click',function(){ sfx('click'); document.getElementById('modal-cheat').classList.add('show'); });
+document.getElementById('btn-cheat-close').addEventListener('click',function(){ document.getElementById('modal-cheat').classList.remove('show'); });
+document.getElementById('btn-know').addEventListener('click',function(){ sfx('click'); document.getElementById('modal-know').classList.add('show'); });
+document.getElementById('btn-know-close').addEventListener('click',function(){ document.getElementById('modal-know').classList.remove('show'); });
+
+// 暂停
+document.getElementById('btn-pause').addEventListener('click',function(){
+  paused=true; document.getElementById('pause-overlay').classList.add('show');
+  document.getElementById('btn-pause').textContent='▶';
+});
+document.getElementById('btn-resume').addEventListener('click',function(){
+  paused=false; document.getElementById('pause-overlay').classList.remove('show');
+  document.getElementById('btn-pause').textContent='⏸'; sfx('click');
+});
+
+// 静音
+function renderMute(){ document.getElementById('btn-mute').textContent=muted?'🔇':'🔊'; }
+document.getElementById('btn-mute').addEventListener('click',function(){
+  muted=!muted; localStorage.setItem(MUTE_KEY,muted?'1':'0'); renderMute();
+  if(!muted) sfx('click');
+});
+
+// 开始 / 重来
+document.getElementById('btn-start').addEventListener('click',function(){
+  audio(); sfx('click');
+  round=1; totalScore=0; newRound(); hide('scr-start'); show('scr-game');
+});
+document.getElementById('btn-restart').addEventListener('click',function(){
+  sfx('click'); round=1; totalScore=0; newRound(); hide('scr-end'); show('scr-game');
+});
+document.getElementById('start-hs').textContent=highScore>0?('🏆 本地最高分：'+highScore):'';
+renderMute();
+</script>
+</body>
+</html>
