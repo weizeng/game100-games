@@ -109,13 +109,33 @@ class GameDetailActivity : AppCompatActivity() {
         }
         refreshStars()
 
-        // 开始游戏
-        findViewById<Button>(R.id.btn_play).setOnClickListener {
-            val intent = Intent(this, GameActivity::class.java).apply {
-                putExtra("game_id", game.id)
+        // 开始游戏 / 下载游戏（根据是否已安装）
+        val btnPlay = findViewById<Button>(R.id.btn_play)
+        val repo = com.game100.center.data.GameRepository(this)
+        fun refreshPlayButton() {
+            if (repo.isInstalled(game.id)) {
+                btnPlay.text = "开始游戏"
+                btnPlay.setOnClickListener {
+                    val intent = Intent(this, GameActivity::class.java).apply {
+                        putExtra("game_id", game.id)
+                    }
+                    startActivity(intent)
+                }
+            } else {
+                btnPlay.text = "⬇ 下载游戏"
+                btnPlay.setOnClickListener {
+                    Toast.makeText(this, "正在下载 ${game.name}...", Toast.LENGTH_SHORT).show()
+                    // 用 MainActivity 的下载逻辑：先返回列表页触发下载
+                    val intent = Intent(this, MainActivity::class.java).apply {
+                        putExtra("download_game_id", game.id)
+                        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    startActivity(intent)
+                    finish()
+                }
             }
-            startActivity(intent)
         }
+        refreshPlayButton()
         val content = findViewById<android.view.ViewGroup>(android.R.id.content)
         UiMotion.bindButtons(content)
         UiMotion.enterPage(content)

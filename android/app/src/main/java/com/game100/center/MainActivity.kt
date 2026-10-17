@@ -62,6 +62,17 @@ class MainActivity : AppCompatActivity() {
         selectedCat = savedInstanceState?.getString("selectedCat") ?: "全部"
         searchQuery = savedInstanceState?.getString("searchQuery") ?: ""
 
+        // 从详情页返回的下载请求
+        intent.getStringExtra("download_game_id")?.let { gid ->
+            intent.removeExtra("download_game_id")
+            // 延迟到列表加载完成后触发下载
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                allItems.find { it.id == gid }?.let { item ->
+                    if (item.canDownload) downloadGame(item)
+                }
+            }, 1500)
+        }
+
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         toolbar.menu.findItem(R.id.action_refresh)?.icon?.let {
             DrawableCompat.setTint(it, getColor(R.color.text_primary))

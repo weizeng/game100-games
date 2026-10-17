@@ -66,6 +66,9 @@ class GameRepository(private val context: Context) {
         }
     }
 
+    /** 公开：检查游戏是否已安装 */
+    fun isInstalled(id: String): Boolean = getInstalledVersion(id) > 0
+
     private fun getInstalledVersion(id: String): Int {
         return try {
             val meta = File(File(gamesDir, id), "meta.json")
