@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>电解水</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0b1622;color:#e8f4fd;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;touch-action:manipulation}
+#app{height:100%;display:flex;flex-direction:column;align-items:center;max-width:720px;margin:0 auto;padding:8px}
+.screen{position:fixed;inset:0;background:rgba(11,22,34,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;z-index:50;text-align:center}
+.hidden{display:none!important}
+.card{background:#13273c;border:1px solid #1e3a55;border-radius:14px;padding:20px;max-width:520px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+h1{font-size:30px;margin-bottom:10px}
+h2{font-size:22px;margin-bottom:8px}
+p{font-size:15px;line-height:1.7;color:#b8d4e8}
+.btn{display:inline-block;min-height:48px;min-width:120px;margin:8px 4px;padding:12px 22px;font-size:17px;font-weight:bold;color:#06222b;background:#4DD0E1;border:none;border-radius:12px;cursor:pointer}
+.btn:active{transform:scale(.96)}
+.btn:disabled{background:#33505f;color:#8aa5b8;cursor:not-allowed}
+.btn.danger{background:#ff7043;color:#2b1000}
+.btn.ghost{background:#1e3a55;color:#e8f4fd}
+#topbar{width:100%;display:flex;justify-content:space-between;align-items:center;padding:4px 6px}
+#topbar .lbl{font-size:14px;color:#b8d4e8}
+.iconbtn{min-width:48px;min-height:48px;font-size:22px;background:#1e3a55;color:#e8f4fd;border:1px solid #2b4f70;border-radius:12px;cursor:pointer}
+#equation{font-size:18px;margin:8px 0;padding:10px;background:#0b1622;border:1px solid #1e3a55;border-radius:10px;letter-spacing:1px}
+#stage{position:relative;width:100%;max-width:560px;height:380px;margin:4px 0}
+#tank{position:absolute;left:8%;right:8%;top:120px;bottom:30px;background:linear-gradient(180deg,#12395b,#0d2c49);border:3px solid #2b4f70;border-top:none;border-radius:0 0 22px 22px;overflow:hidden}
+#water{position:absolute;left:0;right:0;top:0;bottom:0;background:linear-gradient(180deg,rgba(77,208,225,.28),rgba(77,208,225,.45))}
+.tube{position:absolute;top:0;width:26%;height:330px;border:3px solid #7fc7dd;border-bottom:none;border-radius:14px 14px 0 0;background:rgba(255,255,255,.05);overflow:hidden}
+#tubeH{left:12%} #tubeO{right:12%}
+.gas{position:absolute;left:0;right:0;top:0;background:rgba(200,235,250,.16);border-bottom:2px dashed #9fd8ec}
+.tubewater{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(77,208,225,.35),rgba(77,208,225,.6))}
+.scale{position:absolute;right:3px;top:6px;font-size:10px;color:#9fd8ec;line-height:1;text-align:right}
+.scale span{display:block}
+.electrode{position:absolute;bottom:40px;width:14px;height:70px;border-radius:6px;background:#888}
+#elH{left:21%} #elO{right:21%}
+#elH.live{background:#ff5252;box-shadow:0 0 12px #ff5252}
+#elO.live{background:#448aff;box-shadow:0 0 12px #448aff}
+.elabel{position:absolute;bottom:6px;font-size:13px;font-weight:bold;text-align:center;width:30%}
+#labH{left:10%} #labO{right:10%}
+.vol{font-size:15px;color:#ffd54f;font-weight:bold}
+#battery{position:absolute;left:44%;top:70px;transform:translateX(-50%);font-size:14px;background:#1e3a55;border:1px solid #2b4f70;border-radius:10px;padding:6px 12px}
+#bubbleLayer{position:absolute;inset:0;pointer-events:none}
+.bub{position:absolute;border-radius:50%;background:rgba(200,240,255,.75);border:1px solid rgba(255,255,255,.9)}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:60;transition:opacity .12s}
+#controls{width:100%;display:flex;flex-direction:column;gap:8px;margin-top:2px}
+.row{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap}
+#vslider{width:200px;accent-color:#4DD0E1}
+.switch{min-width:150px}
+#msg{font-size:14px;color:#ffd54f;min-height:22px;text-align:center}
+#know{margin-top:6px;font-size:15px;line-height:1.8;text-align:left}
+#know li{margin:6px 0;list-style:none;background:#0b1622;border-radius:8px;padding:8px 12px}
+#finalScore{font-size:52px;font-weight:bold;color:#ffd54f;margin:10px 0}
+.badge{display:inline-block;background:#1b3b57;border-radius:8px;padding:4px 12px;font-size:14px;margin:4px}
+#splint{font-size:15px;color:#ffab91}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div><span class="lbl">得分 <b id="curScore">0</b></span>　<span class="lbl">最高 <b id="highScore">0</b></span></div>
+    <div>
+      <button class="iconbtn" id="btnMute" aria-label="静音开关">🔊</button>
+      <button class="iconbtn" id="btnPause" aria-label="暂停">⏸</button>
+    </div>
+  </div>
+
+  <div id="equation">2H<sub>2</sub>O —通电→ 2H<sub>2</sub>↑ + O<sub>2</sub>↑</div>
+
+  <div id="stage">
+    <div id="battery">🔋 直流电源 <span id="vshow">6V</span></div>
+    <div class="tube" id="tubeH"><div class="gas" id="gasH"></div><div class="tubewater" id="twH"></div><div class="scale" id="scaleH"></div></div>
+    <div class="tube" id="tubeO"><div class="gas" id="gasO"></div><div class="tubewater" id="twO"></div><div class="scale" id="scaleO"></div></div>
+    <div id="tank"><div id="water"></div></div>
+    <div class="electrode" id="elH"></div>
+    <div class="electrode" id="elO"></div>
+    <div class="elabel" id="labH">负极(−)<br><span class="vol" id="volH">0.0 mL</span><br>H₂</div>
+    <div class="elabel" id="labO">正极(+)<br><span class="vol" id="volO">0.0 mL</span><br>O₂</div>
+    <div id="bubbleLayer"></div>
+  </div>
+
+  <div id="msg"></div>
+
+  <div id="controls">
+    <div class="row">
+      <button class="btn switch" id="btnPower">⚡ 通电</button>
+      <label class="lbl" for="vslider">电压 <span id="vval">6</span>V</label>
+      <input type="range" id="vslider" min="3" max="12" step="1" value="6">
+    </div>
+    <div class="row">
+      <button class="btn" id="btnIgnite" disabled>🔥 点燃H₂</button>
+      <button class="btn" id="btnO2" disabled>🪵 检验O₂</button>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="btnKnow">📖 知识点</button>
+      <button class="btn danger" id="btnSettle">🛑 停止并结算</button>
+    </div>
+  </div>
+</div>
+
+<div id="flash"></div>
+
+<div class="screen" id="startScreen">
+  <div class="card">
+    <h1>💧 电解水</h1>
+    <p>1. 按 <b>⚡通电</b> 开始实验，拖动滑杆调节电压（3~12V），电压越高冒泡越快；<br>
+    2. 负极（阴极）收集 <b>H₂</b>，体积增速是正极 <b>O₂</b> 的 2 倍；<br>
+    3. 当 H₂ ≥ 20mL 时解锁两个检验按钮：点燃氢气、检验氧气；<br>
+    4. 观察两管气体体积比是否接近 2:1，然后 <b>🛑停止并结算</b>！</p>
+    <button class="btn" id="btnStart">▶ 开始实验</button>
+  </div>
+</div>
+
+<div class="screen hidden" id="pauseScreen">
+  <div class="card"><h2>⏸ 已暂停</h2><button class="btn" id="btnResume">▶ 继续</button></div>
+</div>
+
+<div class="screen hidden" id="knowScreen">
+  <div class="card">
+    <h2>📖 实验结论</h2>
+    <ul id="know">
+      <li>🔋 <b>负极产生氢气</b>，<b>正极产生氧气</b> —— 口诀"<b>负氢正氧</b>"</li>
+      <li>📏 氢气体积约为氧气的 <b>2 倍</b>（体积比约 2:1）</li>
+      <li>🧪 化学反应前后元素种类不变 → 水由 <b>氢、氧两种元素</b> 组成</li>
+      <li>⚗️ 检验方法：氢气点燃安静燃烧、不纯爆鸣；带火星木条在氧气中复燃</li>
+    </ul>
+    <button class="btn" id="btnKnowClose">关闭</button>
+  </div>
+</div>
+
+<div class="screen hidden" id="endScreen">
+  <div class="card">
+    <h2 id="endTitle">实验结束</h2>
+    <div id="finalScore">0</div>
+    <p id="endDetail"></p>
+    <div><span class="badge">最高分 <b id="endHigh">0</b></span></div>
+    <button class="btn" id="btnRestart">🔄 重来</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 状态 ============ */
+var S = {
+  power:false, paused:false, started:false, settled:false,
+  volt:6, vH:0, vO:0, dispH:0, dispO:0,
+  unlocked:false, testedH:false, testedO:false,
+  mute:false, hs:0, startTime:0, elapsed:0
+};
+try{ S.mute = localStorage.getItem('g100_mute')==='1'; }catch(e){}
+try{ S.hs = parseInt(localStorage.getItem('g100_electrolysis_hs')||'0',10)||0; }catch(e){}
+
+var $ = function(id){ return document.getElementById(id); };
+
+/* ============ 音频 ============ */
+var AC=null, humNodes=null;
+function initAudio(){
+  if(AC) return;
+  try{
+    AC = new (window.AudioContext||window.webkitAudioContext)();
+  }catch(e){ AC=null; }
+}
+function snd(freq,dur,type,vol,when){
+  if(!AC||S.mute) return;
+  when = when||0;
+  var t=AC.currentTime+when, o=AC.createOscillator(), g=AC.createGain();
+  o.type=type||'sine'; o.frequency.value=freq;
+  g.gain.setValueAtTime(vol||0.15,t);
+  g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  o.connect(g); g.connect(AC.destination);
+  o.start(t); o.stop(t+dur+0.05);
+}
+function startHum(){
+  if(!AC||S.mute||humNodes) return;
+  var o=AC.createOscillator(), g=AC.createGain();
+  o.type='sawtooth'; o.frequency.value=55+S.volt*4;
+  g.gain.value=0.035;
+  o.connect(g); g.connect(AC.destination); o.start();
+  humNodes={o:o,g:g};
+}
+function stopHum(){
+  if(!humNodes) return;
+  try{ humNodes.o.stop(); }catch(e){}
+  humNodes.o.disconnect(); humNodes=null;
+}
+function bubbleSnd(){ // 气泡声：随机短促咕嘟
+  snd(300+Math.random()*500, 0.08, 'sine', 0.06);
+}
+function boomSnd(){ // 爆鸣：噪声+低频冲击
+  if(!AC||S.mute) return;
+  var t=AC.currentTime, len=0.4, buf=AC.createBuffer(1,AC.sampleRate*len,AC.sampleRate), d=buf.getChannelData(0);
+  for(var i=0;i<d.length;i++){ d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2); }
+  var src=AC.createBufferSource(); src.buffer=buf;
+  var g=AC.createGain(); g.gain.value=0.5;
+  src.connect(g); g.connect(AC.destination); src.start(t);
+  snd(70,0.5,'sine',0.5);
+}
+function reigniteSnd(){ // 复燃：上滑啾声+成功音
+  snd(500,0.15,'triangle',0.2);
+  snd(750,0.15,'triangle',0.2,0.12);
+  snd(1000,0.3,'triangle',0.2,0.24);
+}
+function successSnd(){
+  snd(523,0.15,'sine',0.2); snd(659,0.15,'sine',0.2,0.14);
+  snd(784,0.15,'sine',0.2,0.28); snd(1047,0.4,'sine',0.2,0.42);
+}
+
+/* ============ 场景初始化 ============ */
+(function buildScales(){
+  var html='';
+  for(var v=30;v>=0;v-=5){ html+='<span>'+v+'</span>'; }
+  $('scaleH').innerHTML=html; $('scaleO').innerHTML=html;
+})();
+$('highScore').textContent=S.hs;
+updateMuteBtn();
+function updateMuteBtn(){ $('btnMute').textContent = S.mute?'🔇':'🔊'; }
+function msg(t){ $('msg').textContent=t; }
+
+/* ============ 主循环 ============ */
+var lastT=0, bubTimer=0;
+function rateH(){ return (S.volt/12)*2.4; }   // mL/s，12V 时 2.4
+function rateO(){ return rateH()/2; }
+function loop(t){
+  if(!S.paused && !S.settled && S.power){
+    var dt=Math.min((t-lastT)/1000,0.1);
+    S.elapsed+=dt;
+    S.vH=Math.min(30,S.vH+rateH()*dt);
+    S.vO=Math.min(30,S.vO+rateO()*dt);
+    bubTimer+=dt;
+    var interval=Math.max(0.05,0.5-S.volt*0.035);
+    if(bubTimer>interval){ bubTimer=0; spawnBubbles(); bubbleSnd(); }
+  }
+  lastT=t;
+  // 缓动：显示体积向真实体积逼近
+  S.dispH+=(S.vH-S.dispH)*0.08;
+  S.dispO+=(S.vO-S.dispO)*0.08;
+  if(Math.abs(S.vH-S.dispH)<0.01) S.dispH=S.vH;
+  if(Math.abs(S.vO-S.dispO)<0.01) S.dispO=S.vO;
+  render();
+  requestAnimationFrame(loop);
+}
+function spawnBubbles(){
+  var layer=$('bubbleLayer'), stage=$('stage').getBoundingClientRect();
+  for(var i=0;i<3;i++){
+    var hSide = Math.random()<0.66; // H2 气泡更多
+    var el=$(hSide?'elH':'elO').getBoundingClientRect();
+    var b=document.createElement('div');
+    b.className='bub';
+    var sz=4+Math.random()*7;
+    b.style.width=b.style.height=sz+'px';
+    b.style.left=(el.left-stage.left+el.width/2-sz/2)+'px';
+    b.style.top=(el.top-stage.top)+'px';
+    layer.appendChild(b);
+    rise(b, stage, el, hSide);
+  }
+}
+function rise(b, stage, el, hSide){
+  var top=el.top-stage.top, target=30+Math.random()*60, dur=700+Math.random()*700;
+  var start=null;
+  function step(t){
+    if(S.paused){ requestAnimationFrame(step); return; }
+    if(!start) start=t;
+    var p=Math.min((t-start)/dur,1);
+    var e=1-Math.pow(1-p,3); // ease-out
+    b.style.top=(top+(target-top)*e)+'px';
+    b.style.opacity=1-p*0.6;
+    if(p<1) requestAnimationFrame(step); else b.remove();
+  }
+  requestAnimationFrame(step);
+}
+function render(){
+  // 气体占据试管顶部：高度比例 = 体积/30
+  var tubeH=$('tubeH').clientHeight||330;
+  $('gasH').style.height=(S.dispH/30*tubeH)+'px';
+  $('twH').style.height=(tubeH-S.dispH/30*tubeH)+'px';
+  $('gasO').style.height=(S.dispO/30*tubeH)+'px';
+  $('twO').style.height=(tubeH-S.dispO/30*tubeH)+'px';
+  $('volH').textContent=S.dispH.toFixed(1)+' mL';
+  $('volO').textContent=S.dispO.toFixed(1)+' mL';
+  if(S.vH>=20 && !S.unlocked){
+    S.unlocked=true;
+    $('btnIgnite').disabled=false; $('btnO2').disabled=false;
+    msg('✅ H₂ 已达 20mL，检验按钮解锁！');
+    try{ if(navigator.vibrate) navigator.vibrate(200); }catch(e){}
+    successSnd();
+  }
+}
+
+/* ============ 事件 ============ */
+function needGesture(){ initAudio(); if(AC&&AC.state==='suspended') AC.resume(); }
+$('btnStart').addEventListener('click',function(){
+  needGesture();
+  $('startScreen').classList.add('hidden');
+  S.started=true; S.startTime=performance.now();
+  msg('按下 ⚡通电 开始收集气体');
+});
+$('btnPower').addEventListener('click',function(){
+  needGesture();
+  if(!S.started) return;
+  S.power=!S.power;
+  $('btnPower').textContent=S.power?'⏹ 断电':'⚡ 通电';
+  $('elH').className='electrode'+(S.power?' live':'');
+  $('elO').className='electrode'+(S.power?' live':'');
+  if(S.power){ startHum(); msg('通电中…观察两管气体体积'); }
+  else{ stopHum(); msg('已断电'); }
+});
+$('vslider').addEventListener('input',function(){
+  S.volt=parseInt(this.value,10);
+  $('vval').textContent=S.volt; $('vshow').textContent=S.volt+'V';
+  if(humNodes) humNodes.o.frequency.value=55+S.volt*4;
+});
+$('btnIgnite').addEventListener('click',function(){
+  needGesture();
+  S.testedH=true;
+  var f=$('flash');
+  f.style.opacity=0.9;
+  setTimeout(function(){ f.style.opacity=0; },180);
+  boomSnd();
+  try{ if(navigator.vibrate) navigator.vibrate([100,50,150]); }catch(e){}
+  msg('💥 嘭！纯净氢气安静燃烧，不纯会爆鸣——你的氢气'+(S.dispH>=20?'很纯':'偏少')+'。');
+});
+$('btnO2').addEventListener('click',function(){
+  needGesture();
+  S.testedO=true;
+  reigniteSnd();
+  msg('🪵 带火星的木条伸入 O₂ 管 → 复燃！说明氧气能助燃。');
+});
+$('btnKnow').addEventListener('click',function(){ $('knowScreen').classList.remove('hidden'); });
+$('btnKnowClose').addEventListener('click',function(){ $('knowScreen').classList.add('hidden'); });
+$('btnPause').addEventListener('click',function(){
+  if(!S.started||S.settled) return;
+  S.paused=true;
+  $('pauseScreen').classList.remove('hidden');
+});
+$('btnResume').addEventListener('click',function(){
+  S.paused=false;
+  $('pauseScreen').classList.add('hidden');
+});
+$('btnMute').addEventListener('click',function(){
+  needGesture();
+  S.mute=!S.mute;
+  try{ localStorage.setItem('g100_mute',S.mute?'1':'0'); }catch(e){}
+  updateMuteBtn();
+  if(S.mute) stopHum(); else if(S.power) startHum();
+});
+$('btnSettle').addEventListener('click',function(){
+  needGesture();
+  if(!S.started||S.settled) return;
+  S.settled=true; S.power=false; stopHum();
+  var ratio=S.vO>0.05?S.vH/S.vO:0;
+  var score=0, detail='';
+  if(S.vH>=20 && ratio>=1.9 && ratio<=2.1){
+    score=Math.max(0,Math.round(100-Math.abs(ratio-2)*50));
+    detail='H₂ '+S.vH.toFixed(1)+'mL : O₂ '+S.vO.toFixed(1)+'mL = '+ratio.toFixed(2)+'，接近 2:1！'+(S.testedH&&S.testedO?'还完成了两种气体检验，':'')+'实验非常成功。';
+    successSnd();
+  }else{
+    var comp=0;
+    comp+=Math.min(40,S.vH/20*40);            // H2 收集进度
+    if(S.vO>0.05 && ratio>0) comp+=Math.max(0,20-Math.abs(ratio-2)*20); // 比值接近度
+    if(S.testedH) comp+=20; if(S.testedO) comp+=20; // 检验完成度
+    score=Math.round(Math.min(95,comp));
+    detail='H₂ '+S.vH.toFixed(1)+'mL : O₂ '+S.vO.toFixed(1)+'mL = '+(S.vO>0.05?ratio.toFixed(2):'—')+'。'+(S.vH<20?'H₂ 未达到 20mL。':'')+(ratio>0&&(ratio<1.9||ratio>2.1)?'体积比偏离 2:1。':'')+'继续努力！';
+  }
+  if(score>S.hs){ S.hs=score; try{ localStorage.setItem('g100_electrolysis_hs',String(score)); }catch(e){} }
+  $('curScore').textContent=score;
+  $('highScore').textContent=S.hs;
+  $('finalScore').textContent=score+' 分';
+  $('endTitle').textContent = score>=80?'🎉 实验成功！':'实验结束';
+  $('endDetail').textContent=detail;
+  $('endHigh').textContent=S.hs;
+  $('endScreen').classList.remove('hidden');
+});
+function resetGame(){
+  S.power=false; S.paused=false; S.settled=false;
+  S.vH=0; S.vO=0; S.dispH=0; S.dispO=0;
+  S.unlocked=false; S.testedH=false; S.testedO=false; S.elapsed=0;
+  $('curScore').textContent=0;
+  $('btnIgnite').disabled=true; $('btnO2').disabled=true;
+  $('btnPower').textContent='⚡ 通电';
+  $('elH').className='electrode'; $('elO').className='electrode';
+  $('endScreen').classList.add('hidden');
+  $('bubbleLayer').innerHTML='';
+  msg('按下 ⚡通电 开始收集气体');
+}
+$('btnRestart').addEventListener('click',function(){
+  needGesture();
+  resetGame();
+});
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

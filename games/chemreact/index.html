@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>化学反应 ⚗️</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#0b1622;color:#e8f4fd;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;touch-action:manipulation;overflow-x:hidden;user-select:none;-webkit-user-select:none}
+.screen{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.hidden{display:none!important}
+h1{font-size:34px;margin-bottom:8px}
+.subtitle{color:#9fb8cc;font-size:15px;margin-bottom:22px;text-align:center;line-height:1.7}
+.panel{background:#13273c;border-radius:16px;padding:18px;width:100%;max-width:560px;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.btn{display:block;width:100%;min-height:52px;margin:8px 0;padding:12px 16px;border:none;border-radius:12px;background:#1e6fd9;color:#fff;font-size:18px;font-weight:600;cursor:pointer;transition:transform .18s cubic-bezier(.34,1.56,.64,1),background .2s,opacity .2s}
+.btn:active{transform:scale(.96)}
+.btn:disabled{opacity:.35;cursor:default;transform:none}
+.btn.secondary{background:#1b3a5c}
+.btn.warn{background:#b3541e}
+.hud{display:flex;align-items:center;gap:8px;width:100%;max-width:560px;margin-bottom:10px;flex-wrap:wrap}
+.hud .stat{background:#13273c;border-radius:10px;padding:8px 12px;font-size:14px;flex:1;min-width:80px;text-align:center}
+.hud .stat b{color:#ffd166;font-size:17px}
+.iconbtn{min-width:48px;min-height:48px;border:none;border-radius:10px;background:#13273c;color:#e8f4fd;font-size:22px;cursor:pointer;transition:transform .18s cubic-bezier(.34,1.56,.64,1)}
+.iconbtn:active{transform:scale(.9)}
+#hint{text-align:center;color:#9fb8cc;font-size:14px;min-height:22px;margin:6px 0 10px;line-height:1.5}
+#shelf{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:560px;margin-bottom:10px}
+.bottle{background:#13273c;border:2px solid #24445f;border-radius:14px;min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:transform .25s cubic-bezier(.34,1.56,.64,1),border-color .2s,opacity .2s;color:#e8f4fd;font-size:14px;font-weight:600}
+.bottle .flask{font-size:34px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))}
+.bottle .liqdot{width:34px;height:8px;border-radius:4px;background:#cfe8ff}
+.bottle:active{transform:scale(.93)}
+.bottle.selected{border-color:#ffd166;transform:translateY(-4px)}
+.bottle.pouring .flask{animation:tilt .9s cubic-bezier(.4,0,.2,1) forwards}
+.bottle:disabled{opacity:.45;cursor:default}
+@keyframes tilt{0%{transform:rotate(0)}40%{transform:rotate(-38deg) translate(-6px,-10px)}100%{transform:rotate(-38deg) translate(-6px,-10px)}}
+#predict-panel{width:100%;max-width:560px;margin-bottom:10px}
+#predict-panel .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choice{background:#13273c;border:2px solid #24445f;color:#e8f4fd;border-radius:12px;min-height:48px;font-size:16px;font-weight:600;cursor:pointer;transition:all .2s cubic-bezier(.34,1.56,.64,1)}
+.choice:active{transform:scale(.95)}
+.choice.picked{border-color:#ffd166;background:#1e3a5c;transform:scale(1.03)}
+.choice:disabled{opacity:.5;cursor:default}
+.sec-title{font-size:15px;color:#9fb8cc;margin:10px 0 6px;text-align:center}
+#beaker-zone{position:relative;width:100%;max-width:560px;display:flex;flex-direction:column;align-items:center;margin:4px 0 10px}
+.beaker{position:relative;width:190px;height:220px;border:4px solid #4a6b8a;border-top:none;border-radius:0 0 22px 22px;background:rgba(255,255,255,.03);overflow:hidden}
+.beaker .liquid{position:absolute;bottom:0;left:0;right:0;height:0;background:rgba(160,200,235,.28);transition:height 1s cubic-bezier(.25,1,.4,1),background-color 1.2s ease}
+.beaker .ppl{position:absolute;bottom:0;left:0;right:0;height:0;border-radius:0 0 18px 18px;transition:height 1.6s cubic-bezier(.25,1,.4,1),opacity .6s}
+.beaker .marks{position:absolute;right:8px;top:20px;bottom:20px;display:flex;flex-direction:column;justify-content:space-between;color:#4a6b8a;font-size:11px}
+.particle{position:absolute;border-radius:50%;pointer-events:none}
+.stream{position:absolute;top:-6px;left:50%;width:7px;height:0;margin-left:-3.5px;background:linear-gradient(#a8d4f5,#5b9bd5);border-radius:4px;transition:height .25s ease}
+#result{width:100%;max-width:560px;min-height:118px;background:#13273c;border-radius:14px;padding:14px 16px;margin-bottom:10px;opacity:0;transform:translateY(14px);transition:opacity .45s ease,transform .45s cubic-bezier(.25,1,.4,1)}
+#result.show{opacity:1;transform:translateY(0)}
+#result .eq{font-size:19px;font-weight:700;margin:6px 0;letter-spacing:.5px}
+#result .verdict{font-size:16px;margin-top:6px}
+#result .verdict.good{color:#7bf1a8}
+#result .verdict.bad{color:#ff9a8a}
+#result .rxn-label{font-size:14px;color:#9fb8cc}
+.scorepop{position:fixed;font-size:30px;font-weight:800;color:#ffd166;pointer-events:none;z-index:60;transition:transform 1s cubic-bezier(.2,.7,.3,1),opacity 1s;opacity:1}
+.modal-mask{position:fixed;inset:0;background:rgba(3,8,15,.72);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;opacity:0;pointer-events:none;transition:opacity .3s ease}
+.modal-mask.show{opacity:1;pointer-events:auto}
+.modal{background:#13273c;border-radius:16px;padding:22px;max-width:480px;width:100%;transform:scale(.92);transition:transform .3s cubic-bezier(.34,1.56,.64,1)}
+.modal-mask.show .modal{transform:scale(1)}
+.modal h2{font-size:20px;margin-bottom:12px}
+.modal p{font-size:15px;line-height:1.9;color:#cfe3f5}
+.modal .btn{margin-top:16px}
+#pause-overlay{position:fixed;inset:0;background:rgba(3,8,15,.78);z-index:55;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#pause-overlay h2{font-size:26px}
+.bigscore{font-size:64px;font-weight:800;color:#ffd166;margin:10px 0}
+.endrow{font-size:17px;color:#9fb8cc;margin:4px 0}
+.endrow b{color:#e8f4fd}
+body.paused .beaker .liquid,body.paused .beaker .ppl,body.paused .particle,body.paused .stream{animation-play-state:paused}
+</style>
+</head>
+<body>
+
+<!-- 开始界面 -->
+<div id="start-screen" class="screen">
+  <h1>⚗️ 化学反应</h1>
+  <div class="subtitle">把试剂倒进烧杯，观察神奇的沉淀反应！</div>
+  <div class="panel">
+    <p style="line-height:2;font-size:15px">🧪 <b>玩法说明</b><br>
+    1. 每轮先点击「预测现象」选出你认为会发生的现象；<br>
+    2. 再依次点击两种试剂倒入烧杯；<br>
+    3. 预测正确 <b style="color:#ffd166">+20 分</b>，共 5 轮，满分 100 分；<br>
+    4. 试剂可以重复使用，记得看清现象哦！</p>
+    <button class="btn" id="start-btn">▶ 开始实验</button>
+  </div>
+</div>
+
+<!-- 游戏界面 -->
+<div id="game-screen" class="screen hidden" style="justify-content:flex-start;padding-top:14px">
+  <div class="hud">
+    <div class="stat">第 <b id="round-num">1</b> / 5 轮</div>
+    <div class="stat">得分 <b id="score">0</b></div>
+    <div class="stat">最高 <b id="hiscore">0</b></div>
+    <button class="iconbtn" id="pause-btn" title="暂停">⏸</button>
+    <button class="iconbtn" id="mute-btn" title="静音">🔊</button>
+    <button class="iconbtn" id="know-btn" title="知识点">📖</button>
+  </div>
+  <div id="hint">请先预测本轮现象 👇</div>
+  <div id="predict-panel">
+    <div class="sec-title">① 预测现象</div>
+    <div class="row" id="predict-row"></div>
+  </div>
+  <div class="sec-title">② 试剂架（依次点击两种试剂）</div>
+  <div id="shelf"></div>
+  <div id="beaker-zone">
+    <div class="stream" id="stream"></div>
+    <div class="beaker" id="beaker">
+      <div class="liquid" id="liquid"></div>
+      <div class="ppl" id="ppl"></div>
+      <div class="marks"><span>—</span><span>—</span><span>—</span></div>
+    </div>
+  </div>
+  <div id="result"></div>
+  <button class="btn hidden" id="next-btn" style="max-width:560px">下一轮 ▶</button>
+</div>
+
+<!-- 结束界面 -->
+<div id="end-screen" class="screen hidden">
+  <h1>🧪 实验结束</h1>
+  <div class="bigscore" id="final-score">0</div>
+  <div class="endrow">最高分：<b id="final-hi">0</b></div>
+  <div class="endrow" id="final-grade"></div>
+  <div class="panel" style="margin-top:18px">
+    <button class="btn" id="restart-btn">🔄 再来一次</button>
+    <button class="btn secondary" id="end-know-btn">📖 回顾知识点</button>
+  </div>
+</div>
+
+<!-- 知识点弹窗 -->
+<div class="modal-mask" id="know-mask">
+  <div class="modal">
+    <h2>📖 实验结论</h2>
+    <p>复分解反应发生的条件是：生成<b style="color:#ffd166">沉淀</b>、<b style="color:#ffd166">气体</b>或<b style="color:#ffd166">水</b>。<br><br>
+    ⚪ AgCl（氯化银）是<b>不溶于酸的白色沉淀</b>；<br>
+    ⚪ BaSO₄（硫酸钡）是<b>不溶于酸的白色沉淀</b>；<br>
+    🔵 Cu(OH)₂（氢氧化铜）是<b>蓝色沉淀</b>。<br><br>
+    本游戏中：AgNO₃ + NaCl → 白色沉淀；BaCl₂ + Na₂SO₄ → 白色沉淀；CuSO₄ + NaOH → 蓝色沉淀；其余组合无明显现象。</p>
+    <button class="btn" id="know-close">知道了</button>
+  </div>
+</div>
+
+<!-- 暂停遮罩 -->
+<div id="pause-overlay" class="hidden">
+  <h2>⏸ 已暂停</h2>
+  <button class="btn" id="resume-btn" style="width:220px">▶ 继续</button>
+</div>
+
+<script>
+'use strict';
+/* ============ 数据 ============ */
+const REAGENTS=[
+ {id:'agno3', name:'AgNO₃溶液', color:'#d7ecff'},
+ {id:'nacl',  name:'NaCl溶液',  color:'#d7ecff'},
+ {id:'bacl2', name:'BaCl₂溶液',  color:'#d7ecff'},
+ {id:'na2so4',name:'Na₂SO₄溶液', color:'#d7ecff'},
+ {id:'cuso4', name:'CuSO₄溶液',  color:'#3d9bf0'},
+ {id:'naoh',  name:'NaOH溶液',   color:'#d7ecff'}
+];
+const REACTIONS={
+ 'agno3+nacl': {phen:'白色沉淀', label:'白色沉淀 AgCl↓', ppt:'#f4f7fa', eq:'AgNO₃ + NaCl → AgCl↓ + NaNO₃'},
+ 'bacl2+na2so4':{phen:'白色沉淀', label:'白色沉淀 BaSO₄↓',ppt:'#eef1f4', eq:'BaCl₂ + Na₂SO₄ → BaSO₄↓ + 2NaCl'},
+ 'cuso4+naoh': {phen:'蓝色沉淀', label:'蓝色沉淀 Cu(OH)₂↓',ppt:'#2f6df6',eq:'CuSO₄ + 2NaOH → Cu(OH)₂↓ + Na₂SO₄'}
+};
+const CHOICES=['白色沉淀','蓝色沉淀','无明显现象','产生气体'];
+const HS_KEY='g100_chemreact_hs', MUTE_KEY='g100_mute', TOTAL_ROUNDS=5;
+
+/* ============ DOM ============ */
+const $=id=>document.getElementById(id);
+const startScreen=$('start-screen'), gameScreen=$('game-screen'), endScreen=$('end-screen');
+const shelf=$('shelf'), predictRow=$('predict-row'), hint=$('hint'), resultBox=$('result');
+const beaker=$('beaker'), liquid=$('liquid'), ppl=$('ppl'), stream=$('stream');
+const nextBtn=$('next-btn'), roundNumEl=$('round-num'), scoreEl=$('score'), hiscoreEl=$('hiscore');
+
+/* ============ 状态 ============ */
+let round=1, score=0, phase='predict', prediction=null, poured=[];
+let paused=false, timeOffset=0, pauseStart=0;
+let events=[], particles=[], lastTick=0;
+const now=()=>performance.now()-timeOffset;
+const schedule=(ms,fn)=>events.push({at:now()+ms,fn});
+
+/* ============ 音效 ============ */
+let actx=null;
+const isMuted=()=>localStorage.getItem(MUTE_KEY)==='1';
+function ac(){ if(!actx){const C=window.AudioContext||window.webkitAudioContext; actx=new C();} if(actx.state==='suspended')actx.resume(); return actx; }
+function noiseBurst(dur,f0,f1,vol,type){
+ if(isMuted())return; const c=ac(),t=c.currentTime;
+ const buf=c.createBuffer(1,Math.floor(c.sampleRate*dur),c.sampleRate), d=buf.getChannelData(0);
+ for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,.7);
+ const s=c.createBufferSource(); s.buffer=buf;
+ const f=c.createBiquadFilter(); f.type=type||'lowpass';
+ f.frequency.setValueAtTime(f0,t); f.frequency.exponentialRampToValueAtTime(Math.max(f1,1),t+dur);
+ const g=c.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.001,t+dur);
+ s.connect(f); f.connect(g); g.connect(c.destination); s.start();
+}
+const pourSound=()=>noiseBurst(1.3,2600,420,.22);          // 倒液声
+const pptSound=()=>noiseBurst(.7,5200,1800,.16,'highpass'); // 沉淀嘶嘶声
+function tone(freq,t0,dur,vol,type){
+ if(isMuted())return; const c=ac(),t=c.currentTime+t0;
+ const o=c.createOscillator(),g=c.createGain();
+ o.type=type||'sine'; o.frequency.value=freq;
+ g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+.03);
+ g.gain.exponentialRampToValueAtTime(.001,t+dur);
+ o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+.05);
+}
+const correctSound=()=>{tone(660,0,.28,.25);tone(880,.16,.42,.25);}; // 预测正确提示音
+const wrongSound=()=>{tone(130,0,.55,.3,'sawtooth');tone(98,.08,.6,.28,'sawtooth');}; // 错误低鸣
+function refreshMuteBtn(){$('mute-btn').textContent=isMuted()?'🔇':'🔊';}
+
+/* ============ 暂停 ============ */
+function setPaused(p){
+ if(phase!=='play'&&p)return;
+ paused=p; document.body.classList.toggle('paused',p);
+ $('pause-overlay').classList.toggle('hidden',!p);
+ $('pause-btn').textContent=p?'▶':'⏸';
+ if(p){pauseStart=performance.now();}else{timeOffset+=performance.now()-pauseStart;}
+}
+
+/* ============ 界面搭建 ============ */
+REAGENTS.forEach(r=>{
+ const b=document.createElement('button'); b.className='bottle'; b.dataset.id=r.id; b.disabled=true;
+ b.innerHTML='<span class="flask">🧪</span><span class="liqdot" style="background:'+r.color+'"></span><span>'+r.name+'</span>';
+ b.addEventListener('click',()=>onBottle(r,b)); shelf.appendChild(b);
+});
+CHOICES.forEach(c=>{
+ const b=document.createElement('button'); b.className='choice'; b.textContent=c; b.disabled=true;
+ b.addEventListener('click',()=>onPredict(c,b)); predictRow.appendChild(b);
+});
+const bottles=[...shelf.children], choices=[...predictRow.children];
+
+/* ============ 主循环（暂停安全） ============ */
+function tick(){
+ requestAnimationFrame(tick);
+ const t=now(), dt=Math.min((t-lastTick)/1000,.05); lastTick=t;
+ if(paused)return;
+ for(let i=events.length-1;i>=0;i--) if(events[i].at<=t){const e=events.splice(i,1)[0]; e.fn();}
+ const bw=beaker.clientWidth, bh=beaker.clientHeight;
+ for(let i=particles.length-1;i>=0;i--){
+  const p=particles[i];
+  if(p.y<p.floor){ p.vy+=620*dt; p.y=Math.min(p.y+p.vy*dt,p.floor); p.x+=Math.sin(t/180+p.seed)*22*dt; }
+  else { p.vy=0; p.x+=Math.sin(t/260+p.seed)*8*dt; }
+  p.el.style.transform='translate('+p.x+'px,'+p.y+'px)';
+  if(p.done&&t>p.fadeAt){p.el.style.opacity='0';}
+ }
+}
+
+/* ============ 游戏流程 ============ */
+function startGame(){
+ ac(); // 首次用户手势初始化音频
+ startScreen.classList.add('hidden'); endScreen.classList.add('hidden'); gameScreen.classList.remove('hidden');
+ round=1; score=0; updateHUD(); newRound();
+}
+function updateHUD(){
+ roundNumEl.textContent=round; scoreEl.textContent=score;
+ hiscoreEl.textContent=localStorage.getItem(HS_KEY)||0;
+}
+function newRound(){
+ phase='predict'; prediction=null; poured=[];
+ resultBox.classList.remove('show'); nextBtn.classList.add('hidden');
+ hint.textContent='第 '+round+' 轮：请先预测现象 👇';
+ choices.forEach(b=>{b.disabled=false;b.classList.remove('picked');});
+ bottles.forEach(b=>{b.disabled=true;b.classList.remove('selected','pouring');});
+ schedule(50,resetBeaker);
+}
+function onPredict(c,btn){
+ if(phase!=='predict')return;
+ phase='pour'; prediction=c;
+ choices.forEach(b=>{b.disabled=true;b.classList.toggle('picked',b===btn);});
+ bottles.forEach(b=>b.disabled=false);
+ hint.textContent='已预测「'+c+'」，依次点击两种试剂倒入烧杯 🧪';
+ tone(520,0,.15,.15);
+}
+function onBottle(r,btn){
+ if(phase!=='pour'||btn.disabled)return;
+ btn.disabled=true; btn.classList.add('selected','pouring');
+ poured.push(r);
+ hint.textContent='倒入「'+r.name+'」…';
+ pourSound();
+ // 液流动画
+ schedule(250,()=>{stream.style.height='46px'; spawnDrops(r.color);});
+ schedule(1150,()=>{stream.style.height='0'; raiseLiquid();});
+ schedule(1500,()=>{
+  btn.classList.remove('pouring');
+  if(poured.length===2){ runReaction(); }
+  else { hint.textContent='已倒入 1 种，再选第 2 种试剂 🧪'; bottles.forEach(b=>{if(!poured.find(p=>p.id===b.dataset.id))b.disabled=false;}); }
+ });
+}
+function raiseLiquid(){
+ const lvl=Math.min(poured.length*52,120);
+ liquid.style.backgroundColor=poured.some(p=>p.id==='cuso4')?'rgba(70,150,235,.5)':'rgba(170,205,240,.30)';
+ liquid.style.height=lvl+'px';
+}
+function spawnDrops(color){
+ for(let i=0;i<8;i++){
+  schedule(i*90,()=>{
+   const d=document.createElement('div'); d.className='particle';
+   const s=5+Math.random()*4; d.style.width=d.style.height=s+'px'; d.style.background=color;
+   d.style.left='50%'; d.style.top='-8px'; beaker.appendChild(d);
+   const x0=(Math.random()-.5)*20, y0=-8, vy=260+Math.random()*120;
+   particles.push({el:d,x:x0,y:y0,vy,floor:beaker.clientHeight-liquid.clientHeight-8,seed:Math.random()*9,done:true,fadeAt:now()+900});
+  });
+ }
+}
+function runReaction(){
+ phase='react';
+ bottles.forEach(b=>b.disabled=true);
+ hint.textContent='⚗️ 反应中…';
+ const key=poured.map(p=>p.id).sort().join('+');
+ const rxn=REACTIONS[key];
+ schedule(600,()=>{
+  if(rxn){
+   pptSound();
+   if(navigator.vibrate)navigator.vibrate([40,30,40]); // 沉淀反馈
+   spawnPrecipitate(rxn.ppt);
+   ppl.style.background=rxn.ppt; ppl.style.height='34px';
+   liquid.style.backgroundColor='rgba(190,215,240,.22)';
+  }else{
+   liquid.style.backgroundColor='rgba(170,205,240,.28)';
+  }
+ });
+ schedule(2300,()=>showResult(rxn));
+}
+function spawnPrecipitate(color){
+ const n=46, bw=beaker.clientWidth;
+ for(let i=0;i<n;i++){
+  schedule(i*28,()=>{
+   const d=document.createElement('div'); d.className='particle';
+   const s=4+Math.random()*6; d.style.width=d.style.height=s+'px'; d.style.background=color;
+   d.style.boxShadow='0 0 4px rgba(0,0,0,.3)'; d.style.left='0'; d.style.top='0';
+   beaker.appendChild(d);
+   const x0=Math.random()*(bw-s-8)+4, y0=Math.random()*40, floor=beaker.clientHeight-8-Math.random()*22;
+   particles.push({el:d,x:x0,y:y0,vy:20+Math.random()*60,floor,seed:Math.random()*9,done:i>n-14,fadeAt:now()+60000});
+  });
+ }
+}
+function showResult(rxn){
+ phase='result';
+ const actual=rxn?rxn.phen:'无明显现象';
+ const ok=prediction===actual;
+ if(ok){score+=20; correctSound(); floatScore('+20');}else{wrongSound();}
+ updateHUD();
+ resultBox.innerHTML=
+  '<div class="rxn-label">'+(rxn?'🧬 '+rxn.label:'🫗 混合后无明显变化')+'</div>'+
+  (rxn?'<div class="eq">'+rxn.eq+'</div>':'')+
+  '<div class="verdict '+(ok?'good':'bad')+'">'+(ok?'✅ 预测正确！+20 分':'❌ 预测错误（实际：'+actual+'）')+'</div>';
+ resultBox.classList.add('show');
+ nextBtn.classList.remove('hidden');
+ hint.textContent=round<TOTAL_ROUNDS?'点击「下一轮」继续':'已完成 5 轮，点击「下一轮」查看成绩';
+}
+function floatScore(txt){
+ const s=document.createElement('div'); s.className='scorepop'; s.textContent=txt;
+ const r=scoreEl.getBoundingClientRect(); s.style.left=(r.left+r.width/2-20)+'px'; s.style.top=(r.bottom+6)+'px';
+ document.body.appendChild(s);
+ requestAnimationFrame(()=>{s.style.transform='translateY(-46px)'; s.style.opacity='0';});
+ setTimeout(()=>s.remove(),1100);
+}
+function resetBeaker(){
+ particles.forEach(p=>p.el.remove()); particles=[];
+ liquid.style.opacity='0'; ppl.style.opacity='0';
+ schedule(500,()=>{
+  liquid.style.height='0'; ppl.style.height='0';
+  liquid.style.opacity='1'; ppl.style.opacity='1';
+  liquid.style.backgroundColor='rgba(170,205,240,.28)';
+ });
+}
+function nextRound(){
+ if(round>=TOTAL_ROUNDS){endGame();return;}
+ round++; newRound();
+}
+function endGame(){
+ phase='end'; gameScreen.classList.add('hidden'); endScreen.classList.remove('hidden');
+ const hi=Math.max(score,+(localStorage.getItem(HS_KEY)||0));
+ localStorage.setItem(HS_KEY,hi);
+ $('final-score').textContent=score; $('final-hi').textContent=hi;
+ $('final-grade').innerHTML=score===100?'🏆 <b>完美！化学大师</b>':score>=60?'👍 <b>不错，继续加油</b>':'💪 <b>多观察现象，再接再厉</b>';
+ if(score>0&&score>=hi&&score===hi)tone(880,0,.3,.2);
+}
+
+/* ============ 事件绑定 ============ */
+$('start-btn').addEventListener('click',startGame);
+$('restart-btn').addEventListener('click',startGame);
+nextBtn.addEventListener('click',nextRound);
+$('pause-btn').addEventListener('click',()=>setPaused(true));
+$('resume-btn').addEventListener('click',()=>setPaused(false));
+$('mute-btn').addEventListener('click',()=>{
+ localStorage.setItem(MUTE_KEY,isMuted()?'0':'1'); refreshMuteBtn();
+ if(!isMuted())tone(660,0,.15,.15);
+});
+$('know-btn').addEventListener('click',()=>$('know-mask').classList.add('show'));
+$('end-know-btn').addEventListener('click',()=>$('know-mask').classList.add('show'));
+$('know-close').addEventListener('click',()=>$('know-mask').classList.remove('show'));
+$('know-mask').addEventListener('click',e=>{if(e.target===$('know-mask'))$('know-mask').classList.remove('show');});
+
+refreshMuteBtn();
+updateHUD();
+lastTick=now();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
