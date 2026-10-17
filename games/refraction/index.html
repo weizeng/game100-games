@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>光的折射</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0d1020;color:#e8ecf8;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px}
+header{width:100%;max-width:480px;display:flex;justify-content:space-between;align-items:center;padding:6px 2px}
+h1{font-size:20px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #2a3358;background:#161c34;color:#fff}
+canvas{width:100%;max-width:480px;border-radius:14px;background:#0a0d1a;border:1px solid #232c52}
+.panel{width:100%;max-width:480px;background:#141a33;border:1px solid #232c52;border-radius:14px;padding:12px;margin-top:10px}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.row label{width:76px;font-size:14px;color:#9fb0d8}
+.row output{width:64px;text-align:right;font-size:15px;color:#ffd75e;font-weight:bold}
+input[type=range]{flex:1;height:34px;accent-color:#4d7cff}
+.seg{display:flex;gap:8px;margin:8px 0}
+.seg button{flex:1;min-height:44px;border-radius:10px;border:1px solid #2a3358;background:#161c34;color:#e8ecf8;font-size:14px}
+.seg button.on{background:#4d7cff;border-color:#4d7cff;color:#fff;font-weight:bold}
+.btn{width:100%;min-height:48px;border:none;border-radius:12px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-size:17px;font-weight:bold;margin-top:6px}
+.btn:active{transform:scale(.97)}
+.data{display:flex;justify-content:space-around;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px;flex-wrap:wrap}
+.data div{text-align:center;min-width:70px}
+.data .v{font-size:19px;font-weight:bold;color:#5ef2b8}
+.data .k{font-size:12px;color:#9fb0d8;margin-top:2px}
+.formula{text-align:center;color:#ffd75e;font-size:15px;margin-top:8px;font-weight:bold}
+.conclusion{font-size:14px;line-height:1.7;color:#c6d2f2;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,20,.92);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:30px;text-align:center}
+#overlay h2{font-size:28px;margin-bottom:12px}
+#overlay p{font-size:15px;color:#9fb0d8;line-height:1.8;margin-bottom:20px}
+#overlay button{min-width:200px;min-height:52px;font-size:18px;border:none;border-radius:14px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-weight:bold}
+.score{font-size:14px;color:#ffd75e}
+.warn{color:#ff7b7b;font-weight:bold}
+</style>
+</head>
+<body>
+<header>
+<h1>💧 光的折射</h1>
+<div class="hbtns">
+<button id="bMute">🔊</button>
+<button id="bPause">⏸</button>
+<button id="bReset">↺</button>
+</div>
+</header>
+<div class="score" id="scoreLine">命中 0 次 · 最高 <span id="hs">0</span> 次</div>
+<canvas id="cv" width="480" height="430"></canvas>
+<div class="panel">
+<div class="seg" id="mediaSeg">
+<button data-m="0" class="on">空气→水</button>
+<button data-m="1">空气→玻璃</button>
+<button data-m="2">水→空气</button>
+</div>
+<div class="row"><label>入射角 θ₁</label><input type="range" id="ang" min="0" max="85" value="40"><output id="angV">40°</output></div>
+<button class="btn" id="bShoot">⚡ 发射激光验证</button>
+<div class="data">
+<div><div class="v" id="dI">40°</div><div class="k">入射角</div></div>
+<div><div class="v" id="dR">—</div><div class="k">折射角</div></div>
+<div><div class="v" id="dN">1.33</div><div class="k">n₂ 折射率</div></div>
+<div><div class="v" id="dT">—</div><div class="k">目标折射角</div></div>
+</div>
+<div class="formula">斯涅尔定律：n₁·sinθ₁ = n₂·sinθ₂</div>
+<div class="conclusion">📝 <b>实验结论：</b>光从光疏介质进入光密介质时折射角小于入射角（向法线偏折），反之偏大；当入射角超过<b>临界角</b>时发生<b>全反射</b>，光线全部返回原介质。</div>
+</div>
+<div id="overlay"><h2>💧 光的折射</h2><p>切换介质组合，拖动滑杆改变<b>入射角</b>，观察折射光线。<br>挑战：让折射角命中<b>目标角度</b>（误差≤2°）得分！<br>试试「水→空气」大角度入射，会发生什么？</p><button id="bStart">开始实验</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const OX=240,OY=210;
+const MEDIAS=[{n1:1,n2:1.33,t:'空气 → 水'},{n1:1,n2:1.5,t:'空气 → 玻璃'},{n1:1.33,n2:1,t:'水 → 空气'}];
+let mi=0,incident=40,target=null,hits=0,running=false,paused=false,photons=[],flash=0;
+let hs=parseInt(localStorage.getItem('g100_refraction_hs')||'0',10);
+let muted=localStorage.getItem('g100_mute')==='1';
+document.getElementById('hs').textContent=hs;
+document.getElementById('bMute').textContent=muted?'🔇':'🔊';
+let AC=null;
+function beep(f,d,type){ if(muted)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain(); o.type=type||'sine'; o.frequency.value=f; g.gain.setValueAtTime(.15,AC.currentTime); g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d); o.connect(g);g.connect(AC.destination); o.start(); o.stop(AC.currentTime+d);}catch(e){} }
+// 返回 {tir:bool, refr:rad|null, refl:rad}
+function calc(){
+  const m=MEDIAS[mi], r1=incident*Math.PI/180;
+  const s2=m.n1/m.n2*Math.sin(r1);
+  if(s2>1) return {tir:true, refr:null};
+  return {tir:false, refr:Math.asin(s2)};
+}
+function newTarget(){ const c=calc(); if(c.tir){target=null;document.getElementById('dT').textContent='全反射';return;} target=5+Math.floor(Math.random()*Math.min(70,c.refr*180/Math.PI-4)); document.getElementById('dT').textContent=target+'°'; }
+function updLabels(){ const c=calc(),m=MEDIAS[mi];
+  document.getElementById('dI').textContent=incident+'°';
+  document.getElementById('dN').textContent=m.n2.toFixed(2);
+  const dR=document.getElementById('dR');
+  if(c.tir){ dR.innerHTML='<span class="warn">全反射</span>'; } else { dR.textContent=Math.round(c.refr*180/Math.PI)+'°'; }
+}
+document.getElementById('ang').addEventListener('input',e=>{ incident=+e.target.value; document.getElementById('angV').textContent=incident+'°'; updLabels(); });
+document.getElementById('mediaSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
+  document.querySelectorAll('#mediaSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  mi=+b.dataset.m; updLabels(); newTarget(); beep(440,.1); });
+document.getElementById('bShoot').addEventListener('click',()=>{ if(!running||paused)return; beep(880,.12,'square'); fire();
+  const c=calc(); if(c.tir){ beep(220,.3,'sawtooth'); return; }
+  const deg=Math.round(c.refr*180/Math.PI);
+  if(target!==null && Math.abs(deg-target)<=2){ hits++; flash=20; beep(660,.15); setTimeout(()=>beep(990,.2),120); if(navigator.vibrate)navigator.vibrate(60);
+    if(hits>hs){hs=hits;localStorage.setItem('g100_refraction_hs',String(hs));} newTarget(); }
+  document.getElementById('scoreLine').innerHTML='命中 '+hits+' 次 · 最高 <span id="hs">'+hs+'</span> 次';
+});
+function fire(){ const m=MEDIAS[mi],r1=incident*Math.PI/180,L=170;
+  const sx=OX-Math.sin(r1)*L,sy=OY-Math.cos(r1)*L,c=calc();
+  const pts=[{x:sx,y:sy},{x:OX,y:OY}];
+  if(c.tir){ pts.push({x:OX+Math.sin(r1)*L,y:OY-Math.cos(r1)*L}); }
+  else { pts.push({x:OX+Math.sin(c.refr)*L,y:OY+Math.cos(c.refr)*L}); }
+  for(let i=0;i<=16;i++) photons.push({t:i/16,pts});
+  if(photons.length>90)photons.splice(0,photons.length-90);
+}
+function draw(){
+  ctx.clearRect(0,0,480,430);
+  const m=MEDIAS[mi];
+  // 介质
+  ctx.fillStyle='rgba(77,124,255,.10)'; ctx.fillRect(0,0,480,OY);
+  ctx.fillStyle='rgba(77,180,255,.22)'; ctx.fillRect(0,OY,480,430-OY);
+  ctx.fillStyle='#9fb0d8'; ctx.font='14px sans-serif';
+  ctx.fillText(m.t.split('→')[0].trim()+' (n='+m.n1+')',20,30);
+  ctx.fillText(m.t.split('→')[1].trim()+' (n='+m.n2+')',20,OY+24);
+  // 界面
+  ctx.strokeStyle='#5b6a9e'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(0,OY); ctx.lineTo(480,OY); ctx.stroke();
+  // 法线
+  ctx.setLineDash([6,6]); ctx.strokeStyle='#5b6a9e'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(OX,40); ctx.lineTo(OX,400); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#5b6a9e'; ctx.fillText('法线',OX+8,60);
+  const r1=incident*Math.PI/180,L=170,c=calc();
+  const sx=OX-Math.sin(r1)*L,sy=OY-Math.cos(r1)*L;
+  // 入射光线
+  ctx.lineWidth=4; ctx.lineCap='round';
+  const g1=ctx.createLinearGradient(sx,sy,OX,OY); g1.addColorStop(0,'rgba(255,80,80,.15)'); g1.addColorStop(1,'#ff5050');
+  ctx.strokeStyle=g1; ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(OX,OY); ctx.stroke();
+  // 折射/反射光线
+  if(c.tir){
+    ctx.strokeStyle='#ffb050'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(OX,OY); ctx.lineTo(OX+Math.sin(r1)*L,OY-Math.cos(r1)*L); ctx.stroke();
+    ctx.fillStyle='#ff7b7b'; ctx.font='bold 18px sans-serif'; ctx.fillText('⚠ 全反射！',OX-190,OY-120);
+    // 临界角标注
+    const cc=Math.asin(m.n2/m.n1)*180/Math.PI;
+    ctx.fillStyle='#ffd75e'; ctx.font='14px sans-serif'; ctx.fillText('临界角 C='+cc.toFixed(1)+'°',OX-190,OY-96);
+  } else {
+    const ex=OX+Math.sin(c.refr)*L, ey=OY+Math.cos(c.refr)*L;
+    const g2=ctx.createLinearGradient(OX,OY,ex,ey); g2.addColorStop(0,'#50c8ff'); g2.addColorStop(1,'rgba(80,200,255,.15)');
+    ctx.strokeStyle=g2; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(OX,OY); ctx.lineTo(ex,ey); ctx.stroke();
+    // 目标线
+    if(target!==null){ const tr=target*Math.PI/180;
+      ctx.setLineDash([4,5]); ctx.strokeStyle='#ffd75e'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(OX,OY); ctx.lineTo(OX+Math.sin(tr)*150,OY+Math.cos(tr)*150); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle='#ffd75e'; ctx.font='13px sans-serif'; ctx.fillText('目标 '+target+'°',OX+Math.sin(tr)*120+4,OY+Math.cos(tr)*120);
+    }
+  }
+  // 角度弧
+  ctx.strokeStyle='#5ef2b8'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(OX,OY,44,-Math.PI/2,-Math.PI/2+r1); ctx.stroke();
+  ctx.fillStyle='#5ef2b8'; ctx.font='bold 14px sans-serif'; ctx.fillText('θ₁='+incident+'°',OX-110,OY-40);
+  if(!c.tir){ ctx.beginPath(); ctx.arc(OX,OY,44,Math.PI/2-c.refr,Math.PI/2); ctx.stroke();
+    ctx.fillStyle='#50c8ff'; ctx.fillText('θ₂='+Math.round(c.refr*180/Math.PI)+'°',OX+50,OY+52); }
+  // 光子
+  ctx.fillStyle='#fff';
+  photons=photons.filter(p=>p.t<2.6);
+  photons.forEach(p=>{ p.t+=0.07; const segs=p.pts.length-1; let tt=Math.min(p.t,1)*segs; const si=Math.min(Math.floor(tt),segs-1), f=tt-si;
+    const a=p.pts[si],b=p.pts[si+1]; const x=a.x+(b.x-a.x)*f, y=a.y+(b.y-a.y)*f;
+    ctx.beginPath(); ctx.arc(x,y,3,0,7); ctx.fill(); });
+  // 激光器
+  ctx.save(); ctx.translate(sx,sy); ctx.rotate(Math.atan2(OY-sy,OX-sx));
+  ctx.fillStyle='#39415f'; ctx.fillRect(-34,-12,40,24); ctx.fillStyle='#ff5050'; ctx.fillRect(4,-6,10,12); ctx.restore();
+  if(flash>0){ flash--; ctx.fillStyle='rgba(255,215,94,'+(flash/40)+')'; ctx.fillRect(0,0,480,430);
+    ctx.fillStyle='#ffd75e'; ctx.font='bold 26px sans-serif'; ctx.fillText('✓ 命中！',190,200); }
+}
+function loop(){ if(running&&!paused) draw(); requestAnimationFrame(loop); }
+document.getElementById('bStart').addEventListener('click',()=>{ document.getElementById('overlay').style.display='none'; running=true; updLabels(); newTarget(); beep(523,.15); loop(); });
+document.getElementById('bPause').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+document.getElementById('bReset').addEventListener('click',()=>{ hits=0; photons=[]; newTarget(); document.getElementById('scoreLine').innerHTML='命中 0 次 · 最高 <span id="hs">'+hs+'</span> 次'; });
+document.getElementById('bMute').addEventListener('click',e=>{ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); e.target.textContent=muted?'🔇':'🔊'; });
+loop();
+</script>
+</body>
+</html>

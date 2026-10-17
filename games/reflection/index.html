@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>光的反射</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0d1020;color:#e8ecf8;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px}
+header{width:100%;max-width:480px;display:flex;justify-content:space-between;align-items:center;padding:6px 2px}
+h1{font-size:20px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #2a3358;background:#161c34;color:#fff}
+canvas{width:100%;max-width:480px;border-radius:14px;background:#0a0d1a;border:1px solid #232c52;touch-action:none}
+.panel{width:100%;max-width:480px;background:#141a33;border:1px solid #232c52;border-radius:14px;padding:12px;margin-top:10px}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.row label{width:76px;font-size:14px;color:#9fb0d8}
+.row output{width:64px;text-align:right;font-size:15px;color:#ffd75e;font-weight:bold}
+input[type=range]{flex:1;height:34px;accent-color:#4d7cff}
+.btn{width:100%;min-height:48px;border:none;border-radius:12px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-size:17px;font-weight:bold;margin-top:6px}
+.btn:active{transform:scale(.97)}
+.data{display:flex;justify-content:space-around;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+.data div{text-align:center}
+.data .v{font-size:20px;font-weight:bold;color:#5ef2b8}
+.data .k{font-size:12px;color:#9fb0d8;margin-top:2px}
+.formula{text-align:center;color:#ffd75e;font-size:16px;margin-top:8px;font-weight:bold}
+.conclusion{font-size:14px;line-height:1.7;color:#c6d2f2;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,20,.92);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:30px;text-align:center}
+#overlay h2{font-size:28px;margin-bottom:12px}
+#overlay p{font-size:15px;color:#9fb0d8;line-height:1.8;margin-bottom:20px}
+#overlay button{min-width:200px;min-height:52px;font-size:18px;border:none;border-radius:14px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-weight:bold}
+.score{font-size:14px;color:#ffd75e}
+</style>
+</head>
+<body>
+<header>
+<h1>🔦 光的反射</h1>
+<div class="hbtns">
+<button id="bMute">🔊</button>
+<button id="bPause">⏸</button>
+<button id="bReset">↺</button>
+</div>
+</header>
+<div class="score" id="scoreLine">命中 0 次 · 最高 <span id="hs">0</span> 次</div>
+<canvas id="cv" width="480" height="430"></canvas>
+<div class="panel">
+<div class="row"><label>入射角 θ₁</label><input type="range" id="ang" min="0" max="80" value="35"><output id="angV">35°</output></div>
+<button class="btn" id="bShoot">⚡ 发射激光验证</button>
+<div class="data">
+<div><div class="v" id="dI">35°</div><div class="k">入射角</div></div>
+<div><div class="v" id="dR">35°</div><div class="k">反射角</div></div>
+<div><div class="v" id="dT">—</div><div class="k">目标反射角</div></div>
+</div>
+<div class="formula">反射定律：θ<sub>入射</sub> = θ<sub>反射</sub></div>
+<div class="conclusion">📝 <b>实验结论：</b>反射角恒等于入射角；入射光线、反射光线、法线在同一平面内，分居法线两侧。入射角增大时，反射角同步增大。</div>
+</div>
+<div id="overlay"><h2>🔦 光的反射</h2><p>拖动滑杆改变激光的<b>入射角</b>，观察反射光线的变化。<br>挑战：让反射角命中<b>目标角度</b>（误差≤2°）得分！<br>用量角器验证：反射角是否永远等于入射角？</p><button id="bStart">开始实验</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const OX=240,OY=300; // 入射点
+let incident=35,target=null,hits=0,running=false,paused=false,photons=[],flash=0;
+let hs=parseInt(localStorage.getItem('g100_reflection_hs')||'0',10);
+let muted=localStorage.getItem('g100_mute')==='1';
+document.getElementById('hs').textContent=hs;
+document.getElementById('bMute').textContent=muted?'🔇':'🔊';
+// 音效
+let AC=null;
+function beep(f,d,type){ if(muted)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain(); o.type=type||'sine'; o.frequency.value=f; g.gain.setValueAtTime(.15,AC.currentTime); g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d); o.connect(g);g.connect(AC.destination); o.start(); o.stop(AC.currentTime+d);}catch(e){} }
+function newTarget(){ target=10+Math.floor(Math.random()*61); document.getElementById('dT').textContent=target+'°'; }
+document.getElementById('ang').addEventListener('input',e=>{ incident=+e.target.value; document.getElementById('angV').textContent=incident+'°'; document.getElementById('dI').textContent=incident+'°'; document.getElementById('dR').textContent=incident+'°'; });
+document.getElementById('bShoot').addEventListener('click',()=>{ if(!running||paused)return; beep(880,.12,'square'); fire(); if(target===null)newTarget();
+  const err=Math.abs(incident-target);
+  if(err<=2){ hits++; flash=20; beep(660,.15); setTimeout(()=>beep(990,.2),120); if(navigator.vibrate)navigator.vibrate(60);
+    if(hits>hs){hs=hits;localStorage.setItem('g100_reflection_hs',String(hs));}
+    newTarget();
+  }
+  document.getElementById('scoreLine').innerHTML='命中 '+hits+' 次 · 最高 <span id="hs">'+hs+'</span> 次';
+});
+function fire(){ const r=incident*Math.PI/180, L=200;
+  const sx=OX-Math.sin(r)*L, sy=OY-Math.cos(r)*L;
+  const ex=OX+Math.sin(r)*L, ey=OY-Math.cos(r)*L;
+  for(let i=0;i<=20;i++) photons.push({t:i/20,sx,sy,ex,ey});
+  if(photons.length>120)photons.splice(0,photons.length-120);
+}
+function draw(){
+  ctx.clearRect(0,0,480,430);
+  const r=incident*Math.PI/180, L=200;
+  const sx=OX-Math.sin(r)*L, sy=OY-Math.cos(r)*L;
+  const ex=OX+Math.sin(r)*L, ey=OY-Math.cos(r)*L;
+  // 镜面
+  ctx.fillStyle='#2a3358'; ctx.fillRect(20,OY,440,10);
+  ctx.fillStyle='#4d7cff'; ctx.fillRect(20,OY,440,3);
+  ctx.fillStyle='#9fb0d8'; ctx.font='14px sans-serif'; ctx.fillText('平面镜',30,OY+26);
+  // 法线
+  ctx.setLineDash([6,6]); ctx.strokeStyle='#5b6a9e'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(OX,60); ctx.lineTo(OX,OY); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#5b6a9e'; ctx.fillText('法线',OX+8,80);
+  // 目标线
+  if(target!==null){ const tr=target*Math.PI/180;
+    ctx.setLineDash([4,5]); ctx.strokeStyle='#ffd75e'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(OX,OY); ctx.lineTo(OX+Math.sin(tr)*180,OY-Math.cos(tr)*180); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#ffd75e'; ctx.fillText('目标 '+target+'°',OX+Math.sin(tr)*150+6,OY-Math.cos(tr)*150);
+  }
+  // 角度弧
+  ctx.strokeStyle='#5ef2b8'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(OX,OY,52,-Math.PI/2,-Math.PI/2+r); ctx.stroke();
+  ctx.beginPath(); ctx.arc(OX,OY,52,-Math.PI/2,-Math.PI/2-r,true); ctx.stroke();
+  ctx.fillStyle='#5ef2b8'; ctx.font='bold 15px sans-serif';
+  ctx.fillText('θ₁='+incident+'°',OX-120,OY-60);
+  ctx.fillText('θ₂='+incident+'°',OX+52,OY-60);
+  // 光线
+  ctx.lineWidth=4; ctx.lineCap='round';
+  const g1=ctx.createLinearGradient(sx,sy,OX,OY); g1.addColorStop(0,'rgba(255,80,80,.15)'); g1.addColorStop(1,'#ff5050');
+  ctx.strokeStyle=g1; ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(OX,OY); ctx.stroke();
+  const g2=ctx.createLinearGradient(OX,OY,ex,ey); g2.addColorStop(0,'#ffb050'); g2.addColorStop(1,'rgba(255,176,80,.15)');
+  ctx.strokeStyle=g2; ctx.beginPath(); ctx.moveTo(OX,OY); ctx.lineTo(ex,ey); ctx.stroke();
+  // 光子
+  ctx.fillStyle='#fff';
+  photons=photons.filter(p=>p.t<1.6);
+  photons.forEach(p=>{ p.t+=0.06; const t=Math.min(p.t,1); let x,y;
+    if(t<=1){ x=p.sx+(OX-p.sx)*t; y=p.sy+(OY-p.sy)*t; } else { const t2=t-1; x=OX+(p.ex-OX)*t2; y=OY+(p.ey-OY)*t2; }
+    ctx.beginPath(); ctx.arc(x,y,3,0,7); ctx.fill(); });
+  // 激光器
+  ctx.save(); ctx.translate(sx,sy); ctx.rotate(Math.atan2(OY-sy,OX-sx));
+  ctx.fillStyle='#39415f'; ctx.fillRect(-34,-12,40,24);
+  ctx.fillStyle='#ff5050'; ctx.fillRect(4,-6,10,12); ctx.restore();
+  ctx.fillStyle='#9fb0d8'; ctx.font='13px sans-serif'; ctx.fillText('激光器',sx-24,sy+32);
+  if(flash>0){ flash--; ctx.fillStyle='rgba(255,215,94,'+(flash/40)+')'; ctx.fillRect(0,0,480,430);
+    ctx.fillStyle='#ffd75e'; ctx.font='bold 26px sans-serif'; ctx.fillText('✓ 命中！',190,200); }
+}
+function loop(){ if(running&&!paused) draw(); requestAnimationFrame(loop); }
+document.getElementById('bStart').addEventListener('click',()=>{ document.getElementById('overlay').style.display='none'; running=true; newTarget(); beep(523,.15); loop(); });
+document.getElementById('bPause').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+document.getElementById('bReset').addEventListener('click',()=>{ hits=0; photons=[]; newTarget(); document.getElementById('scoreLine').innerHTML='命中 0 次 · 最高 <span id="hs">'+hs+'</span> 次'; });
+document.getElementById('bMute').addEventListener('click',e=>{ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); e.target.textContent=muted?'🔇':'🔊'; });
+loop();
+</script>
+</body>
+</html>
