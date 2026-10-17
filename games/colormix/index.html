@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>小丑调色</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#1a1025;color:#fff;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+#app{height:100%;display:flex;flex-direction:column;background:radial-gradient(circle at 50% 0%,#3a1c4d 0%,#1a1025 70%)}
+#hud{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(30,16,45,.9);border-bottom:2px solid #E53935;z-index:30}
+#hud .t{font-size:13px;color:#e1bee7}
+#hud .v{font-size:17px;font-weight:bold;color:#ffd54f;min-width:60px;text-align:center}
+.ibtn{width:44px;height:44px;font-size:20px;border:none;border-radius:12px;background:#E53935;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ibtn:active{transform:scale(.92)}
+.ibtn:disabled{opacity:.35}
+#main{flex:1;display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:10px 14px 16px}
+.swatches{display:flex;gap:14px;width:100%;max-width:340px;margin:6px 0}
+.sw{flex:1;text-align:center}
+.sw .blk{height:110px;border-radius:16px;border:3px solid rgba(255,255,255,.25);box-shadow:0 4px 16px rgba(0,0,0,.5);transition:background-color .25s}
+.sw .nm{font-size:13px;margin-top:6px;color:#e1bee7}
+.sw .hex{font-size:12px;color:#b39ddb;font-family:monospace}
+#vs{font-size:28px;align-self:center;margin-top:34px}
+#drops{width:100%;max-width:340px;margin:8px 0}
+#drops .row{display:flex;justify-content:center;gap:6px;min-height:26px;flex-wrap:wrap}
+.drop{width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.6);animation:pop .25s ease-out}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+#droplimit{font-size:13px;color:#ce93d8;text-align:center;margin-top:4px}
+#tubes{display:flex;gap:12px;justify-content:center;margin:12px 0;width:100%}
+.tube{flex:1;max-width:100px;min-height:88px;border:none;border-radius:16px;cursor:pointer;color:#fff;font-weight:bold;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 4px 12px rgba(0,0,0,.5);transition:transform .1s}
+.tube:active{transform:scale(.93)}
+.tube:disabled{opacity:.35}
+.tube .em{font-size:34px}
+.tube .cn{font-size:15px}
+.tube .ct{font-size:13px;opacity:.9}
+#tR{background:linear-gradient(160deg,#d32f2f,#8e0000)}
+#tY{background:linear-gradient(160deg,#fbc02d,#c17900);color:#4e2c00}
+#tB{background:linear-gradient(160deg,#1e88e5,#0d47a1)}
+#actions{display:flex;gap:10px;width:100%;max-width:340px;margin:4px 0}
+.abtn{flex:1;min-height:48px;font-size:16px;font-weight:bold;border:none;border-radius:14px;cursor:pointer}
+#undoBtn{background:#5e35b1;color:#fff}
+#undoBtn:disabled{opacity:.35}
+#submitBtn{background:#43a047;color:#fff}
+#hintbar{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px}
+#hintbtn{min-height:44px;padding:0 18px;font-size:15px;font-weight:bold;border:none;border-radius:22px;background:#ff9800;color:#3e2700;cursor:pointer}
+#hintbtn:disabled{opacity:.35}
+#hintcnt{font-size:13px;color:#ffcc80}
+#hintshow{margin-top:8px;font-size:16px;font-weight:bold;color:#ffd54f;background:rgba(255,152,0,.15);border:1px dashed #ff9800;border-radius:12px;padding:8px 16px;display:none}
+#overlay{position:fixed;inset:0;background:rgba(20,10,30,.93);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+#overlay.hide{display:none}
+.card{background:linear-gradient(160deg,#3a1c4d,#241031);border:2px solid #E53935;border-radius:20px;padding:28px 24px;max-width:340px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+.card h1{font-size:30px;margin-bottom:6px}
+.card h2{font-size:22px;margin-bottom:10px;color:#ffd54f}
+.card p{font-size:14px;color:#e1bee7;line-height:1.7;margin-bottom:14px}
+.card .big{font-size:40px;font-weight:bold;color:#ffd54f;margin:8px 0}
+.bbtn{display:block;width:100%;min-height:48px;margin:8px 0;font-size:18px;font-weight:bold;border:none;border-radius:14px;background:#E53935;color:#fff;cursor:pointer}
+.bbtn:active{transform:scale(.96)}
+.bbtn.ghost{background:transparent;border:2px solid #E53935}
+#lvtoast{position:fixed;top:38%;left:50%;transform:translate(-50%,-50%) scale(.6);font-size:24px;font-weight:bold;background:rgba(229,57,53,.95);padding:14px 26px;border-radius:16px;z-index:90;opacity:0;pointer-events:none;transition:all .3s;text-align:center}
+#lvtoast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.float{position:fixed;font-size:22px;font-weight:bold;color:#ffd54f;pointer-events:none;z-index:80;text-shadow:0 2px 6px #000}
+.pt{position:fixed;width:10px;height:10px;border-radius:50%;pointer-events:none;z-index:80}
+.stars{font-size:26px;letter-spacing:4px;margin:4px 0}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <button class="ibtn" id="soundBtn" title="静音">🔊</button>
+    <div><div class="t">得分</div><div class="v" id="scoreV">0</div></div>
+    <div><div class="t">第 <span id="lvV">1</span> / 5 关</div><div class="v" id="distV">-</div></div>
+    <button class="ibtn" id="pauseBtn" title="暂停">⏸</button>
+  </div>
+  <div id="main">
+    <div class="swatches">
+      <div class="sw"><div class="blk" id="targetBlk"></div><div class="nm">🎯 目标色 <span id="targetName"></span></div><div class="hex" id="targetHex"></div></div>
+      <div id="vs">VS</div>
+      <div class="sw"><div class="blk" id="mixBlk"></div><div class="nm">🎨 你的调色</div><div class="hex" id="mixHex"></div></div>
+    </div>
+    <div id="drops"><div class="row" id="dropRow"></div><div id="droplimit"></div></div>
+    <div id="tubes">
+      <button class="tube" id="tR" data-c="r"><span class="em">💧</span><span class="cn">红色</span><span class="ct" id="cntR">×0</span></button>
+      <button class="tube" id="tY" data-c="y"><span class="em">💧</span><span class="cn">黄色</span><span class="ct" id="cntY">×0</span></button>
+      <button class="tube" id="tB" data-c="b"><span class="em">💧</span><span class="cn">蓝色</span><span class="ct" id="cntB">×0</span></button>
+    </div>
+    <div id="actions">
+      <button class="abtn" id="undoBtn">↩️ 撤销一滴</button>
+      <button class="abtn" id="submitBtn">✅ 调好了！</button>
+    </div>
+    <div id="hintbar"><button id="hintbtn">💡 提示配方</button><span id="hintcnt">本关剩余 2 次（-100分）</span></div>
+    <div id="hintshow"></div>
+  </div>
+</div>
+<div id="overlay"><div class="card" id="card"></div></div>
+<div id="lvtoast"></div>
+<script>
+'use strict';
+var BASE={ r:[255,0,0], y:[255,255,0], b:[0,0,255] };
+var DCOL={ r:'#e53935', y:'#fdd835', b:'#1e88e5' };
+var LEVELS=[
+  {target:[255,128,0],  name:'活力橙', limit:8,  hint:'红1 黄1'},
+  {target:[128,0,128],  name:'葡萄紫', limit:8,  hint:'红1 蓝1'},
+  {target:[255,170,0],  name:'杏子橙', limit:10, hint:'红1 黄2'},
+  {target:[128,64,128], name:'丁香紫', limit:12, hint:'红1 黄1 蓝2'},
+  {target:[204,77,51],  name:'马戏红', limit:14, hint:'红5 黄3 蓝2'}
+];
+var HSKEY='g100_colormix_hs', SNDKEY='g100_sound';
+var score=0, lv=0, hintsLeft=2, paused=false, playing=false;
+var drops=[]; // stack of 'r'|'y'|'b'
+var soundOn = localStorage.getItem(SNDKEY)!=='off';
+var AC=null;
+function ac(){ if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } return AC; }
+function tone(f,d,type,vol,when){
+  if(!soundOn) return; var c=ac(); if(!c) return;
+  var o=c.createOscillator(), g=c.createGain();
+  o.type=type||'sine'; o.frequency.value=f;
+  var t=c.currentTime+(when||0);
+  g.gain.setValueAtTime(vol||0.18,t); g.gain.exponentialRampToValueAtTime(0.001,t+(d||0.15));
+  o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+(d||0.15)+0.02);
+}
+function snd(name){
+  if(!soundOn) return;
+  if(name==='dropR'){ tone(440,0.12,'sine',0.2); tone(330,0.1,'sine',0.12,0.05); }
+  else if(name==='dropY'){ tone(660,0.12,'sine',0.2); tone(495,0.1,'sine',0.12,0.05); }
+  else if(name==='dropB'){ tone(330,0.12,'sine',0.2); tone(247,0.1,'sine',0.12,0.05); }
+  else if(name==='undo'){ tone(500,0.1,'square',0.1); tone(350,0.12,'square',0.1,0.07); }
+  else if(name==='good'){ [523,659,784,1046].forEach(function(f,i){ tone(f,0.18,'triangle',0.2,i*0.09); }); }
+  else if(name==='ok'){ tone(660,0.15,'sine',0.18); tone(880,0.2,'sine',0.18,0.1); }
+  else if(name==='meh'){ tone(440,0.15,'sine',0.15); tone(392,0.2,'sine',0.15,0.1); }
+  else if(name==='hint'){ tone(990,0.12,'triangle',0.18); tone(1320,0.18,'triangle',0.18,0.1); }
+  else if(name==='win'){ [523,659,784,1046,1318,1568].forEach(function(f,i){ tone(f,0.22,'triangle',0.2,i*0.1); }); }
+  else if(name==='click'){ tone(700,0.06,'square',0.08); }
+}
+function vib(p){ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+function $(id){ return document.getElementById(id); }
+function hex(c){ function h(n){ var s=Math.round(n).toString(16); return s.length<2?'0'+s:s; } return '#'+h(c[0])+h(c[1])+h(c[2]); }
+function mixColor(){
+  var r=0,y=0,b=0,i;
+  for(i=0;i<drops.length;i++){ if(drops[i]==='r')r++; else if(drops[i]==='y')y++; else b++; }
+  var t=r+y+b;
+  if(t===0) return [30,20,45];
+  return [255*(r+y)/t, 255*y/t, 255*b/t];
+}
+function dist(a,b2){
+  var dr=a[0]-b2[0], dg=a[1]-b2[1], db=a[2]-b2[2];
+  return Math.sqrt(dr*dr+dg*dg+db*db);
+}
+function setScore(v){ score=Math.max(0,v); $('scoreV').textContent=score; }
+function burst(x,y,color){
+  for(var i=0;i<16;i++){
+    var d=document.createElement('div'); d.className='pt';
+    d.style.background=color||'#ffd54f'; d.style.left=x+'px'; d.style.top=y+'px';
+    document.body.appendChild(d);
+    var ang=Math.random()*Math.PI*2, dd=40+Math.random()*80;
+    d.animate([{transform:'translate(0,0) scale(1)',opacity:1},{transform:'translate('+(Math.cos(ang)*dd)+'px,'+(Math.sin(ang)*dd-30)+'px) scale(0.2)',opacity:0}],{duration:650+Math.random()*300,easing:'cubic-bezier(.2,.7,.3,1)'}).onfinish=(function(el){return function(){el.remove();};})(d);
+  }
+}
+function floatTxt(x,y,txt,color){
+  var d=document.createElement('div'); d.className='float'; d.textContent=txt;
+  if(color) d.style.color=color;
+  d.style.left=(x-30)+'px'; d.style.top=y+'px'; document.body.appendChild(d);
+  d.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-48px)',opacity:0}],{duration:1100,easing:'ease-out'}).onfinish=function(){d.remove();};
+}
+function render(){
+  var cfg=LEVELS[lv];
+  $('lvV').textContent=lv+1;
+  $('targetBlk').style.backgroundColor=hex(cfg.target);
+  $('targetHex').textContent=hex(cfg.target);
+  $('targetName').textContent=cfg.name;
+  var mc=mixColor();
+  $('mixBlk').style.backgroundColor=hex(mc);
+  $('mixHex').textContent=drops.length===0?'（空桶）':hex(mc);
+  var r=0,y=0,b=0,i;
+  for(i=0;i<drops.length;i++){ if(drops[i]==='r')r++; else if(drops[i]==='y')y++; else b++; }
+  $('cntR').textContent='×'+r; $('cntY').textContent='×'+y; $('cntB').textContent='×'+b;
+  var row=$('dropRow'); row.innerHTML='';
+  for(i=0;i<drops.length;i++){ var s=document.createElement('span'); s.className='drop'; s.style.background=DCOL[drops[i]]; row.appendChild(s); }
+  $('droplimit').textContent='已用 '+drops.length+' / '+cfg.limit+' 滴';
+  var full=drops.length>=cfg.limit;
+  $('tR').disabled=full||!playing||paused; $('tY').disabled=full||!playing||paused; $('tB').disabled=full||!playing||paused;
+  $('undoBtn').disabled=drops.length===0||!playing||paused;
+  $('submitBtn').disabled=drops.length===0||!playing||paused;
+  $('hintcnt').textContent='本关剩余 '+hintsLeft+' 次（-100分）';
+  $('hintbtn').disabled=hintsLeft<=0||!playing||paused;
+}
+function addDrop(c){
+  if(!playing||paused) return;
+  var cfg=LEVELS[lv];
+  if(drops.length>=cfg.limit) return;
+  drops.push(c);
+  snd(c==='r'?'dropR':(c==='y'?'dropY':'dropB'));
+  vib(15);
+  var r=$('mixBlk').getBoundingClientRect();
+  burst(r.left+r.width/2, r.top+r.height/2, DCOL[c]);
+  render();
+}
+function undoDrop(){
+  if(!playing||paused||drops.length===0) return;
+  drops.pop(); snd('undo'); render();
+}
+function useHint(){
+  if(!playing||paused||hintsLeft<=0) return;
+  snd('hint'); hintsLeft--; setScore(score-100);
+  var hs=$('hintshow');
+  hs.textContent='💡 配方：'+LEVELS[lv].hint;
+  hs.style.display='block';
+  setTimeout(function(){ hs.style.display='none'; },4000);
+  render();
+}
+function submit(){
+  if(!playing||paused||drops.length===0) return;
+  var cfg=LEVELS[lv];
+  var mc=mixColor(), d=dist(mc,cfg.target);
+  $('distV').textContent=d.toFixed(0);
+  var pts=d<30?1000:Math.max(0,Math.round(1000-(d-30)*4));
+  setScore(score+pts);
+  var r=$('mixBlk').getBoundingClientRect();
+  var cx=r.left+r.width/2, cy=r.top;
+  var stars=d<30?'★★★':(d<120?'★★☆':'★☆☆');
+  floatTxt(cx,cy-10,stars+(d<30?' 完美！':''), d<30?'#ffd54f':'#fff');
+  floatTxt(cx,cy+22,'+'+pts+'（色差'+d.toFixed(1)+'）','#a5d6a7');
+  if(d<30){ snd('good'); vib(40); burst(cx,cy,'#ffd54f'); }
+  else if(d<120){ snd('ok'); vib(25); }
+  else { snd('meh'); vib([60,40,60]); }
+  playing=false;
+  var toast=$('lvtoast');
+  setTimeout(function(){
+    if(lv>=LEVELS.length-1){ gameEnd(); return; }
+    toast.innerHTML='第'+(lv+1)+'关完成<br><span style="font-size:18px">色差 '+d.toFixed(1)+'，+'+pts+'分</span>';
+    toast.classList.add('show');
+    setTimeout(function(){
+      toast.classList.remove('show'); lv++; newLevel();
+    },1700);
+  },1300);
+}
+function newLevel(){
+  drops=[]; hintsLeft=2; playing=true;
+  $('distV').textContent='-';
+  $('hintshow').style.display='none';
+  var toast=$('lvtoast');
+  var tip=lv===0?'给小丑调出目标颜色！':(lv===2?'第3关：颜色更刁钻了！':(lv===4?'最终关：马戏红，14滴挑战！':'第'+(lv+1)+'关：'+LEVELS[lv].name));
+  toast.textContent=tip; toast.classList.add('show');
+  setTimeout(function(){ toast.classList.remove('show'); },1400);
+  render();
+}
+function showStart(){
+  var hs=parseInt(localStorage.getItem(HSKEY)||'0',10);
+  $('card').innerHTML='<h1>🎨 小丑调色</h1>'+
+    '<p>小丑要化装啦！<br>点<b>红/黄/蓝</b>滴管加颜料（可撤销），<br>实时预览混合色，色差越小分越高。<br>色差 &lt;30 得满分 1000！<br>每关有滴数上限，💡提示每关2次（-100分）。</p>'+
+    (hs>0?'<p>🏆 历史最高：'+hs+' 分</p>':'')+
+    '<button class="bbtn" id="startBtn">开始调色</button>';
+  $('overlay').classList.remove('hide');
+  $('startBtn').addEventListener('click',function(){ snd('click'); startGame(); });
+}
+function showPause(){
+  $('card').innerHTML='<h2>⏸ 已暂停</h2><p>颜料桶盖好了，等你回来…</p>'+
+    '<button class="bbtn" id="resumeBtn">继续</button>'+
+    '<button class="bbtn ghost" id="restartBtn">重新开始</button>';
+  $('overlay').classList.remove('hide');
+  $('resumeBtn').addEventListener('click',function(){ snd('click'); togglePause(); });
+  $('restartBtn').addEventListener('click',function(){ snd('click'); $('overlay').classList.add('hide'); startGame(); });
+}
+function gameEnd(){
+  var hs=parseInt(localStorage.getItem(HSKEY)||'0',10);
+  var isNew=score>hs;
+  if(isNew) localStorage.setItem(HSKEY,String(score));
+  snd('win'); vib([60,40,60,40,120]);
+  for(var i=0;i<3;i++){ setTimeout(function(){ burst(60+Math.random()*(window.innerWidth-120), 140+Math.random()*200, ['#e53935','#fdd835','#1e88e5'][i%3]); }, i*350); }
+  $('card').innerHTML='<h2>🎉 化装完成！</h2>'+
+    '<div class="big">'+score+' 分</div>'+
+    '<p>'+(isNew?'🏆 新纪录！小丑很满意！':'🏆 历史最高：'+Math.max(hs,score)+' 分')+'</p>'+
+    '<button class="bbtn" id="againBtn">再调一次</button>';
+  $('overlay').classList.add('hide');
+  setTimeout(function(){ $('overlay').classList.remove('hide'); },900);
+  $('againBtn').addEventListener('click',function(){ snd('click'); startGame(); });
+}
+function startGame(){
+  score=0; setScore(0); lv=0; paused=false;
+  $('pauseBtn').textContent='⏸';
+  $('overlay').classList.add('hide');
+  newLevel();
+}
+function togglePause(){
+  if(!playing && !paused) return;
+  if(paused){ paused=false; $('overlay').classList.add('hide'); $('pauseBtn').textContent='⏸'; }
+  else{ paused=true; $('pauseBtn').textContent='▶'; showPause(); }
+  snd('click'); render();
+}
+function toggleSound(){
+  soundOn=!soundOn;
+  localStorage.setItem(SNDKEY, soundOn?'on':'off');
+  $('soundBtn').textContent=soundOn?'🔊':'🔇';
+  if(soundOn) snd('click');
+}
+$('tR').addEventListener('click',function(){ addDrop('r'); });
+$('tY').addEventListener('click',function(){ addDrop('y'); });
+$('tB').addEventListener('click',function(){ addDrop('b'); });
+$('undoBtn').addEventListener('click',undoDrop);
+$('submitBtn').addEventListener('click',submit);
+$('hintbtn').addEventListener('click',useHint);
+$('pauseBtn').addEventListener('click',togglePause);
+$('soundBtn').addEventListener('click',toggleSound);
+$('soundBtn').textContent=soundOn?'🔊':'🔇';
+document.addEventListener('visibilitychange',function(){ if(document.hidden&&playing&&!paused) togglePause(); });
+showStart(); render();
+</script>
+</body>
+</html>
