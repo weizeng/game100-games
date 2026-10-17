@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>多米诺 - 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{background:#14100d;color:#f5e9d7;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#wrap{max-width:400px;margin:0 auto;padding:8px;position:relative}
+#hud{display:flex;align-items:center;justify-content:space-between;background:#241a12;border:1px solid #4e342e;border-radius:12px;padding:8px 10px;margin-bottom:8px;font-size:14px}
+#hud .lv{font-weight:700;color:#ffcc80}
+#hud .row{display:flex;gap:6px;align-items:center}
+button{font-family:inherit;border:none;border-radius:10px;cursor:pointer;touch-action:manipulation}
+.icobtn{min-width:44px;min-height:40px;background:#3e2723;color:#ffe0b2;font-size:18px;padding:6px 8px;border:1px solid #5d4037}
+.icobtn:disabled{opacity:.35}
+#cv{display:block;width:100%;max-width:360px;height:auto;margin:0 auto;border-radius:14px;border:2px solid #4e342e;background:#1c1510;touch-action:none}
+#bar{display:flex;gap:8px;margin-top:8px}
+#pushBtn{flex:2;min-height:52px;font-size:20px;font-weight:800;background:linear-gradient(180deg,#a1887f,#6d4c41);color:#fff;border:2px solid #8d6e63}
+#pushBtn:disabled{opacity:.4}
+#bar .icobtn{flex:1;font-size:15px}
+#tip{font-size:12px;color:#bcaaa4;text-align:center;margin-top:6px;min-height:18px}
+#overlay{position:absolute;inset:8px;background:rgba(12,8,5,.93);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;z-index:10}
+#overlay.hidden{display:none}
+#overlay h1{font-size:30px;color:#ffcc80}
+#overlay h2{font-size:24px;color:#ffcc80}
+#overlay p{font-size:14px;line-height:1.7;color:#d7ccc8;max-width:300px}
+#overlay .big{font-size:44px}
+#overlay .btn{min-width:200px;min-height:52px;font-size:18px;font-weight:700;background:linear-gradient(180deg,#a1887f,#6d4c41);color:#fff;border:2px solid #8d6e63;margin-top:4px}
+#overlay .btn2{min-width:200px;min-height:44px;font-size:15px;background:#3e2723;color:#ffe0b2;border:1px solid #5d4037}
+#score{font-size:16px;color:#ffcc80;font-weight:700}
+@keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+#overlay:not(.hidden) .card{animation:pop .3s ease-out}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="lv" id="lvLabel">第1关</span>
+    <span id="pieceLabel">🧱×9</span>
+    <div class="row">
+      <button class="icobtn" id="hintBtn" title="提示">💡<span id="hintN">2</span></button>
+      <button class="icobtn" id="pauseBtn">⏸</button>
+      <button class="icobtn" id="muteBtn">🔊</button>
+    </div>
+  </div>
+  <canvas id="cv" width="360" height="520"></canvas>
+  <div id="bar">
+    <button id="pushBtn">推倒 ▶</button>
+    <button class="icobtn" id="undoBtn">↩️撤销</button>
+    <button class="icobtn" id="resetBtn">🔄重摆</button>
+  </div>
+  <div id="tip">点空地放骨牌 · 点骨牌旋转 · 拖动微调位置</div>
+  <div id="overlay"><div class="card" id="ovCard"></div></div>
+</div>
+<script>
+'use strict';
+/* ===== 基础 ===== */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=360,H=520,DOM_H=56,REACH=DOM_H*0.8,CONE=75*Math.PI/180;
+function $(id){return document.getElementById(id);}
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function angDiff(a,b){return Math.abs(Math.atan2(Math.sin(b-a),Math.cos(b-a)));}
+/* ===== 音效 ===== */
+var AC=null,muted=localStorage.getItem('g100_sound')==='0';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;var t=c.currentTime;var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(40,f+slide),t+dur);g.gain.setValueAtTime(vol||0.15,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+dur+0.02);}
+function sClick(){tone(660,0.07,'triangle',0.12);}
+function sPlace(){tone(440,0.09,'triangle',0.16,120);}
+function sRotate(){tone(520,0.06,'square',0.08);}
+function sKnock(){tone(210,0.09,'square',0.14,-130);}
+function sHint(){tone(880,0.25,'sine',0.12,220);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++)(function(f,i){setTimeout(function(){tone(f,0.28,'triangle',0.16);},i*130);})(n[i],i);}
+function sFail(){tone(170,0.45,'sawtooth',0.14,-90);}
+function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+/* ===== 关卡 ===== */
+function genPath(pts){ // pts: [[x,y],...] -> [{x,y,a}]
+  var out=[],SP=38;
+  for(var s=0;s<pts.length-1;s++){
+    var x1=pts[s][0],y1=pts[s][1],x2=pts[s+1][0],y2=pts[s+1][1];
+    var dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);
+    var snap=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*(Math.PI/4);
+    for(var d=SP;d<len-1;d+=SP)out.push({x:x1+dx*d/len,y:y1+dy*d/len,a:snap});
+    if(s<pts.length-2){ // 中间拐点：用下一段方向（最后一个点是铃铛，不推）
+      var na=Math.round(Math.atan2(pts[s+2][1]-y2,pts[s+2][0]-x2)/(Math.PI/4))*(Math.PI/4);
+      out.push({x:x2,y:y2,a:na});
+    }
+  }
+  return out;
+}
+var LEVELS=[
+ {name:'直道',count:9,fuse:{x:56,y:400,a:0},bell:{x:304,y:400},obs:[],
+  wp:[[56,400],[304,400]]},
+ {name:'弯道',count:15,fuse:{x:56,y:430,a:0},bell:{x:264,y:150},obs:[],
+  wp:[[56,430],[264,430],[264,150]]},
+ {name:'台阶',count:15,fuse:{x:56,y:450,a:-Math.PI/4},bell:{x:304,y:170},
+  obs:[],steps:[[56,450],[150,360],[150,270],[250,270],[250,170],[304,170]],
+  wp:[[56,450],[150,360],[150,270],[250,270],[250,170],[304,170]]},
+ {name:'裂缝',count:18,fuse:{x:56,y:440,a:0},bell:{x:304,y:120},
+  obs:[{x:110,y:150,w:46,h:150},{x:204,y:280,w:46,h:130}],
+  wp:[[56,440],[280,440],[280,120],[304,120]]},
+ {name:'双弯',count:26,fuse:{x:56,y:430,a:0},bell:{x:290,y:150},obs:[],
+  wp:[[56,430],[250,430],[250,310],[110,310],[110,190],[290,190],[290,150]]},
+ {name:'终极',count:22,fuse:{x:56,y:450,a:-Math.PI/4},bell:{x:300,y:110},
+  obs:[{x:150,y:250,w:56,h:44}],
+  wp:[[56,450],[180,450],[180,340],[110,340],[110,230],[240,230],[240,120],[300,120]]}
+];
+LEVELS.forEach(function(L){L.hint=genPath(L.wp);});
+/* ===== 状态 ===== */
+var lv=0,dominoes=[],bell={x:0,y:0,hit:false},piecesLeft=0,hintsLeft=2;
+var mode='edit',paused=false,hintUntil=0,gameTime=0,score=0;
+var particles=[],floats=[];
+var hsKey='g100_domino_hs';
+function best(){return parseInt(localStorage.getItem(hsKey)||'0',10)||0;}
+function loadLevel(i){
+  lv=i;var L=LEVELS[i];
+  dominoes=[{x:L.fuse.x,y:L.fuse.y,a:L.fuse.a,state:'stand',prog:0,fuse:true}];
+  bell={x:L.bell.x,y:L.bell.y,hit:false};
+  piecesLeft=L.count;hintsLeft=2;mode='edit';paused=false;hintUntil=0;
+  particles=[];floats=[];
+  $('lvLabel').textContent='第'+(i+1)+'关·'+L.name;
+  $('hintN').textContent=hintsLeft;
+  $('hintBtn').disabled=false;
+  $('pushBtn').disabled=false;
+  updatePieceLabel();hideOv();
+  setTip('点空地放骨牌 · 点骨牌旋转 · 拖动微调位置');
+}
+function updatePieceLabel(){$('pieceLabel').textContent='🧱×'+piecesLeft;}
+function setTip(t){$('tip').textContent=t;}
+/* ===== overlay ===== */
+function showOv(html){$('ovCard').innerHTML=html;$('overlay').classList.remove('hidden');}
+function hideOv(){$('overlay').classList.add('hidden');}
+function bindOvBtns(){
+  var b=$('ovCard').querySelectorAll('button');
+  for(var i=0;i<b.length;i++)b[i].addEventListener('click',function(){sClick();});
+}
+function showStart(){
+  showOv('<div class="big">🧱</div><h1>多米诺</h1>'+
+  '<p>嘉年华多米诺摊位！<br>在场地里摆好骨牌，按「推倒」让连锁一路倒向目标铃铛🔔。<br>骨牌间距不能超过骨牌高度的0.8倍，转向处要精确落位。<br>共 6 关，💡提示每关可用 2 次。</p>'+
+  '<div id="score">历史最高：'+best()+' 分</div>'+
+  '<button class="btn" id="startBtn">开始游戏</button>');
+  bindOvBtns();
+  $('startBtn').addEventListener('click',function(){score=0;loadLevel(0);});
+}
+/* ===== 输入 ===== */
+function toGame(e){var r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height};}
+function inObs(x,y){var o=LEVELS[lv].obs;for(var i=0;i<o.length;i++){if(x>o[i].x-8&&x<o[i].x+o[i].w+8&&y>o[i].y-8&&y<o[i].y+o[i].h+8)return true;}return false;}
+function hitDomino(x,y){for(var i=dominoes.length-1;i>=0;i--){var d=dominoes[i];if(d.fuse)continue;if(Math.abs(x-d.x)<16&&Math.abs(y-d.y)<34)return d;}return null;}
+var drag=null,downPos=null;
+cv.addEventListener('pointerdown',function(e){
+  if(mode!=='edit'||paused)return;
+  var p=toGame(e);downPos=p;drag=null;
+  var d=hitDomino(p.x,p.y);
+  if(d){drag={d:d,sx:p.x,sy:p.y,moved:false};try{cv.setPointerCapture(e.pointerId);}catch(err){}}
+  e.preventDefault();
+});
+cv.addEventListener('pointermove',function(e){
+  if(!drag||mode!=='edit'||paused)return;
+  var p=toGame(e);
+  if(Math.hypot(p.x-drag.sx,p.y-drag.sy)>10)drag.moved=true;
+  if(drag.moved){drag.d.x=clamp(p.x,20,340);drag.d.y=clamp(p.y,60,500);}
+});
+cv.addEventListener('pointerup',function(e){
+  var p=toGame(e);
+  if(mode==='edit'&&!paused){
+    if(drag){
+      if(!drag.moved){drag.d.a+=Math.PI/4;if(drag.d.a>=Math.PI*2)drag.d.a-=Math.PI*2;sRotate();}
+      drag=null;
+    }else if(downPos&&piecesLeft>0){
+      if(!inObs(p.x,p.y)&&Math.hypot(p.x-bell.x,p.y-bell.y)>34&&Math.hypot(p.x-LEVELS[lv].fuse.x,p.y-LEVELS[lv].fuse.y)>30&&!hitDomino(p.x,p.y)){
+        var lastA=0;for(var i=dominoes.length-1;i>0;i--){lastA=dominoes[i].a;break;}
+        dominoes.push({x:clamp(p.x,20,340),y:clamp(p.y,60,500),a:lastA,state:'stand',prog:0});
+        piecesLeft--;updatePieceLabel();sPlace();
+        if(piecesLeft===0)setTip('骨牌用完了，点「推倒」试试！');
+      }else{sFail0();}
+    }
+  }
+  downPos=null;
+});
+function sFail0(){tone(180,0.12,'square',0.08);}
+$('undoBtn').addEventListener('click',function(){sClick();if(mode!=='edit')return;if(dominoes.length>1){dominoes.pop();piecesLeft++;updatePieceLabel();}});
+$('resetBtn').addEventListener('click',function(){sClick();if(mode!=='edit'&&mode!=='fail')return;loadLevel(lv);});
+$('hintBtn').addEventListener('click',function(){
+  sClick();if(mode!=='edit'||hintsLeft<=0)return;
+  hintsLeft--;$('hintN').textContent=hintsLeft;if(hintsLeft===0)$('hintBtn').disabled=true;
+  hintUntil=gameTime+5;sHint();setTip('💡 虚影是一条可行布线，照着摆就行');
+});
+$('pushBtn').addEventListener('click',function(){
+  sClick();if(mode!=='edit'||paused)return;
+  mode='falling';dominoes[0].state='falling';dominoes[0].prog=0;
+  $('pushBtn').disabled=true;$('hintBtn').disabled=true;
+  setTip('倒了倒了……');
+});
+$('pauseBtn').addEventListener('click',function(){
+  sClick();
+  if($('overlay').classList.contains('hidden')===false&&paused){resumeGame();return;}
+  if(mode==='start')return;
+  paused=true;
+  showOv('<div class="big">⏸</div><h2>已暂停</h2><p>多米诺时间静止中</p><button class="btn" id="resumeBtn">继续</button>');
+  bindOvBtns();$('resumeBtn').addEventListener('click',resumeGame);
+});
+function resumeGame(){paused=false;hideOv();}
+$('muteBtn').addEventListener('click',function(){
+  muted=!muted;localStorage.setItem('g100_sound',muted?'0':'1');
+  $('muteBtn').textContent=muted?'🔇':'🔊';if(!muted)sClick();
+});
+/* ===== 推倒逻辑 ===== */
+function evalKnocks(f){
+  var landed=false;
+  for(var i=0;i<dominoes.length;i++){
+    var d=dominoes[i];if(d.state!=='stand')continue;
+    var dist=Math.hypot(d.x-f.x,d.y-f.y);
+    if(dist<=REACH){
+      var phi=Math.atan2(d.y-f.y,d.x-f.x);
+      if(angDiff(phi,f.a)<=CONE){
+        d.state='falling';d.prog=0;sKnock();
+        puff(f.x+Math.cos(f.a)*DOM_H*0.7,f.y+Math.sin(f.a)*DOM_H*0.7);
+        landed=true;
+      }
+    }
+  }
+  var bd=Math.hypot(bell.x-f.x,bell.y-f.y);
+  if(bd<=REACH+16){
+    var bp=Math.atan2(bell.y-f.y,bell.x-f.x);
+    if(angDiff(bp,f.a)<=CONE+0.3){bell.hit=true;}
+  }
+  return landed;
+}
+function puff(x,y){for(var i=0;i<8;i++)particles.push({x:x,y:y,vx:(Math.random()-0.5)*90,vy:-Math.random()*70-20,life:0.5,t:0,c:'#d7ccc8',r:2+Math.random()*2});}
+function confetti(x,y){var cs=['#ff5252','#ffeb3b','#69f0ae','#40c4ff','#e040fb'];for(var i=0;i<60;i++)particles.push({x:x,y:y,vx:(Math.random()-0.5)*260,vy:-Math.random()*260-40,life:1.4,t:0,c:cs[i%cs.length],r:2+Math.random()*3});}
+function floatText(x,y,t,c){floats.push({x:x,y:y,t:0,txt:t,c:c||'#ffcc80'});}
+function levelScore(){return 100*(lv+1)+piecesLeft*15+hintsLeft*30;}
+function winLevel(){
+  mode='win';var sc=levelScore();score+=sc;
+  sWin();buzz(60);confetti(bell.x,bell.y);floatText(bell.x,bell.y-40,'+'+sc);
+  setTimeout(function(){
+    if(lv>=LEVELS.length-1){
+      var b=best();var nb=false;
+      if(score>b){localStorage.setItem(hsKey,String(score));nb=true;}
+      showOv('<div class="big">🏆</div><h2>全部通关！</h2><div id="score">总分 '+score+' 分'+(nb?'<br>🎉 新纪录！':'<br>历史最高 '+Math.max(b,score)+' 分')+'</div><button class="btn" id="againBtn">再来一局</button>');
+      bindOvBtns();$('againBtn').addEventListener('click',function(){score=0;loadLevel(0);});
+    }else{
+      showOv('<div class="big">🔔</div><h2>过关！</h2><div id="score">+'+sc+' 分 · 累计 '+score+' 分</div><button class="btn" id="nextBtn">下一关 ▶</button>');
+      bindOvBtns();$('nextBtn').addEventListener('click',function(){loadLevel(lv+1);});
+    }
+  },1400);
+}
+function failLevel(){
+  mode='fail';sFail();buzz([40,40,40]);
+  setTimeout(function(){
+    showOv('<div class="big">💥</div><h2>连锁断了…</h2><p>有骨牌没被碰到。检查间距（≤骨牌高度0.8倍）和转向角度，或用 💡 看看布线。</p><button class="btn" id="retryBtn">继续摆放</button><button class="btn2" id="reBtn">🔄 重摆本关</button>');
+    bindOvBtns();
+    $('retryBtn').addEventListener('click',function(){mode='edit';dominoes.forEach(function(d){d.state='stand';d.prog=0;});bell.hit=false;$('pushBtn').disabled=false;if(hintsLeft>0)$('hintBtn').disabled=false;hideOv();setTip('调整位置再推一次！');});
+    $('reBtn').addEventListener('click',function(){loadLevel(lv);});
+  },900);
+}
+/* ===== 绘制 ===== */
+function drawDomino(d,ghost){
+  ctx.save();ctx.translate(d.x,d.y);
+  var p=clamp(d.prog||0,0,1);
+  var pe=Math.pow(p,1.5);
+  var ang0=d.a+Math.PI/2,ang1=d.a;
+  var ang=ang0+(ang1-ang0)*pe;
+  var cxm=(Math.cos(d.a)*DOM_H/2)*pe,cym=(Math.sin(d.a)*DOM_H/2)*pe;
+  ctx.translate(cxm,cym);ctx.rotate(ang);
+  ctx.globalAlpha=ghost?0.4:1;
+  var w=14,h=DOM_H;
+  ctx.fillStyle=ghost?'#b0bec5':'#efebe9';
+  roundRect(-w/2,-h/2,w,h,3);ctx.fill();
+  ctx.fillStyle=ghost?'rgba(255,255,255,.25)':'#bcaaa4';
+  roundRect(-w/2,-h/2,w,h/2,3);ctx.fill();
+  ctx.strokeStyle=ghost?'#90a4ae':'#4e342e';ctx.lineWidth=2;roundRect(-w/2,-h/2,w,h,3);ctx.stroke();
+  ctx.fillStyle=ghost?'#78909c':'#3e2723';
+  ctx.beginPath();ctx.arc(0,-h/4,2.4,0,7);ctx.fill();
+  ctx.beginPath();ctx.arc(0,h/4,2.4,0,7);ctx.fill();
+  if(d.fuse&&!ghost){ctx.fillStyle='#ffeb3b';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('⚡',0,-h/2-8);}
+  ctx.restore();ctx.globalAlpha=1;
+}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#241a12');g.addColorStop(1,'#14100d');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // 场地
+  ctx.fillStyle='#2b2119';roundRect(12,48,336,440,14);ctx.fill();
+  ctx.strokeStyle='#4e342e';ctx.lineWidth=2;roundRect(12,48,336,440,14);ctx.stroke();
+  // 顶部彩灯
+  for(var i=0;i<12;i++){var lx=24+i*28;ctx.fillStyle=['#ff5252','#ffeb3b','#69f0ae','#40c4ff'][i%4];ctx.globalAlpha=0.5+0.4*Math.sin(gameTime*3+i);ctx.beginPath();ctx.arc(lx,58,3,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
+  var L=LEVELS[lv];
+  // 台阶装饰
+  if(L.steps){ctx.fillStyle='#3a2d20';for(var s=0;s<L.steps.length;s++){ctx.fillRect(L.steps[s][0]-22,L.steps[s][1]-8,44,16);}}
+  // 障碍（裂缝）
+  for(var o=0;o<L.obs.length;o++){var ob=L.obs[o];ctx.fillStyle='#1a0f0a';ctx.fillRect(ob.x,ob.y,ob.w,ob.h);
+    ctx.strokeStyle='#ff5252';ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.strokeRect(ob.x,ob.y,ob.w,ob.h);ctx.setLineDash([]);
+    ctx.fillStyle='#ff8a65';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('⚠禁放',ob.x+ob.w/2,ob.y+ob.h/2+4);}
+  // 引信到达圈
+  ctx.strokeStyle='rgba(255,204,128,.35)';ctx.setLineDash([5,5]);ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(L.fuse.x,L.fuse.y,REACH,0,7);ctx.stroke();ctx.setLineDash([]);
+  // 💡虚影
+  if(gameTime<hintUntil){ctx.save();for(var hh=0;hh<L.hint.length;hh++)drawDomino({x:L.hint[hh].x,y:L.hint[hh].y,a:L.hint[hh].a,prog:0},true);ctx.restore();}
+  // 铃铛
+  ctx.font='30px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  var bs=bell.hit?1+0.25*Math.sin(gameTime*20):1;
+  ctx.save();ctx.translate(bell.x,bell.y);ctx.scale(bs,bs);
+  ctx.globalAlpha=bell.hit?1:0.92;ctx.fillText('🔔',0,0);ctx.restore();ctx.globalAlpha=1;
+  if(!bell.hit){ctx.strokeStyle='rgba(255,235,59,.4)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(bell.x,bell.y,20+4*Math.sin(gameTime*4),0,7);ctx.stroke();ctx.setLineDash([]);}
+  // 骨牌
+  for(var i=1;i<dominoes.length;i++)drawDomino(dominoes[i],false);
+  if(dominoes.length)drawDomino(dominoes[0],false);
+  // 粒子
+  for(var pi=0;pi<particles.length;pi++){var pt=particles[pi];ctx.globalAlpha=clamp(1-pt.t/pt.life,0,1);ctx.fillStyle=pt.c;ctx.beginPath();ctx.arc(pt.x,pt.y,pt.r,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
+  for(var fi=0;fi<floats.length;fi++){var f=floats[fi];ctx.globalAlpha=clamp(1-f.t/1.2,0,1);ctx.fillStyle=f.c;ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.fillText(f.txt,f.x,f.y-f.t*36);}
+  ctx.globalAlpha=1;
+}
+/* ===== 主循环 ===== */
+var lastT=0;
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(paused){draw();return;}
+  gameTime+=dt;
+  if(mode==='falling'){
+    var anyFalling=false;
+    for(var i=0;i<dominoes.length;i++){
+      var d=dominoes[i];
+      if(d.state==='falling'){
+        anyFalling=true;d.prog+=dt/0.24;
+        if(d.prog>=1){d.prog=1;d.state='down';evalKnocks(d);}
+      }
+    }
+    if(!anyFalling){
+      if(bell.hit)winLevel();else failLevel();
+    }
+  }
+  for(var p=particles.length-1;p>=0;p--){var pt=particles[p];pt.t+=dt;pt.x+=pt.vx*dt;pt.y+=pt.vy*dt;pt.vy+=320*dt;if(pt.t>=pt.life)particles.splice(p,1);}
+  for(var f=floats.length-1;f>=0;f--){floats[f].t+=dt;if(floats[f].t>1.2)floats.splice(f,1);}
+  draw();
+}
+/* ===== 启动 ===== */
+$('muteBtn').textContent=muted?'🔇':'🔊';
+mode='start';showStart();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
