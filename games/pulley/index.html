@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>滑轮组</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#cv{position:fixed;inset:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,14,26,.7);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.pill b{color:#FFD54F}
+.spacer{flex:1}
+.iconBtn{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(10,14,26,.7);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#panel{position:fixed;left:10px;right:10px;bottom:10px;z-index:6;background:rgba(10,14,26,.88);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:10px 14px}
+.ctl{margin:4px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:#c5cae9;margin-bottom:0}
+.ctl label b{color:#FFD54F}
+.rowBtns{display:flex;gap:10px;margin-top:6px}
+.actBtn{flex:1;min-height:52px;border:none;border-radius:12px;font-size:17px;font-weight:bold;color:#fff;background:linear-gradient(135deg,#4FC3F7,#7E57C2);cursor:pointer;touch-action:none}
+.actBtn:active{transform:scale(.96)}
+.actBtn:disabled{opacity:.45}
+#readout{font-size:13px;color:#c5cae9;line-height:1.6;margin-top:6px;min-height:20px}
+#readout b{color:#FFD54F}
+.overlay{position:fixed;inset:0;background:rgba(3,5,12,.9);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.card{background:linear-gradient(160deg,#141a2e,#0a0e1a);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:26px 24px;max-width:370px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:88vh;overflow-y:auto}
+.card h1{font-size:26px;margin-bottom:6px}
+.card h2{font-size:17px;color:#4FC3F7;margin:12px 0 6px}
+.card p{font-size:14px;color:#c5cae9;line-height:1.7;margin:8px 0;text-align:left}
+.card p.c{text-align:center}
+.formula{background:rgba(79,195,247,.1);border:1px dashed rgba(79,195,247,.5);border-radius:10px;padding:10px;font-size:15px;color:#FFD54F;margin:10px 0;font-family:monospace;word-break:break-all}
+.bigBtn{display:inline-block;margin-top:14px;padding:14px 52px;font-size:18px;border:none;border-radius:999px;background:linear-gradient(135deg,#4FC3F7,#7E57C2);color:#fff;cursor:pointer;min-height:52px}
+.bigBtn:active{transform:scale(.96)}
+.score{font-size:44px;font-weight:bold;color:#FFEB3B;margin:6px 0}
+.hidden{display:none!important}
+.segRow{display:flex;gap:8px;margin:6px 0}
+.segBtn{flex:1;min-height:48px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#fff;font-size:13px;line-height:1.4;cursor:pointer}
+.segBtn.sel{border-color:#4FC3F7;background:rgba(79,195,247,.25);color:#4FC3F7;font-weight:bold}
+.segBtn:disabled{opacity:.45}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill" id="roundPill">第 <b>1</b>/5 轮</div>
+  <div class="pill">得分 <b id="scorePill">0</b></div>
+  <div class="spacer"></div>
+  <button class="iconBtn" id="muteBtn" title="静音">🔊</button>
+  <button class="iconBtn" id="pauseBtn" title="暂停">⏸</button>
+</div>
+<div id="panel">
+  <div class="ctl"><label>① 选择滑轮组 <b id="nVal">定滑轮 n=1</b></label>
+    <div class="segRow" id="nSeg">
+      <button class="segBtn sel" data-n="1">定滑轮<br>n=1</button>
+      <button class="segBtn" data-n="2">一动一定<br>n=2</button>
+      <button class="segBtn" data-n="4">二动二定<br>n=4</button>
+    </div>
+  </div>
+  <button class="actBtn" id="holdBtn" style="width:100%;margin-top:4px">🔽 按住拉绳（绳速 1.2 m/s）</button>
+  <div id="readout"></div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="card">
+    <h1>⚙️ 滑轮组</h1>
+    <p class="c" style="color:#4FC3F7">🔬 初中物理 · 力学实验</p>
+    <p>每轮随机一袋重物（10–50kg），目标提升 2m。先选滑轮组：定滑轮 n=1、一动一定 n=2、二动二定 n=4；再<strong style="color:#fff">按住「拉绳」按钮</strong>，绳子以 1.2m/s 被拉下，重物以 1.2/n m/s 上升。累计拉绳 n·h 米即到顶——滑轮组越多越省力，得分越高！</p>
+    <h2>📏 本实验公式</h2>
+    <div class="formula">F = G/n，s = n·h（G=mg，g=9.8）</div>
+    <button class="bigBtn" id="startBtn">开始实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h1>⏸ 已暂停</h1>
+    <p class="c">实验已暂停，数据保留</p>
+    <button class="bigBtn" id="resumeBtn">继续实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="quizOv">
+  <div class="card">
+    <h1 id="quizTitle">🤔 预测一下</h1>
+    <p class="c" id="quizQ"></p>
+    <div id="quizOpts"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="card">
+    <h1>🎓 实验完成</h1>
+    <div class="score" id="finalScore">0</div>
+    <p class="c" id="bestLine">历史最高：0</p>
+    <h2>📝 实验结论</h2>
+    <p id="conclusion"></p>
+    <div class="formula" id="endFormula"></div>
+    <button class="bigBtn" id="retryBtn">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 基础框架（勿改） ============ */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0,DPR=1,PANEL_H=0;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  PANEL_H=document.getElementById('panel').offsetHeight||150;
+  if(window.onResize)window.onResize();
+}
+window.addEventListener('resize',resize);
+var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,delay){if(muted)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.15,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.06,'square',0.08);}
+function sGood(){tone(660,0.1,'sine',0.15);tone(880,0.15,'sine',0.15,0.1);}
+function sBad(){tone(220,0.2,'sawtooth',0.12);tone(160,0.25,'sawtooth',0.12,0.12);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++){tone(n[i],0.15,'sine',0.15,i*0.12);}}
+function sTick(){tone(440,0.05,'square',0.06);}
+function buzz(ms){try{if(navigator.vibrate){navigator.vibrate(ms||30);}}catch(e){}}
+var floats=[];
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color||'#FFD54F',life:1});}
+function drawFloats(dt){ctx.textAlign='center';for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.life-=dt*0.7;f.y-=34*dt;if(f.life<=0){floats.splice(i,1);continue;}ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;}}
+var HSKEY='g100_pulley_hs';
+function getBest(){return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}
+function setBest(v){if(v>getBest()){localStorage.setItem(HSKEY,String(v));}}
+function $(id){return document.getElementById(id);}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function setMuteBtn(){$('muteBtn').textContent=muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted){sClick();}});
+setMuteBtn();
+/* ============ 游戏状态（按需改） ============ */
+var state='start',paused=false,round=1,score=0,lastT=0;
+function updHUD(){$('roundPill').innerHTML='第 <b>'+round+'</b>/5 轮';$('scorePill').textContent=score;}
+function addScore(n,x,y){score+=n;updHUD();if(x!==undefined){floatText(x,y,'+'+n,n>=80?'#66BB6A':'#FFD54F');}}
+$('pauseBtn').addEventListener('click',function(){if(state!=='play')return;sClick();paused=true;show('pauseOv');});
+$('resumeBtn').addEventListener('click',function(){sClick();paused=false;hide('pauseOv');lastT=performance.now();});
+$('startBtn').addEventListener('click',function(){sClick();hide('startOv');startGame();});
+$('retryBtn').addEventListener('click',function(){sClick();hide('endOv');startGame();});
+function startGame(){round=1;score=0;updHUD();state='play';paused=false;if(window.onStart)window.onStart();}
+/* quiz overlay helper */
+var quizCb=null;
+function askQuiz(title,question,options,cb){
+  $('quizTitle').textContent=title;$('quizQ').textContent=question;
+  var box=$('quizOpts');box.innerHTML='';quizCb=cb;
+  options.forEach(function(op,i){
+    var b=document.createElement('button');b.className='optBtn';b.textContent=op;
+    b.addEventListener('click',function(){cb(i,b);});
+    box.appendChild(b);
+  });
+  show('quizOv');
+}
+function markQuiz(chosen,correct){
+  var btns=$('quizOpts').children;
+  for(var i=0;i<btns.length;i++){btns[i].disabled=true;if(i===correct){btns[i].classList.add('right');}}
+  if(chosen!==correct&&btns[chosen]){btns[chosen].classList.add('wrong');}
+  setTimeout(function(){hide('quizOv');if(window.onQuizDone){window.onQuizDone(chosen===correct);}},900);
+}
+function endGame(conclusion,formula){
+  state='end';setBest(score);sWin();
+  $('finalScore').textContent=score+' / 500';
+  $('bestLine').textContent='历史最高：'+getBest();
+  $('conclusion').textContent=conclusion;
+  $('endFormula').textContent=formula;
+  show('endOv');
+}
+/* 主循环：游戏实现 window.onFrame(dt) 绘制+更新；window.onStart 初始化第一轮 */
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(state!=='play'||paused)return;
+  ctx.clearRect(0,0,W,H);
+  if(window.onFrame){window.onFrame(dt);}
+  drawFloats(dt);
+}
+resize();updHUD();requestAnimationFrame(function(t){lastT=t;requestAnimationFrame(loop);});
+/* ============ 滑轮组实验 ============ */
+var CONC='实验结论：动滑轮省力不省功，F=G/n，但拉绳距离 s=n·h——省力必定费距离。';
+var FORM='F=G/n，s=n·h';
+var P={m:20,n:1,h:2,G:196,F:196,pulled:0,lifted:0,pulling:false,roundEnd:0,tickT:0,ang:0};
+var ROPE_V=1.2, PXM=26, LIFT_PX=110;
+
+function newRound(){
+  P.m=10+Math.floor(Math.random()*41);
+  P.n=1;P.G=P.m*9.8;P.F=P.G;
+  P.pulled=0;P.lifted=0;P.pulling=false;P.roundEnd=0;P.tickT=0;P.ang=0;
+  var segs=document.querySelectorAll('#nSeg .segBtn');
+  for(var i=0;i<segs.length;i++){segs[i].classList.toggle('sel',i===0);segs[i].disabled=false;}
+  $('nVal').textContent='定滑轮 n=1';
+}
+window.onStart=function(){newRound();};
+
+document.querySelectorAll('#nSeg .segBtn').forEach(function(b){
+  b.addEventListener('click',function(){
+    if(state!=='play'||paused||P.pulled>0.01||P.roundEnd>0)return;
+    sClick();
+    document.querySelectorAll('#nSeg .segBtn').forEach(function(x){x.classList.remove('sel');});
+    b.classList.add('sel');
+    P.n=parseInt(b.getAttribute('data-n'),10);
+    P.F=P.G/P.n;
+    var nm=P.n===1?'定滑轮':(P.n===2?'一动一定':'二动二定');
+    $('nVal').textContent=nm+' n='+P.n;
+  });
+});
+
+function startPull(){
+  if(state!=='play'||paused||P.roundEnd>0)return;
+  if(!P.pulling){ac();sClick();}
+  P.pulling=true;
+}
+function stopPull(){P.pulling=false;}
+var hb=$('holdBtn');
+hb.addEventListener('touchstart',function(e){e.preventDefault();startPull();},{passive:false});
+hb.addEventListener('touchend',function(e){e.preventDefault();stopPull();});
+hb.addEventListener('touchcancel',stopPull);
+hb.addEventListener('mousedown',function(e){e.preventDefault();startPull();});
+hb.addEventListener('mouseup',stopPull);
+hb.addEventListener('mouseleave',function(){if(P.pulling)stopPull();});
+hb.addEventListener('contextmenu',function(e){e.preventDefault();});
+$('pauseBtn').addEventListener('click',function(){P.pulling=false;});
+
+function finishRound(){
+  P.pulling=false;P.roundEnd=1.5;
+  var sc=Math.round(40+80*(1-1/P.n));
+  var pct=Math.round((1-1/P.n)*100);
+  addScore(sc);
+  floatText(W*0.5,120,'+'+sc,sc>=80?'#66BB6A':'#FFD54F');
+  floatText(W*0.5,152,'省力'+pct+'%','#4FC3F7');
+  sGood();buzz(60);
+}
+function nextRound(){
+  if(round>=5){endGame(CONC,FORM);}
+  else{round++;updHUD();newRound();}
+}
+window.onFrame=function(dt){
+  if(P.roundEnd>0){
+    P.roundEnd-=dt;
+    if(P.roundEnd<=0){nextRound();return;}
+  }else if(P.pulling){
+    P.pulled+=ROPE_V*dt;
+    P.ang+=dt*7;
+    P.lifted=Math.min(P.h,P.pulled/P.n);
+    P.tickT+=dt;
+    if(P.tickT>0.18){P.tickT=0;sTick();}
+    var segs=document.querySelectorAll('#nSeg .segBtn');
+    for(var i=0;i<segs.length;i++){segs[i].disabled=true;}
+    if(P.lifted>=P.h-1e-6){finishRound();}
+  }
+  drawScene();
+  updateReadout();
+};
+function updateReadout(){
+  var need=Math.max(0,P.n*P.h-P.pulled);
+  $('readout').innerHTML='G=mg=<b>'+P.G.toFixed(0)+' N</b> · 绳段数 n=<b>'+P.n+'</b> · 拉力 F=G/n=<b>'+P.F.toFixed(1)+' N</b><br>'+
+    '已提升 <b>'+P.lifted.toFixed(1)+'</b>/2 m · 还需拉绳 '+need.toFixed(1)+' m';
+}
+function rope(pts){
+  ctx.strokeStyle='#ECEFF1';ctx.lineWidth=4;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+  for(var i=1;i<pts.length;i++){ctx.lineTo(pts[i][0],pts[i][1]);}
+  ctx.stroke();
+}
+function drawPulley(x,y,r,anchorY){
+  if(anchorY!==undefined){
+    ctx.strokeStyle='#546E7A';ctx.lineWidth=5;
+    ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x,anchorY);ctx.stroke();
+  }
+  ctx.strokeStyle='#B0BEC5';ctx.lineWidth=5;
+  ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='#37474F';
+  ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#78909C';ctx.lineWidth=3;
+  for(var i=0;i<3;i++){
+    var a=P.ang+i*Math.PI/3;
+    ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(a)*(r-3),y+Math.sin(a)*(r-3));ctx.stroke();
+  }
+}
+function drawScene(){
+  var yTop=64, yBot=H-PANEL_H-10;
+  var beamY=yTop+8;
+  var cxL=W*0.26, cxR=W*0.74;
+  var wW=54+P.m*1.1, wH=30+P.m*0.6;
+  var wY0=yBot-20-wH;
+  var wY=wY0-(P.lifted/P.h)*LIFT_PX;
+  /* 顶部横梁 */
+  ctx.fillStyle='#2a3350';
+  ctx.fillRect(14,beamY,W*0.52-14,9);
+  /* 左侧：滑轮组 + 重物 */
+  var fy=beamY+32;
+  var freeX=cxR, handleY=beamY+66+P.pulled*PXM;
+  handleY=Math.min(handleY,yBot-44);
+  if(P.n===1){
+    var px=cxL;
+    drawPulley(px,fy,18,beamY+9);
+    ctx.beginPath();ctx.strokeStyle='#ECEFF1';ctx.lineWidth=4;
+    ctx.moveTo(px,wY);ctx.lineTo(px,fy+18);
+    ctx.arc(px,fy,18,Math.PI/2,Math.PI*2,false);
+    ctx.lineTo(freeX,fy);ctx.lineTo(freeX,handleY);ctx.stroke();
+    ctx.fillStyle='#4FC3F7';ctx.font='12px sans-serif';ctx.textAlign='center';
+    ctx.fillText('1 段绳',px,fy+38);
+  }else if(P.n===2){
+    var mx=cxL-24, my=wY-22;
+    var fx=mx+14+16;
+    drawPulley(mx,my,14);
+    ctx.strokeStyle='#546E7A';ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(mx,my+14);ctx.lineTo(mx,wY);ctx.stroke();
+    drawPulley(fx,fy,16,beamY+9);
+    ctx.beginPath();ctx.strokeStyle='#ECEFF1';ctx.lineWidth=4;
+    ctx.moveTo(mx-14,beamY+9);ctx.lineTo(mx-14,my);
+    ctx.arc(mx,my,14,Math.PI,0,true);
+    ctx.lineTo(mx+14,fy+16);
+    ctx.arc(fx,fy,16,Math.PI/2,0,true);
+    ctx.lineTo(freeX,fy);ctx.lineTo(freeX,handleY);ctx.stroke();
+    ctx.fillStyle='#546E7A';ctx.fillRect(mx-17,beamY+4,6,10);
+    ctx.fillStyle='#4FC3F7';ctx.font='12px sans-serif';ctx.textAlign='center';
+    ctx.fillText('2 段绳承重',(mx+fx)/2-6,fy+38);
+  }else{
+    var tx1=cxL-46, tx2=cxL+14;
+    drawPulley(tx1,fy,13,beamY+9);
+    drawPulley(tx2,fy,13,beamY+9);
+    var barY=wY-14, barW=(tx2-tx1)+46;
+    ctx.fillStyle='#78909C';
+    ctx.fillRect((tx1+tx2)/2-barW/2,barY,barW,12);
+    ctx.strokeStyle='#546E7A';ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo((tx1+tx2)/2,barY+12);ctx.lineTo((tx1+tx2)/2,wY);ctx.stroke();
+    rope([[tx1-13,fy],[tx1-13,barY],[tx1+13,barY],[tx1+13,fy],
+          [tx2-13,fy],[tx2-13,barY],[tx2+13,barY],[tx2+13,fy],
+          [freeX,fy],[freeX,handleY]]);
+    ctx.fillStyle='#4FC3F7';ctx.font='12px sans-serif';ctx.textAlign='center';
+    ctx.fillText('4 段绳承重',(tx1+tx2)/2,fy+38);
+  }
+  /* 重物 */
+  var grd=ctx.createLinearGradient(0,wY,0,wY+wH);
+  grd.addColorStop(0,'#FF8A65');grd.addColorStop(1,'#D84315');
+  ctx.fillStyle=grd;
+  ctx.fillRect(cxL-wW/2,wY,wW,wH);
+  ctx.strokeStyle='#FFCCBC';ctx.lineWidth=2;
+  ctx.strokeRect(cxL-wW/2,wY,wW,wH);
+  ctx.fillStyle='#fff';ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  ctx.fillText(P.m+' kg',cxL,wY+wH/2+5);
+  ctx.fillStyle='#FFD54F';ctx.font='12px sans-serif';
+  ctx.fillText('↑ '+P.lifted.toFixed(1)+' / 2 m',cxL,wY-8);
+  /* 2m 目标线 */
+  var ty=wY0-LIFT_PX;
+  ctx.strokeStyle='#66BB6A';ctx.lineWidth=2;ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(cxL-wW/2-24,ty);ctx.lineTo(cxL+wW/2+24,ty);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#66BB6A';ctx.font='12px sans-serif';ctx.textAlign='left';
+  ctx.fillText('2m 目标线',cxL+wW/2+28,ty+4);
+  /* 右侧：拉绳动画 */
+  ctx.strokeStyle='#ECEFF1';ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(freeX,fy);ctx.lineTo(freeX,handleY);ctx.stroke();
+  var ropeLen=Math.max(1,handleY-beamY-8);
+  ctx.fillStyle='#B0BEC5';
+  for(var k=0;k<4;k++){
+    var ky=beamY+8+(((k*46-P.pulled*PXM)%ropeLen)+ropeLen)%ropeLen;
+    ctx.beginPath();ctx.arc(freeX,ky,4,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle=P.pulling?'#FFD54F':'#78909C';
+  ctx.beginPath();ctx.arc(freeX,handleY,13,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#0a0e1a';ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+  ctx.fillText('拉',freeX,handleY+4);
+  ctx.textAlign='center';ctx.fillStyle='#c5cae9';ctx.font='13px sans-serif';
+  ctx.fillText('拉力 F = '+P.F.toFixed(1)+' N（恒定）',freeX,yBot-64);
+  ctx.fillStyle='#FFD54F';
+  ctx.fillText('已拉绳 '+P.pulled.toFixed(1)+' / 需 '+(P.n*P.h).toFixed(0)+' m',freeX,yBot-44);
+  ctx.fillStyle='#78909C';ctx.font='12px sans-serif';
+  ctx.fillText('绳速 1.2 m/s · 重物 '+(ROPE_V/P.n).toFixed(2)+' m/s',freeX,yBot-24);
+}
+</script>
+</body>
+</html>

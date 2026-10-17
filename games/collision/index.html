@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>碰撞实验</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#cv{position:fixed;inset:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,14,26,.7);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.pill b{color:#FFD54F}
+.spacer{flex:1}
+.iconBtn{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(10,14,26,.7);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#panel{position:fixed;left:10px;right:10px;bottom:10px;z-index:6;background:rgba(10,14,26,.88);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:10px 14px}
+.ctl{margin:4px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:#c5cae9;margin-bottom:0}
+.ctl label b{color:#FFD54F}
+input[type=range]{width:100%;height:44px;-webkit-appearance:none;appearance:none;background:transparent;margin:0;touch-action:auto}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#FFB74D;margin-top:-11px;box-shadow:0 0 8px rgba(255,183,77,.8)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-radius:50%;background:#FFB74D}
+.rowBtns{display:flex;gap:10px;margin-top:6px}
+.actBtn{flex:1;min-height:52px;border:none;border-radius:12px;font-size:17px;font-weight:bold;color:#fff;background:linear-gradient(135deg,#FF7043,#FF5252);cursor:pointer}
+.actBtn:active{transform:scale(.96)}
+.actBtn:disabled{opacity:.45}
+#readout{font-size:13px;color:#c5cae9;line-height:1.6;margin-top:6px;min-height:40px}
+#readout b{color:#FFD54F}
+.overlay{position:fixed;inset:0;background:rgba(3,5,12,.9);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.card{background:linear-gradient(160deg,#141a2e,#0a0e1a);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:26px 24px;max-width:370px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:88vh;overflow-y:auto}
+.card h1{font-size:26px;margin-bottom:6px}
+.card h2{font-size:17px;color:#4FC3F7;margin:12px 0 6px}
+.card p{font-size:14px;color:#c5cae9;line-height:1.7;margin:8px 0;text-align:left}
+.card p.c{text-align:center}
+.formula{background:rgba(79,195,247,.1);border:1px dashed rgba(79,195,247,.5);border-radius:10px;padding:10px;font-size:14px;color:#FFD54F;margin:10px 0;font-family:monospace;word-break:break-all}
+.bigBtn{display:inline-block;margin-top:14px;padding:14px 52px;font-size:18px;border:none;border-radius:999px;background:linear-gradient(135deg,#4FC3F7,#7E57C2);color:#fff;cursor:pointer;min-height:52px}
+.bigBtn:active{transform:scale(.96)}
+.score{font-size:44px;font-weight:bold;color:#FFEB3B;margin:6px 0}
+.hidden{display:none!important}
+.optBtn{display:block;width:100%;min-height:48px;margin:8px 0;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:16px;cursor:pointer}
+.optBtn:active{transform:scale(.97)}
+.optBtn.right{border-color:#66BB6A;background:rgba(102,187,106,.25)}
+.optBtn.wrong{border-color:#FF5252;background:rgba(255,82,82,.25)}
+.optBtn:disabled{opacity:.8}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill" id="roundPill">第 <b>1</b>/5 轮</div>
+  <div class="pill">得分 <b id="scorePill">0</b></div>
+  <div class="spacer"></div>
+  <button class="iconBtn" id="muteBtn" title="静音">🔊</button>
+  <button class="iconBtn" id="pauseBtn" title="暂停">⏸</button>
+</div>
+<div id="panel">
+  <div class="ctl"><label>调 m₂ 初速 v₂（负值 = 向左） <b id="v2Val">0 m/s</b></label>
+    <input type="range" id="v2Slider" min="-3" max="3" step="0.5" value="0">
+  </div>
+  <div class="rowBtns"><button class="actBtn" id="fireBtn">🚀 发射</button></div>
+  <div id="readout"></div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="card">
+    <h1>💥 碰撞实验</h1>
+    <p class="c" style="color:#4FC3F7">🔬 初中物理 · 力学实验</p>
+    <p>水平气垫导轨上，m₁ 以 v₁ 向右滑来。拖滑杆设定 m₂ 的初速 v₂（-3~+3 m/s，负值表示向左），按<strong style="color:#fff">发射</strong>。碰撞类型每轮随机：<strong style="color:#66BB6A">弹性碰撞</strong>或<strong style="color:#FFB74D">完全非弹性碰撞（两车粘连）</strong>。目标：让碰后 m₂ 的速度 v₂′ 命中目标 Vt（误差 &lt; 0.3 m/s）。每轮 3 次机会：1 次命中得 100 分！</p>
+    <h2>📏 本实验公式</h2>
+    <div class="formula">弹性: v₂′=[2m₁v₁+(m₂-m₁)v₂]/(m₁+m₂)<br>非弹性: v′=(m₁v₁+m₂v₂)/(m₁+m₂)</div>
+    <button class="bigBtn" id="startBtn">开始实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h1>⏸ 已暂停</h1>
+    <p class="c">实验已暂停，数据保留</p>
+    <button class="bigBtn" id="resumeBtn">继续实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="quizOv">
+  <div class="card">
+    <h1 id="quizTitle">🤔 预测一下</h1>
+    <p class="c" id="quizQ"></p>
+    <div id="quizOpts"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="card">
+    <h1>🎓 实验完成</h1>
+    <div class="score" id="finalScore">0</div>
+    <p class="c" id="bestLine">历史最高：0</p>
+    <h2>📝 实验结论</h2>
+    <p id="conclusion"></p>
+    <div class="formula" id="endFormula"></div>
+    <button class="bigBtn" id="retryBtn">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 基础框架（勿改） ============ */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0,DPR=1,PANEL_H=0;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  PANEL_H=document.getElementById('panel').offsetHeight||150;
+  if(window.onResize)window.onResize();
+}
+window.addEventListener('resize',resize);
+var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,delay){if(muted)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.15,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.06,'square',0.08);}
+function sGood(){tone(660,0.1,'sine',0.15);tone(880,0.15,'sine',0.15,0.1);}
+function sBad(){tone(220,0.2,'sawtooth',0.12);tone(160,0.25,'sawtooth',0.12,0.12);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++){tone(n[i],0.15,'sine',0.15,i*0.12);}}
+function sTick(){tone(440,0.05,'square',0.06);}
+function buzz(ms){try{if(navigator.vibrate){navigator.vibrate(ms||30);}}catch(e){}}
+var floats=[];
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color||'#FFD54F',life:1});}
+function drawFloats(dt){ctx.textAlign='center';for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.life-=dt*0.7;f.y-=34*dt;if(f.life<=0){floats.splice(i,1);continue;}ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;}}
+var HSKEY='g100_collision_hs';
+function getBest(){return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}
+function setBest(v){if(v>getBest()){localStorage.setItem(HSKEY,String(v));}}
+function $(id){return document.getElementById(id);}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function setMuteBtn(){$('muteBtn').textContent=muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted){sClick();}});
+setMuteBtn();
+/* ============ 游戏状态（按需改） ============ */
+var state='start',paused=false,round=1,score=0,lastT=0;
+function updHUD(){$('roundPill').innerHTML='第 <b>'+round+'</b>/5 轮';$('scorePill').textContent=score;}
+function addScore(n,x,y){score+=n;updHUD();if(x!==undefined){floatText(x,y,'+'+n,n>=80?'#66BB6A':'#FFD54F');}}
+$('pauseBtn').addEventListener('click',function(){if(state!=='play')return;sClick();paused=true;show('pauseOv');});
+$('resumeBtn').addEventListener('click',function(){sClick();paused=false;hide('pauseOv');lastT=performance.now();});
+$('startBtn').addEventListener('click',function(){sClick();hide('startOv');startGame();});
+$('retryBtn').addEventListener('click',function(){sClick();hide('endOv');startGame();});
+function startGame(){round=1;score=0;updHUD();state='play';paused=false;if(window.onStart)window.onStart();}
+/* quiz overlay helper */
+var quizCb=null;
+function askQuiz(title,question,options,cb){
+  $('quizTitle').textContent=title;$('quizQ').textContent=question;
+  var box=$('quizOpts');box.innerHTML='';quizCb=cb;
+  options.forEach(function(op,i){
+    var b=document.createElement('button');b.className='optBtn';b.textContent=op;
+    b.addEventListener('click',function(){cb(i,b);});
+    box.appendChild(b);
+  });
+  show('quizOv');
+}
+function markQuiz(chosen,correct){
+  var btns=$('quizOpts').children;
+  for(var i=0;i<btns.length;i++){btns[i].disabled=true;if(i===correct){btns[i].classList.add('right');}}
+  if(chosen!==correct&&btns[chosen]){btns[chosen].classList.add('wrong');}
+  setTimeout(function(){hide('quizOv');if(window.onQuizDone){window.onQuizDone(chosen===correct);}},900);
+}
+function endGame(conclusion,formula){
+  state='end';setBest(score);sWin();
+  $('finalScore').textContent=score+' / 500';
+  $('bestLine').textContent='历史最高：'+getBest();
+  $('conclusion').textContent=conclusion;
+  $('endFormula').textContent=formula;
+  show('endOv');
+}
+/* 主循环：游戏实现 window.onFrame(dt) 绘制+更新；window.onStart 初始化第一轮 */
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(state!=='play'||paused)return;
+  ctx.clearRect(0,0,W,H);
+  if(window.onFrame){window.onFrame(dt);}
+  drawFloats(dt);
+}
+resize();updHUD();requestAnimationFrame(function(t){lastT=t;requestAnimationFrame(loop);});
+/* ============ 碰撞实验 ============ */
+var CONC='实验结论：碰撞前后总动量守恒 p₁+p₂=p₁′+p₂′；弹性碰撞动能也守恒，非弹性碰撞动能有损失（转化为内能）。';
+var FORM='m₁v₁+m₂v₂ = m₁v₁′+m₂v₂′';
+var PX=46; /* px per (m/s) */
+var C=null;
+function rnd(a){return a[Math.floor(Math.random()*a.length)];}
+function elV2(m1,v1,m2,v2){return (2*m1*v1+(m2-m1)*v2)/(m1+m2);}
+function elV1(m1,v1,m2,v2){return ((m1-m2)*v1+2*m2*v2)/(m1+m2);}
+function inV(m1,v1,m2,v2){return (m1*v1+m2*v2)/(m1+m2);}
+function cartW(m){return 40+10*m;}
+function setupRound(){
+  var cands=[];
+  do{
+    C={m1:1+Math.floor(Math.random()*4),m2:1+Math.floor(Math.random()*4),
+       v1:rnd([2,3,4,5]),v2:0,type:Math.random()<0.5?0:1,
+       att:1,phase:'ready',t:0,flash:0,collided:false,overT:0,
+       v1a:0,v2a:0,vc:0,parts:[],msg:''};
+    /* 选一个一定可达的目标 Vt：从离散 v₂ 候选中反推；无解组合直接重抽 */
+    cands=[];
+    for(var v=-3;v<=3.001;v+=0.5){
+      if(v>=C.v1)continue; /* 保证 m₁ 能追上 */
+      var r=C.type?inV(C.m1,C.v1,C.m2,v):elV2(C.m1,C.v1,C.m2,v);
+      if(r>=1&&r<=6)cands.push({v2:v,res:r});
+    }
+  }while(!cands.length);
+  C.Vt=Math.round(rnd(cands).res*10)/10;
+  $('v2Slider').value=0;$('v2Val').textContent='0 m/s';
+  $('fireBtn').disabled=false;
+  resetPos();
+}
+function resetPos(){C.x1=56;C.x2=W-56;C.phase='ready';C.t=0;C.collided=false;}
+window.onStart=function(){setupRound();};
+$('v2Slider').addEventListener('input',function(){
+  var v=parseFloat(this.value);
+  $('v2Val').textContent=v+' m/s';
+  if(C&&C.phase==='ready'){C.v2=v;}
+  sTick();
+});
+$('fireBtn').addEventListener('click',function(){
+  if(state!=='play'||paused||!C||C.phase!=='ready')return;
+  ac();sClick();
+  C.v2=parseFloat($('v2Slider').value);
+  C.phase='run';C.t=0;C.collided=false;
+  $('fireBtn').disabled=true;
+});
+function crashSound(){
+  tone(150,0.12,'square',0.2);tone(90,0.2,'sine',0.22,0.03);tone(300,0.08,'triangle',0.12,0.02);
+}
+function doCollide(){
+  C.collided=true;C.phase='flash';C.flash=0.3;
+  if(C.type===0){C.v1a=elV1(C.m1,C.v1,C.m2,C.v2);C.v2a=elV2(C.m1,C.v1,C.m2,C.v2);}
+  else{C.vc=inV(C.m1,C.v1,C.m2,C.v2);C.v1a=C.v2a=C.vc;}
+  spawnStars((C.x1+C.x2)/2,trackY()-22);
+  crashSound();buzz(40);
+}
+function bothOff(){
+  var w1=cartW(C.m1)/2,w2=cartW(C.m2)/2;
+  return C.x1<-w1-20&&C.x2<-w2-20||C.x1>W+w1+20&&C.x2>W+w2+20;
+}
+function finishAttempt(hit){
+  if(hit){
+    var v2p=C.type===1?C.vc:C.v2a;
+    var d=Math.abs(v2p-C.Vt);
+    if(d<0.3){
+      var sc=C.att===1?100:(C.att===2?70:40);
+      C.msg='本次 v₂′='+v2p.toFixed(1)+' m/s，目标 Vt='+C.Vt.toFixed(1)+' m/s ✅ 达标！';
+      addScore(sc);floatText(W/2,150,'+'+sc,'#66BB6A');sGood();buzz(60);
+      C.phase='over';C.overT=1.6;return;
+    }
+    C.msg='本次 v₂′='+v2p.toFixed(1)+' m/s，目标 Vt='+C.Vt.toFixed(1)+' m/s ❌ 还差 '+d.toFixed(1)+' m/s';
+    sBad();
+  }else{
+    C.msg='⚠️ 两车没有相撞！把 v₂ 往负方向调（向左迎上去）再试';
+    sBad();
+  }
+  C.att++;
+  if(C.att>3){
+    C.msg+='；3 次机会用完，本轮 +10 分';
+    addScore(10);floatText(W/2,150,'+10','#FFD54F');
+    C.phase='over';C.overT=2.0;
+  }else{
+    resetPos();$('fireBtn').disabled=false;
+  }
+}
+function nextRound(){
+  if(round>=5){endGame(CONC,FORM);}
+  else{round++;updHUD();setupRound();}
+}
+function trackY(){return Math.min(190,H-PANEL_H-80);}
+window.onFrame=function(dt){
+  if(C.phase==='run'||C.phase==='post'){
+    var vv=C.phase==='run'?[C.v1,C.v2]:[C.v1a,C.v2a];
+    C.x1+=vv[0]*PX*dt;C.x2+=vv[1]*PX*dt;
+    if(C.type===1&&C.phase==='post'){C.x2=C.x1+(cartW(C.m1)+cartW(C.m2))/2;}
+    C.t+=dt;
+    if(C.phase==='run'&&!C.collided){
+      if(C.x1+cartW(C.m1)/2>=C.x2-cartW(C.m2)/2){doCollide();}
+      else if(C.t>9||bothOff()){finishAttempt(false);}
+    }else if(C.phase==='post'){
+      if(C.t>9||bothOff()){finishAttempt(true);}
+    }
+  }else if(C.phase==='flash'){
+    C.flash-=dt;if(C.flash<=0){C.phase='post';C.t=0;}
+  }else if(C.phase==='over'){
+    C.overT-=dt;if(C.overT<=0){nextRound();return;}
+  }
+  for(var i=C.parts.length-1;i>=0;i--){
+    var p=C.parts[i];
+    p.life-=dt*1.4;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=160*dt;p.rot+=p.vr*dt;
+    if(p.life<=0){C.parts.splice(i,1);}
+  }
+  drawAll();
+  updateRO();
+};
+function updateRO(){
+  var v2=parseFloat($('v2Slider').value);
+  var p=C.m1*C.v1+C.m2*v2;
+  $('readout').innerHTML='碰前总动量 p=m₁v₁+m₂v₂=<b>'+p.toFixed(1)+'</b> kg·m/s'+
+    '<br>'+(C.msg||'拖动滑杆设定 v₂，按发射开始碰撞');
+}
+function spawnStars(x,y){
+  for(var i=0;i<16;i++){
+    var a=Math.random()*Math.PI*2,sp=60+Math.random()*160;
+    C.parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-60,
+      life:0.7+Math.random()*0.4,rot:Math.random()*6,vr:(Math.random()-0.5)*10,
+      r:6+Math.random()*8,col:i%2?'#FFD54F':'#FFF176'});
+  }
+}
+function drawStar(x,y,r,rot,col,alpha){
+  ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.globalAlpha=alpha;ctx.fillStyle=col;
+  ctx.beginPath();
+  for(var i=0;i<10;i++){
+    var rr=i%2?r*0.45:r,a=i*Math.PI/5-Math.PI/2;
+    ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);
+  }
+  ctx.closePath();ctx.fill();ctx.restore();ctx.globalAlpha=1;
+}
+function vArrow(x,y,v,col){
+  if(Math.abs(v)<0.05)return;
+  var len=Math.min(90,Math.abs(v)*16),dir=v>0?1:-1;
+  var x2=x+dir*len;
+  ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x2,y);ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2,y);ctx.lineTo(x2-dir*9,y-5);ctx.lineTo(x2-dir*9,y+5);ctx.closePath();ctx.fill();
+}
+function drawCart(x,m,label,col,vel,velTxt){
+  var w=cartW(m),h=46,ty=trackY();
+  var grd=ctx.createLinearGradient(0,ty-h,0,ty);
+  grd.addColorStop(0,col);grd.addColorStop(1,'#222a40');
+  ctx.fillStyle=grd;
+  ctx.fillRect(x-w/2,ty-h,w,h);
+  ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=2;
+  ctx.strokeRect(x-w/2,ty-h,w,h);
+  ctx.fillStyle='#fff';ctx.font='bold 15px sans-serif';ctx.textAlign='center';
+  ctx.fillText(m+'kg',x,ty-h/2+5);
+  ctx.fillStyle=col;ctx.font='bold 13px sans-serif';
+  ctx.fillText(label,x,ty-h-24);
+  vArrow(x,ty-h-12,vel,col);
+  if(velTxt){ctx.fillStyle='#c5cae9';ctx.font='12px sans-serif';ctx.fillText(velTxt,x,ty+22);}
+}
+function drawAll(){
+  var ty=trackY();
+  /* 顶部信息条 */
+  ctx.textAlign='center';
+  var tcol=C.type===0?'#66BB6A':'#FFB74D';
+  var ttxt=C.type===0?'🟢 弹性碰撞':'🟠 完全非弹性碰撞（两车粘连）';
+  ctx.font='bold 16px sans-serif';ctx.fillStyle=tcol;
+  ctx.fillText(ttxt,W/2,86);
+  ctx.font='14px sans-serif';ctx.fillStyle='#FFD54F';
+  ctx.fillText('目标 Vt = '+C.Vt.toFixed(1)+' m/s   ·   尝试 '+C.att+'/3',W/2,110);
+  /* 导轨 */
+  ctx.strokeStyle='#3a4560';ctx.lineWidth=6;
+  ctx.beginPath();ctx.moveTo(14,ty+2);ctx.lineTo(W-14,ty+2);ctx.stroke();
+  ctx.strokeStyle='#546E7A';ctx.lineWidth=2;
+  for(var tx=14;tx<=W-14;tx+=24){
+    ctx.beginPath();ctx.moveTo(tx,ty+6);ctx.lineTo(tx-8,ty+18);ctx.stroke();
+  }
+  /* 小车 */
+  var v2show=C.phase==='ready'?parseFloat($('v2Slider').value):C.v2;
+  var v1show=C.phase==='ready'?C.v1:(C.phase==='run'?C.v1:C.v1a);
+  var v2anim=C.phase==='ready'?v2show:(C.phase==='run'?C.v2:C.v2a);
+  drawCart(C.x1,C.m1,'m₁','#4FC3F7',v1show,'v₁='+v1show.toFixed(1)+' m/s');
+  drawCart(C.x2,C.m2,'m₂','#FFB74D',v2anim,'v₂='+v2anim.toFixed(1)+' m/s');
+  /* 碰撞闪光 */
+  if(C.phase==='flash'){
+    var cx=(C.x1+C.x2)/2,cy=ty-23;
+    var k=1-C.flash/0.3;
+    ctx.strokeStyle='rgba(255,213,79,'+(1-k)+')';ctx.lineWidth=5;
+    ctx.beginPath();ctx.arc(cx,cy,12+k*46,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,'+(0.8*(1-k))+')';
+    ctx.beginPath();ctx.arc(cx,cy,20,0,Math.PI*2);ctx.fill();
+    drawStar(cx,cy,26+k*10,k*2,'#FFD54F',1-k*0.5);
+  }
+  /* 星形粒子 */
+  for(var i=0;i<C.parts.length;i++){
+    var p=C.parts[i];
+    drawStar(p.x,p.y,p.r,p.rot,p.col,Math.max(0,Math.min(1,p.life)));
+  }
+  if(C.phase==='ready'){
+    ctx.fillStyle='rgba(197,202,233,.75)';ctx.font='13px sans-serif';ctx.textAlign='center';
+    ctx.fillText('设定 v₂ 后按发射',W/2,ty+52);
+  }
+}
+</script>
+</body>
+</html>
