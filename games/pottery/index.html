@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>陶艺拉坯 - 游戏100</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{background:#0d1512;color:#e0f2f1;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#wrap{max-width:400px;margin:0 auto;padding:8px;position:relative}
+#hud{display:flex;align-items:center;justify-content:space-between;background:#12332c;border:1px solid #00695c;border-radius:12px;padding:8px 10px;margin-bottom:8px;font-size:14px}
+#hud .pc{font-weight:700;color:#80cbc4}
+#hud .tm{font-weight:800;font-size:18px;color:#ffcc80}
+#hud .tm.low{color:#ff5252;animation:blink .5s infinite alternate}
+@keyframes blink{to{opacity:.4}}
+#hud .row{display:flex;gap:6px;align-items:center}
+button{font-family:inherit;border:none;border-radius:10px;cursor:pointer;touch-action:manipulation}
+.icobtn{min-width:44px;min-height:40px;background:#0b3d36;color:#b2dfdb;font-size:18px;padding:6px 8px;border:1px solid #00796b}
+#cv{display:block;width:100%;max-width:360px;height:auto;margin:0 auto;border-radius:14px;border:2px solid #00695c;background:#0a1a16;touch-action:none}
+#matchbar{height:14px;background:#0b2b26;border-radius:7px;margin-top:8px;overflow:hidden;border:1px solid #00796b}
+#matchfill{height:100%;width:0%;background:linear-gradient(90deg,#00897b,#80cbc4);transition:width .2s}
+#matchlabel{display:flex;justify-content:space-between;font-size:13px;color:#b2dfdb;margin-top:4px}
+#matchlabel b{color:#ffcc80}
+#tip{font-size:12px;color:#80a39e;text-align:center;margin-top:6px;min-height:18px}
+#overlay{position:absolute;inset:8px;background:rgba(6,14,12,.93);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;z-index:10}
+#overlay.hidden{display:none}
+#overlay h1{font-size:30px;color:#80cbc4}
+#overlay h2{font-size:24px;color:#80cbc4}
+#overlay p{font-size:14px;line-height:1.7;color:#b2dfdb;max-width:300px}
+#overlay .big{font-size:44px}
+#overlay .btn{min-width:200px;min-height:52px;font-size:18px;font-weight:700;background:linear-gradient(180deg,#26a69a,#00897b);color:#fff;border:2px solid #4db6ac;margin-top:4px}
+#score{font-size:16px;color:#ffcc80;font-weight:700}
+@keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+#overlay:not(.hidden) .card{animation:pop .3s ease-out}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="pc" id="pieceLabel">🏺 第1件</span>
+    <span class="tm" id="timeLabel">60</span>
+    <div class="row">
+      <button class="icobtn" id="pauseBtn">⏸</button>
+      <button class="icobtn" id="muteBtn">🔊</button>
+    </div>
+  </div>
+  <canvas id="cv" width="360" height="520"></canvas>
+  <div id="matchbar"><div id="matchfill"></div></div>
+  <div id="matchlabel"><span>匹配度 <b id="matchV">0%</b>（目标≥85%）</span><span id="targetLabel">目标：瓶</span></div>
+  <div id="tip">👆 在陶坯上滑动：向内推收窄 · 向外拉外扩</div>
+  <div id="overlay"><div class="card" id="ovCard"></div></div>
+</div>
+<script>
+'use strict';
+/* ===== 基础 ===== */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=360,H=520,CX=180,YT=140,YB=400,N=64,MINR=16,MAXR=112;
+function $(id){return document.getElementById(id);}
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function yOf(i){return YT+(YB-YT)*i/(N-1);}
+/* ===== 音效 ===== */
+var AC=null,muted=localStorage.getItem('g100_sound')==='0',noiseBuf=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;var t=c.currentTime;var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(40,f+slide),t+dur);g.gain.setValueAtTime(vol||0.15,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+dur+0.02);}
+function sClick(){tone(660,0.07,'triangle',0.12);}
+function sDone(){var n=[392,523,659,784];for(var i=0;i<n.length;i++)(function(f,i){setTimeout(function(){tone(f,0.25,'triangle',0.16);},i*110);})(n[i],i);}
+function sFail(){tone(150,0.4,'sawtooth',0.13,-70);}
+function sTick(){tone(980,0.05,'square',0.07);}
+function sScrape(){
+  if(muted)return;var c=ac();if(!c)return;
+  if(!noiseBuf){noiseBuf=c.createBuffer(1,c.sampleRate*0.12,c.sampleRate);var d=noiseBuf.getChannelData(0);for(var i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*0.5;}
+  var t=c.currentTime,s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();
+  s.buffer=noiseBuf;f.type='lowpass';f.frequency.value=900;g.gain.setValueAtTime(0.05,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.12);
+  s.connect(f);f.connect(g);g.connect(c.destination);s.start(t);
+}
+function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+/* ===== 器型 ===== */
+function profFrom(pts){ // pts: [[t,r],...] t:0顶部->1底部
+  var r=new Array(N);
+  for(var i=0;i<N;i++){
+    var t=i/(N-1),k=0;
+    while(k<pts.length-2&&t>pts[k+1][0])k++;
+    var t0=pts[k][0],r0=pts[k][1],t1=pts[k+1][0],r1=pts[k+1][1];
+    var u=t1>t0?(t-t0)/(t1-t0):0;u=clamp(u,0,1);u=u*u*(3-2*u);
+    r[i]=r0+(r1-r0)*u;
+  }
+  return r;
+}
+var SHAPES=[
+ {name:'瓶',icon:'🏺',p:profFrom([[0,26],[0.14,26],[0.3,58],[0.55,82],[0.8,72],[1,46]])},
+ {name:'碗',icon:'🥣',p:profFrom([[0,96],[0.35,80],[0.7,55],[1,34]])},
+ {name:'壶',icon:'🫖',p:profFrom([[0,40],[0.2,62],[0.45,90],[0.7,80],[1,54]])},
+ {name:'杯',icon:'🥛',p:profFrom([[0,60],[0.5,57],[1,50]])},
+ {name:'盘',icon:'🍽',p:profFrom([[0,14],[0.58,15],[0.78,58],[1,106]])}
+];
+/* ===== 状态 ===== */
+var mode='start',paused=false,gameTime=0,rotT=0;
+var piece=0,order=[],rL=[],rR=[],target=null,timeLeft=60,total=0,pieceScores=[];
+var particles=[],floats=[],shaping=false,lastScrape=0,matchShown=0;
+var hsKey='g100_pottery_hs';
+function best(){return parseInt(localStorage.getItem(hsKey)||'0',10)||0;}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function startGame(){
+  piece=0;total=0;pieceScores=[];
+  order=shuffle([0,1,2,3,4]).slice(0,3);
+  loadPiece();mode='play';paused=false;hideOv();
+}
+function loadPiece(){
+  target=SHAPES[order[piece]];
+  rL=[];rR=[];
+  var ph=Math.random()*6.283,amp=16+Math.random()*8; // 初始给一团歪坯，避免开局即达标
+  for(var i=0;i<N;i++){
+    var wob=amp*Math.sin(i*0.45+ph);
+    rL.push(clamp(62+wob+(Math.random()*10-5),MINR,MAXR));
+    rR.push(clamp(62-wob*0.7+(Math.random()*10-5),MINR,MAXR));
+  }
+  timeLeft=60;matchShown=0;particles=[];floats=[];shaping=false;
+  $('pieceLabel').textContent=target.icon+' 第'+(piece+1)+'件/3';
+  $('targetLabel').textContent='目标：'+target.name;
+  $('timeLabel').textContent='60';$('timeLabel').classList.remove('low');
+  $('matchfill').style.width='0%';$('matchV').textContent='0%';
+}
+function computeMatch(){
+  var se=0,ae=0;
+  for(var i=0;i<N;i++){var avg=(rL[i]+rR[i])/2;var d=avg-target.p[i];se+=d*d;ae+=Math.abs(rL[i]-rR[i]);}
+  var rmse=Math.sqrt(se/N),asym=ae/N;
+  var m=clamp(100-rmse*1.7,0,100);
+  var s=clamp(100-asym*5,0,100);
+  return 0.75*m+0.25*s;
+}
+/* ===== overlay ===== */
+function showOv(html){$('ovCard').innerHTML=html;$('overlay').classList.remove('hidden');}
+function hideOv(){$('overlay').classList.add('hidden');}
+function bindOv(){var b=$('ovCard').querySelectorAll('button');for(var i=0;i<b.length;i++)b[i].addEventListener('click',sClick);}
+function showStart(){
+  showOv('<div class="big">🏺</div><h1>陶艺拉坯</h1>'+
+  '<p>嘉年华手作坊开张！陶坯在转盘上旋转，<b>手指在陶坯上滑动塑形</b>：<br>👉 向内推 = 收窄 · 向外拉 = 外扩<br>滑动位置的高低决定塑形高度。<br>60 秒内让实线轮廓与虚线目标匹配度 ≥85%，<br>一局完成 3 件，匹配度+对称度综合评分。</p>'+
+  '<div id="score">历史最高：'+best()+' 分</div>'+
+  '<button class="btn" id="startBtn">开始拉坯</button>');
+  bindOv();$('startBtn').addEventListener('click',startGame);
+}
+function endGame(){
+  mode='over';
+  var b=best(),nb=false;
+  if(total>b){localStorage.setItem(hsKey,String(total));nb=true;}
+  sDone();buzz(60);
+  var rows='';for(var i=0;i<pieceScores.length;i++)rows+='<div>'+SHAPES[order[i]].icon+' '+SHAPES[order[i]].name+'：'+pieceScores[i]+' 分</div>';
+  showOv('<div class="big">🎉</div><h2>本局完成！</h2><p>'+rows+'</p><div id="score">总分 '+total+' / 300'+(nb?'<br>🎉 新纪录！':'<br>历史最高 '+Math.max(b,total))+'</div><button class="btn" id="againBtn">再来一局</button>');
+  bindOv();$('againBtn').addEventListener('click',startGame);
+}
+/* ===== 输入 ===== */
+function toGame(e){var r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height};}
+function shapeAt(p){
+  if(p.y<YT-24||p.y>YB+24)return;
+  if(Math.abs(p.x-CX)>150)return;
+  var fi=clamp((p.y-YT)/(YB-YT)*(N-1),0,N-1),i0=Math.floor(fi),i1=Math.min(N-1,i0+1);
+  var side=p.x<CX?'L':'R';
+  var arr=side==='L'?rL:rR;
+  var cur=arr[i0]+(arr[i1]-arr[i0])*(fi-i0);
+  var want=clamp(Math.abs(p.x-CX),MINR,MAXR);
+  var delta=(want-cur)*0.35;
+  if(Math.abs(delta)<0.15)return;
+  var sig=5;
+  for(var j=0;j<N;j++){
+    var g=Math.exp(-((j-fi)*(j-fi))/(2*sig*sig));
+    arr[j]=clamp(arr[j]+delta*g,MINR,MAXR);
+  }
+  shaping=true;
+  for(var k=0;k<2;k++)particles.push({x:p.x+(Math.random()-0.5)*20,y:p.y+(Math.random()-0.5)*10,vx:(Math.random()-0.5)*60,vy:-Math.random()*50-10,life:0.5,t:0,c:'#c98f5f',r:1.5+Math.random()*2});
+  var now=performance.now();
+  if(now-lastScrape>140){lastScrape=now;sScrape();}
+}
+cv.addEventListener('pointerdown',function(e){
+  if(mode!=='play'||paused)return;
+  e.preventDefault();shapeAt(toGame(e));
+  try{cv.setPointerCapture(e.pointerId);}catch(err){}
+  cv._pid=e.pointerId;
+});
+cv.addEventListener('pointermove',function(e){
+  if(mode!=='play'||paused||e.pointerId!==cv._pid)return;
+  if(e.buttons||e.pointerType==='touch')shapeAt(toGame(e));
+});
+function endTouch(e){if(e.pointerId===cv._pid){cv._pid=null;shaping=false;}}
+cv.addEventListener('pointerup',endTouch);
+cv.addEventListener('pointercancel',endTouch);
+$('pauseBtn').addEventListener('click',function(){
+  sClick();
+  if(mode!=='play')return;
+  if(paused){paused=false;hideOv();return;}
+  paused=true;
+  showOv('<div class="big">⏸</div><h2>已暂停</h2><p>转盘停转，陶坯保湿中</p><button class="btn" id="resumeBtn">继续</button>');
+  bindOv();$('resumeBtn').addEventListener('click',function(){paused=false;hideOv();});
+});
+$('muteBtn').addEventListener('click',function(){
+  muted=!muted;localStorage.setItem('g100_sound',muted?'0':'1');
+  $('muteBtn').textContent=muted?'🔇':'🔊';if(!muted)sClick();
+});
+/* ===== 绘制 ===== */
+function clayPath(){
+  ctx.beginPath();
+  ctx.moveTo(CX-rL[0],yOf(0));
+  for(var i=1;i<N;i++)ctx.lineTo(CX-rL[i],yOf(i));
+  for(var j=N-1;j>=0;j--)ctx.lineTo(CX+rR[j],yOf(j));
+  ctx.closePath();
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0e2420');g.addColorStop(1,'#081210');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // 顶部彩旗
+  for(var f=0;f<9;f++){var fx=20+f*38;ctx.fillStyle=['#ff5252','#ffeb3b','#69f0ae','#40c4ff'][f%4];ctx.globalAlpha=0.85;
+    ctx.beginPath();ctx.moveTo(fx,44);ctx.lineTo(fx+20,44);ctx.lineTo(fx+10,60);ctx.closePath();ctx.fill();}
+  ctx.globalAlpha=1;
+  ctx.strokeStyle='#1d4a42';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(10,44);ctx.lineTo(350,44);ctx.stroke();
+  if(mode==='start'){return;}
+  // 转盘
+  ctx.fillStyle='#12332c';ctx.beginPath();ctx.ellipse(CX,432,128,30,0,0,7);ctx.fill();
+  ctx.strokeStyle='#00796b';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(CX,432,128,30,0,0,7);ctx.stroke();
+  ctx.save();ctx.strokeStyle='rgba(178,223,219,.35)';ctx.lineWidth=2;
+  for(var s=0;s<8;s++){var a=rotT+s*Math.PI/4;
+    ctx.beginPath();ctx.moveTo(CX,432);ctx.lineTo(CX+Math.cos(a)*118,432+Math.sin(a)*24);ctx.stroke();}
+  ctx.restore();
+  // 目标虚线
+  ctx.save();ctx.strokeStyle='rgba(255,204,128,.75)';ctx.lineWidth=2;ctx.setLineDash([7,5]);
+  ctx.beginPath();ctx.moveTo(CX-target.p[0],yOf(0));
+  for(var i=1;i<N;i++)ctx.lineTo(CX-target.p[i],yOf(i));
+  for(var j=N-1;j>=0;j--)ctx.lineTo(CX+target.p[j],yOf(j));
+  ctx.closePath();ctx.stroke();ctx.restore();
+  // 陶坯
+  clayPath();
+  var cg=ctx.createLinearGradient(CX-110,0,CX+110,0);
+  cg.addColorStop(0,'#7a4a26');cg.addColorStop(0.35,'#c98f5f');cg.addColorStop(0.6,'#e0aa74');cg.addColorStop(1,'#6e3f20');
+  ctx.fillStyle=cg;ctx.fill();
+  // 旋转 shimmer（裁剪到陶坯内）
+  ctx.save();clayPath();ctx.clip();
+  ctx.fillStyle='rgba(255,255,255,.10)';
+  for(var b=0;b<3;b++){var by=YT+((gameTime*46+b*95)%(YB-YT));ctx.fillRect(CX-115,by,230,10);}
+  ctx.fillStyle='rgba(0,0,0,.14)';
+  ctx.fillRect(CX-115,YT,26,YB-YT);ctx.fillRect(CX+89,YT,26,YB-YT);
+  ctx.restore();
+  ctx.strokeStyle='#4a2a12';ctx.lineWidth=2.5;clayPath();ctx.stroke();
+  // 粒子
+  for(var pi=0;pi<particles.length;pi++){var pt=particles[pi];ctx.globalAlpha=clamp(1-pt.t/pt.life,0,1);ctx.fillStyle=pt.c;ctx.beginPath();ctx.arc(pt.x,pt.y,pt.r,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
+  // 飘字
+  ctx.textAlign='center';
+  for(var fi=0;fi<floats.length;fi++){var fl=floats[fi];ctx.globalAlpha=clamp(1-fl.t/1.4,0,1);ctx.fillStyle=fl.c;ctx.font='bold 22px sans-serif';ctx.fillText(fl.txt,fl.x,fl.y-fl.t*40);}
+  ctx.globalAlpha=1;
+  // 匹配度达标光环
+  if(matchShown>=85){ctx.strokeStyle='rgba(255,235,59,'+(0.4+0.3*Math.sin(gameTime*6))+')';ctx.lineWidth=3;clayPath();ctx.stroke();}
+}
+function floatText(x,y,t,c){floats.push({x:x,y:y,t:0,txt:t,c:c||'#ffcc80'});}
+function burst(x,y){var cs=['#ffeb3b','#ffcc80','#ffffff'];for(var i=0;i<40;i++)particles.push({x:x,y:y,vx:(Math.random()-0.5)*220,vy:-Math.random()*200-30,life:1.1,t:0,c:cs[i%3],r:2+Math.random()*3});}
+/* ===== 主循环 ===== */
+var lastT=0,lastTickSec=-1,matchTimer=0,doneTimer=-1;
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(paused){draw();return;}
+  gameTime+=dt;
+  rotT+=dt*(shaping?2.6:1.2);
+  if(mode==='play'){
+    timeLeft-=dt;
+    var sec=Math.ceil(timeLeft);
+    if(sec!==lastTickSec){lastTickSec=sec;$('timeLabel').textContent=Math.max(0,sec);if(sec<=5&&sec>0){$('timeLabel').classList.add('low');sTick();}}
+    if(timeLeft<=0){
+      pieceScores.push(0);floatText(CX,220,'时间到 +0','#ff8a80');sFail();
+      nextPiece();
+    }else{
+      matchTimer+=dt;
+      if(matchTimer>0.2){matchTimer=0;matchShown=computeMatch();
+        $('matchfill').style.width=matchShown+'%';$('matchV').textContent=Math.round(matchShown)+'%';}
+      if(matchShown>=85&&doneTimer<0){doneTimer=0.9;sDone();buzz(50);burst(CX,260);
+        var sc=Math.round(matchShown);floatText(CX,220,'+'+sc+' 分','#ffcc80');}
+      if(doneTimer>=0){doneTimer-=dt;if(doneTimer<0){pieceScores.push(Math.round(matchShown));nextPiece();}}
+    }
+  }
+  for(var p=particles.length-1;p>=0;p--){var pt=particles[p];pt.t+=dt;pt.x+=pt.vx*dt;pt.y+=pt.vy*dt;pt.vy+=300*dt;if(pt.t>=pt.life)particles.splice(p,1);}
+  for(var f=floats.length-1;f>=0;f--){floats[f].t+=dt;if(floats[f].t>1.4)floats.splice(f,1);}
+  draw();
+}
+function nextPiece(){
+  doneTimer=-1;lastTickSec=-1;shaping=false;
+  piece++;
+  if(piece>=3){total=pieceScores.reduce(function(a,b){return a+b;},0);endGame();}
+  else loadPiece();
+}
+/* ===== 启动 ===== */
+$('muteBtn').textContent=muted?'🔇':'🔊';
+showStart();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
