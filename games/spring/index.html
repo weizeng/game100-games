@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>弹簧振子</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#cv{position:fixed;inset:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,14,26,.7);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.pill b{color:#FFD54F}
+.spacer{flex:1}
+.iconBtn{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(10,14,26,.7);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#panel{position:fixed;left:10px;right:10px;bottom:10px;z-index:6;background:rgba(10,14,26,.88);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:10px 14px}
+.ctl{margin:4px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:#c5cae9;margin-bottom:0}
+.ctl label b{color:#FFD54F}
+input[type=range]{width:100%;height:44px;-webkit-appearance:none;appearance:none;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#BA68C8;margin-top:-11px;box-shadow:0 0 8px rgba(186,104,200,.8)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-radius:50%;background:#BA68C8}
+.rowBtns{display:flex;gap:10px;margin-top:6px}
+.actBtn{flex:1;min-height:48px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#fff;background:linear-gradient(135deg,#BA68C8,#7E57C2);cursor:pointer}
+.actBtn:active{transform:scale(.96)}
+.actBtn.ghost{background:rgba(255,255,255,.12)}
+.actBtn:disabled{opacity:.45}
+#readout{font-size:13px;color:#c5cae9;line-height:1.6;margin-top:6px;min-height:20px}
+#readout b{color:#FFD54F}
+.overlay{position:fixed;inset:0;background:rgba(3,5,12,.9);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.card{background:linear-gradient(160deg,#141a2e,#0a0e1a);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:26px 24px;max-width:370px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:88vh;overflow-y:auto}
+.card h1{font-size:26px;margin-bottom:6px}
+.card h2{font-size:17px;color:#BA68C8;margin:12px 0 6px}
+.card p{font-size:14px;color:#c5cae9;line-height:1.7;margin:8px 0;text-align:left}
+.card p.c{text-align:center}
+.formula{background:rgba(186,104,200,.1);border:1px dashed rgba(186,104,200,.5);border-radius:10px;padding:10px;font-size:15px;color:#FFD54F;margin:10px 0;font-family:monospace;word-break:break-all}
+.bigBtn{display:inline-block;margin-top:14px;padding:14px 52px;font-size:18px;border:none;border-radius:999px;background:linear-gradient(135deg,#BA68C8,#7E57C2);color:#fff;cursor:pointer;min-height:52px}
+.bigBtn:active{transform:scale(.96)}
+.score{font-size:44px;font-weight:bold;color:#FFEB3B;margin:6px 0}
+.hidden{display:none!important}
+.optBtn{display:block;width:100%;min-height:48px;margin:8px 0;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:16px;cursor:pointer}
+.optBtn:active{transform:scale(.97)}
+.optBtn.right{border-color:#66BB6A;background:rgba(102,187,106,.25)}
+.optBtn.wrong{border-color:#FF5252;background:rgba(255,82,82,.25)}
+.optBtn:disabled{opacity:.8}
+.segRow{display:flex;gap:8px;margin:6px 0}
+.segBtn{flex:1;min-height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#fff;font-size:13px;cursor:pointer}
+.segBtn.sel{border-color:#BA68C8;background:rgba(186,104,200,.25);color:#BA68C8;font-weight:bold}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill" id="roundPill">第 <b>1</b>/5 轮</div>
+  <div class="pill">得分 <b id="scorePill">0</b></div>
+  <div class="spacer"></div>
+  <button class="iconBtn" id="muteBtn" title="静音">🔊</button>
+  <button class="iconBtn" id="pauseBtn" title="暂停">⏸</button>
+</div>
+<div id="panel">
+  <div class="ctl"><label>劲度系数 k <b id="kVal">60 N/m</b></label><input type="range" id="kSl" min="10" max="200" step="1" value="60"></div>
+  <div class="ctl"><label>质量块 m <b id="mVal">1.0 kg</b></label><input type="range" id="mSl" min="0.2" max="5" step="0.1" value="1"></div>
+  <div class="ctl"><label>振幅 A（验证：不影响周期） <b id="aVal">0.25 m</b></label><input type="range" id="aSl" min="0.1" max="0.5" step="0.05" value="0.25"></div>
+  <div id="readout"></div>
+  <div class="rowBtns"><button class="actBtn" id="relBtn">释放 🚀</button></div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="card">
+    <h1>🌀 弹簧振子</h1>
+    <p class="c" style="color:#BA68C8">🔬 初中物理 · 力学实验</p>
+    <p>调节劲度系数 k 和质量 m，让弹簧振子的周期等于每轮的目标周期。按「释放」后系统自动测量 3 个周期的平均值并判分。试试改变振幅 A：周期会变吗？</p>
+    <h2>📏 本实验公式</h2>
+    <div class="formula">T = 2π√(m/k)　F = kx</div>
+    <button class="bigBtn" id="startBtn">开始实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h1>⏸ 已暂停</h1>
+    <p class="c">实验已暂停，数据保留</p>
+    <button class="bigBtn" id="resumeBtn">继续实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="quizOv">
+  <div class="card">
+    <h1 id="quizTitle">🤔 预测一下</h1>
+    <p class="c" id="quizQ"></p>
+    <div id="quizOpts"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="card">
+    <h1>🎓 实验完成</h1>
+    <div class="score" id="finalScore">0</div>
+    <p class="c" id="bestLine">历史最高：0</p>
+    <h2>📝 实验结论</h2>
+    <p id="conclusion"></p>
+    <div class="formula" id="endFormula"></div>
+    <button class="bigBtn" id="retryBtn">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 基础框架（勿改） ============ */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0,DPR=1,PANEL_H=0;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  PANEL_H=document.getElementById('panel').offsetHeight||150;
+  if(window.onResize)window.onResize();
+}
+window.addEventListener('resize',resize);
+var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,delay){if(muted)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.15,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.06,'square',0.08);}
+function sGood(){tone(660,0.1,'sine',0.15);tone(880,0.15,'sine',0.15,0.1);}
+function sBad(){tone(220,0.2,'sawtooth',0.12);tone(160,0.25,'sawtooth',0.12,0.12);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++){tone(n[i],0.15,'sine',0.15,i*0.12);}}
+function sTick(){tone(440,0.05,'square',0.06);}
+function buzz(ms){try{if(navigator.vibrate){navigator.vibrate(ms||30);}}catch(e){}}
+var floats=[];
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color||'#FFD54F',life:1});}
+function drawFloats(dt){ctx.textAlign='center';for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.life-=dt*0.7;f.y-=34*dt;if(f.life<=0){floats.splice(i,1);continue;}ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;}}
+var HSKEY='g100_spring_hs';
+function getBest(){return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}
+function setBest(v){if(v>getBest()){localStorage.setItem(HSKEY,String(v));}}
+function $(id){return document.getElementById(id);}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function setMuteBtn(){$('muteBtn').textContent=muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted){sClick();}});
+setMuteBtn();
+/* ============ 游戏状态（按需改） ============ */
+var state='start',paused=false,round=1,score=0,lastT=0;
+function updHUD(){$('roundPill').innerHTML='第 <b>'+round+'</b>/5 轮';$('scorePill').textContent=score;}
+function addScore(n,x,y){score+=n;updHUD();if(x!==undefined){floatText(x,y,'+'+n,n>=80?'#66BB6A':'#FFD54F');}}
+$('pauseBtn').addEventListener('click',function(){if(state!=='play')return;sClick();paused=true;show('pauseOv');});
+$('resumeBtn').addEventListener('click',function(){sClick();paused=false;hide('pauseOv');lastT=performance.now();});
+$('startBtn').addEventListener('click',function(){sClick();hide('startOv');startGame();});
+$('retryBtn').addEventListener('click',function(){sClick();hide('endOv');startGame();});
+function startGame(){round=1;score=0;updHUD();state='play';paused=false;if(window.onStart)window.onStart();}
+var quizCb=null;
+function askQuiz(title,question,options,cb){
+  $('quizTitle').textContent=title;$('quizQ').textContent=question;
+  var box=$('quizOpts');box.innerHTML='';quizCb=cb;
+  options.forEach(function(op,i){
+    var b=document.createElement('button');b.className='optBtn';b.textContent=op;
+    b.addEventListener('click',function(){cb(i,b);});
+    box.appendChild(b);
+  });
+  show('quizOv');
+}
+function markQuiz(chosen,correct){
+  var btns=$('quizOpts').children;
+  for(var i=0;i<btns.length;i++){btns[i].disabled=true;if(i===correct){btns[i].classList.add('right');}}
+  if(chosen!==correct&&btns[chosen]){btns[chosen].classList.add('wrong');}
+  setTimeout(function(){hide('quizOv');if(window.onQuizDone){window.onQuizDone(chosen===correct);}},900);
+}
+function endGame(conclusion,formula){
+  state='end';setBest(score);sWin();
+  $('finalScore').textContent=score+' / 500';
+  $('bestLine').textContent='历史最高：'+getBest();
+  $('conclusion').textContent=conclusion;
+  $('endFormula').textContent=formula;
+  show('endOv');
+}
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(state!=='play'||paused)return;
+  ctx.clearRect(0,0,W,H);
+  if(window.onFrame){window.onFrame(dt);}
+  drawFloats(dt);
+}
+resize();updHUD();requestAnimationFrame(function(t){lastT=t;requestAnimationFrame(loop);});
+/* ============ 弹簧振子游戏逻辑 ============ */
+var k=60,m=1,A=0.25;
+var targets=[0.8,1.2,1.6,2.0,2.5],order=[],Tt=0;
+var phase='idle',tSim=0,T=0,waitT=0,Tm=0,errR=0,SCALE=100,geom={};
+var CONCLUSION='实验结论：弹簧振子周期 T=2π√(m/k)，与质量、劲度系数有关，与振幅无关——这就是简谐运动的等时性；弹力 F=kx（胡克定律）。';
+var FORMULA='T=2π√(m/k)，F=kx';
+function theory(){return 2*Math.PI*Math.sqrt(m/k);}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function computeGeom(){
+  var anchorY=78,cx=W/2;
+  var xs=m*9.8/k,Leq=0.8+xs;
+  var avail=H-PANEL_H-anchorY-64;
+  SCALE=Math.min(100,avail/(Leq+A+0.5));
+  geom={anchorY:anchorY,cx:cx,xs:xs,Leq:Leq};
+}
+window.onResize=function(){computeGeom();};
+function updReadout(extra){
+  var h='本轮目标周期 Tt = <b>'+Tt.toFixed(2)+'</b> s ｜ 理论 T = <b>'+theory().toFixed(2)+'</b> s<br>'
+    +'最大弹力 F = kA = <b>'+(k*A).toFixed(1)+'</b> N（胡克定律） ｜ 比例尺 <b>'+Math.round(SCALE)+'</b> px/m';
+  if(extra)h+='<br>'+extra;
+  $('readout').innerHTML=h;
+}
+function setupRound(){
+  Tt=order[round-1];phase='idle';Tm=0;errR=0;waitT=0;
+  $('relBtn').disabled=false;
+  $('kSl').disabled=false;$('mSl').disabled=false;$('aSl').disabled=false;
+  computeGeom();updReadout();
+}
+window.onStart=function(){
+  order=shuffle(targets.slice());
+  setupRound();
+};
+function bindSlider(id,valId,fmt,fn){
+  $(id).addEventListener('input',function(){
+    fn(parseFloat($(id).value));
+    $(valId).textContent=fmt(parseFloat($(id).value));
+    computeGeom();updReadout();
+  });
+}
+bindSlider('kSl','kVal',function(v){return v.toFixed(0)+' N/m';},function(v){k=v;});
+bindSlider('mSl','mVal',function(v){return v.toFixed(1)+' kg';},function(v){m=v;});
+bindSlider('aSl','aVal',function(v){return v.toFixed(2)+' m';},function(v){A=v;});
+$('relBtn').addEventListener('click',function(){
+  if(state!=='play'||phase!=='idle')return;
+  sClick();phase='run';T=theory();tSim=0;
+  $('relBtn').disabled=true;
+  $('kSl').disabled=true;$('mSl').disabled=true;$('aSl').disabled=true;
+});
+function drawZig(x1,y1,x2,y2,n,amp){
+  ctx.beginPath();ctx.moveTo(x1,y1);
+  var len=y2-y1;
+  for(var i=1;i<n;i++){
+    var yy=y1+len*i/n;
+    var xx=(i%2===0)?x1:x1+((i%4===1)?amp:-amp);
+    ctx.lineTo(xx,yy);
+  }
+  ctx.lineTo(x2,y2);ctx.stroke();
+}
+function drawScene(){
+  var g=geom,cx=g.cx,ay=g.anchorY;
+  var x=(phase==='run')?A*Math.cos(2*Math.PI*tSim/T):(phase==='done'?0:A);
+  var topY=ay+(g.Leq+x)*SCALE;
+  /* 固定端 */
+  ctx.fillStyle='#3a4360';ctx.fillRect(cx-56,ay-16,112,16);
+  ctx.strokeStyle='#5a6588';ctx.lineWidth=2;
+  for(var i=-3;i<=3;i++){ctx.beginPath();ctx.moveTo(cx+i*16-8,ay-16);ctx.lineTo(cx+i*16,ay-24);ctx.stroke();}
+  /* 平衡位置虚线 */
+  var eqY=ay+g.Leq*SCALE;
+  ctx.save();ctx.setLineDash([7,6]);ctx.strokeStyle='rgba(255,82,82,.75)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(24,eqY);ctx.lineTo(W-24,eqY);ctx.stroke();ctx.restore();
+  ctx.fillStyle='#FF8A65';ctx.font='12px sans-serif';ctx.textAlign='left';
+  ctx.fillText('平衡位置',W-80,eqY-6);
+  /* 弹簧锯齿 */
+  ctx.strokeStyle='#BA68C8';ctx.lineWidth=3;
+  drawZig(cx,ay,cx,topY,15,26);
+  /* 质量块 */
+  var bw=Math.min(150,44+m*16),bh=bw*0.72;
+  var grd=ctx.createLinearGradient(cx-bw/2,0,cx+bw/2,0);
+  grd.addColorStop(0,'#7E57C2');grd.addColorStop(1,'#BA68C8');
+  ctx.fillStyle=grd;
+  ctx.beginPath();
+  if(ctx.roundRect){ctx.roundRect(cx-bw/2,topY,bw,bh,8);}else{ctx.rect(cx-bw/2,topY,bw,bh);}
+  ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  ctx.fillText(m.toFixed(1)+' kg',cx,topY+bh/2+5);
+  /* 位移标尺：振幅线 */
+  if(phase!=='run'){
+    ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle='rgba(79,195,247,.5)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(cx+bw/2+14,eqY);ctx.lineTo(cx+bw/2+14,eqY+A*SCALE);ctx.stroke();ctx.restore();
+    ctx.fillStyle='#4FC3F7';ctx.font='11px sans-serif';ctx.textAlign='left';
+    ctx.fillText('A='+A.toFixed(2)+'m',cx+bw/2+18,eqY+A*SCALE/2+4);
+  }
+}
+window.onFrame=function(dt){
+  if(phase==='run'){
+    tSim+=dt;
+    var cyc=Math.floor(tSim/T);
+    if(cyc>=(window._lc||0)+1){window._lc=cyc;sTick();}
+    if(tSim>=3*T){
+      window._lc=0;
+      Tm=tSim/3;errR=Math.abs(Tm-Tt)/Tt;
+      var sc=errR<0.03?100:(errR<0.08?60:20);
+      addScore(sc,geom.cx,geom.anchorY+150);
+      if(sc>=60){sGood();buzz(50);floatText(geom.cx,geom.anchorY+185,'✓ 达标','#66BB6A');}
+      else{sBad();buzz([60,40,60]);floatText(geom.cx,geom.anchorY+185,'✗ 再调调','#FF8A65');}
+      updReadout('实测 3 周期平均 Tm = <b>'+Tm.toFixed(2)+'</b> s，误差 <b>'+(errR*100).toFixed(1)+'%</b> → +'+sc+' 分');
+      phase='done';waitT=0;
+    }
+  }else if(phase==='done'){
+    waitT+=dt;
+    if(waitT>1.7){
+      round++;
+      if(round>5){endGame(CONCLUSION,FORMULA);}else{updHUD();setupRound();}
+    }
+  }
+  drawScene();
+};
+</script>
+</body>
+</html>
