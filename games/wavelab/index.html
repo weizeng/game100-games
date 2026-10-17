@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>波的传播</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0d1a22;color:#fff;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+#app{height:100%;display:flex;flex-direction:column;background:linear-gradient(165deg,#0f2a38 0%,#14313f 45%,#1b1440 100%)}
+#hud{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(6,16,22,.88);border-bottom:2px solid #4DD0E1;z-index:30}
+#hud .ttl{font-size:17px;font-weight:bold}
+#hud .score{font-size:14px;color:#b2ebf2}
+#hud .score b{font-size:19px;color:#ffd54f;margin:0 2px}
+.hbtns{display:flex;gap:8px}
+.ibtn{width:44px;height:44px;font-size:20px;border:none;border-radius:12px;background:#1e4a5c;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+.ibtn:active{transform:scale(.9)}
+#main{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:10px 12px 14px;gap:10px}
+#stage{position:relative;border-radius:16px;background:rgba(4,10,16,.6);border:1px solid rgba(77,208,225,.35);padding:8px;flex:none}
+#cv{width:100%;height:230px;display:block;touch-action:none;border-radius:10px}
+#waveInfo{display:flex;justify-content:space-between;font-size:13px;color:#b2ebf2;margin-top:6px}
+#waveInfo b{color:#ffd54f;font-size:16px}
+.panel{background:rgba(8,20,28,.78);border:1px solid rgba(77,208,225,.3);border-radius:14px;padding:10px 12px}
+.panel .pt{font-size:14px;font-weight:bold;color:#4DD0E1;margin-bottom:8px}
+.row{display:flex;gap:8px;align-items:center}
+.btn{flex:1;min-height:48px;border:none;border-radius:12px;font-size:15px;font-weight:bold;color:#04303a;background:#4DD0E1;cursor:pointer;touch-action:manipulation}
+.btn:active{transform:scale(.96)}
+.btn.sel{background:#ffd54f;color:#4a3200;box-shadow:0 0 0 2px #fff inset}
+.btn.dim{background:#1e4a5c;color:#b2ebf2}
+.btn.go{background:#66bb6a;color:#063006;font-size:17px}
+input[type=range]{flex:1;height:44px;accent-color:#4DD0E1;touch-action:pan-x}
+.ctl-lab{font-size:14px;color:#b2ebf2;min-width:118px}
+.ctl-lab b{color:#ffd54f}
+#taskPanel .q{font-size:15px;line-height:1.7}
+#taskPanel .q b{color:#ffd54f}
+#taskPanel .hint{font-size:13px;color:#80deea;margin-top:6px;min-height:18px}
+#logPanel{max-height:150px;display:flex;flex-direction:column}
+#log{overflow-y:auto;font-size:13px;line-height:1.8;color:#cfd8dc}
+#log .ok{color:#a5d6a7}
+#log .no{color:#ef9a9a}
+.ov{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(3,8,12,.87);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.ov.hide{display:none}
+.card{width:100%;max-width:380px;background:linear-gradient(170deg,#17394a,#0d1a24);border:2px solid #4DD0E1;border-radius:20px;padding:22px 18px;text-align:center;max-height:92%;overflow-y:auto}
+.card h1{font-size:24px;margin-bottom:6px}
+.card h2{font-size:20px;margin-bottom:10px}
+.card p{font-size:14px;line-height:1.8;color:#cbe7ee;text-align:left;margin:8px 0}
+.card .sec{font-size:15px;font-weight:bold;color:#4DD0E1;margin:12px 0 4px;text-align:left}
+.card .big{font-size:16px;color:#fff;text-align:center}
+.card .big b{color:#ffd54f;font-size:24px}
+.card .row{display:flex;gap:10px;margin-top:14px}
+.formula{background:rgba(77,208,225,.12);border:1px dashed #4DD0E1;border-radius:10px;padding:8px;font-size:16px;color:#fff;margin:6px 0;text-align:center}
+.pt2{position:fixed;width:9px;height:9px;border-radius:50%;z-index:999;pointer-events:none;transition:transform .65s ease-out,opacity .65s}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div class="ttl">🌊 波的传播</div>
+    <div class="score">得分 <b id="score">0</b></div>
+    <div class="hbtns">
+      <button class="ibtn" id="pauseBtn" aria-label="暂停">⏸</button>
+      <button class="ibtn" id="soundBtn" aria-label="声音">🔊</button>
+    </div>
+  </header>
+  <div id="main">
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div id="waveInfo">
+        <span>波速 v = <b>20</b> cm/s（固定）</span>
+        <span>波长 λ = v/f = <b id="lamV">10.0</b> cm</span>
+      </div>
+    </div>
+    <div class="panel" id="controls">
+      <div class="pt">🔧 调节波参数</div>
+      <div class="row" style="margin-bottom:6px">
+        <div class="ctl-lab">频率 f<br><b id="fLab">2.0 Hz</b></div>
+        <input type="range" id="fRange" min="1" max="5" step="0.5" value="2">
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <div class="ctl-lab">振幅 A<br><b id="aLab">30 px</b></div>
+        <input type="range" id="aRange" min="10" max="50" step="5" value="30">
+      </div>
+      <div class="row" id="typeBtns">
+        <button class="btn sel" data-t="0">〰️ 横波</button>
+        <button class="btn dim" data-t="1">⋮⋮ 纵波（疏密）</button>
+      </div>
+    </div>
+    <div class="panel" id="taskPanel">
+      <div class="pt">🎯 实验任务</div>
+      <div class="q" id="taskQ">准备开始…</div>
+      <div class="row" id="goRow" style="display:none;margin-top:8px">
+        <button class="btn go" id="fireBtn">📡 发射验证</button>
+      </div>
+      <div class="row" id="nextRow" style="display:none;margin-top:8px">
+        <button class="btn" id="nextBtn">下一轮 ▶</button>
+      </div>
+      <div class="hint" id="taskHint"></div>
+    </div>
+    <div class="panel" id="logPanel">
+      <div class="pt">📋 实验记录</div>
+      <div id="log"><div style="color:#78909c">暂无记录，完成一轮实验后显示</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="startOv">
+  <div class="card">
+    <h1>🌊 波的传播</h1>
+    <div class="sec">玩法说明</div>
+    <p>1. 共 3 轮，每轮给出一个<b>目标波长</b>（如 10cm、5cm、8cm）。<br>2. 调节<b>频率 f</b>（1~5Hz），使波长 λ = v/f 达标（误差 &lt; 0.5cm）。波速 v = 20cm/s 固定。<br>3. 点「📡 发射验证」：看一列波穿过检测区，达标 +30 分。<br>4. 可切换<b>横波 / 纵波</b>（纵波用质点疏密表示），观察振动方向与传播方向的关系。</p>
+    <div class="sec">原理简介</div>
+    <p>波传播的是<b>振动形式与能量</b>，质点只在原地振动。横波振动方向与传播方向垂直，纵波平行。</p>
+    <div class="row"><button class="btn" id="startBtn" style="font-size:18px">开始实验</button></div>
+  </div>
+</div>
+
+<div class="ov hide" id="pauseOv">
+  <div class="card">
+    <h2>⏸ 实验暂停</h2>
+    <p class="big">当前得分 <b id="pScore">0</b></p>
+    <div class="row">
+      <button class="btn" id="resumeBtn">继续</button>
+      <button class="btn dim" id="restartBtn">重来</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hide" id="endOv">
+  <div class="card">
+    <h2>🎉 实验完成</h2>
+    <div class="sec">实验结论</div>
+    <p>波速一定时，频率越高波长越短（λ = v/f）。波向前传播的是<b>振动形式与能量</b>，质点并不随波迁移——横波质点上下振动，纵波质点左右振动形成疏密相间的图样。</p>
+    <div class="sec">知识点</div>
+    <div class="formula">v = λ f</div>
+    <p>横波：振动方向 ⊥ 传播方向；纵波：振动方向 ∥ 传播方向。</p>
+    <p class="big">本轮得分 <b id="fScore">0</b>　最高分 <b id="fHs">0</b></p>
+    <div class="row"><button class="btn" id="againBtn" style="font-size:18px">再做一次</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== 通用：音频 ===== */
+let AC=null;
+let soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){AC=null;}}if(AC&&AC.state==='suspended'){try{AC.resume();}catch(e){}}return AC;}
+function tone(f,d,type,delay){if(!soundOn)return;const c=ac();if(!c)return;try{const t=c.currentTime+(delay||0);const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.02);}catch(e){}}
+function beep(){tone(600,0.08,'sine',0);}
+function sGood(){tone(880,0.12,'sine',0);tone(1320,0.18,'sine',0.1);}
+function sBad(){tone(200,0.28,'sawtooth',0);}
+function sWin(){const fs=[523,659,784,1047];for(let i=0;i<fs.length;i++)tone(fs[i],0.2,'sine',i*0.14);}
+function burst(x,y,color){try{for(let i=0;i<14;i++){const d=document.createElement('div');d.className='pt2';d.style.background=color||'#FFD54F';d.style.left=x+'px';d.style.top=y+'px';document.body.appendChild(d);const a=Math.random()*Math.PI*2,r=40+Math.random()*70;requestAnimationFrame(function(){d.style.transform='translate('+(Math.cos(a)*r)+'px,'+(Math.sin(a)*r)+'px)';d.style.opacity='0';});setTimeout(function(){d.remove();},750);}}catch(e){}}
+function buzz(){try{if(navigator.vibrate)navigator.vibrate(50);}catch(e){}}
+function on(el,fn){el.addEventListener('pointerdown',function(e){e.preventDefault();fn(e);});}
+
+/* ===== 数据 ===== */
+const V=20,TARGETS=[10,5,8];
+const HS_KEY='g100_wavelab_hs';
+
+/* ===== 状态 ===== */
+let score=0,round=0,phase='idle',paused=false;
+let freq=2,amp=30,wtype=0,target=10;
+let rafId=0,verifying=false,vt0=0;
+let seq=[];
+const $=function(id){return document.getElementById(id);};
+const cv=$('cv'),ctx=cv.getContext('2d');
+const W=360,H=230,PXCM=W/40;
+
+function fitCanvas(){
+ const dpr=Math.min(2,window.devicePixelRatio||1);
+ cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function lam(){return V/freq;}
+function setScore(v){score=v;$('score').textContent=v;}
+function paintCtl(){
+ $('fLab').textContent=freq.toFixed(1)+' Hz';
+ $('aLab').textContent=amp+' px';
+ $('lamV').textContent=lam().toFixed(1);
+ const bs=$('typeBtns').children;
+ for(let k=0;k<bs.length;k++){bs[k].className='btn'+(parseInt(bs[k].getAttribute('data-t'),10)===wtype?' sel':' dim');}
+}
+function addLog(html){const log=$('log');if(log.firstChild&&log.firstChild.style)log.innerHTML='';const d=document.createElement('div');d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;}
+
+/* ===== 波形绘制 ===== */
+function draw(t){
+ ctx.clearRect(0,0,W,H);
+ const lamPx=lam()*PXCM,k=2*Math.PI/lamPx,om=2*Math.PI*freq,cy=H/2-6;
+ /* 检测区 */
+ ctx.fillStyle='rgba(77,208,225,.13)';
+ ctx.fillRect(W*0.55,14,W*0.2,H-56);
+ ctx.strokeStyle='rgba(77,208,225,.5)';ctx.setLineDash([5,4]);
+ ctx.strokeRect(W*0.55,14,W*0.2,H-56);ctx.setLineDash([]);
+ ctx.fillStyle='#80deea';ctx.font='11px sans-serif';ctx.textAlign='center';
+ ctx.fillText('检测区',W*0.65,28);
+ /* 中线 */
+ ctx.strokeStyle='rgba(255,255,255,.18)';ctx.beginPath();ctx.moveTo(8,cy);ctx.lineTo(W-8,cy);ctx.stroke();
+ if(wtype===0){
+   /* 横波 */
+   ctx.strokeStyle='#4DD0E1';ctx.lineWidth=3;ctx.beginPath();
+   for(let x=8;x<=W-8;x+=3){
+     const y=cy+amp*Math.sin(k*x-om*t/1000);
+     if(x===8)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+   }
+   ctx.stroke();ctx.lineWidth=1;
+   /* 几个质点：上下振动 */
+   for(let i=0;i<7;i++){
+     const x=24+i*(W-48)/6;
+     const y=cy+amp*Math.sin(k*x-om*t/1000);
+     ctx.fillStyle='#FFD54F';ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fill();
+     ctx.strokeStyle='#FFD54F';ctx.beginPath();ctx.moveTo(x,y-14);ctx.lineTo(x,y+14);ctx.stroke();
+   }
+   ctx.fillStyle='#b2ebf2';ctx.font='11px sans-serif';ctx.textAlign='left';
+   ctx.fillText('质点振动 ↕ ⊥ 传播 →',10,H-10);
+ }else{
+   /* 纵波：疏密点阵 */
+   const N=64;
+   for(let i=0;i<N;i++){
+     const xe=14+i*(W-28)/(N-1);
+     const dx=amp*0.8*Math.sin(k*xe-om*t/1000);
+     const dens=0.5+0.5*Math.cos(k*xe-om*t/1000);
+     ctx.fillStyle='rgba(77,208,225,'+(0.35+0.65*dens)+')';
+     ctx.beginPath();ctx.arc(xe+dx,cy,4.5,0,7);ctx.fill();
+   }
+   ctx.fillStyle='#b2ebf2';ctx.font='11px sans-serif';ctx.textAlign='left';
+   ctx.fillText('质点振动 ⇄ ∥ 传播 →（密部/疏部）',10,H-10);
+ }
+ /* 波长标注 */
+ const x0=14,x1=x0+lamPx;
+ if(x1<W-8){
+   ctx.strokeStyle='#ffd54f';ctx.beginPath();
+   ctx.moveTo(x0,cy+amp+26);ctx.lineTo(x1,cy+amp+26);
+   ctx.moveTo(x0,cy+amp+21);ctx.lineTo(x0,cy+amp+31);
+   ctx.moveTo(x1,cy+amp+21);ctx.lineTo(x1,cy+amp+31);ctx.stroke();
+   ctx.fillStyle='#ffd54f';ctx.font='12px sans-serif';ctx.textAlign='center';
+   ctx.fillText('λ='+lam().toFixed(1)+'cm',(x0+x1)/2,cy+amp+42);
+ }
+ /* 发射验证：脉冲扫过 */
+ if(verifying){
+   const p=Math.min(1,(t-vt0)/2200);
+   const px=8+p*(W-16);
+   const g=ctx.createRadialGradient(px,cy,2,px,cy,26);
+   g.addColorStop(0,'rgba(255,213,79,.95)');g.addColorStop(1,'rgba(255,213,79,0)');
+   ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,cy,26,0,7);ctx.fill();
+   ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+   ctx.fillText('发射中…',px,cy-32);
+   if(p>=1){verifying=false;finishVerify();}
+ }
+}
+function loop(t){
+ if(!paused){draw(t||0);}
+ rafId=requestAnimationFrame(loop);
+}
+
+/* ===== 流程 ===== */
+function startRound(){
+ round++;target=seq[round-1];phase='ready';
+ $('taskQ').innerHTML='第 <b>'+round+'</b> / 3 轮：目标波长 <b>λ = '+target+' cm</b><br>调节频率 f，使 λ = 20/f 达标（误差 &lt; 0.5cm），再点「发射验证」。';
+ $('taskHint').textContent='提示：f = v/λ，目标 '+target+'cm 对应 f = '+(V/target).toFixed(1)+'Hz';
+ $('goRow').style.display='flex';$('nextRow').style.display='none';
+ beep();
+}
+function fire(){
+ if(phase!=='ready'||paused||verifying)return;
+ beep();phase='verify';verifying=true;vt0=performance.now();
+ $('goRow').style.display='none';
+ $('taskHint').textContent='波列正在穿过检测区…';
+}
+function finishVerify(){
+ const L=lam(),ok=Math.abs(L-target)<0.5;
+ if(ok){setScore(score+30);sGood();buzz();const r=cv.getBoundingClientRect();burst(r.left+r.width*0.65,r.top+80,'#4DD0E1');}
+ else{sBad();}
+ $('taskHint').innerHTML='实测 λ=<b>'+L.toFixed(1)+'cm</b>，目标 '+target+'cm，误差 '+Math.abs(L-target).toFixed(1)+'cm '+(ok?'✅ 达标 +30':'❌ 未达标（需<0.5cm）');
+ addLog('第'+round+'轮 目标λ='+target+'cm｜f='+freq.toFixed(1)+'Hz｜实际λ=<b>'+L.toFixed(1)+'cm</b>｜<b class="'+(ok?'ok':'no')+'">'+(ok?'达标 ✓ +30':'未达标 ✗')+'</b>');
+ phase='result';
+ $('nextBtn').textContent=round>=3?'查看结论 🎉':'下一轮 ▶';
+ $('nextRow').style.display='flex';
+}
+function resetGame(){
+ cancelAnimationFrame(rafId);setScore(0);round=0;phase='idle';paused=false;verifying=false;
+ $('log').innerHTML='<div style="color:#78909c">暂无记录，完成一轮实验后显示</div>';
+ seq=TARGETS.slice();for(let i=seq.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=seq[i];seq[i]=seq[j];seq[j]=t;}
+ freq=2;amp=30;wtype=0;
+ $('fRange').value=2;$('aRange').value=30;paintCtl();
+ $('goRow').style.display='none';$('nextRow').style.display='none';
+ $('taskQ').textContent='准备开始…';$('taskHint').textContent='';
+ rafId=requestAnimationFrame(loop);
+}
+function endGame(){
+ let hs=0;try{hs=parseInt(localStorage.getItem(HS_KEY)||'0',10)||0;}catch(e){}
+ if(score>hs){hs=score;try{localStorage.setItem(HS_KEY,String(hs));}catch(e){}}
+ $('fScore').textContent=score;$('fHs').textContent=hs;
+ $('endOv').classList.remove('hide');sWin();
+}
+
+/* ===== 绑定 ===== */
+on($('startBtn'),function(){$('startOv').classList.add('hide');ac();resetGame();startRound();});
+on($('fireBtn'),fire);
+on($('nextBtn'),function(){beep();if(round>=3){endGame();}else{startRound();}});
+on($('againBtn'),function(){$('endOv').classList.add('hide');resetGame();startRound();});
+$('fRange').addEventListener('input',function(){freq=parseFloat(this.value);paintCtl();});
+$('aRange').addEventListener('input',function(){amp=parseInt(this.value,10);paintCtl();});
+const tb=$('typeBtns').children;
+for(let i=0;i<tb.length;i++)(function(i){on(tb[i],function(){wtype=parseInt(tb[i].getAttribute('data-t'),10);paintCtl();beep();});})(i);
+on($('pauseBtn'),function(){if(!$('startOv').classList.contains('hide')||phase==='idle')return;beep();paused=true;$('pScore').textContent=score;$('pauseOv').classList.remove('hide');});
+on($('resumeBtn'),function(){beep();paused=false;$('pauseOv').classList.add('hide');});
+on($('restartBtn'),function(){beep();$('pauseOv').classList.add('hide');resetGame();startRound();});
+function paintSound(){$('soundBtn').textContent=soundOn?'🔊':'🔇';}
+on($('soundBtn'),function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}paintSound();beep();});
+paintSound();fitCanvas();paintCtl();
+rafId=requestAnimationFrame(loop);
+</script>
+</body>
+</html>

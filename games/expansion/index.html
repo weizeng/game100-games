@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>热胀冷缩</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#170f0a;color:#fff;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+#app{height:100%;display:flex;flex-direction:column;background:linear-gradient(165deg,#3a1c10 0%,#42220f 45%,#241130 100%)}
+#hud{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(26,14,6,.88);border-bottom:2px solid #FF8A65;z-index:30}
+#hud .ttl{font-size:17px;font-weight:bold}
+#hud .score{font-size:14px;color:#ffab91}
+#hud .score b{font-size:19px;color:#ffd54f;margin:0 2px}
+.hbtns{display:flex;gap:8px}
+.ibtn{width:44px;height:44px;font-size:20px;border:none;border-radius:12px;background:#5d3a24;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+.ibtn:active{transform:scale(.9)}
+#main{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:10px 12px 14px;gap:10px}
+#stage{position:relative;height:300px;border-radius:16px;background:rgba(12,7,3,.55);border:1px solid rgba(255,138,101,.35);overflow:hidden;flex:none;touch-action:none}
+#ring{position:absolute;top:24px;left:50%;width:100px;height:100px;margin-left:-50px;border:14px solid #90a4ae;border-radius:50%;box-shadow:0 0 0 3px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.5);z-index:4;background:transparent}
+#ringTag{position:absolute;top:132px;left:0;right:0;text-align:center;font-size:12px;color:#bcaaa4}
+#ballWrap{position:absolute;top:158px;left:50%;width:0;height:0;z-index:3}
+#ball{position:absolute;left:0;top:0;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 6px 16px rgba(0,0,0,.55);transition:width .15s,height .15s,background-color .15s}
+#tempBig{position:absolute;left:10px;top:10px;font-size:14px;color:#ffccbc;background:rgba(0,0,0,.5);padding:6px 12px;border-radius:12px;z-index:6}
+#tempBig b{font-size:22px;color:#ffd54f}
+#diaTag{position:absolute;right:10px;top:10px;font-size:12px;color:#ffccbc;background:rgba(0,0,0,.5);padding:6px 10px;border-radius:12px;z-index:6}
+.panel{background:rgba(28,16,8,.78);border:1px solid rgba(255,138,101,.3);border-radius:14px;padding:10px 12px}
+.panel .pt{font-size:14px;font-weight:bold;color:#FF8A65;margin-bottom:8px}
+.row{display:flex;gap:8px;align-items:center}
+.btn{flex:1;min-height:52px;border:none;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer;touch-action:manipulation}
+.btn:active{transform:scale(.96)}
+.btn.heat{background:linear-gradient(#ff7043,#e64a19);color:#fff}
+.btn.cool{background:linear-gradient(#4fc3f7,#0288d1);color:#fff}
+.btn.go{background:#66bb6a;color:#063006}
+.btn.dim{background:#4e3a2c;color:#bcaaa4}
+input[type=range]{flex:1;height:44px;accent-color:#FF8A65;touch-action:pan-x}
+.ctl-lab{font-size:14px;color:#ffccbc;min-width:64px}
+#taskPanel .q{font-size:15px;line-height:1.7}
+#taskPanel .q b{color:#ffd54f}
+#stepLbl{font-size:14px;color:#ffe0b2;background:rgba(255,138,101,.12);border:1px dashed #FF8A65;border-radius:10px;padding:8px;margin-top:8px;line-height:1.6}
+#taskPanel .hint{font-size:13px;color:#ffab91;margin-top:6px;min-height:18px}
+#logPanel{max-height:150px;display:flex;flex-direction:column}
+#log{overflow-y:auto;font-size:13px;line-height:1.8;color:#d7ccc8}
+#log .ok{color:#a5d6a7}
+#log .no{color:#ef9a9a}
+.ov{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(10,6,3,.87);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.ov.hide{display:none}
+.card{width:100%;max-width:380px;background:linear-gradient(170deg,#4a2a16,#241209);border:2px solid #FF8A65;border-radius:20px;padding:22px 18px;text-align:center;max-height:92%;overflow-y:auto}
+.card h1{font-size:24px;margin-bottom:6px}
+.card h2{font-size:20px;margin-bottom:10px}
+.card p{font-size:14px;line-height:1.8;color:#ecd9c8;text-align:left;margin:8px 0}
+.card .sec{font-size:15px;font-weight:bold;color:#FF8A65;margin:12px 0 4px;text-align:left}
+.card .big{font-size:16px;color:#fff;text-align:center}
+.card .big b{color:#ffd54f;font-size:24px}
+.card .row{display:flex;gap:10px;margin-top:14px}
+.formula{background:rgba(255,138,101,.12);border:1px dashed #FF8A65;border-radius:10px;padding:8px;font-size:15px;color:#fff;margin:6px 0;text-align:center}
+.pt2{position:fixed;width:9px;height:9px;border-radius:50%;z-index:999;pointer-events:none;transition:transform .65s ease-out,opacity .65s}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div class="ttl">🌡️ 热胀冷缩</div>
+    <div class="score">得分 <b id="score">0</b></div>
+    <div class="hbtns">
+      <button class="ibtn" id="pauseBtn" aria-label="暂停">⏸</button>
+      <button class="ibtn" id="soundBtn" aria-label="声音">🔊</button>
+    </div>
+  </header>
+  <div id="main">
+    <div id="stage">
+      <div id="tempBig">🌡️ <b id="tVal">20</b> ℃</div>
+      <div id="diaTag">球径 <span id="dVal">94.0</span> / 圈内径 100</div>
+      <div id="ring"></div>
+      <div id="ringTag">铁圈（内径 100，不随温度变化）</div>
+      <div id="ballWrap"><div id="ball"></div></div>
+    </div>
+    <div class="panel" id="controls">
+      <div class="pt">🔧 调节铜球温度</div>
+      <div class="row" style="margin-bottom:8px">
+        <div class="ctl-lab">温度</div>
+        <input type="range" id="tRange" min="0" max="100" step="1" value="20">
+      </div>
+      <div class="row">
+        <button class="btn heat" id="heatBtn">🔥 加热<br><small style="font-size:11px;font-weight:normal">按住升温</small></button>
+        <button class="btn cool" id="coolBtn">🧊 冷却<br><small style="font-size:11px;font-weight:normal">按住降温</small></button>
+        <button class="btn go" id="tryBtn">➡️ 尝试通过</button>
+      </div>
+    </div>
+    <div class="panel" id="taskPanel">
+      <div class="pt">🎯 实验任务</div>
+      <div class="q" id="taskQ">准备开始…</div>
+      <div id="stepLbl" style="display:none"></div>
+      <div class="row" id="nextRow" style="display:none;margin-top:8px">
+        <button class="btn go" id="nextBtn">下一轮 ▶</button>
+      </div>
+      <div class="hint" id="taskHint"></div>
+    </div>
+    <div class="panel" id="logPanel">
+      <div class="pt">📋 实验记录</div>
+      <div id="log"><div style="color:#a1887f">暂无记录，完成一轮实验后显示</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="startOv">
+  <div class="card">
+    <h1>🌡️ 热胀冷缩</h1>
+    <div class="sec">玩法说明</div>
+    <p>1. 共 3 轮任务：① 常温球直接穿过铁圈；② 加热到卡住 → 冷却 → 再通过；③ 先冷缩 → 再加热 → 让球卡住铁圈。<br>2. <b>按住「加热」/「冷却」</b>升降温（或拖温度滑杆），球会变大变红 / 缩小变蓝。<br>3. 点「尝试通过」播放过圈动画。每一步做对才算完成，步骤错了会有提示。完成一轮 +30 分。</p>
+    <div class="sec">原理简介</div>
+    <p>固体受热膨胀、遇冷收缩。常温铜球能穿过铁圈，加热膨胀后就被卡住——这是热膨胀最经典的演示。</p>
+    <div class="row"><button class="btn go" id="startBtn" style="font-size:18px">开始实验</button></div>
+  </div>
+</div>
+
+<div class="ov hide" id="pauseOv">
+  <div class="card">
+    <h2>⏸ 实验暂停</h2>
+    <p class="big">当前得分 <b id="pScore">0</b></p>
+    <div class="row">
+      <button class="btn go" id="resumeBtn">继续</button>
+      <button class="btn dim" id="restartBtn">重来</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hide" id="endOv">
+  <div class="card">
+    <h2>🎉 实验完成</h2>
+    <div class="sec">实验结论</div>
+    <p>固体具有<b>热胀冷缩</b>的性质：温度升高，铜球膨胀变大，被铁圈卡住；温度降低，铜球收缩，又能顺利通过。铁圈尺寸几乎不变，对比更明显。</p>
+    <div class="sec">知识点</div>
+    <div class="formula">ΔL = α · L0 · ΔT</div>
+    <p>线膨胀公式：伸长量与原长、温度变化成正比，α 为线膨胀系数。「铜球过圈」是课堂演示热膨胀的经典实验。</p>
+    <p class="big">本轮得分 <b id="fScore">0</b>　最高分 <b id="fHs">0</b></p>
+    <div class="row"><button class="btn go" id="againBtn" style="font-size:18px">再做一次</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== 通用：音频 ===== */
+let AC=null;
+let soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){AC=null;}}if(AC&&AC.state==='suspended'){try{AC.resume();}catch(e){}}return AC;}
+function tone(f,d,type,delay){if(!soundOn)return;const c=ac();if(!c)return;try{const t=c.currentTime+(delay||0);const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.02);}catch(e){}}
+function beep(){tone(600,0.08,'sine',0);}
+function sGood(){tone(880,0.12,'sine',0);tone(1320,0.18,'sine',0.1);}
+function sBad(){tone(200,0.28,'sawtooth',0);}
+function sWin(){const fs=[523,659,784,1047];for(let i=0;i<fs.length;i++)tone(fs[i],0.2,'sine',i*0.14);}
+function burst(x,y,color){try{for(let i=0;i<14;i++){const d=document.createElement('div');d.className='pt2';d.style.background=color||'#FFD54F';d.style.left=x+'px';d.style.top=y+'px';document.body.appendChild(d);const a=Math.random()*Math.PI*2,r=40+Math.random()*70;requestAnimationFrame(function(){d.style.transform='translate('+(Math.cos(a)*r)+'px,'+(Math.sin(a)*r)+'px)';d.style.opacity='0';});setTimeout(function(){d.remove();},750);}}catch(e){}}
+function buzz(){try{if(navigator.vibrate)navigator.vibrate(50);}catch(e){}}
+function on(el,fn){el.addEventListener('pointerdown',function(e){e.preventDefault();fn(e);});}
+
+/* ===== 数据 ===== */
+const ROUNDS=[
+ {name:'常温通过',steps:[
+   {t:'attempt',expect:'pass',tmin:15,tmax:30,label:'直接点击「尝试通过」：让常温（20℃左右）的铜球穿过铁圈'}]},
+ {name:'热胀被卡 → 冷却通过',steps:[
+   {t:'heat',to:60,label:'① 按住「加热」，把铜球加热到 60℃ 以上'},
+   {t:'attempt',expect:'stuck',label:'② 点击「尝试通过」：观察膨胀的球被铁圈卡住'},
+   {t:'cool',to:25,label:'③ 按住「冷却」，把铜球冷却到 25℃ 以下'},
+   {t:'attempt',expect:'pass',label:'④ 再次「尝试通过」：收缩的球顺利穿过'}]},
+ {name:'冷缩 → 加热卡住',steps:[
+   {t:'cool',to:10,label:'① 按住「冷却」，把铜球冷却到 10℃ 以下（冷缩）'},
+   {t:'heat',to:60,label:'② 按住「加热」，把铜球加热到 60℃ 以上（热胀）'},
+   {t:'attempt',expect:'stuck',label:'③ 点击「尝试通过」：让膨胀的球卡住铁圈'}]}
+];
+const HS_KEY='g100_expansion_hs';
+const D0=94,ALPHA=0.0025,T0=20,RING_D=100;
+
+/* ===== 状态 ===== */
+let score=0,round=0,stepIdx=0,phase='idle',paused=false,rafId=0;
+let temp=20,ops=[];
+const $=function(id){return document.getElementById(id);};
+const ball=$('ball'),ballWrap=$('ballWrap');
+
+function setScore(v){score=v;$('score').textContent=v;}
+function dia(){return D0*(1+ALPHA*(temp-T0));}
+function passable(){return dia()<=RING_D;}
+function paintBall(){
+ const d=dia();
+ ball.style.width=d+'px';ball.style.height=d+'px';
+ const hue=Math.round(210-(temp/100)*210);
+ ball.style.backgroundColor='hsl('+hue+',70%,48%)';
+ $('tVal').textContent=Math.round(temp);
+ $('dVal').textContent=d.toFixed(1);
+ const r=$('tRange');if(document.activeElement!==r)r.value=Math.round(temp);
+}
+function addLog(html){const log=$('log');if(log.firstChild&&log.firstChild.style)log.innerHTML='';const d=document.createElement('div');d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;}
+function curStep(){return ROUNDS[round-1].steps[stepIdx];}
+function paintStep(){
+ const R=ROUNDS[round-1],s=R.steps[stepIdx];
+ $('taskQ').innerHTML='第 <b>'+round+'</b> / 3 轮：<b>'+R.name+'</b>';
+ const lbl=$('stepLbl');lbl.style.display='block';
+ lbl.innerHTML='第 '+(stepIdx+1)+' / '+R.steps.length+' 步：'+s.label;
+}
+
+function setTemp(v,fromHold){
+ temp=Math.max(0,Math.min(100,v));paintBall();
+ if(phase!=='do'||paused)return;
+ const s=curStep();
+ if(s.t==='heat'&&temp>=s.to){stepDone('加热到 '+Math.round(temp)+'℃');}
+ else if(s.t==='cool'&&temp<=s.to){stepDone('冷却到 '+Math.round(temp)+'℃');}
+}
+function stepDone(opName){
+ ops.push(opName);
+ tone(880,0.1,'sine',0);
+ stepIdx++;
+ if(stepIdx>=ROUNDS[round-1].steps.length){roundDone();}
+ else{paintStep();$('taskHint').textContent='上一步完成 ✓ 继续';}
+}
+function roundDone(){
+ phase='result';
+ setScore(score+30);sGood();buzz();
+ const r=$('ring').getBoundingClientRect();burst(r.left+r.width/2,r.top+r.height/2,'#FF8A65');
+ addLog('第'+round+'轮 '+ROUNDS[round-1].name+'｜'+ops.join(' → ')+'｜<b class="ok">✓ +30</b>');
+ $('taskHint').innerHTML='🎉 本轮任务完成！+30';
+ $('stepLbl').style.display='none';
+ $('nextBtn').textContent=round>=3?'查看结论 🎉':'下一轮 ▶';
+ $('nextRow').style.display='flex';
+}
+
+function tryPass(){
+ if(phase!=='do'||paused)return;
+ const s=curStep();
+ if(s.t!=='attempt'){$('taskHint').textContent='⚠️ 当前步骤不是「尝试通过」，请看步骤要求';sBad();return;}
+ if(s.tmin!==undefined&&(temp<s.tmin||temp>s.tmax)){$('taskHint').textContent='⚠️ 请先把球调回常温（15~30℃）再尝试';sBad();return;}
+ beep();phase='anim';
+ /* 球复位到起点 */
+ ballWrap.style.transition='none';ballWrap.style.transform='translateY(0px)';
+ const willPass=passable();
+ const d=dia();
+ const ringCY=24+64,ballTop=158,ballCY=ballTop; /* ballWrap 中心即球心 */
+ const targetY=willPass?-230:(ringCY-ballCY);
+ let t0=performance.now(),lastT=t0;const dur=willPass?900:700;
+ cancelAnimationFrame(rafId);
+ (function frame(t){
+   if(paused){t0+=(t-lastT);lastT=t;rafId=requestAnimationFrame(frame);return;}
+   lastT=t;
+   const p=Math.min(1,(t-t0)/dur);
+   const e=p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+   ballWrap.style.transform='translateY('+(targetY*e)+'px)';
+   if(p<1){rafId=requestAnimationFrame(frame);return;}
+   if(willPass){
+     tone(1320,0.15,'sine',0);
+     setTimeout(function(){afterAttempt(true,s);},350);
+   }else{
+     /* 卡住：抖动 */
+     tone(150,0.2,'square',0);
+     let s0=performance.now();
+     (function shk(t2){
+       const q=(t2-s0)/600;
+       if(q>=1){ballWrap.style.transform='translateY('+targetY+'px)';afterAttempt(false,s);return;}
+       ballWrap.style.transform='translateY('+targetY+'px) translateX('+(Math.sin(q*28)*6*(1-q))+'px)';
+       requestAnimationFrame(shk);
+     })(s0);
+   }
+ })(t0);
+}
+function afterAttempt(passed,s){
+ const op='尝试通过('+(passed?'通过':'被卡住')+','+Math.round(temp)+'℃)';
+ if((s.expect==='pass')===passed){
+   stepDone(op);
+ }else{
+   ops.push(op+'✗');
+   phase='do';
+   if(s.expect==='pass'){$('taskHint').textContent='⚠️ 球被卡住了！'+(s.tmin!==undefined?'常温才能直接通过':'先按步骤把球冷却再试');}
+   else{$('taskHint').textContent='⚠️ 球直接穿过去了！要先把球加热到足够大，它才会被卡住';}
+   sBad();
+ }
+ ballWrap.style.transition='none';ballWrap.style.transform='translateY(0px)';
+}
+
+/* ===== 流程 ===== */
+function resetGame(){
+ cancelAnimationFrame(rafId);setScore(0);round=0;stepIdx=0;phase='idle';paused=false;
+ $('log').innerHTML='<div style="color:#a1887f">暂无记录，完成一轮实验后显示</div>';
+ temp=20;paintBall();
+ ballWrap.style.transition='none';ballWrap.style.transform='translateY(0px)';
+ $('stepLbl').style.display='none';$('nextRow').style.display='none';
+ $('taskQ').textContent='准备开始…';$('taskHint').textContent='';
+}
+function startRound(){
+ round++;stepIdx=0;ops=[];phase='do';
+ temp=20;paintBall();
+ ballWrap.style.transition='none';ballWrap.style.transform='translateY(0px)';
+ paintStep();$('taskHint').textContent='按步骤操作，加热/冷却可用按住或滑杆';
+ $('nextRow').style.display='none';beep();
+}
+function endGame(){
+ let hs=0;try{hs=parseInt(localStorage.getItem(HS_KEY)||'0',10)||0;}catch(e){}
+ if(score>hs){hs=score;try{localStorage.setItem(HS_KEY,String(hs));}catch(e){}}
+ $('fScore').textContent=score;$('fHs').textContent=hs;
+ $('endOv').classList.remove('hide');sWin();
+}
+
+/* ===== 绑定 ===== */
+on($('startBtn'),function(){$('startOv').classList.add('hide');ac();resetGame();startRound();});
+on($('tryBtn'),tryPass);
+on($('nextBtn'),function(){beep();if(round>=3){endGame();}else{startRound();}});
+on($('againBtn'),function(){$('endOv').classList.add('hide');resetGame();startRound();});
+$('tRange').addEventListener('input',function(){setTemp(parseInt(this.value,10),false);});
+/* 按住加热/冷却 */
+let holdId=0;
+function holdStart(dir){
+ holdStop();
+ holdId=setInterval(function(){if(!paused)setTemp(temp+dir*2,true);},90);
+}
+function holdStop(){if(holdId){clearInterval(holdId);holdId=0;}}
+const hb=$('heatBtn'),cb=$('coolBtn');
+hb.addEventListener('pointerdown',function(e){e.preventDefault();if(phase==='do')holdStart(1);});
+cb.addEventListener('pointerdown',function(e){e.preventDefault();if(phase==='do')holdStart(-1);});
+['pointerup','pointerleave','pointercancel'].forEach(function(ev){hb.addEventListener(ev,holdStop);cb.addEventListener(ev,holdStop);});
+on($('pauseBtn'),function(){if(!$('startOv').classList.contains('hide')||phase==='idle')return;beep();paused=true;holdStop();$('pScore').textContent=score;$('pauseOv').classList.remove('hide');});
+on($('resumeBtn'),function(){beep();paused=false;$('pauseOv').classList.add('hide');});
+on($('restartBtn'),function(){beep();$('pauseOv').classList.add('hide');resetGame();startRound();});
+function paintSound(){$('soundBtn').textContent=soundOn?'🔊':'🔇';}
+on($('soundBtn'),function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}paintSound();beep();});
+paintSound();paintBall();
+</script>
+</body>
+</html>
