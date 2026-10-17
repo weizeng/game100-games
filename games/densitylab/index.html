@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>密度实验</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#141b33;color:#fff;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+#app{height:100%;display:flex;flex-direction:column;background:linear-gradient(165deg,#1b2a55 0%,#232a4d 45%,#191238 100%)}
+#hud{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(8,12,28,.88);border-bottom:2px solid #4FC3F7;z-index:30}
+#hud .ttl{font-size:17px;font-weight:bold}
+#hud .score{font-size:14px;color:#b3e5fc}
+#hud .score b{font-size:19px;color:#ffd54f;margin:0 2px}
+.hbtns{display:flex;gap:8px}
+.ibtn{width:44px;height:44px;font-size:20px;border:none;border-radius:12px;background:#27406e;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+.ibtn:active{transform:scale(.9)}
+#main{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:10px 12px 14px;gap:10px}
+#stage{position:relative;height:300px;border-radius:16px;background:rgba(6,10,26,.55);border:1px solid rgba(79,195,247,.35);overflow:hidden;flex:none;touch-action:none}
+#tank{position:absolute;left:11%;right:11%;bottom:14px;height:196px;border:3px solid rgba(255,255,255,.35);border-top:none;border-radius:0 0 18px 18px;overflow:hidden;background:rgba(255,255,255,.06)}
+#liquid{position:absolute;left:0;right:0;bottom:0;height:78%;transition:background-color .4s}
+#surf{position:absolute;left:0;right:0;top:0;height:5px;background:rgba(255,255,255,.65);border-radius:3px}
+#obj{position:absolute;left:50%;top:6px;width:64px;height:64px;margin-left:-32px;font-size:44px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5));z-index:5}
+#objTag{position:absolute;left:50%;transform:translateX(-50%);top:72px;font-size:12px;color:#e1f5fe;background:rgba(0,0,0,.45);padding:2px 10px;border-radius:10px;white-space:nowrap;z-index:5}
+#liqTag{position:absolute;right:8px;bottom:8px;font-size:12px;color:#fff;background:rgba(0,0,0,.45);padding:3px 10px;border-radius:10px;z-index:6}
+.panel{background:rgba(10,16,36,.72);border:1px solid rgba(79,195,247,.28);border-radius:14px;padding:10px 12px}
+.panel .pt{font-size:14px;font-weight:bold;color:#4FC3F7;margin-bottom:8px}
+#controls .row{display:flex;gap:8px}
+.btn{flex:1;min-height:48px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#06263b;background:#4FC3F7;cursor:pointer;touch-action:manipulation}
+.btn:active{transform:scale(.96)}
+.btn.sel{background:#ffd54f;color:#4a3200;box-shadow:0 0 0 2px #fff inset}
+.btn.dim{background:#2c3a5e;color:#b0bec5}
+.btn.good{background:#66bb6a;color:#063006}
+.btn.warn{background:#ffa726;color:#4a2c00}
+#taskPanel .q{font-size:15px;line-height:1.7}
+#taskPanel .q b{color:#ffd54f}
+#taskPanel .hint{font-size:13px;color:#9fd8f5;margin-top:6px;min-height:18px}
+#taskPanel .row{display:flex;gap:8px;margin-top:8px}
+#logPanel{max-height:150px;display:flex;flex-direction:column}
+#log{overflow-y:auto;font-size:13px;line-height:1.8;color:#cfd8dc}
+#log .ok{color:#a5d6a7}
+#log .no{color:#ef9a9a}
+.ov{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(4,6,16,.86);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.ov.hide{display:none}
+.card{width:100%;max-width:380px;background:linear-gradient(170deg,#24315e,#171d3a);border:2px solid #4FC3F7;border-radius:20px;padding:22px 18px;text-align:center;max-height:92%;overflow-y:auto}
+.card h1{font-size:24px;margin-bottom:6px}
+.card h2{font-size:20px;margin-bottom:10px}
+.card p{font-size:14px;line-height:1.8;color:#c9d6ea;text-align:left;margin:8px 0}
+.card .sec{font-size:15px;font-weight:bold;color:#4FC3F7;margin:12px 0 4px;text-align:left}
+.card .big{font-size:16px;color:#fff;text-align:center}
+.card .big b{color:#ffd54f;font-size:24px}
+.card .row{display:flex;gap:10px;margin-top:14px}
+.card .btn{font-size:17px}
+.pt2{position:fixed;width:9px;height:9px;border-radius:50%;z-index:999;pointer-events:none;transition:transform .65s ease-out,opacity .65s}
+.formula{background:rgba(79,195,247,.12);border:1px dashed #4FC3F7;border-radius:10px;padding:8px;font-size:15px;color:#fff;margin:6px 0;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div class="ttl">⚖️ 密度实验</div>
+    <div class="score">得分 <b id="score">0</b></div>
+    <div class="hbtns">
+      <button class="ibtn" id="pauseBtn" aria-label="暂停">⏸</button>
+      <button class="ibtn" id="soundBtn" aria-label="声音">🔊</button>
+    </div>
+  </header>
+  <div id="main">
+    <div id="stage">
+      <div id="tank">
+        <div id="liquid"><div id="surf"></div></div>
+        <div id="liqTag">水 1.0</div>
+      </div>
+      <div id="obj">🪵</div>
+      <div id="objTag">木块 0.6 g/cm³</div>
+    </div>
+    <div class="panel" id="controls">
+      <div class="pt">🧪 选择液体（每轮实验前可切换）</div>
+      <div class="row" id="liqBtns">
+        <button class="btn sel" data-l="0">💧 水<br><small>1.0</small></button>
+        <button class="btn dim" data-l="1">🧂 盐水<br><small>1.15</small></button>
+        <button class="btn dim" data-l="2">🛢️ 油<br><small>0.8</small></button>
+      </div>
+    </div>
+    <div class="panel" id="taskPanel">
+      <div class="pt">🎯 实验任务</div>
+      <div class="q" id="taskQ">准备开始…</div>
+      <div class="row" id="predRow">
+        <button class="btn good" id="upBtn">⬆️ 上浮</button>
+        <button class="btn warn" id="downBtn">⬇️ 下沉</button>
+      </div>
+      <div class="row" id="nextRow" style="display:none">
+        <button class="btn" id="nextBtn">下一轮 ▶</button>
+      </div>
+      <div class="hint" id="taskHint"></div>
+    </div>
+    <div class="panel" id="logPanel">
+      <div class="pt">📋 实验记录</div>
+      <div id="log"><div style="color:#78909c">暂无记录，完成一轮实验后显示</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="startOv">
+  <div class="card">
+    <h1>⚖️ 密度实验</h1>
+    <div class="sec">玩法说明</div>
+    <p>1. 共 3 轮，每轮随机出现一种物体（泡沫、木块、冰块、苹果、石头、铁块）。<br>2. 先在上方选择液体（水 / 盐水 / 油），再预测物体会「上浮」还是「下沉」。答对 +20 分。<br>3. 点击预测后，物体会落入液体，动画展示真实结果，并记入实验记录。</p>
+    <div class="sec">原理简介</div>
+    <p>物体在液体中的沉浮由<b>密度</b>决定：物体密度大于液体密度就下沉，小于就上浮。注意冰块（0.9）在水中上浮、在油中却会下沉！</p>
+    <div class="row"><button class="btn" id="startBtn" style="font-size:18px">开始实验</button></div>
+  </div>
+</div>
+
+<div class="ov hide" id="pauseOv">
+  <div class="card">
+    <h2>⏸ 实验暂停</h2>
+    <p class="big">当前得分 <b id="pScore">0</b></p>
+    <div class="row">
+      <button class="btn" id="resumeBtn">继续</button>
+      <button class="btn dim" id="restartBtn">重来</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hide" id="endOv">
+  <div class="card">
+    <h2>🎉 实验完成</h2>
+    <div class="sec">实验结论</div>
+    <p>物体密度 <b>大于</b> 液体密度 → 下沉；物体密度 <b>小于</b> 液体密度 → 上浮。沉浮只看物体与液体的<b>密度相对大小</b>，与物体轻重无关。</p>
+    <div class="sec">知识点</div>
+    <div class="formula">密度 ρ = m / V</div>
+    <p>浮沉条件：ρ<sub>物</sub> ＞ ρ<sub>液</sub> 下沉；ρ<sub>物</sub> ＜ ρ<sub>液</sub> 上浮；ρ<sub>物</sub> ＝ ρ<sub>液</sub> 悬浮。</p>
+    <p class="big">本轮得分 <b id="fScore">0</b>　最高分 <b id="fHs">0</b></p>
+    <div class="row"><button class="btn" id="againBtn" style="font-size:18px">再做一次</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== 通用：音频 ===== */
+let AC=null;
+let soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){AC=null;}}if(AC&&AC.state==='suspended'){try{AC.resume();}catch(e){}}return AC;}
+function tone(f,d,type,delay){if(!soundOn)return;const c=ac();if(!c)return;try{const t=c.currentTime+(delay||0);const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.02);}catch(e){}}
+function beep(){tone(600,0.08,'sine',0);}
+function sGood(){tone(880,0.12,'sine',0);tone(1320,0.18,'sine',0.1);}
+function sBad(){tone(200,0.28,'sawtooth',0);}
+function sWin(){const fs=[523,659,784,1047];for(let i=0;i<fs.length;i++)tone(fs[i],0.2,'sine',i*0.14);}
+function burst(x,y,color){try{for(let i=0;i<14;i++){const d=document.createElement('div');d.className='pt2';d.style.background=color||'#FFD54F';d.style.left=x+'px';d.style.top=y+'px';document.body.appendChild(d);const a=Math.random()*Math.PI*2,r=40+Math.random()*70;requestAnimationFrame(function(){d.style.transform='translate('+(Math.cos(a)*r)+'px,'+(Math.sin(a)*r)+'px)';d.style.opacity='0';});setTimeout(function(){d.remove();},750);}}catch(e){}}
+function buzz(){try{if(navigator.vibrate)navigator.vibrate(50);}catch(e){}}
+function on(el,fn){el.addEventListener('pointerdown',function(e){e.preventDefault();fn(e);});}
+
+/* ===== 数据 ===== */
+const OBJS=[
+ {n:'泡沫',e:'🧽',d:0.2},
+ {n:'木块',e:'🪵',d:0.6},
+ {n:'冰块',e:'🧊',d:0.9},
+ {n:'苹果',e:'🍎',d:0.95},
+ {n:'石头',e:'🪨',d:2.6},
+ {n:'铁块',e:'🔩',d:7.8}
+];
+const LIQS=[
+ {n:'水',d:1.0,c:'rgba(41,182,246,.55)'},
+ {n:'盐水',d:1.15,c:'rgba(38,198,218,.6)'},
+ {n:'油',d:0.8,c:'rgba(255,213,79,.6)'}
+];
+const HS_KEY='g100_densitylab_hs';
+
+/* ===== 状态 ===== */
+let score=0,round=0,liqIdx=0,curObj=null,phase='idle',paused=false,rafId=0;
+const $=function(id){return document.getElementById(id);};
+const stage=$('stage'),tank=$('tank'),liquid=$('liquid'),objEl=$('obj'),objTag=$('objTag'),liqTag=$('liqTag');
+
+function setScore(v){score=v;$('score').textContent=v;}
+function setLiq(i){liqIdx=i;const L=LIQS[i];liquid.style.backgroundColor=L.c;liqTag.textContent=L.n+' '+L.d.toFixed(2);
+ const bs=$('liqBtns').children;for(let k=0;k<bs.length;k++){bs[k].className='btn'+(k===i?' sel':' dim');}}
+function addLog(html){const log=$('log');if(log.firstChild&&log.firstChild.style)log.innerHTML='';const d=document.createElement('div');d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;}
+
+function pickObjs(){const idx=[0,1,2,3,4,5];for(let i=idx.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=idx[i];idx[i]=idx[j];idx[j]=t;}return idx.slice(0,3).map(function(i){return OBJS[i];});}
+let seq=[];
+
+function startRound(){
+ round++;curObj=seq[round-1];phase='predict';
+ $('taskQ').innerHTML='第 <b>'+round+'</b> / 3 轮：<b>'+curObj.e+curObj.n+'</b>（密度 '+curObj.d+' g/cm³）<br>当前液体：<b>'+LIQS[liqIdx].n+'</b>（'+LIQS[liqIdx].d.toFixed(2)+'）——它会浮还是沉？';
+ $('taskHint').textContent='可先切换液体，再点预测';
+ $('predRow').style.display='flex';$('nextRow').style.display='none';
+ objEl.style.transition='none';objEl.style.transform='translateY(0px)';
+ objEl.textContent=curObj.e;objTag.textContent=curObj.n+' '+curObj.d+' g/cm³';
+ beep();
+}
+
+function predict(up){
+ if(phase!=='predict'||paused)return;
+ beep();phase='anim';
+ $('predRow').style.display='none';
+ const L=LIQS[liqIdx];
+ const actualUp=curObj.d<L.d;
+ animateDrop(actualUp,function(){
+   const ok=(up===actualUp);
+   if(ok){setScore(score+20);sGood();buzz();const r=objEl.getBoundingClientRect();burst(r.left+r.width/2,r.top+r.height/2,'#4FC3F7');}
+   else{sBad();}
+   const resTxt=actualUp?'上浮':'下沉';
+   $('taskHint').innerHTML='实际：<b>'+resTxt+'</b>（'+curObj.n+' '+curObj.d+' vs '+L.n+' '+L.d.toFixed(2)+'）'+(ok?' ✅ +20':' ❌');
+   addLog('第'+round+'轮 '+curObj.e+curObj.n+'('+curObj.d+')｜'+L.n+'('+L.d.toFixed(2)+')｜预测 '+(up?'上浮':'下沉')+'｜实际 <b class="'+(ok?'ok':'no')+'">'+resTxt+(ok?' ✓ +20':' ✗')+'</b>');
+   phase='result';
+   if(round>=3){$('nextBtn').textContent='查看结论 🎉';}else{$('nextBtn').textContent='下一轮 ▶';}
+   $('nextRow').style.display='flex';
+ });
+}
+
+function animateDrop(floatUp,done){
+ const stageH=stage.clientHeight,tankTop=stageH-14-196;
+ const surfY=tankTop+196*0.22; /* 液面 y */
+ const startY=6,endY=floatUp?(surfY-58):(stageH-14-58);
+ let t0=performance.now(),lastT=t0;const dur=900;
+ cancelAnimationFrame(rafId);
+ function frame(t){
+   if(paused){t0+=(t-lastT);lastT=t;rafId=requestAnimationFrame(frame);return;}
+   lastT=t;
+   const p=Math.min(1,(t-t0)/dur);
+   const e=p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+   const y=startY+(endY-startY)*e;
+   objEl.style.transform='translateY('+y+'px)';
+   if(p<1){rafId=requestAnimationFrame(frame);return;}
+   if(floatUp){ /* 浮在水面：轻微上下浮动 */
+     let b0=performance.now(),bLast=b0;
+     (function bob(bt){
+       if(paused){b0+=(bt-bLast);bLast=bt;requestAnimationFrame(bob);return;}
+       bLast=bt;
+       const bp=(bt-b0)/1000;
+       objEl.style.transform='translateY('+(endY+Math.sin(bp*3)*5)+'px)';
+       if(bp<1.6){requestAnimationFrame(bob);}else{done();}
+     })(b0);
+   }else{
+     const r=objEl.getBoundingClientRect();burst(r.left+r.width/2,r.top+10,'rgba(255,255,255,.8)');
+     setTimeout(done,500);
+   }
+ }
+ rafId=requestAnimationFrame(frame);
+}
+
+/* ===== 流程 ===== */
+function resetGame(){
+ cancelAnimationFrame(rafId);setScore(0);round=0;phase='idle';paused=false;
+ $('log').innerHTML='<div style="color:#78909c">暂无记录，完成一轮实验后显示</div>';
+ setLiq(0);seq=pickObjs();
+ objEl.style.transition='none';objEl.style.transform='translateY(0px)';
+ objEl.textContent='🧪';objTag.textContent='待实验';
+ $('predRow').style.display='none';$('nextRow').style.display='none';
+ $('taskQ').textContent='准备开始…';$('taskHint').textContent='';
+}
+function endGame(){
+ let hs=0;try{hs=parseInt(localStorage.getItem(HS_KEY)||'0',10)||0;}catch(e){}
+ if(score>hs){hs=score;try{localStorage.setItem(HS_KEY,String(hs));}catch(e){}}
+ $('fScore').textContent=score;$('fHs').textContent=hs;
+ $('endOv').classList.remove('hide');sWin();
+}
+
+/* ===== 绑定 ===== */
+on($('startBtn'),function(){$('startOv').classList.add('hide');ac();resetGame();startRound();});
+on($('upBtn'),function(){predict(true);});
+on($('downBtn'),function(){predict(false);});
+on($('nextBtn'),function(){beep();if(round>=3){endGame();}else{startRound();}});
+on($('againBtn'),function(){$('endOv').classList.add('hide');resetGame();startRound();});
+const lb=$('liqBtns').children;
+for(let i=0;i<lb.length;i++)(function(i){on(lb[i],function(){if(phase==='predict'){setLiq(i);beep();startRoundHint();}});})(i);
+function startRoundHint(){$('taskQ').innerHTML='第 <b>'+round+'</b> / 3 轮：<b>'+curObj.e+curObj.n+'</b>（密度 '+curObj.d+' g/cm³）<br>当前液体：<b>'+LIQS[liqIdx].n+'</b>（'+LIQS[liqIdx].d.toFixed(2)+'）——它会浮还是沉？';}
+on($('pauseBtn'),function(){if(!$('startOv').classList.contains('hide')||phase==='idle')return;beep();paused=true;$('pScore').textContent=score;$('pauseOv').classList.remove('hide');});
+on($('resumeBtn'),function(){beep();paused=false;$('pauseOv').classList.add('hide');});
+on($('restartBtn'),function(){beep();$('pauseOv').classList.add('hide');resetGame();startRound();});
+function paintSound(){$('soundBtn').textContent=soundOn?'🔊':'🔇';}
+on($('soundBtn'),function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}paintSound();beep();});
+paintSound();setLiq(0);
+</script>
+</body>
+</html>

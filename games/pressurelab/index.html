@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>压强实验</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#1a1410;color:#fff;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+#app{height:100%;display:flex;flex-direction:column;background:linear-gradient(165deg,#2b1f14 0%,#33241a 45%,#1c1230 100%)}
+#hud{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(20,14,8,.88);border-bottom:2px solid #FFB74D;z-index:30}
+#hud .ttl{font-size:17px;font-weight:bold}
+#hud .score{font-size:14px;color:#ffcc80}
+#hud .score b{font-size:19px;color:#ffd54f;margin:0 2px}
+.hbtns{display:flex;gap:8px}
+.ibtn{width:44px;height:44px;font-size:20px;border:none;border-radius:12px;background:#5d4037;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+.ibtn:active{transform:scale(.9)}
+#main{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:10px 12px 14px;gap:10px}
+#stage{position:relative;height:300px;border-radius:16px;background:rgba(10,8,4,.55);border:1px solid rgba(255,183,77,.35);overflow:hidden;flex:none;touch-action:none}
+#basebar{position:absolute;left:4%;right:4%;bottom:12px;height:26px;background:linear-gradient(#8d6e63,#5d4037);border-radius:8px}
+.cyl{position:absolute;bottom:38px;background:rgba(255,255,255,.07);border:3px solid rgba(255,255,255,.4);border-bottom:none;border-radius:10px 10px 0 0}
+#cylS{left:10%;width:58px;height:172px}
+#cylB{right:10%;width:124px;height:172px}
+.pist{position:absolute;left:4px;right:4px;height:26px;background:linear-gradient(#ffb74d,#f57c00);border-radius:6px;box-shadow:0 3px 8px rgba(0,0,0,.5)}
+#pistS{top:8px}
+#bigAsm{position:absolute;right:10%;width:124px;bottom:38px;height:230px;pointer-events:none}
+#pistB{position:absolute;left:3px;right:3px;top:52px;height:26px;background:linear-gradient(#ffb74d,#f57c00);border-radius:6px;box-shadow:0 3px 8px rgba(0,0,0,.5)}
+#weight{position:absolute;left:0;right:0;top:-6px;font-size:52px;text-align:center;filter:drop-shadow(0 4px 6px rgba(0,0,0,.5))}
+#wTag{position:absolute;left:0;right:0;top:52px;text-align:center;font-size:12px;color:#ffe0b2}
+#f1tag{position:absolute;left:10%;width:58px;top:38px;text-align:center;font-size:13px;font-weight:bold;color:#ffd54f;z-index:5}
+.slab{position:absolute;bottom:44px;font-size:11px;color:#bcaaa4}
+#slabS{left:10%;width:58px;text-align:center}
+#slabB{right:10%;width:124px;text-align:center}
+.panel{background:rgba(24,17,10,.78);border:1px solid rgba(255,183,77,.3);border-radius:14px;padding:10px 12px}
+.panel .pt{font-size:14px;font-weight:bold;color:#FFB74D;margin-bottom:8px}
+.row{display:flex;gap:8px;align-items:center}
+.btn{flex:1;min-height:48px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#3e2700;background:#FFB74D;cursor:pointer;touch-action:manipulation}
+.btn:active{transform:scale(.96)}
+.btn.sel{background:#ffd54f;color:#4a3200;box-shadow:0 0 0 2px #fff inset}
+.btn.dim{background:#4e3b2c;color:#bcaaa4}
+.btn.go{background:#66bb6a;color:#063006;font-size:17px}
+input[type=range]{flex:1;height:44px;accent-color:#FFB74D;touch-action:pan-x}
+.ctl-lab{font-size:14px;min-width:118px;color:#ffe0b2}
+.ctl-lab b{color:#ffd54f}
+#taskPanel .q{font-size:15px;line-height:1.7}
+#taskPanel .q b{color:#ffd54f}
+#taskPanel .hint{font-size:13px;color:#ffcc80;margin-top:6px;min-height:18px}
+#logPanel{max-height:150px;display:flex;flex-direction:column}
+#log{overflow-y:auto;font-size:13px;line-height:1.8;color:#d7ccc8}
+#log .ok{color:#a5d6a7}
+#log .no{color:#ef9a9a}
+.ov{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(8,5,2,.87);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.ov.hide{display:none}
+.card{width:100%;max-width:380px;background:linear-gradient(170deg,#4a3423,#241a10);border:2px solid #FFB74D;border-radius:20px;padding:22px 18px;text-align:center;max-height:92%;overflow-y:auto}
+.card h1{font-size:24px;margin-bottom:6px}
+.card h2{font-size:20px;margin-bottom:10px}
+.card p{font-size:14px;line-height:1.8;color:#e8d9c4;text-align:left;margin:8px 0}
+.card .sec{font-size:15px;font-weight:bold;color:#FFB74D;margin:12px 0 4px;text-align:left}
+.card .big{font-size:16px;color:#fff;text-align:center}
+.card .big b{color:#ffd54f;font-size:24px}
+.card .row{display:flex;gap:10px;margin-top:14px}
+.formula{background:rgba(255,183,77,.12);border:1px dashed #FFB74D;border-radius:10px;padding:8px;font-size:15px;color:#fff;margin:6px 0;text-align:center}
+.pt2{position:fixed;width:9px;height:9px;border-radius:50%;z-index:999;pointer-events:none;transition:transform .65s ease-out,opacity .65s}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div class="ttl">⚙️ 压强实验</div>
+    <div class="score">得分 <b id="score">0</b></div>
+    <div class="hbtns">
+      <button class="ibtn" id="pauseBtn" aria-label="暂停">⏸</button>
+      <button class="ibtn" id="soundBtn" aria-label="声音">🔊</button>
+    </div>
+  </header>
+  <div id="main">
+    <div id="stage">
+      <div id="f1tag">⬇ F1 <span id="f1v">100</span>N</div>
+      <div class="cyl" id="cylS"><div class="pist" id="pistS"></div></div>
+      <div class="cyl" id="cylB"></div>
+      <div id="bigAsm">
+        <div id="weight">📦</div>
+        <div id="pistB"></div>
+        <div id="wTag">木箱 500N</div>
+      </div>
+      <div class="slab" id="slabS">小活塞 S1</div>
+      <div class="slab" id="slabB">大活塞 S2</div>
+      <div id="basebar"></div>
+    </div>
+    <div class="panel" id="controls">
+      <div class="pt">🔧 调节液压机参数</div>
+      <div class="pt" style="font-size:12px;color:#bcaaa4;margin-bottom:4px">面积比 S2/S1</div>
+      <div class="row" id="ratioBtns" style="margin-bottom:8px">
+        <button class="btn dim" data-r="2">2 倍</button>
+        <button class="btn sel" data-r="4">4 倍</button>
+        <button class="btn dim" data-r="8">8 倍</button>
+      </div>
+      <div class="row">
+        <div class="ctl-lab">输入力 F1<br><b id="f1Lab">100 N</b></div>
+        <input type="range" id="f1Range" min="10" max="200" step="10" value="100">
+      </div>
+      <div class="pt" style="margin-top:8px;font-size:15px">输出力 F2 = F1 × 面积比 = <b id="f2v" style="font-size:19px;color:#ffd54f">400</b> N</div>
+    </div>
+    <div class="panel" id="taskPanel">
+      <div class="pt">🎯 实验任务</div>
+      <div class="q" id="taskQ">准备开始…</div>
+      <div class="row" id="goRow" style="margin-top:8px">
+        <button class="btn go" id="goBtn">🚀 启动液压机</button>
+      </div>
+      <div class="row" id="nextRow" style="display:none;margin-top:8px">
+        <button class="btn" id="nextBtn">下一轮 ▶</button>
+      </div>
+      <div class="hint" id="taskHint"></div>
+    </div>
+    <div class="panel" id="logPanel">
+      <div class="pt">📋 实验记录</div>
+      <div id="log"><div style="color:#a1887f">暂无记录，完成一轮实验后显示</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="startOv">
+  <div class="card">
+    <h1>⚙️ 压强实验</h1>
+    <div class="sec">玩法说明</div>
+    <p>1. 共 3 轮，每轮要举起一件重物：木箱（500N）、摩托车（2000N）、小汽车（8000N）。<br>2. 调节<b>面积比</b>（2/4/8 倍）与<b>输入力 F1</b>（10~200N），使输出力 F2 ≥ 重物重量。<br>3. 点击「启动液压机」：举起重物 +30 分，举不起来不得分。观察两个活塞移动距离的差别！</p>
+    <div class="sec">原理简介</div>
+    <p>液压机利用<b>帕斯卡原理</b>：密闭液体中压强处处相等，小活塞上的小力能在大活塞上产生大力。代价是：大活塞移动的距离短得多。</p>
+    <div class="row"><button class="btn" id="startBtn" style="font-size:18px">开始实验</button></div>
+  </div>
+</div>
+
+<div class="ov hide" id="pauseOv">
+  <div class="card">
+    <h2>⏸ 实验暂停</h2>
+    <p class="big">当前得分 <b id="pScore">0</b></p>
+    <div class="row">
+      <button class="btn" id="resumeBtn">继续</button>
+      <button class="btn dim" id="restartBtn">重来</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hide" id="endOv">
+  <div class="card">
+    <h2>🎉 实验完成</h2>
+    <div class="sec">实验结论</div>
+    <p>密闭液体中压强处处相等：<b>F1/S1 = F2/S2</b>，所以 F2 = F1 ×（S2/S1）。面积比越大，同样输入力产生的输出力越大——小力举起重物；但大活塞上升距离只有小活塞的 1/面积比。</p>
+    <div class="sec">知识点</div>
+    <div class="formula">压强 p = F / S</div>
+    <div class="formula">帕斯卡原理：F1/S1 = F2/S2</div>
+    <p class="big">本轮得分 <b id="fScore">0</b>　最高分 <b id="fHs">0</b></p>
+    <div class="row"><button class="btn" id="againBtn" style="font-size:18px">再做一次</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== 通用：音频 ===== */
+let AC=null;
+let soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){AC=null;}}if(AC&&AC.state==='suspended'){try{AC.resume();}catch(e){}}return AC;}
+function tone(f,d,type,delay){if(!soundOn)return;const c=ac();if(!c)return;try{const t=c.currentTime+(delay||0);const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.02);}catch(e){}}
+function beep(){tone(600,0.08,'sine',0);}
+function sGood(){tone(880,0.12,'sine',0);tone(1320,0.18,'sine',0.1);}
+function sBad(){tone(200,0.28,'sawtooth',0);}
+function sWin(){const fs=[523,659,784,1047];for(let i=0;i<fs.length;i++)tone(fs[i],0.2,'sine',i*0.14);}
+function burst(x,y,color){try{for(let i=0;i<14;i++){const d=document.createElement('div');d.className='pt2';d.style.background=color||'#FFD54F';d.style.left=x+'px';d.style.top=y+'px';document.body.appendChild(d);const a=Math.random()*Math.PI*2,r=40+Math.random()*70;requestAnimationFrame(function(){d.style.transform='translate('+(Math.cos(a)*r)+'px,'+(Math.sin(a)*r)+'px)';d.style.opacity='0';});setTimeout(function(){d.remove();},750);}}catch(e){}}
+function buzz(){try{if(navigator.vibrate)navigator.vibrate(50);}catch(e){}}
+function on(el,fn){el.addEventListener('pointerdown',function(e){e.preventDefault();fn(e);});}
+
+/* ===== 数据 ===== */
+const WEIGHTS=[
+ {n:'木箱',e:'📦',w:500},
+ {n:'摩托车',e:'🏍️',w:2000},
+ {n:'小汽车',e:'🚗',w:8000}
+];
+const HS_KEY='g100_pressurelab_hs';
+
+/* ===== 状态 ===== */
+let score=0,round=0,ratio=4,f1=100,curW=null,phase='idle',paused=false,rafId=0,seq=[];
+const $=function(id){return document.getElementById(id);};
+const pistS=$('pistS'),bigAsm=$('bigAsm');
+
+function setScore(v){score=v;$('score').textContent=v;}
+function f2(){return f1*ratio;}
+function paintCtl(){
+ $('f1Lab').textContent=f1+' N';$('f1v').textContent=f1;$('f2v').textContent=f2();
+ const bs=$('ratioBtns').children;
+ for(let k=0;k<bs.length;k++){bs[k].className='btn'+(parseInt(bs[k].getAttribute('data-r'),10)===ratio?' sel':' dim');}
+}
+function addLog(html){const log=$('log');if(log.firstChild&&log.firstChild.style)log.innerHTML='';const d=document.createElement('div');d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;}
+
+function setAsm(yS,yB){pistS.style.transform='translateY('+yS+'px)';bigAsm.style.transform='translateY('+yB+'px)';$('f1tag').style.transform='translateY('+yS+'px)';}
+
+function startRound(){
+ round++;curW=seq[round-1];phase='ready';
+ $('weight').textContent=curW.e;$('wTag').textContent=curW.n+' '+curW.w+'N';
+ setAsm(0,0);
+ $('taskQ').innerHTML='第 <b>'+round+'</b> / 3 轮：举起 <b>'+curW.e+curW.n+'</b>（重 '+curW.w+' N）<br>调节参数，使 <b>F2 ≥ '+curW.w+' N</b>，再启动液压机。';
+ $('taskHint').textContent='提示：F2 = F1 × 面积比；注意大活塞上升距离只有小活塞的 1/'+ratio;
+ $('goRow').style.display='flex';$('nextRow').style.display='none';
+ beep();
+}
+
+function runPress(){
+ if(phase!=='ready'||paused)return;
+ beep();phase='anim';
+ $('goRow').style.display='none';
+ const F2=f2(),ok=F2>=curW.w;
+ const downPx=70,upPx=downPx/ratio;
+ let t0=performance.now(),lastT=t0;const dur=850;
+ cancelAnimationFrame(rafId);
+ function frame(t){
+   if(paused){t0+=(t-lastT);lastT=t;rafId=requestAnimationFrame(frame);return;}
+   lastT=t;
+   const p=Math.min(1,(t-t0)/dur);
+   const e=p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+   setAsm(downPx*e,-upPx*e);
+   if(p<1){rafId=requestAnimationFrame(frame);return;}
+   if(ok){liftPhase(upPx);}else{backPhase();}
+ }
+ rafId=requestAnimationFrame(frame);
+
+ function liftPhase(up){
+   let s0=performance.now(),sL=s0;const sd=1000,lift=110;
+   (function sf(t){
+     if(paused){s0+=(t-sL);sL=t;requestAnimationFrame(sf);return;}
+     sL=t;
+     const p=Math.min(1,(t-s0)/sd);
+     const e2=1-Math.pow(1-p,3);
+     setAsm(downPx,-up-lift*e2);
+     if(p<1){requestAnimationFrame(sf);return;}
+     /* 成功收尾 */
+     setScore(score+30);sGood();buzz();
+     const r=$('weight').getBoundingClientRect();burst(r.left+r.width/2,r.top,'#FFB74D');
+     $('taskHint').innerHTML='🎉 成功举起！F2='+F2+'N ≥ '+curW.w+'N，省力 <b>'+ratio+'</b> 倍 ✅ +30';
+     addLog('第'+round+'轮 '+curW.e+curW.n+'('+curW.w+'N)｜F1='+f1+'N 面积比='+ratio+'｜F2=<b>'+F2+'N</b>｜<b class="ok">举起 ✓ +30</b>');
+     phase='result';showNext();
+   })(s0);
+ }
+ function backPhase(){
+   let s0=performance.now(),sL=s0;const sd=600;
+   (function sf(t){
+     if(paused){s0+=(t-sL);sL=t;requestAnimationFrame(sf);return;}
+     sL=t;
+     const p=Math.min(1,(t-s0)/sd);
+     setAsm(downPx*(1-p),-upPx*(1-p));
+     if(p<1){requestAnimationFrame(sf);return;}
+     sBad();
+     $('taskHint').innerHTML='😞 没举起来：F2='+F2+'N ＜ '+curW.w+'N。试试调大面积比或输入力。';
+     addLog('第'+round+'轮 '+curW.e+curW.n+'('+curW.w+'N)｜F1='+f1+'N 面积比='+ratio+'｜F2=<b>'+F2+'N</b>｜<b class="no">失败 ✗</b>');
+     phase='result';showNext();
+   })(s0);
+ }
+ function showNext(){
+   $('nextBtn').textContent=round>=3?'查看结论 🎉':'下一轮 ▶';
+   $('nextRow').style.display='flex';
+ }
+}
+
+/* ===== 流程 ===== */
+function resetGame(){
+ cancelAnimationFrame(rafId);setScore(0);round=0;phase='idle';paused=false;
+ $('log').innerHTML='<div style="color:#a1887f">暂无记录，完成一轮实验后显示</div>';
+ seq=WEIGHTS.slice();for(let i=seq.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=seq[i];seq[i]=seq[j];seq[j]=t;}
+ setAsm(0,0);paintCtl();
+ $('goRow').style.display='none';$('nextRow').style.display='none';
+ $('taskQ').textContent='准备开始…';$('taskHint').textContent='';
+}
+function endGame(){
+ let hs=0;try{hs=parseInt(localStorage.getItem(HS_KEY)||'0',10)||0;}catch(e){}
+ if(score>hs){hs=score;try{localStorage.setItem(HS_KEY,String(hs));}catch(e){}}
+ $('fScore').textContent=score;$('fHs').textContent=hs;
+ $('endOv').classList.remove('hide');sWin();
+}
+
+/* ===== 绑定 ===== */
+on($('startBtn'),function(){$('startOv').classList.add('hide');ac();resetGame();startRound();});
+on($('goBtn'),runPress);
+on($('nextBtn'),function(){beep();if(round>=3){endGame();}else{startRound();}});
+on($('againBtn'),function(){$('endOv').classList.add('hide');resetGame();startRound();});
+const rb=$('ratioBtns').children;
+for(let i=0;i<rb.length;i++)(function(i){on(rb[i],function(){if(phase==='anim'||phase==='result')return;ratio=parseInt(rb[i].getAttribute('data-r'),10);paintCtl();beep();if(curW)$('taskHint').textContent='提示：F2 = F1 × 面积比；注意大活塞上升距离只有小活塞的 1/'+ratio;});})(i);
+$('f1Range').addEventListener('input',function(){f1=parseInt(this.value,10);paintCtl();});
+on($('pauseBtn'),function(){if(!$('startOv').classList.contains('hide')||phase==='idle')return;beep();paused=true;$('pScore').textContent=score;$('pauseOv').classList.remove('hide');});
+on($('resumeBtn'),function(){beep();paused=false;$('pauseOv').classList.add('hide');});
+on($('restartBtn'),function(){beep();$('pauseOv').classList.add('hide');resetGame();startRound();});
+function paintSound(){$('soundBtn').textContent=soundOn?'🔊':'🔇';}
+on($('soundBtn'),function(){soundOn=!soundOn;try{localStorage.setItem('g100_sound',soundOn?'1':'0');}catch(e){}paintSound();beep();});
+paintSound();paintCtl();
+</script>
+</body>
+</html>
