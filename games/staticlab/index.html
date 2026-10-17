@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>静电实验</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{background:linear-gradient(160deg,#0f0c29,#302b63 55%,#1b1b3a);color:#fff;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;padding:10px;user-select:none;-webkit-user-select:none;}
+header{display:flex;align-items:center;gap:8px;padding:4px 2px;}
+header h1{font-size:18px;margin:0;flex:1;}
+.score{background:rgba(255,255,255,.12);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.3;}
+.icobtn{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;flex:none;}
+#stage{position:relative;height:340px;border-radius:16px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);overflow:hidden;margin:8px 0;touch-action:none;}
+#balloon{position:absolute;font-size:64px;cursor:grab;z-index:10;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5));}
+#balloon.charged{filter:drop-shadow(0 0 14px #fdd835) drop-shadow(0 4px 8px rgba(0,0,0,.5));}
+.paper{position:absolute;width:16px;height:12px;background:#fff8e1;border:1px solid #bdbdbd;border-radius:2px;z-index:5;}
+#paperZoneLabel{position:absolute;bottom:4px;left:0;right:0;text-align:center;color:rgba(255,255,255,.45);font-size:12px;}
+.pt{position:absolute;pointer-events:none;font-size:20px;z-index:50;transition:transform .65s ease-out,opacity .65s ease-out;}
+#controls{background:rgba(255,255,255,.07);border-radius:14px;padding:10px;margin:8px 0;}
+.bigbtn{min-height:52px;font-size:18px;border-radius:14px;border:none;background:linear-gradient(135deg,#fdd835,#ff9800);color:#4e342e;width:100%;font-weight:bold;}
+.bigbtn:disabled{opacity:.4;}
+.midbtn{min-height:48px;font-size:16px;border-radius:12px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.14);color:#fff;padding:0 18px;font-weight:bold;}
+#chargeWrap{height:14px;background:rgba(255,255,255,.15);border-radius:7px;overflow:hidden;margin:8px 0;}
+#chargeFill{height:100%;width:0%;background:linear-gradient(90deg,#fdd835,#ff9800);transition:width .2s;}
+.rowline{display:flex;justify-content:space-between;align-items:center;font-size:14px;margin:4px 0;}
+#taskPanel{background:rgba(124,77,255,.18);border:1px solid rgba(124,77,255,.5);border-radius:14px;padding:10px 12px;margin:8px 0;font-size:15px;min-height:64px;}
+#logPanel{background:rgba(255,255,255,.05);border-radius:14px;padding:10px 12px;margin:8px 0;}
+#logPanel h3{margin:0 0 6px;font-size:15px;}
+#logList{max-height:130px;overflow-y:auto;font-size:13px;line-height:1.7;color:#cfd8dc;}
+.overlay{position:fixed;inset:0;background:rgba(5,5,20,.88);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.card{background:#23234d;border-radius:18px;padding:22px;max-width:430px;width:100%;max-height:92vh;overflow-y:auto;}
+.card h2{margin:0 0 10px;font-size:22px;}
+.card p{font-size:14px;line-height:1.8;color:#e0e0e0;}
+.card .kbox{background:rgba(255,255,255,.08);border-radius:10px;padding:10px;font-size:13px;line-height:1.8;margin:8px 0;}
+.hidden{display:none!important;}
+.btnrow{display:flex;gap:10px;margin-top:14px;}
+.btnrow .midbtn{flex:1;}
+.bigscore{font-size:40px;font-weight:bold;color:#fdd835;text-align:center;margin:8px 0;}
+.center{text-align:center;}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ 静电实验</h1>
+  <div class="score">得分<br><b id="score">0</b></div>
+  <div class="score">最高<br><b id="hs">0</b></div>
+  <button class="icobtn" id="btnSound" title="声音开关">🔊</button>
+  <button class="icobtn" id="btnPause" title="暂停">⏸</button>
+</header>
+
+<div id="stage">
+  <div id="balloon">🎈</div>
+  <div id="paperZoneLabel">纸屑区（把气球拖到这里）</div>
+</div>
+
+<div id="controls">
+  <button class="bigbtn" id="btnFric">⚡ 摩擦起电（剩余 <span id="fricN">15</span> 次）</button>
+  <div class="rowline"><span>气球电荷量</span><b id="chargeN">0</b></div>
+  <div id="chargeWrap"><div id="chargeFill"></div></div>
+  <div class="rowline"><span>已吸附纸屑</span><b id="attN">0 / 8</b></div>
+</div>
+
+<div id="taskPanel">按「开始实验」后显示本轮任务。</div>
+
+<div id="logPanel"><h3>📝 实验记录</h3><div id="logList">暂无记录</div></div>
+
+<div class="overlay" id="startOverlay">
+  <div class="card">
+    <h2>⚡ 静电实验</h2>
+    <p><b>玩法说明：</b>点击「摩擦起电」按钮给气球充电（每轮限 15 次，电荷会缓慢流失）；用手指拖动气球靠近底部纸屑区，电荷越多、吸附半径越大。共 3 轮，目标分别是吸附 3 / 5 / 7 张纸屑，达标每轮 +30 分。</p>
+    <div class="kbox"><b>原理简介：</b>摩擦可以使物体带上电荷，带电体能够吸引轻小物体。电荷量越大、距离越近，吸引作用越强。</div>
+    <button class="bigbtn" id="btnStart">开始实验</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pauseOverlay">
+  <div class="card center">
+    <h2>⏸ 已暂停</h2>
+    <p>实验已暂停，电荷不再流失。</p>
+    <div class="btnrow">
+      <button class="midbtn" id="btnResume">继续</button>
+      <button class="midbtn" id="btnRestart">重来</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endOverlay">
+  <div class="card">
+    <h2>🎓 实验报告</h2>
+    <p><b>实验结论：</b>摩擦起电：气球经摩擦带上电荷后，能把纸屑等轻小物体吸起来；摩擦次数越多（电荷量越大）、气球离纸屑越近，吸附效果越明显，电荷还会随时间缓慢流失。</p>
+    <div class="kbox"><b>知识点：</b>同种电荷相互排斥，异种电荷相互吸引；带电体吸引轻小物体；电荷间的作用力随距离增大而减弱（F ∝ 1/r²）。</div>
+    <div class="bigscore"><span id="finalScore">0</span> 分</div>
+    <p class="center">历史最高：<b id="finalHs">0</b> 分</p>
+    <button class="bigbtn" id="btnAgain">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== 通用：音效 / 震动 / 粒子 ===== */
+var audioCtx=null;
+var soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}return audioCtx;}
+function tone(f,d,type,when){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(when||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.08,'sine',0);}
+function sGood(){tone(880,0.1,'sine',0);tone(1320,0.16,'sine',0.09);}
+function sBad(){tone(200,0.28,'sawtooth',0);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++)tone(n[i],0.16,'sine',i*0.12);}
+function vib(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function $(id){return document.getElementById(id);}
+function burst(x,y,txt,n){try{var st=$('stage'),r=st.getBoundingClientRect();n=n||8;for(var i=0;i<n;i++){var s=document.createElement('div');s.className='pt';s.textContent=txt||'✨';s.style.left=(x-r.left)+'px';s.style.top=(y-r.top)+'px';st.appendChild(s);(function(el){var a=Math.random()*Math.PI*2,d=30+Math.random()*55;requestAnimationFrame(function(){el.style.transform='translate('+Math.cos(a)*d+'px,'+Math.sin(a)*d+'px) scale(0.3)';el.style.opacity='0';});setTimeout(function(){el.remove();},750);})(s);}}catch(e){}}
+
+/* ===== 游戏状态 ===== */
+var HSKEY='g100_staticlab_hs';
+var S={round:0,targets:[3,5,7],score:0,fric:15,charge:0,papers:[],attached:0,running:false,paused:false,roundDone:false};
+var bx=150,by=100;
+
+function setHsUI(){$('hs').textContent=localStorage.getItem(HSKEY)||'0';}
+function updateUI(){
+  $('score').textContent=S.score;
+  $('chargeN').textContent=Math.round(S.charge);
+  $('chargeFill').style.width=S.charge+'%';
+  $('fricN').textContent=S.fric;
+  $('attN').textContent=S.attached+' / 8';
+  $('balloon').classList.toggle('charged',S.charge>5);
+}
+function addLog(t){var l=$('logList');if(l.textContent==='暂无记录')l.textContent='';var d=document.createElement('div');d.textContent=t;l.appendChild(d);l.scrollTop=l.scrollHeight;}
+function taskHTML(){return '第 <b>'+(S.round+1)+'</b> / 3 轮：目标吸附 <b>'+S.targets[S.round]+'</b> 张纸屑（已吸附 '+S.attached+' 张）· 剩余摩擦 '+S.fric+' 次';}
+
+/* ===== 纸屑 ===== */
+function makePapers(){
+  var st=$('stage');
+  var old=st.querySelectorAll('.paper');for(var i=0;i<old.length;i++)old[i].remove();
+  S.papers=[];S.attached=0;
+  var w=st.clientWidth||340,h=st.clientHeight||340;
+  for(var k=0;k<8;k++){
+    var el=document.createElement('div');el.className='paper';
+    el.style.transform='rotate('+(Math.random()*60-30)+'deg)';
+    st.appendChild(el);
+    var p={el:el,hx:w*0.07+k*(w*0.86/7),hy:h-70-Math.random()*26,x:0,y:0,attached:false,ox:0,oy:0};
+    p.x=p.hx;p.y=p.hy;S.papers.push(p);
+  }
+}
+function placeBalloon(){
+  var st=$('stage'),w=st.clientWidth||340;
+  bx=w/2;by=110;
+}
+
+/* ===== 摩擦 ===== */
+$('btnFric').addEventListener('click',function(){
+  if(!S.running||S.paused||S.roundDone)return;
+  if(S.fric<=0){sBad();return;}
+  S.fric--;S.charge=Math.min(100,S.charge+8);
+  sClick();burst(bx,by,'⚡',6);
+  updateUI();
+  if(S.fric===0&&S.attached<S.targets[S.round])roundFail();
+});
+
+/* ===== 拖动气球 ===== */
+(function(){
+  var bal=$('balloon'),dragging=false,ox=0,oy=0;
+  bal.addEventListener('pointerdown',function(e){
+    if(!S.running||S.paused)return;
+    dragging=true;var r=$('stage').getBoundingClientRect();
+    ox=(e.clientX-r.left)-bx;oy=(e.clientY-r.top)-by;
+    try{bal.setPointerCapture(e.pointerId);}catch(err){}
+  });
+  bal.addEventListener('pointermove',function(e){
+    if(!dragging)return;var r=$('stage').getBoundingClientRect();
+    bx=Math.max(34,Math.min(r.width-34,(e.clientX-r.left)-ox));
+    by=Math.max(44,Math.min(r.height-20,(e.clientY-r.top)-oy));
+  });
+  function up(){dragging=false;}
+  bal.addEventListener('pointerup',up);
+  bal.addEventListener('pointercancel',up);
+})();
+
+/* ===== 主循环：电荷衰减 + 吸附 ===== */
+function loop(){
+  requestAnimationFrame(loop);
+  if(!S.running||S.paused)return;
+  if(S.charge>0)S.charge=Math.max(0,S.charge-0.045);
+  var bal=$('balloon');
+  bal.style.left=(bx-32)+'px';bal.style.top=(by-42)+'px';
+  var rad=S.charge*1.6;
+  for(var i=0;i<S.papers.length;i++){
+    var p=S.papers[i];
+    if(!p.attached&&!S.roundDone&&S.charge>3){
+      var dx=p.x-bx,dy=p.y-(by-10),d=Math.sqrt(dx*dx+dy*dy);
+      if(d<rad){
+        p.attached=true;p.ox=Math.random()*70-35;p.oy=Math.random()*46-16;
+        S.attached++;tone(950,0.07,'sine',0);burst(p.x,p.y,'✨',5);vib(30);
+        if(S.attached>=S.targets[S.round]){roundWin();}
+      }
+    }
+    var tx=p.attached?bx+p.ox:p.hx, ty=p.attached?(by-10)+p.oy:p.hy;
+    p.x+=(tx-p.x)*0.22;p.y+=(ty-p.y)*0.22;
+    p.el.style.left=(p.x-8)+'px';p.el.style.top=(p.y-6)+'px';
+  }
+  updateUI();
+}
+
+function roundWin(){
+  S.roundDone=true;S.score+=30;sWin();vib(50);
+  addLog('第'+(S.round+1)+'轮 · 电荷'+Math.round(S.charge)+' · 吸附'+S.attached+'/'+S.targets[S.round]+' · ✅成功 +30');
+  var last=S.round>=2;
+  $('taskPanel').innerHTML='✅ <b>本轮达标！+30 分</b><br><button class="midbtn" id="btnNext" style="margin-top:8px;min-width:200px;">'+(last?'查看实验报告':'下一轮')+'</button>';
+  $('btnNext').addEventListener('click',function(){sClick();nextRound();});
+  updateUI();
+}
+function roundFail(){
+  S.roundDone=true;sBad();
+  addLog('第'+(S.round+1)+'轮 · 电荷'+Math.round(S.charge)+' · 吸附'+S.attached+'/'+S.targets[S.round]+' · ❌摩擦用完，未达标');
+  var last=S.round>=2;
+  $('taskPanel').innerHTML='❌ <b>摩擦次数用完，未达标。</b>试试先把电荷充高再一次性吸附。<br><button class="midbtn" id="btnNext" style="margin-top:8px;min-width:200px;">'+(last?'查看实验报告':'下一轮')+'</button>';
+  $('btnNext').addEventListener('click',function(){sClick();nextRound();});
+}
+function nextRound(){
+  S.round++;
+  if(S.round>=3){endGame();return;}
+  S.fric=15;S.charge=0;S.roundDone=false;
+  makePapers();placeBalloon();
+  $('taskPanel').innerHTML=taskHTML();
+  updateUI();
+}
+
+/* ===== 流程控制 ===== */
+function endGame(){
+  S.running=false;
+  var old=parseInt(localStorage.getItem(HSKEY)||'0',10);
+  if(S.score>old)localStorage.setItem(HSKEY,String(S.score));
+  $('finalScore').textContent=S.score;
+  $('finalHs').textContent=localStorage.getItem(HSKEY)||'0';
+  $('endOverlay').classList.remove('hidden');
+  sWin();
+}
+$('btnStart').addEventListener('click',function(){
+  sClick();$('startOverlay').classList.add('hidden');
+  S.running=true;makePapers();placeBalloon();
+  $('taskPanel').innerHTML=taskHTML();updateUI();
+});
+$('btnAgain').addEventListener('click',function(){location.reload();});
+$('btnPause').addEventListener('click',function(){
+  if(!S.running)return;sClick();S.paused=true;$('pauseOverlay').classList.remove('hidden');
+});
+$('btnResume').addEventListener('click',function(){sClick();S.paused=false;$('pauseOverlay').classList.add('hidden');});
+$('btnRestart').addEventListener('click',function(){location.reload();});
+$('btnSound').addEventListener('click',function(){
+  soundOn=!soundOn;
+  localStorage.setItem('g100_sound',soundOn?'1':'0');
+  $('btnSound').textContent=soundOn?'🔊':'🔇';
+  if(soundOn)sClick();
+});
+$('btnSound').textContent=soundOn?'🔊':'🔇';
+setHsUI();updateUI();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

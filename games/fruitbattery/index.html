@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>水果电池</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{background:linear-gradient(160deg,#0f0c29,#1b3a2b 60%,#0d2818);color:#fff;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;padding:10px;user-select:none;-webkit-user-select:none;}
+header{display:flex;align-items:center;gap:8px;padding:4px 2px;}
+header h1{font-size:18px;margin:0;flex:1;}
+.score{background:rgba(255,255,255,.12);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.3;}
+.icobtn{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;flex:none;}
+#stage{position:relative;min-height:250px;border-radius:16px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);margin:8px 0;padding:12px;overflow:hidden;}
+#battRow{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;min-height:70px;}
+.cell{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:6px 8px;text-align:center;font-size:30px;}
+.cell small{display:block;font-size:11px;color:#cfd8dc;}
+.wire{height:4px;background:#8d6e63;border-radius:2px;margin:8px 10px;position:relative;}
+#voltBox{text-align:center;margin:6px 0;}
+#voltVal{font-size:34px;font-weight:bold;color:#aed581;font-variant-numeric:tabular-nums;}
+#voltBar{height:10px;background:rgba(255,255,255,.15);border-radius:5px;overflow:hidden;margin:6px 20px;}
+#voltFill{height:100%;width:0%;background:linear-gradient(90deg,#aed581,#33691e);transition:width .3s;}
+#appliance{font-size:64px;text-align:center;margin:4px 0;transition:filter .3s;}
+#appliance.lit{filter:drop-shadow(0 0 22px #ffeb3b);}
+#appliance.spin{animation:spin .5s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#appName{text-align:center;font-size:15px;color:#e0e0e0;}
+.note{position:absolute;font-size:22px;animation:floatup 1.4s ease-out forwards;pointer-events:none;}
+@keyframes floatup{from{opacity:1;transform:translateY(0);}to{opacity:0;transform:translateY(-70px);}}
+#controls{background:rgba(255,255,255,.07);border-radius:14px;padding:10px;margin:8px 0;}
+.optgroup{margin:8px 0;}
+.optgroup .gtitle{font-size:14px;color:#cfd8dc;margin-bottom:6px;}
+.optrow{display:flex;gap:8px;}
+.opt{flex:1;min-height:52px;border-radius:12px;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:14px;}
+.opt.sel{border-color:#aed581;background:rgba(174,213,129,.2);}
+input[type=range]{width:100%;height:44px;}
+.bigbtn{min-height:52px;font-size:18px;border-radius:14px;border:none;background:linear-gradient(135deg,#9ccc65,#558b2f);color:#1b3300;width:100%;font-weight:bold;margin-top:6px;}
+.bigbtn:disabled{opacity:.4;}
+.midbtn{min-height:48px;font-size:16px;border-radius:12px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.14);color:#fff;padding:0 18px;font-weight:bold;}
+#taskPanel{background:rgba(156,204,101,.15);border:1px solid rgba(156,204,101,.5);border-radius:14px;padding:10px 12px;margin:8px 0;font-size:15px;min-height:64px;}
+#logPanel{background:rgba(255,255,255,.05);border-radius:14px;padding:10px 12px;margin:8px 0;}
+#logPanel h3{margin:0 0 6px;font-size:15px;}
+#logList{max-height:130px;overflow-y:auto;font-size:13px;line-height:1.7;color:#cfd8dc;}
+.overlay{position:fixed;inset:0;background:rgba(5,5,20,.88);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.card{background:#1c3325;border-radius:18px;padding:22px;max-width:430px;width:100%;max-height:92vh;overflow-y:auto;}
+.card h2{margin:0 0 10px;font-size:22px;}
+.card p{font-size:14px;line-height:1.8;color:#e0e0e0;}
+.card .kbox{background:rgba(255,255,255,.08);border-radius:10px;padding:10px;font-size:13px;line-height:1.8;margin:8px 0;}
+.hidden{display:none!important;}
+.btnrow{display:flex;gap:10px;margin-top:14px;}
+.btnrow .midbtn{flex:1;}
+.bigscore{font-size:40px;font-weight:bold;color:#aed581;text-align:center;margin:8px 0;}
+.center{text-align:center;}
+#hint{min-height:22px;color:#ffcc80;font-size:14px;text-align:center;margin-top:6px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🍋 水果电池</h1>
+  <div class="score">得分<br><b id="score">0</b></div>
+  <div class="score">最高<br><b id="hs">0</b></div>
+  <button class="icobtn" id="btnSound" title="声音开关">🔊</button>
+  <button class="icobtn" id="btnPause" title="暂停">⏸</button>
+</header>
+
+<div id="stage">
+  <div id="battRow"></div>
+  <div class="wire"></div>
+  <div id="voltBox">
+    <div>🔌 电压表</div>
+    <div id="voltVal">0.00 V</div>
+    <div id="voltBar"><div id="voltFill"></div></div>
+  </div>
+  <div class="wire"></div>
+  <div id="appliance">💡</div>
+  <div id="appName">等待接通电路…</div>
+</div>
+
+<div id="controls">
+  <div class="optgroup"><div class="gtitle">1️⃣ 选水果</div>
+    <div class="optrow" id="fruitRow">
+      <button class="opt sel" data-v="1.0">🍋<br>柠檬 1.0V</button>
+      <button class="opt" data-v="0.8">🍎<br>苹果 0.8V</button>
+      <button class="opt" data-v="0.7">🍅<br>西红柿 0.7V</button>
+    </div>
+  </div>
+  <div class="optgroup"><div class="gtitle">2️⃣ 选电极对</div>
+    <div class="optrow" id="elecRow">
+      <button class="opt sel" data-k="1.0">铜+锌<br>×1.0</button>
+      <button class="opt" data-k="0.8">铜+铁<br>×0.8</button>
+      <button class="opt" data-k="0.6">铁+锌<br>×0.6</button>
+    </div>
+  </div>
+  <div class="optgroup"><div class="gtitle">3️⃣ 串联个数：<b id="nVal">1</b> 个</div>
+    <input type="range" id="numSlider" min="1" max="4" step="1" value="1">
+  </div>
+  <button class="bigbtn" id="btnConnect">⚡ 接通电路</button>
+  <div id="hint"></div>
+</div>
+
+<div id="taskPanel">按「开始实验」后显示本轮任务。</div>
+<div id="logPanel"><h3>📝 实验记录</h3><div id="logList">暂无记录</div></div>
+
+<div class="overlay" id="startOverlay">
+  <div class="card">
+    <h2>🍋 水果电池</h2>
+    <p><b>玩法说明：</b>选择水果（电压不同）、电极对（效率不同）和串联个数，电压表会实时显示总电压。共 3 轮，分别要点亮 LED 灯（≥1.5V）、小风扇（≥2.5V）、音乐盒（≥3.5V）。点「接通电路」：电压达标 +30 分，超出需求不到 0.5V 还有完美加成 +10 分。</p>
+    <div class="kbox"><b>原理简介：</b>水果中的酸性汁液相当于电解质，与两种不同金属电极组成原电池，把化学能转化为电能；电池串联起来，总电压等于各节电压之和。</div>
+    <button class="bigbtn" id="btnStart">开始实验</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pauseOverlay">
+  <div class="card center">
+    <h2>⏸ 已暂停</h2>
+    <div class="btnrow">
+      <button class="midbtn" id="btnResume">继续</button>
+      <button class="midbtn" id="btnRestart">重来</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endOverlay">
+  <div class="card">
+    <h2>🎓 实验报告</h2>
+    <p><b>实验结论：</b>水果电池把化学能转化为电能；单节电压由水果种类和电极组合决定，串联个数越多总电压越高，电压叠加满足各节之和；用电器工作需要电压达到额定值，匹配得越精准越不浪费。</p>
+    <div class="kbox"><b>知识点：</b>串联电池组总电压 U = U1 + U2 + … + Un；铜—锌是经典电极组合（锌作负极、铜作正极）；柠檬酸性最强，单节电压最高。</div>
+    <div class="bigscore"><span id="finalScore">0</span> 分</div>
+    <p class="center">历史最高：<b id="finalHs">0</b> 分</p>
+    <button class="bigbtn" id="btnAgain">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== 通用：音效 / 震动 ===== */
+var audioCtx=null;
+var soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}return audioCtx;}
+function tone(f,d,type,when){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(when||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.08,'sine',0);}
+function sGood(){tone(880,0.1,'sine',0);tone(1320,0.16,'sine',0.09);}
+function sBad(){tone(200,0.28,'sawtooth',0);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++)tone(n[i],0.16,'sine',i*0.12);}
+function vib(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function $(id){return document.getElementById(id);}
+
+/* ===== 状态 ===== */
+var HSKEY='g100_fruitbattery_hs';
+var FRUITS=[{n:'柠檬',i:'🍋',v:1.0},{n:'苹果',i:'🍎',v:0.8},{n:'西红柿',i:'🍅',v:0.7}];
+var ELECS=[{n:'铜+锌',k:1.0},{n:'铜+铁',k:0.8},{n:'铁+锌',k:0.6}];
+var DEMANDS=[{n:'LED灯',i:'💡',v:1.5},{n:'小风扇',i:'🌀',v:2.5},{n:'音乐盒',i:'🎵',v:3.5}];
+var S={round:0,score:0,fi:0,ei:0,n:1,running:false,paused:false,done:false};
+
+function voltage(){return Math.round(FRUITS[S.fi].v*ELECS[S.ei].k*S.n*100)/100;}
+function setHsUI(){$('hs').textContent=localStorage.getItem(HSKEY)||'0';}
+function addLog(t){var l=$('logList');if(l.textContent==='暂无记录')l.textContent='';var d=document.createElement('div');d.textContent=t;l.appendChild(d);l.scrollTop=l.scrollHeight;}
+function refresh(){
+  $('score').textContent=S.score;
+  var U=voltage();
+  $('voltVal').textContent=U.toFixed(2)+' V';
+  $('voltFill').style.width=Math.min(100,U/4*100)+'%';
+  var row=$('battRow');row.innerHTML='';
+  for(var i=0;i<S.n;i++){var c=document.createElement('div');c.className='cell';c.innerHTML=FRUITS[S.fi].i+'<small>⊕⊖ '+FRUITS[S.fi].v+'V</small>';row.appendChild(c);}
+  if(!S.done){
+    var d=DEMANDS[S.round];
+    $('appliance').textContent=d.i;$('appliance').className='';
+    $('appName').textContent='目标：'+d.n+'（需要 ≥ '+d.v+'V）';
+    $('taskPanel').innerHTML='第 <b>'+(S.round+1)+'</b> / 3 轮：用 <b>'+d.n+d.i+'</b>，需要电压 <b>≥ '+d.v+'V</b>。当前 <b>'+U.toFixed(2)+'V</b>'+(U>=d.v?' ✅ 已达标，可以接通！':'');
+  }
+}
+function bindRow(rowId,cb){
+  var btns=$(rowId).querySelectorAll('.opt');
+  for(var i=0;i<btns.length;i++)(function(b,idx){b.addEventListener('click',function(){sClick();var all=$(rowId).querySelectorAll('.opt');for(var j=0;j<all.length;j++)all[j].classList.remove('sel');b.classList.add('sel');cb(idx);refresh();});})(btns[i],i);
+}
+bindRow('fruitRow',function(i){S.fi=i;S.done=false;});
+bindRow('elecRow',function(i){S.ei=i;S.done=false;});
+$('numSlider').addEventListener('input',function(){S.n=parseInt(this.value,10);$('nVal').textContent=S.n;S.done=false;refresh();});
+
+function musicNotes(){
+  var st=$('stage'),r=$('appliance').getBoundingClientRect(),sr=st.getBoundingClientRect();
+  for(var i=0;i<5;i++)(function(k){setTimeout(function(){var s=document.createElement('div');s.className='note';s.textContent=k%2?'♪':'♫';s.style.left=(r.left-sr.left+r.width/2+(Math.random()*60-30))+'px';s.style.top=(r.top-sr.top)+'px';st.appendChild(s);setTimeout(function(){s.remove();},1500);},k*250);})(i);
+}
+
+$('btnConnect').addEventListener('click',function(){
+  if(!S.running||S.paused||S.done)return;
+  var d=DEMANDS[S.round],U=voltage(),need=d.v;
+  var cfg=FRUITS[S.fi].n+'+'+ELECS[S.ei].n+'×'+S.n;
+  if(U>=need){
+    S.done=true;S.score+=30;vib(50);
+    var bonus='';
+    if(U-need<0.5){S.score+=10;bonus='（完美匹配 +10）';}
+    sWin();
+    var ap=$('appliance');
+    if(S.round===0)ap.classList.add('lit');
+    if(S.round===1)ap.classList.add('spin');
+    if(S.round===2)musicNotes();
+    $('appName').textContent=d.n+' 工作正常！ '+U.toFixed(2)+'V ≥ '+need+'V';
+    addLog('第'+(S.round+1)+'轮 · '+cfg+' = '+U.toFixed(2)+'V · 需求'+need+'V · ✅成功 +30'+bonus);
+    var last=S.round>=2;
+    $('taskPanel').innerHTML='✅ <b>'+d.n+'成功启动！+30 分 '+bonus+'</b><br><button class="midbtn" id="btnNext" style="margin-top:8px;min-width:200px;">'+(last?'查看实验报告':'下一轮')+'</button>';
+    $('btnNext').addEventListener('click',function(){sClick();S.round++;S.done=false;if(S.round>=3){endGame();}else{refresh();}});
+  }else{
+    sBad();
+    var diff=Math.round((need-U)*100)/100;
+    $('hint').textContent='❌ 电压不足，还差 '+diff.toFixed(2)+'V：换更酸的水果、更好的电极或增加串联个数。';
+    addLog('第'+(S.round+1)+'轮 · '+cfg+' = '+U.toFixed(2)+'V · 需求'+need+'V · ❌电压不足');
+  }
+  refresh();
+});
+
+function endGame(){
+  S.running=false;
+  var old=parseInt(localStorage.getItem(HSKEY)||'0',10);
+  if(S.score>old)localStorage.setItem(HSKEY,String(S.score));
+  $('finalScore').textContent=S.score;
+  $('finalHs').textContent=localStorage.getItem(HSKEY)||'0';
+  $('endOverlay').classList.remove('hidden');
+  sWin();
+}
+$('btnStart').addEventListener('click',function(){sClick();$('startOverlay').classList.add('hidden');S.running=true;refresh();});
+$('btnAgain').addEventListener('click',function(){location.reload();});
+$('btnPause').addEventListener('click',function(){if(!S.running)return;sClick();S.paused=true;$('pauseOverlay').classList.remove('hidden');});
+$('btnResume').addEventListener('click',function(){sClick();S.paused=false;$('pauseOverlay').classList.add('hidden');});
+$('btnRestart').addEventListener('click',function(){location.reload();});
+$('btnSound').addEventListener('click',function(){
+  soundOn=!soundOn;localStorage.setItem('g100_sound',soundOn?'1':'0');
+  $('btnSound').textContent=soundOn?'🔊':'🔇';if(soundOn)sClick();
+});
+$('btnSound').textContent=soundOn?'🔊':'🔇';
+setHsUI();refresh();
+</script>
+</body>
+</html>

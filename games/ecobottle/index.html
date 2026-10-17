@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>生态瓶</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{background:linear-gradient(160deg,#0f0c29,#0d3b2e 60%,#082a20);color:#fff;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;padding:10px;user-select:none;-webkit-user-select:none;}
+header{display:flex;align-items:center;gap:8px;padding:4px 2px;}
+header h1{font-size:18px;margin:0;flex:1;}
+.score{background:rgba(255,255,255,.12);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.3;}
+.icobtn{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;flex:none;}
+#stage{position:relative;height:280px;border-radius:16px;background:linear-gradient(180deg,rgba(20,40,60,.6),rgba(10,60,80,.75));border:3px solid rgba(255,255,255,.25);border-top:none;border-radius:0 0 40px 40px;margin:8px 0;overflow:hidden;}
+.fish{position:absolute;font-size:30px;transition:left 1s linear,top 1s linear;}
+.plant{position:absolute;font-size:30px;bottom:6px;}
+.snail{position:absolute;font-size:24px;bottom:4px;}
+.bubble{position:absolute;bottom:0;font-size:14px;animation:rise 3s linear infinite;pointer-events:none;}
+@keyframes rise{from{transform:translateY(0);opacity:.8;}to{transform:translateY(-240px);opacity:0;}}
+#lamp{position:absolute;top:6px;right:10px;font-size:30px;}
+#dayBadge{position:absolute;top:8px;left:10px;background:rgba(0,0,0,.5);border-radius:10px;padding:6px 12px;font-size:15px;}
+#controls{background:rgba(255,255,255,.07);border-radius:14px;padding:10px;margin:8px 0;}
+.stepper{display:flex;align-items:center;gap:10px;margin:8px 0;}
+.stepper .lbl{flex:1;font-size:15px;}
+.stepper .lbl small{color:#b0bec5;}
+.sbtn{width:48px;height:48px;font-size:22px;border-radius:12px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.14);color:#fff;}
+.cnt{font-size:18px;min-width:30px;text-align:center;}
+.bigbtn{min-height:52px;font-size:18px;border-radius:14px;border:none;background:linear-gradient(135deg,#66bb6a,#2e7d32);color:#fff;width:100%;font-weight:bold;margin-top:6px;}
+.bigbtn:disabled{opacity:.4;}
+.midbtn{min-height:48px;font-size:16px;border-radius:12px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.14);color:#fff;padding:0 18px;font-weight:bold;}
+.bar{height:12px;background:rgba(255,255,255,.15);border-radius:6px;overflow:hidden;margin:4px 0 8px;}
+.bar>div{height:100%;transition:width .5s;}
+#o2Fill{background:linear-gradient(90deg,#4fc3f7,#0288d1);}
+#foodFill{background:linear-gradient(90deg,#ffb74d,#ef6c00);}
+.rowline{display:flex;justify-content:space-between;font-size:14px;margin:2px 0;}
+#taskPanel{background:rgba(129,199,132,.14);border:1px solid rgba(129,199,132,.5);border-radius:14px;padding:10px 12px;margin:8px 0;font-size:15px;min-height:64px;}
+#logPanel{background:rgba(255,255,255,.05);border-radius:14px;padding:10px 12px;margin:8px 0;}
+#logPanel h3{margin:0 0 6px;font-size:15px;}
+#logList{max-height:130px;overflow-y:auto;font-size:13px;line-height:1.7;color:#cfd8dc;}
+.overlay{position:fixed;inset:0;background:rgba(5,5,20,.88);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.card{background:#123326;border-radius:18px;padding:22px;max-width:430px;width:100%;max-height:92vh;overflow-y:auto;}
+.card h2{margin:0 0 10px;font-size:22px;}
+.card p{font-size:14px;line-height:1.8;color:#e0e0e0;}
+.card .kbox{background:rgba(255,255,255,.08);border-radius:10px;padding:10px;font-size:13px;line-height:1.8;margin:8px 0;}
+.hidden{display:none!important;}
+.btnrow{display:flex;gap:10px;margin-top:14px;}
+.btnrow .midbtn{flex:1;}
+.bigscore{font-size:40px;font-weight:bold;color:#81c784;text-align:center;margin:8px 0;}
+.center{text-align:center;}
+.switchrow{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:15px;}
+#lampBtn{min-width:120px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌿 生态瓶</h1>
+  <div class="score">得分<br><b id="score">0</b></div>
+  <div class="score">最高<br><b id="hs">0</b></div>
+  <button class="icobtn" id="btnSound" title="声音开关">🔊</button>
+  <button class="icobtn" id="btnPause" title="暂停">⏸</button>
+</header>
+
+<div id="stage">
+  <div id="dayBadge">☀️ 第 0 天</div>
+  <div id="lamp">💡</div>
+</div>
+
+<div id="controls">
+  <div id="cfgBox">
+    <div class="rowline"><span>🧪 生态点预算</span><b><span id="ptsUsed">0</span> / 10 点</b></div>
+    <div class="stepper"><div class="lbl">🌱 水草 <small>2点/棵 · 产氧+（开灯×2）</small></div><button class="sbtn" data-k="plant" data-d="-1">−</button><div class="cnt" id="cntPlant">0</div><button class="sbtn" data-k="plant" data-d="1">＋</button></div>
+    <div class="stepper"><div class="lbl">🐟 小鱼 <small>3点/条 · 耗氧耗食</small></div><button class="sbtn" data-k="fish" data-d="-1">−</button><div class="cnt" id="cntFish">0</div><button class="sbtn" data-k="fish" data-d="1">＋</button></div>
+    <div class="stepper"><div class="lbl">🐚 螺蛳 <small>2点/只 · 分解者，清废物促水草</small></div><button class="sbtn" data-k="snail" data-d="-1">−</button><div class="cnt" id="cntSnail">0</div><button class="sbtn" data-k="snail" data-d="1">＋</button></div>
+    <div class="switchrow"><span>💡 灯光（免费，影响水草产氧）</span><button class="midbtn" id="lampBtn">开</button></div>
+    <button class="bigbtn" id="btnSim">▶ 开始模拟（1秒=1天）</button>
+  </div>
+  <div id="simBox" class="hidden">
+    <div class="rowline"><span>🫧 氧气 <b id="o2N">80</b>%</span><span>🍞 食物 <b id="foodN">100</b></span></div>
+    <div class="bar"><div id="o2Fill" style="width:80%"></div></div>
+    <div class="bar"><div id="foodFill" style="width:100%"></div></div>
+    <div class="rowline"><span>🌱 水草 <b id="plantN">0</b></span><span>🐟 小鱼 <b id="fishN">0</b> 条</span><span>🗑 废物 <b id="wasteN">0</b></span></div>
+    <button class="bigbtn" id="btnFeed">🍞 投食（+30食物，+12废物）</button>
+  </div>
+</div>
+
+<div id="taskPanel">按「开始实验」后配置你的生态瓶。</div>
+<div id="logPanel"><h3>📝 实验记录</h3><div id="logList">暂无记录</div></div>
+
+<div class="overlay" id="startOverlay">
+  <div class="card">
+    <h2>🌿 生态瓶</h2>
+    <p><b>玩法说明：</b>你有 10 个生态点：水草（2点/棵，产氧）、小鱼（3点/条，耗氧耗食）、螺蛳（2点/只，分解废物）、灯光（免费，开灯水草产氧×2）。配置好点「开始模拟」，1 秒 = 1 天。氧气低于 20% 或食物耗尽，小鱼会死亡。目标：存活 30 天且至少 1 条鱼活着。每天 +2 分（封顶 60），成功再 +30。你有 3 次配置机会。</p>
+    <div class="kbox"><b>原理简介：</b>生态瓶是微型生态系统：水草是生产者制造氧气，小鱼是消费者，螺蛳和细菌是分解者，把废物分解成养分还给水草，物质循环往复。</div>
+    <button class="bigbtn" id="btnStart">开始实验</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pauseOverlay">
+  <div class="card center">
+    <h2>⏸ 已暂停</h2>
+    <p>时间已静止。</p>
+    <div class="btnrow">
+      <button class="midbtn" id="btnResume">继续</button>
+      <button class="midbtn" id="btnRestart">重来</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endOverlay">
+  <div class="card">
+    <h2>🎓 实验报告</h2>
+    <p><b>实验结论：</b>生产者（水草）、消费者（小鱼）、分解者（螺蛳）缺一不可：缺水草氧气不够，缺螺蛳废物堆积败坏水质，鱼太多食物和氧气跟不上。生态平衡是动态的，需要持续调节（投食、开灯）来维持。</p>
+    <div class="kbox"><b>知识点：</b>生态系统成分 = 非生物环境 + 生产者 + 消费者 + 分解者；物质循环：鱼粪等废物 → 分解者分解 → 无机养分 → 水草吸收生长 → 光合作用释放氧气 → 供鱼呼吸。</div>
+    <div class="bigscore"><span id="finalScore">0</span> 分</div>
+    <p class="center">历史最高：<b id="finalHs">0</b> 分</p>
+    <button class="bigbtn" id="btnAgain">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== 通用：音效 / 震动 ===== */
+var audioCtx=null;
+var soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}return audioCtx;}
+function tone(f,d,type,when){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(when||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.08,'sine',0);}
+function sGood(){tone(880,0.1,'sine',0);tone(1320,0.16,'sine',0.09);}
+function sBad(){tone(200,0.28,'sawtooth',0);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++)tone(n[i],0.16,'sine',i*0.12);}
+function vib(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function $(id){return document.getElementById(id);}
+
+/* ===== 状态 ===== */
+var HSKEY='g100_ecobottle_hs';
+var COST={plant:2,fish:3,snail:2},MAXN={plant:3,fish:2,snail:2};
+var S={score:0,attempt:0,cfg:{plant:0,fish:0,snail:0},lamp:true,running:false,paused:false,sim:false,
+       day:0,o2:80,food:100,waste:10,plants:0,fish:0,snails:0,timer:null,fishEls:[]};
+
+function setHsUI(){$('hs').textContent=localStorage.getItem(HSKEY)||'0';}
+function addLog(t){var l=$('logList');if(l.textContent==='暂无记录')l.textContent='';var d=document.createElement('div');d.textContent=t;l.appendChild(d);l.scrollTop=l.scrollHeight;}
+function ptsUsed(){return S.cfg.plant*COST.plant+S.cfg.fish*COST.fish+S.cfg.snail*COST.snail;}
+function cfgName(k){return k==='plant'?'水草':k==='fish'?'小鱼':'螺蛳';}
+function refreshCfg(){
+  $('cntPlant').textContent=S.cfg.plant;$('cntFish').textContent=S.cfg.fish;$('cntSnail').textContent=S.cfg.snail;
+  $('ptsUsed').textContent=ptsUsed();
+  $('lampBtn').textContent=S.lamp?'开 💡':'关 🌑';
+  $('lamp').style.opacity=S.lamp?'1':'0.25';
+  var ok=S.cfg.fish>=1&&ptsUsed()<=10;
+  $('btnSim').disabled=!ok;
+  $('taskPanel').innerHTML='第 <b>'+(S.attempt+1)+'</b> / 3 次配置：已用 <b>'+ptsUsed()+'</b> / 10 点。'+(S.cfg.fish<1?'至少放 <b>1 条小鱼</b>才能开始模拟。':'配置 ok，可以开始模拟！');
+}
+var stepBtns=document.querySelectorAll('.sbtn');
+for(var i=0;i<stepBtns.length;i++)(function(b){
+  b.addEventListener('click',function(){
+    if(S.sim)return;sClick();
+    var k=b.getAttribute('data-k'),d=parseInt(b.getAttribute('data-d'),10);
+    var nv=S.cfg[k]+d;
+    if(nv<0||nv>MAXN[k])return;
+    if(d>0&&ptsUsed()+COST[k]>10){sBad();return;}
+    S.cfg[k]=nv;refreshCfg();
+  });
+})(stepBtns[i]);
+$('lampBtn').addEventListener('click',function(){if(S.sim)return;sClick();S.lamp=!S.lamp;refreshCfg();});
+
+/* ===== 舞台生物 ===== */
+function clearStage(){
+  var st=$('stage'),els=st.querySelectorAll('.fish,.plant,.snail,.bubble');
+  for(var i=0;i<els.length;i++)els[i].remove();
+  S.fishEls=[];
+}
+function buildStage(){
+  clearStage();
+  var st=$('stage');
+  for(var p=0;p<Math.round(S.plants);p++){var e=document.createElement('div');e.className='plant';e.textContent='🌱';e.style.left=(8+p*22)+'%';st.appendChild(e);}
+  for(var sn=0;sn<S.snails;sn++){var s2=document.createElement('div');s2.className='snail';s2.textContent='🐚';s2.style.left=(55+sn*18)+'%';st.appendChild(s2);}
+  for(var f=0;f<S.fish;f++){var fe=document.createElement('div');fe.className='fish';fe.textContent='🐟';fe.style.left=(10+Math.random()*70)+'%';fe.style.top=(20+Math.random()*40)+'%';st.appendChild(fe);S.fishEls.push(fe);}
+}
+function swimFish(){
+  for(var i=0;i<S.fishEls.length;i++){var fe=S.fishEls[i];fe.style.left=(8+Math.random()*75)+'%';fe.style.top=(15+Math.random()*45)+'%';}
+}
+function addBubble(){
+  if(!S.sim)return;
+  try{var st=$('stage'),b=document.createElement('div');b.className='bubble';b.textContent='🫧';b.style.left=(10+Math.random()*80)+'%';st.appendChild(b);setTimeout(function(){b.remove();},3100);}catch(e){}
+}
+
+/* ===== 模拟 ===== */
+$('btnSim').addEventListener('click',function(){
+  if(S.sim||S.attempt>=3)return;sClick();
+  S.sim=true;S.day=0;S.o2=80;S.food=100;S.waste=10;
+  S.plants=S.cfg.plant;S.fish=S.cfg.fish;S.snails=S.cfg.snail;
+  $('cfgBox').classList.add('hidden');$('simBox').classList.remove('hidden');
+  buildStage();updateSimUI();
+  $('taskPanel').innerHTML='⏳ 模拟进行中：1 秒 = 1 天，目标存活 <b>30 天</b>。注意氧气和食物，适时投食！';
+  S.timer=setInterval(tick,1000);
+});
+$('btnFeed').addEventListener('click',function(){
+  if(!S.sim||S.paused)return;sClick();
+  S.food=Math.min(160,S.food+30);S.waste+=12;
+  tone(700,0.1,'sine',0);updateSimUI();
+});
+function updateSimUI(){
+  $('dayBadge').textContent='☀️ 第 '+S.day+' 天';
+  $('o2N').textContent=Math.round(S.o2);$('o2Fill').style.width=Math.max(0,Math.min(100,S.o2))+'%';
+  $('foodN').textContent=Math.round(S.food);$('foodFill').style.width=Math.max(0,Math.min(100,S.food/1.6))+'%';
+  $('plantN').textContent=S.plants.toFixed(1);$('fishN').textContent=S.fish;$('wasteN').textContent=Math.round(S.waste);
+  $('lamp').style.opacity=S.lamp?'1':'0.25';
+}
+function tick(){
+  if(S.paused||!S.sim)return;
+  S.day++;
+  // 产氧 / 耗氧
+  S.o2+=S.plants*3*(S.lamp?2:1)-S.fish*4-(S.waste>80?10:0);
+  S.o2=Math.max(0,Math.min(100,S.o2));
+  // 食物 / 废物
+  S.food-=S.fish*6;
+  S.waste+=S.fish*2;
+  S.waste=Math.max(0,S.waste-S.snails*3);
+  // 螺蛳分解促进水草生长
+  S.plants=Math.min(S.cfg.plant*2+1,S.plants+S.snails*0.06);
+  // 死亡判定
+  if((S.o2<20||S.food<=0)&&S.fish>0){
+    S.fish--;sBad();vib(60);
+    if(S.fishEls.length){var fe=S.fishEls.pop();fe.textContent='💀';setTimeout(function(){fe.remove();},1200);}
+  }
+  if(S.day%3===0)swimFish();
+  if(Math.random()<0.5)addBubble();
+  updateSimUI();
+  if(S.fish<=0){finishAttempt(false,'小鱼全部死亡');}
+  else if(S.day>=30){finishAttempt(true,'存活满 30 天');}
+}
+function finishAttempt(ok,why){
+  clearInterval(S.timer);S.timer=null;S.sim=false;
+  S.attempt++;
+  var pts=Math.min(60,S.day*2),bonus=ok?30:0;
+  S.score+=pts+bonus;
+  $('score').textContent=S.score;
+  if(ok){sWin();vib(50);}else{sBad();}
+  var cfg='草'+S.cfg.plant+'鱼'+S.cfg.fish+'螺'+S.cfg.snail+(S.lamp?'灯开':'灯关');
+  addLog('第'+S.attempt+'次 · '+cfg+' · 存活'+S.day+'天 · '+(ok?'✅成功':'❌失败')+'（'+why+'） · +'+(pts+bonus)+'分');
+  if(S.attempt>=3){endGame();return;}
+  $('cfgBox').classList.remove('hidden');$('simBox').classList.add('hidden');
+  refreshCfg();
+  $('taskPanel').innerHTML=(ok?'✅ <b>挑战成功！+'+(pts+bonus)+' 分</b>':'❌ <b>'+why+'，+'+pts+' 分</b>')+'<br>还剩 <b>'+(3-S.attempt)+'</b> 次配置机会，调整搭配再试一次。';
+}
+
+function endGame(){
+  S.running=false;
+  var old=parseInt(localStorage.getItem(HSKEY)||'0',10);
+  if(S.score>old)localStorage.setItem(HSKEY,String(S.score));
+  $('finalScore').textContent=S.score;
+  $('finalHs').textContent=localStorage.getItem(HSKEY)||'0';
+  $('endOverlay').classList.remove('hidden');
+  sWin();
+}
+$('btnStart').addEventListener('click',function(){sClick();$('startOverlay').classList.add('hidden');S.running=true;refreshCfg();});
+$('btnAgain').addEventListener('click',function(){location.reload();});
+$('btnPause').addEventListener('click',function(){if(!S.running)return;sClick();S.paused=true;$('pauseOverlay').classList.remove('hidden');});
+$('btnResume').addEventListener('click',function(){sClick();S.paused=false;$('pauseOverlay').classList.add('hidden');});
+$('btnRestart').addEventListener('click',function(){location.reload();});
+$('btnSound').addEventListener('click',function(){
+  soundOn=!soundOn;localStorage.setItem('g100_sound',soundOn?'1':'0');
+  $('btnSound').textContent=soundOn?'🔊':'🔇';if(soundOn)sClick();
+});
+$('btnSound').textContent=soundOn?'🔊':'🔇';
+setHsUI();refreshCfg();
+</script>
+</body>
+</html>

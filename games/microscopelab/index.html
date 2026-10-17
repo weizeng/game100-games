@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>显微镜实验</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{background:linear-gradient(160deg,#0f0c29,#1a2a4a 60%,#0d1b2a);color:#fff;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;padding:10px;user-select:none;-webkit-user-select:none;}
+header{display:flex;align-items:center;gap:8px;padding:4px 2px;}
+header h1{font-size:18px;margin:0;flex:1;}
+.score{background:rgba(255,255,255,.12);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.3;}
+.icobtn{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;flex:none;}
+#stage{position:relative;border-radius:16px;background:#000;border:1px solid rgba(255,255,255,.15);margin:8px 0;overflow:hidden;touch-action:none;}
+#scope{display:block;width:100%;height:auto;}
+#controls{background:rgba(255,255,255,.07);border-radius:14px;padding:10px;margin:8px 0;}
+.optrow{display:flex;gap:8px;margin:6px 0;}
+.opt{flex:1;min-height:52px;border-radius:12px;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:14px;}
+.opt.sel{border-color:#90caf9;background:rgba(144,202,249,.2);}
+input[type=range]{width:100%;height:44px;}
+.bigbtn{min-height:52px;font-size:18px;border-radius:14px;border:none;background:linear-gradient(135deg,#64b5f6,#1565c0);color:#fff;width:100%;font-weight:bold;margin-top:6px;}
+.bigbtn:disabled{opacity:.4;}
+.midbtn{min-height:48px;font-size:16px;border-radius:12px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.14);color:#fff;padding:0 18px;font-weight:bold;}
+#clarWrap{height:16px;background:rgba(255,255,255,.15);border-radius:8px;overflow:hidden;margin:6px 0;}
+#clarFill{height:100%;width:0%;background:linear-gradient(90deg,#ff9800,#90caf9,#00e676);transition:width .2s;}
+#taskPanel{background:rgba(144,202,249,.14);border:1px solid rgba(144,202,249,.5);border-radius:14px;padding:10px 12px;margin:8px 0;font-size:15px;min-height:64px;}
+#logPanel{background:rgba(255,255,255,.05);border-radius:14px;padding:10px 12px;margin:8px 0;}
+#logPanel h3{margin:0 0 6px;font-size:15px;}
+#logList{max-height:130px;overflow-y:auto;font-size:13px;line-height:1.7;color:#cfd8dc;}
+.overlay{position:fixed;inset:0;background:rgba(5,5,20,.88);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.card{background:#16283f;border-radius:18px;padding:22px;max-width:430px;width:100%;max-height:92vh;overflow-y:auto;}
+.card h2{margin:0 0 10px;font-size:22px;}
+.card p{font-size:14px;line-height:1.8;color:#e0e0e0;}
+.card .kbox{background:rgba(255,255,255,.08);border-radius:10px;padding:10px;font-size:13px;line-height:1.8;margin:8px 0;}
+.hidden{display:none!important;}
+.btnrow{display:flex;gap:10px;margin-top:14px;}
+.btnrow .midbtn{flex:1;}
+.bigscore{font-size:40px;font-weight:bold;color:#90caf9;text-align:center;margin:8px 0;}
+.center{text-align:center;}
+.rowline{display:flex;justify-content:space-between;align-items:center;font-size:14px;margin:4px 0;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔬 显微镜</h1>
+  <div class="score">得分<br><b id="score">0</b></div>
+  <div class="score">最高<br><b id="hs">0</b></div>
+  <button class="icobtn" id="btnSound" title="声音开关">🔊</button>
+  <button class="icobtn" id="btnPause" title="暂停">⏸</button>
+</header>
+
+<div id="stage"><canvas id="scope" width="480" height="320"></canvas></div>
+
+<div id="controls">
+  <div class="rowline"><span>放大倍数（本轮指定）</span><b id="magLabel">40×</b></div>
+  <div class="rowline"><span>焦距调节（细准焦螺旋）</span><b id="focusN">50</b></div>
+  <input type="range" id="focusSlider" min="0" max="100" step="1" value="50">
+  <div class="rowline"><span>图像清晰度</span><b id="clarN">0%</b></div>
+  <div id="clarWrap"><div id="clarFill"></div></div>
+  <button class="bigbtn" id="btnFocus">🔍 确认对焦</button>
+</div>
+
+<div id="taskPanel">按「开始实验」后显示本轮任务。</div>
+<div id="logPanel"><h3>📝 实验记录</h3><div id="logList">暂无记录</div></div>
+
+<div class="overlay" id="startOverlay">
+  <div class="card">
+    <h2>🔬 显微镜实验</h2>
+    <p><b>玩法说明：</b>观察洋葱表皮细胞。每轮指定一个放大倍数（40×/100×/400×，倍数越高视野越小、最佳焦点不同），拖动「焦距」滑杆调清晰度，达到 90% 后点「确认对焦」（+20 分），再在图上点出一个细胞核（+20 分）。共 3 轮。</p>
+    <div class="kbox"><b>原理简介：</b>显微镜靠物镜和目镜两级放大成像；偏离焦平面时图像模糊，转动细准焦螺旋微调焦距可使图像清晰。观察时一般先低倍找到目标，再转高倍细调。</div>
+    <button class="bigbtn" id="btnStart">开始实验</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pauseOverlay">
+  <div class="card center">
+    <h2>⏸ 已暂停</h2>
+    <div class="btnrow">
+      <button class="midbtn" id="btnResume">继续</button>
+      <button class="midbtn" id="btnRestart">重来</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endOverlay">
+  <div class="card">
+    <h2>🎓 实验报告</h2>
+    <p><b>实验结论：</b>先用低倍镜找到观察目标、移到视野中央，再转高倍镜；图像模糊时只能转动细准焦螺旋微调，不能在高倍下用粗准焦螺旋大幅升降镜筒；倍数越高，视野越小越暗，对焦越要精细。</p>
+    <div class="kbox"><b>知识点：</b>显微镜放大倍数 = 目镜倍数 × 物镜倍数（如 10×目镜 × 40×物镜 = 400×）；洋葱表皮细胞由细胞壁、细胞膜、细胞质、细胞核等构成，细胞核是深色圆点。</div>
+    <div class="bigscore"><span id="finalScore">0</span> 分</div>
+    <p class="center">历史最高：<b id="finalHs">0</b> 分</p>
+    <button class="bigbtn" id="btnAgain">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== 通用：音效 / 震动 ===== */
+var audioCtx=null;
+var soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}return audioCtx;}
+function tone(f,d,type,when){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(when||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.08,'sine',0);}
+function sGood(){tone(880,0.1,'sine',0);tone(1320,0.16,'sine',0.09);}
+function sBad(){tone(200,0.28,'sawtooth',0);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++)tone(n[i],0.16,'sine',i*0.12);}
+function vib(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function $(id){return document.getElementById(id);}
+
+/* ===== 状态 ===== */
+var HSKEY='g100_microscopelab_hs';
+var MAGS=[{m:40,obj:'4×',best:30,cols:5,rows:5,lw:3,nr:7},{m:100,obj:'10×',best:55,cols:3,rows:3,lw:5,nr:10},{m:400,obj:'40×',best:80,cols:2,rows:2,lw:8,nr:14}];
+var S={round:0,score:0,focus:50,phase:'focus',nuclei:[],mark:null,running:false,paused:false};
+
+var cv=$('scope'),ctx=cv.getContext('2d');
+var off=document.createElement('canvas');off.width=480;off.height=320;
+var offCtx=off.getContext('2d');
+
+function clarity(){var b=MAGS[S.round].best;return Math.max(0,Math.round(100-Math.abs(S.focus-b)*2.2));}
+function setHsUI(){$('hs').textContent=localStorage.getItem(HSKEY)||'0';}
+function addLog(t){var l=$('logList');if(l.textContent==='暂无记录')l.textContent='';var d=document.createElement('div');d.textContent=t;l.appendChild(d);l.scrollTop=l.scrollHeight;}
+
+function drawSharp(){
+  var c=offCtx,g=MAGS[S.round];
+  c.clearRect(0,0,480,320);
+  c.fillStyle='#0b1020';c.fillRect(0,0,480,320);
+  c.save();
+  c.beginPath();c.arc(240,160,150,0,7);c.clip();
+  c.fillStyle='#f7f3e3';c.fillRect(0,0,480,320);
+  var cw=300/g.cols,ch=300/g.rows,ox=90,oy=10;
+  S.nuclei=[];
+  for(var r=0;r<g.rows;r++)for(var q=0;q<g.cols;q++){
+    var x=ox+q*cw,y=oy+r*ch;
+    c.fillStyle='rgba(139,195,74,0.20)';c.fillRect(x,y,cw,ch);
+    c.strokeStyle='#33691e';c.lineWidth=g.lw;c.strokeRect(x+2,y+2,cw-4,ch-4);
+    var nx=x+cw*(0.35+Math.random()*0.3),ny=y+ch*(0.35+Math.random()*0.3);
+    S.nuclei.push({x:nx,y:ny});
+    c.fillStyle='#6a1b9a';c.beginPath();c.arc(nx,ny,g.nr,0,7);c.fill();
+    c.fillStyle='rgba(106,27,154,0.35)';c.beginPath();c.arc(nx,ny,g.nr*0.45,0,7);c.fill();
+  }
+  c.restore();
+  c.strokeStyle='#90a4ae';c.lineWidth=6;c.beginPath();c.arc(240,160,150,0,7);c.stroke();
+  c.fillStyle='#fff';c.font='15px sans-serif';
+  c.fillText('目镜10× · 物镜'+g.obj+' = '+g.m+'×',14,26);
+}
+function render(){
+  drawSharp();
+  var b=MAGS[S.round].best,blur=Math.abs(S.focus-b)/100*16;
+  ctx.clearRect(0,0,480,320);
+  var n=blur<0.6?1:Math.ceil(blur/2.5);
+  ctx.globalAlpha=1/n;
+  for(var i=0;i<n;i++){
+    var ox=(Math.random()*blur-blur/2),oy=(Math.random()*blur-blur/2);
+    ctx.drawImage(off,n===1?0:ox,n===1?0:oy);
+  }
+  ctx.globalAlpha=1;
+  if(S.mark){ctx.strokeStyle='#e53935';ctx.lineWidth=4;ctx.beginPath();ctx.arc(S.mark.x,S.mark.y,20,0,7);ctx.stroke();}
+  var cl=clarity();
+  $('clarN').textContent=cl+'%';
+  $('clarFill').style.width=cl+'%';
+  $('focusN').textContent=S.focus;
+  $('magLabel').textContent=MAGS[S.round].m+'×';
+}
+function taskHTML(){
+  var g=MAGS[S.round];
+  if(S.phase==='focus')return '第 <b>'+(S.round+1)+'</b> / 3 轮：放大倍数 <b>'+g.m+'×</b>（物镜'+g.obj+'），拖动滑杆调焦距，使清晰度 <b>≥90%</b> 后点「确认对焦」。';
+  return '第 <b>'+(S.round+1)+'</b> / 3 轮：对焦成功！现在 <b>点击视野中的一个细胞核</b>（深紫色圆点）。';
+}
+
+$('focusSlider').addEventListener('input',function(){
+  if(!S.running||S.paused||S.phase!=='focus')return;
+  S.focus=parseInt(this.value,10);render();
+});
+$('btnFocus').addEventListener('click',function(){
+  if(!S.running||S.paused||S.phase!=='focus')return;
+  var cl=clarity();
+  if(cl>=90){
+    S.phase='mark';S.score+=20;sGood();vib(50);
+    addLog(MAGS[S.round].m+'× · 焦距'+S.focus+' · 清晰度'+cl+'% · ✅对焦成功 +20');
+    $('taskPanel').innerHTML=taskHTML();
+    $('score').textContent=S.score;
+  }else{
+    sBad();
+    $('taskPanel').innerHTML=taskHTML()+'<br>❌ 当前清晰度 '+cl+'%，还不够 90%，继续微调焦距。';
+  }
+});
+cv.addEventListener('pointerdown',function(e){
+  if(!S.running||S.paused||S.phase!=='mark')return;
+  var r=cv.getBoundingClientRect();
+  var x=(e.clientX-r.left)*480/r.width,y=(e.clientY-r.top)*320/r.height;
+  var best=null,bd=1e9;
+  for(var i=0;i<S.nuclei.length;i++){var n=S.nuclei[i],d=Math.hypot(n.x-x,n.y-y);if(d<bd){bd=d;best=n;}}
+  if(best&&bd<28){
+    S.mark={x:best.x,y:best.y};S.score+=20;sWin();vib(50);render();
+    $('score').textContent=S.score;
+    addLog(MAGS[S.round].m+'× · 标出细胞核 · ✅命中 +20');
+    var last=S.round>=2;
+    S.phase='done';
+    $('taskPanel').innerHTML='✅ <b>细胞核标记正确！+20 分</b><br><button class="midbtn" id="btnNext" style="margin-top:8px;min-width:200px;">'+(last?'查看实验报告':'下一轮')+'</button>';
+    $('btnNext').addEventListener('click',function(){sClick();S.round++;if(S.round>=3){endGame();}else{newRound();}});
+  }else{
+    sBad();
+    $('taskPanel').innerHTML=taskHTML()+'<br>❌ 没点中细胞核，再找找深紫色的圆点。';
+  }
+});
+function newRound(){
+  S.phase='focus';S.mark=null;S.focus=50;
+  $('focusSlider').value=50;
+  $('taskPanel').innerHTML=taskHTML();render();
+}
+function endGame(){
+  S.running=false;
+  var old=parseInt(localStorage.getItem(HSKEY)||'0',10);
+  if(S.score>old)localStorage.setItem(HSKEY,String(S.score));
+  $('finalScore').textContent=S.score;
+  $('finalHs').textContent=localStorage.getItem(HSKEY)||'0';
+  $('endOverlay').classList.remove('hidden');
+  sWin();
+}
+$('btnStart').addEventListener('click',function(){sClick();$('startOverlay').classList.add('hidden');S.running=true;newRound();});
+$('btnAgain').addEventListener('click',function(){location.reload();});
+$('btnPause').addEventListener('click',function(){if(!S.running)return;sClick();S.paused=true;$('pauseOverlay').classList.remove('hidden');});
+$('btnResume').addEventListener('click',function(){sClick();S.paused=false;$('pauseOverlay').classList.add('hidden');});
+$('btnRestart').addEventListener('click',function(){location.reload();});
+$('btnSound').addEventListener('click',function(){
+  soundOn=!soundOn;localStorage.setItem('g100_sound',soundOn?'1':'0');
+  $('btnSound').textContent=soundOn?'🔊':'🔇';if(soundOn)sClick();
+});
+$('btnSound').textContent=soundOn?'🔊':'🔇';
+setHsUI();render();
+</script>
+</body>
+</html>

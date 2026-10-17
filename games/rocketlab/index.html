@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>火箭原理</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{background:linear-gradient(160deg,#0f0c29,#3a1c5c 60%,#1c1030);color:#fff;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;padding:10px;user-select:none;-webkit-user-select:none;}
+header{display:flex;align-items:center;gap:8px;padding:4px 2px;}
+header h1{font-size:18px;margin:0;flex:1;}
+.score{background:rgba(255,255,255,.12);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.3;}
+.icobtn{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;flex:none;}
+#stage{position:relative;height:300px;border-radius:16px;background:linear-gradient(180deg,#0b1020 60%,#16213a);border:1px solid rgba(255,255,255,.15);margin:8px 0;overflow:hidden;touch-action:none;}
+#rope{position:absolute;left:4%;right:4%;top:38%;height:3px;background:#8d6e63;}
+#balloon{position:absolute;font-size:52px;top:calc(38% - 46px);left:4%;transition:none;z-index:5;}
+#arrowA{position:absolute;font-size:15px;color:#ff8a65;display:none;z-index:6;}
+#arrowR{position:absolute;font-size:15px;color:#69f0ae;display:none;z-index:6;}
+#rocket{position:absolute;font-size:46px;left:4%;bottom:34px;display:none;z-index:5;}
+#targetFlag{position:absolute;font-size:40px;bottom:28px;display:none;z-index:4;}
+#ground{position:absolute;left:0;right:0;bottom:0;height:30px;background:#2e4a2e;border-top:2px solid #66bb6a;display:none;}
+.scale{position:absolute;bottom:2px;left:4%;right:4%;display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.55);}
+.pt{position:absolute;pointer-events:none;font-size:18px;z-index:50;transition:transform .6s ease-out,opacity .6s ease-out;}
+#controls{background:rgba(255,255,255,.07);border-radius:14px;padding:10px;margin:8px 0;}
+input[type=range]{width:100%;height:44px;}
+.optrow{display:flex;gap:8px;margin:6px 0;}
+.opt{flex:1;min-height:52px;border-radius:12px;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:15px;}
+.opt.sel{border-color:#ce93d8;background:rgba(206,147,216,.2);}
+.bigbtn{min-height:52px;font-size:18px;border-radius:14px;border:none;background:linear-gradient(135deg,#ce93d8,#7b1fa2);color:#fff;width:100%;font-weight:bold;margin-top:6px;}
+.bigbtn:disabled{opacity:.4;}
+.midbtn{min-height:48px;font-size:16px;border-radius:12px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.14);color:#fff;padding:0 18px;font-weight:bold;}
+.rowline{display:flex;justify-content:space-between;align-items:center;font-size:14px;margin:4px 0;}
+#taskPanel{background:rgba(206,147,216,.14);border:1px solid rgba(206,147,216,.5);border-radius:14px;padding:10px 12px;margin:8px 0;font-size:15px;min-height:64px;}
+#logPanel{background:rgba(255,255,255,.05);border-radius:14px;padding:10px 12px;margin:8px 0;}
+#logPanel h3{margin:0 0 6px;font-size:15px;}
+#logList{max-height:130px;overflow-y:auto;font-size:13px;line-height:1.7;color:#cfd8dc;}
+.overlay{position:fixed;inset:0;background:rgba(5,5,20,.88);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.card{background:#2c1a3e;border-radius:18px;padding:22px;max-width:430px;width:100%;max-height:92vh;overflow-y:auto;}
+.card h2{margin:0 0 10px;font-size:22px;}
+.card p{font-size:14px;line-height:1.8;color:#e0e0e0;}
+.card .kbox{background:rgba(255,255,255,.08);border-radius:10px;padding:10px;font-size:13px;line-height:1.8;margin:8px 0;}
+.hidden{display:none!important;}
+.btnrow{display:flex;gap:10px;margin-top:14px;}
+.btnrow .midbtn{flex:1;}
+.bigscore{font-size:40px;font-weight:bold;color:#ce93d8;text-align:center;margin:8px 0;}
+.center{text-align:center;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚀 火箭原理</h1>
+  <div class="score">得分<br><b id="score">0</b></div>
+  <div class="score">最高<br><b id="hs">0</b></div>
+  <button class="icobtn" id="btnSound" title="声音开关">🔊</button>
+  <button class="icobtn" id="btnPause" title="暂停">⏸</button>
+</header>
+
+<div id="stage">
+  <div id="rope"></div>
+  <div id="balloon">🎈</div>
+  <div id="arrowA">💨⬅作用力</div>
+  <div id="arrowR">反作用力➡</div>
+  <div id="ground"></div>
+  <div id="rocket">🚀</div>
+  <div id="targetFlag">🎯</div>
+  <div class="scale" id="scaleBar"></div>
+</div>
+
+<div id="controls">
+  <div id="ctlStage1">
+    <div class="rowline"><span>🎈 充气量（飞行距离 = 充气量 × 0.12 米）</span><b id="gasN">50%</b></div>
+    <input type="range" id="gasSlider" min="10" max="100" step="1" value="50">
+  </div>
+  <div id="ctlStage2" class="hidden">
+    <div class="rowline"><span>💧 水量（距离 = 0.25 × 水量 × sin2θ）</span><b id="waterN">55%</b></div>
+    <input type="range" id="waterSlider" min="30" max="80" step="1" value="55">
+    <div class="rowline"><span>📐 发射角度</span></div>
+    <div class="optrow" id="angRow">
+      <button class="opt" data-a="30">30°</button>
+      <button class="opt sel" data-a="45">45°</button>
+      <button class="opt" data-a="60">60°</button>
+    </div>
+  </div>
+  <button class="bigbtn" id="btnLaunch">🚀 发射</button>
+</div>
+
+<div id="taskPanel">按「开始实验」后显示本轮任务。</div>
+<div id="logPanel"><h3>📝 实验记录</h3><div id="logList">暂无记录</div></div>
+
+<div class="overlay" id="startOverlay">
+  <div class="card">
+    <h2>🚀 火箭原理</h2>
+    <p><b>玩法说明：</b>分两个阶段。<b>阶段一·气球火箭</b>（3轮）：气球挂在横绳上，调充气量后点发射，飞行距离 = 充气量×0.12 米，命中 3 / 6 / 9 米目标（误差 &lt; 0.5 米，+20 分）。<b>阶段二·水火箭</b>（3轮）：调水量（30~80%）和发射角度（30°/45°/60°），距离 = 0.25×水量×sin2θ，命中 10 / 14 / 18 米靶子（+30 分）。发射时注意看作用力与反作用力箭头！</p>
+    <div class="kbox"><b>原理简介：</b>火箭靠向后高速喷出气体，获得向前的反作用力前进，这叫反冲运动，是牛顿第三定律的典型应用。</div>
+    <button class="bigbtn" id="btnStart">开始实验</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="pauseOverlay">
+  <div class="card center">
+    <h2>⏸ 已暂停</h2>
+    <div class="btnrow">
+      <button class="midbtn" id="btnResume">继续</button>
+      <button class="midbtn" id="btnRestart">重来</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endOverlay">
+  <div class="card">
+    <h2>🎓 实验报告</h2>
+    <p><b>实验结论：</b>火箭不靠"推空气"前进，而是靠向后喷出高速气体、获得向前的反作用力，这就是反冲运动。喷出的物质越多、速度越快（充气量/水量越大），火箭飞得越远；水火箭的射程还与发射角度有关，45° 时 sin2θ 最大、飞得最远。</p>
+    <div class="kbox"><b>知识点：</b>牛顿第三定律：F = −F′ —— 作用力与反作用力大小相等、方向相反、作用在两个不同物体上。气球向后排气（作用力），空气把气球向前推（反作用力）。</div>
+    <div class="bigscore"><span id="finalScore">0</span> 分</div>
+    <p class="center">历史最高：<b id="finalHs">0</b> 分</p>
+    <button class="bigbtn" id="btnAgain">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== 通用：音效 / 震动 ===== */
+var audioCtx=null;
+var soundOn=localStorage.getItem('g100_sound')!=='0';
+function ac(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}return audioCtx;}
+function tone(f,d,type,when){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(when||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.08,'sine',0);}
+function sGood(){tone(880,0.1,'sine',0);tone(1320,0.16,'sine',0.09);}
+function sBad(){tone(200,0.28,'sawtooth',0);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++)tone(n[i],0.16,'sine',i*0.12);}
+function whoosh(){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime;var o=c.createOscillator(),g=c.createGain();o.type='sawtooth';o.frequency.setValueAtTime(180,t);o.frequency.exponentialRampToValueAtTime(900,t+0.9);g.gain.setValueAtTime(0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+1.0);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+1.05);}catch(e){}}
+function vib(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function $(id){return document.getElementById(id);}
+function puff(x,y,txt){try{var st=$('stage'),r=st.getBoundingClientRect();var s=document.createElement('div');s.className='pt';s.textContent=txt||'💨';s.style.left=(x-r.left)+'px';s.style.top=(y-r.top)+'px';st.appendChild(s);requestAnimationFrame(function(){s.style.transform='translate('+(-30-Math.random()*40)+'px,'+(Math.random()*20-10)+'px) scale(1.6)';s.style.opacity='0';});setTimeout(function(){s.remove();},700);}catch(e){}}
+
+/* ===== 状态 ===== */
+var HSKEY='g100_rocketlab_hs';
+var T1=[3,6,9],T2=[10,14,18];
+var S={round:0,score:0,gas:50,water:55,ang:45,running:false,paused:false,flying:false,anim:null};
+
+function setHsUI(){$('hs').textContent=localStorage.getItem(HSKEY)||'0';}
+function addLog(t){var l=$('logList');if(l.textContent==='暂无记录')l.textContent='';var d=document.createElement('div');d.textContent=t;l.appendChild(d);l.scrollTop=l.scrollHeight;}
+function stage1(){return S.round<3;}
+function target(){return stage1()?T1[S.round]:T2[S.round-3];}
+function drawScale(){
+  var max=stage1()?12:22,n=max/2,html='';
+  for(var i=0;i<=n;i++)html+='<span>'+(i*2)+'m</span>';
+  $('scaleBar').innerHTML=html;
+}
+function taskHTML(){
+  var t=target(),th=stage1()?'阶段一·气球火箭':'阶段二·水火箭';
+  return th+'：第 <b>'+(stage1()?S.round+1:S.round-2)+'</b> / 3 轮，目标 <b>'+t+' 米</b>（误差 &lt; 0.5 米命中，'+(stage1()?'+20':'+30')+' 分）。';
+}
+function setupStage(){
+  drawScale();
+  var s1=stage1();
+  $('rope').style.display=s1?'block':'none';
+  $('balloon').style.display=s1?'block':'none';
+  $('ground').style.display=s1?'none':'block';
+  $('rocket').style.display=s1?'none':'block';
+  $('targetFlag').style.display=s1?'none':'block';
+  $('ctlStage1').classList.toggle('hidden',!s1);
+  $('ctlStage2').classList.toggle('hidden',s1);
+  if(!s1){
+    var st=$('stage'),w=st.clientWidth||340;
+    var tx=w*0.04+(w*0.92)*(target()/22);
+    var fl=$('targetFlag');fl.style.left=(tx-20)+'px';
+    var rk=$('rocket');rk.style.left='4%';rk.style.bottom='34px';
+  }else{
+    $('balloon').style.left='4%';
+  }
+  $('taskPanel').innerHTML=taskHTML();
+}
+
+$('gasSlider').addEventListener('input',function(){S.gas=parseInt(this.value,10);$('gasN').textContent=S.gas+'%（≈'+(S.gas*0.12).toFixed(1)+'m）';});
+$('waterSlider').addEventListener('input',function(){S.water=parseInt(this.value,10);updateWaterLabel();});
+function updateWaterLabel(){
+  var d=0.25*S.water*Math.sin(2*S.ang*Math.PI/180);
+  $('waterN').textContent=S.water+'%（≈'+d.toFixed(1)+'m）';
+}
+var angBtns=$('angRow').querySelectorAll('.opt');
+for(var i=0;i<angBtns.length;i++)(function(b,idx){
+  b.addEventListener('click',function(){sClick();for(var j=0;j<angBtns.length;j++)angBtns[j].classList.remove('sel');b.classList.add('sel');S.ang=parseInt(b.getAttribute('data-a'),10);updateWaterLabel();});
+})(angBtns[i],i);
+
+/* ===== 发射动画（暂停感知） ===== */
+function animate(dur,onFrame,onDone){
+  var t0=null;
+  function fr(ts){
+    if(S.paused){t0=null;S.anim=requestAnimationFrame(fr);return;}
+    if(t0===null)t0=ts;
+    var p=Math.min(1,(ts-t0)/dur);
+    onFrame(p);
+    if(p<1)S.anim=requestAnimationFrame(fr);else{S.anim=null;onDone();}
+  }
+  S.anim=requestAnimationFrame(fr);
+}
+$('btnLaunch').addEventListener('click',function(){
+  if(!S.running||S.paused||S.flying)return;
+  S.flying=true;sClick();whoosh();
+  var st=$('stage'),w=st.clientWidth||340;
+  if(stage1()){
+    var dist=S.gas*0.12;
+    var x0=w*0.04,x1=w*0.04+(w*0.92)*(dist/12);
+    var bal=$('balloon'),r=st.getBoundingClientRect();
+    $('arrowA').style.display='block';$('arrowR').style.display='block';
+    animate(1400,function(p){
+      var x=x0+(x1-x0)*p;
+      bal.style.left=x+'px';
+      $('arrowA').style.left=(x-70)+'px';$('arrowA').style.top='30%';
+      $('arrowR').style.left=(x+56)+'px';$('arrowR').style.top='30%';
+      if(Math.random()<0.6)puff(x,r.top+0,'💨');
+    },function(){
+      $('arrowA').style.display='none';$('arrowR').style.display='none';
+      land(dist);
+    });
+  }else{
+    var dist2=0.25*S.water*Math.sin(2*S.ang*Math.PI/180);
+    var rx0=w*0.04,rx1=w*0.04+(w*0.92)*(dist2/22);
+    var rk=$('rocket'),r2=st.getBoundingClientRect();
+    puff(rx0,r2.top+200,'💦');
+    animate(1500,function(p){
+      var x=rx0+(rx1-rx0)*p;
+      var h=110*4*p*(1-p);
+      rk.style.left=x+'px';rk.style.bottom=(34+h)+'px';
+      if(p<0.25&&Math.random()<0.5)puff(x,r2.top+230,'🔥');
+    },function(){land(dist2);});
+  }
+});
+function land(dist){
+  var t=target(),hit=Math.abs(dist-t)<0.5;
+  var pts=stage1()?20:30;
+  var cfg=stage1()?'充气'+S.gas+'%':'水量'+S.water+'%+角度'+S.ang+'°';
+  if(hit){S.score+=pts;sWin();vib(50);}else{sBad();}
+  $('score').textContent=S.score;
+  addLog((stage1()?'气球火箭':'水火箭')+' · '+cfg+' · 目标'+t+'m · 实际'+dist.toFixed(1)+'m · '+(hit?'✅命中 +'+pts:'❌偏了 '+(dist-t>0?'+':'')+(dist-t).toFixed(1)+'m'));
+  S.flying=false;
+  var last=S.round>=5;
+  $('taskPanel').innerHTML=(hit?'✅ <b>命中目标！+'+pts+' 分</b>':'❌ <b>实际 '+dist.toFixed(1)+' 米，偏了 '+(dist-t>0?'+':'')+(dist-t).toFixed(1)+' 米。</b>'+(stage1()?'试试充气量 = 目标÷0.12。':'试试 45° 时 sin2θ=1，距离只由水量决定。'))+'<br><button class="midbtn" id="btnNext" style="margin-top:8px;min-width:200px;">'+(last?'查看实验报告':(S.round===2?'进入阶段二·水火箭':'下一轮'))+'</button>';
+  $('btnNext').addEventListener('click',function(){
+    sClick();S.round++;
+    if(S.round>=6){endGame();}else{setupStage();}
+  });
+}
+
+function endGame(){
+  S.running=false;
+  var old=parseInt(localStorage.getItem(HSKEY)||'0',10);
+  if(S.score>old)localStorage.setItem(HSKEY,String(S.score));
+  $('finalScore').textContent=S.score;
+  $('finalHs').textContent=localStorage.getItem(HSKEY)||'0';
+  $('endOverlay').classList.remove('hidden');
+  sWin();
+}
+$('btnStart').addEventListener('click',function(){sClick();$('startOverlay').classList.add('hidden');S.running=true;setupStage();updateWaterLabel();});
+$('btnAgain').addEventListener('click',function(){location.reload();});
+$('btnPause').addEventListener('click',function(){if(!S.running)return;sClick();S.paused=true;$('pauseOverlay').classList.remove('hidden');});
+$('btnResume').addEventListener('click',function(){sClick();S.paused=false;$('pauseOverlay').classList.add('hidden');});
+$('btnRestart').addEventListener('click',function(){location.reload();});
+$('btnSound').addEventListener('click',function(){
+  soundOn=!soundOn;localStorage.setItem('g100_sound',soundOn?'1':'0');
+  $('btnSound').textContent=soundOn?'🔊':'🔇';if(soundOn)sClick();
+});
+$('btnSound').textContent=soundOn?'🔊':'🔇';
+setHsUI();
+$('gasN').textContent='50%（≈6.0m）';
+</script>
+</body>
+</html>
