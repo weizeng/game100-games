@@ -1,18 +1,28 @@
 package com.game100.center
 
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.ColorUtils
+import androidx.lifecycle.lifecycleScope
+import com.game100.center.data.GameRepository
+import com.game100.center.ui.UiMotion
+import com.google.android.material.appbar.MaterialToolbar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.game100.center.model.RemoteGame
 
 /**
- * 🔬 科学实验室：50款理化生实验游戏的独立板块
+ * 科学实验室：本机与远端理化生实验的独立板块
  */
 class ScienceLabActivity : AppCompatActivity() {
 
@@ -21,7 +31,7 @@ class ScienceLabActivity : AppCompatActivity() {
         "freefall", "incline", "spring", "buoyancy", "reflection", "refraction",
         "lens", "prism", "circuit", "ohm", "seriesparallel", "magnet",
         "electromagnet", "resonance", "densitylab", "pressurelab",
-        "heattransfer", "expansion", "wavelab", "staticlab"
+        "heattransfer", "expansion", "wavelab", "staticlab", "rocketlab"
     )
     private val chemistryIds = setOf(
         "acidbase", "indicator", "chemreact", "electrolysis", "metalreact",
@@ -37,12 +47,14 @@ class ScienceLabActivity : AppCompatActivity() {
     private var selectedSubject = "全部"
     private val tabViews = mutableListOf<TextView>()
     private lateinit var adapter: ScienceCardAdapter
+    private var allExperiments: List<RemoteGame> = emptyList()
+    private var loading = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_science_lab)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = "科学实验室"
+        findViewById<MaterialToolbar>(R.id.science_toolbar).setNavigationOnClickListener { finish() }
+        selectedSubject = savedInstanceState?.getString("subject") ?: "全部"
 
         // 学科标签
         val tabsContainer = findViewById<android.widget.LinearLayout>(R.id.subject_tabs)
@@ -50,13 +62,17 @@ class ScienceLabActivity : AppCompatActivity() {
             val tv = TextView(this).apply {
                 text = subject
                 textSize = 15f
-                setPadding(32, 16, 32, 16)
+                minHeight = dp(44)
+                gravity = android.view.Gravity.CENTER
+                isFocusable = true
+                setPadding(dp(16), dp(10), dp(16), dp(10))
                 setOnClickListener { selectSubject(subject) }
             }
+            UiMotion.press(tv)
             tabViews.add(tv)
             tabsContainer.addView(tv)
             val params = tv.layoutParams as android.widget.LinearLayout.LayoutParams
-            params.marginEnd = 16
+            params.marginEnd = dp(8)
             tv.layoutParams = params
         }
 
@@ -72,21 +88,51 @@ class ScienceLabActivity : AppCompatActivity() {
         }
         recycler.adapter = adapter
 
-        selectSubject("全部")
+        selectSubject(selectedSubject)
+        // Read installed experiments too: the homepage cache may still be loading or be lost on recreation.
+        val cached = MainActivity.gameCache.values.toList()
+        lifecycleScope.launch(Dispatchers.IO) {
+            val repo = GameRepository(this@ScienceLabActivity)
+            repo.ensureBundledGames(BuildConfig.VERSION_CODE)
+            val experiments = repo.buildGameList(cached).filter { it.category == "科学实验" }.map {
+                it.remote ?: RemoteGame(
+                    id = it.id, name = it.name, desc = it.desc, version = it.installedVersion,
+                    icon = it.icon, color = it.color, category = it.category,
+                    url = "", size = 0, premium = it.isPremium
+                )
+            }
+            withContext(Dispatchers.Main) {
+                loading = false
+                allExperiments = experiments
+                refreshGrid()
+            }
+        }
+    }
+
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("subject", selectedSubject)
     }
 
     private fun selectSubject(subject: String) {
         selectedSubject = subject
         tabViews.forEachIndexed { i, tv ->
             val sel = subjects[i] == subject
-            tv.setBackgroundResource(if (sel) R.drawable.pill_action else R.drawable.search_bg)
+            tv.background = GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(getColor(if (sel) R.color.stage else R.color.bg_card))
+                if (!sel) setStroke(dp(1), getColor(R.color.divider))
+            }
+            tv.isSelected = sel
             tv.setTextColor(getColor(if (sel) android.R.color.white else R.color.text_secondary))
         }
         refreshGrid()
     }
 
     private fun refreshGrid() {
-        val all = MainActivity.gameCache.values.filter { it.category == "科学实验" }
+        val all = allExperiments
         val filtered = when (selectedSubject) {
             "物理" -> all.filter { it.id in physicsIds }
             "化学" -> all.filter { it.id in chemistryIds }
@@ -94,6 +140,9 @@ class ScienceLabActivity : AppCompatActivity() {
             else -> all
         }
         adapter.submit(filtered.sortedBy { it.name })
+        findViewById<TextView>(R.id.science_count).text = if (loading) "正在加载实验…"
+        else "${selectedSubject}实验 · ${filtered.size} 个"
+        findViewById<View>(R.id.science_empty).visibility = if (!loading && filtered.isEmpty()) View.VISIBLE else View.GONE
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -123,11 +172,14 @@ class ScienceLabActivity : AppCompatActivity() {
         override fun onBindViewHolder(h: VH, position: Int) {
             val game = items[position]
             h.icon.text = game.icon
-            try {
-                h.icon.setBackgroundColor(android.graphics.Color.parseColor(game.color))
-            } catch (e: Exception) { }
+            val color = try { Color.parseColor(game.color) } catch (_: Exception) { getColor(R.color.brand) }
+            h.icon.background = GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(ColorUtils.blendARGB(color, Color.WHITE, 0.86f))
+            }
             h.name.text = game.name
-            h.desc.text = game.desc.take(30)
+            h.desc.text = game.desc
+            UiMotion.press(h.itemView)
             h.itemView.setOnClickListener { onClick(game) }
         }
     }

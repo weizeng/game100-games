@@ -16,6 +16,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.drawable.DrawableCompat
+import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -47,7 +48,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var featAdapter: FeaturedAdapter
     private lateinit var swipe: SwipeRefreshLayout
 
-    private val categories = listOf("全部", "精品", "科学实验", "街机动作", "益智解谜", "休闲趣味", "经典重温")
+    private val categories = listOf("全部", "精品", "新上架", "科学实验", "街机动作", "益智解谜", "休闲趣味", "经典重温")
     private var selectedCat = "全部"
     private var searchQuery = ""
     private var allItems: List<GameItem> = emptyList()
@@ -103,7 +104,18 @@ class MainActivity : AppCompatActivity() {
 
         val searchBar = findViewById<android.widget.EditText>(R.id.search_bar)
         searchBar.setText(searchQuery)
-        // 🔬 科学实验室入口
+        findViewById<View>(R.id.btn_more_featured).setOnClickListener {
+            selectCategory(if (allItems.any { it.isPremium }) "精品" else "新上架")
+            findViewById<NestedScrollView>(R.id.home_scroll).post {
+                val title = findViewById<View>(R.id.tv_games_title)
+                findViewById<NestedScrollView>(R.id.home_scroll).smoothScrollTo(
+                    0, title.top + (title.parent as View).top
+                )
+            }
+        }
+        UiMotion.press(findViewById(R.id.science_banner))
+        UiMotion.press(findViewById(R.id.btn_more_featured))
+        // 科学实验入口与首页内容一起滚动。
         findViewById<View>(R.id.science_banner).setOnClickListener {
             startActivity(Intent(this, ScienceLabActivity::class.java))
         }
@@ -189,6 +201,7 @@ class MainActivity : AppCompatActivity() {
         var filtered = when (selectedCat) {
             "全部" -> allItems
             "精品" -> allItems.filter { it.isPremium }
+            "新上架" -> allItems.filter { it.isNew }
             else -> allItems.filter { it.category == selectedCat }
         }
         if (searchQuery.isNotBlank()) {
@@ -218,6 +231,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showItems(items: List<GameItem>) {
         allItems = items
+        val scienceCount = items.count { it.category == "科学实验" }
+        findViewById<TextView>(R.id.science_summary).text = if (scienceCount > 0)
+            "$scienceCount 个实验 · 物理 / 化学 / 生物"
+        else "物理 / 化学 / 生物"
         findViewById<TextView>(R.id.tv_subtitle).text =
             getString(R.string.subtitle_games, items.size)
         applyFilter()
@@ -228,15 +245,17 @@ class MainActivity : AppCompatActivity() {
         val showFeatured = selectedCat == "全部" && searchQuery.isBlank()
         val featGames = (allItems.filter { it.isPremium } + allItems.filter { it.isNew && !it.isPremium })
             .distinctBy { it.id }.take(8)
+        findViewById<View>(R.id.science_banner).visibility = if (showFeatured) View.VISIBLE else View.GONE
+        val featHeader = findViewById<View>(R.id.feat_section_header)
         val featTitle = findViewById<TextView>(R.id.feat_title)
         val featRecycler = findViewById<RecyclerView>(R.id.feat_recycler)
         if (showFeatured && featGames.isNotEmpty()) {
-            featTitle.visibility = View.VISIBLE
+            featHeader.visibility = View.VISIBLE
             featTitle.text = if (allItems.any { it.isPremium }) "精选推荐" else "新鲜上架"
             featRecycler.visibility = View.VISIBLE
             featAdapter.submit(featGames)
         } else {
-            featTitle.visibility = View.GONE
+            featHeader.visibility = View.GONE
             featRecycler.visibility = View.GONE
         }
     }

@@ -34,7 +34,22 @@ let referenceCount=0;
 for (const {file,source} of xmlFiles) for(const match of source.matchAll(/@(?!android:|null)(color|string|drawable|layout|menu|style|xml)\/([\w.]+)/g)) {
   assert.ok(resources.get(match[1])?.has(match[2]),`Missing @${match[1]}/${match[2]} in ${file}`); referenceCount++;
 }
-const activities = { MainActivity:['activity_main','dialog_download'], GameDetailActivity:['activity_game_detail'], SettingsActivity:['activity_settings'], GameActivity:['activity_game'] };
+// These views must share the list's scroll surface; placing a discovery banner
+// above SwipeRefreshLayout leaves it pinned while the user browses games.
+const homeTree = xml2js(fs.readFileSync(path.join(root,'res/layout/activity_main.xml'),'utf8'));
+const homeScrollIds = new Set();
+visit(homeTree, node => {
+  if (node.attributes?.['android:id'] === '@+id/home_scroll') {
+    visit(node, child => {
+      const id = child.attributes?.['android:id'];
+      if (id) homeScrollIds.add(id.slice(5));
+    });
+  }
+});
+for (const id of ['science_banner','search_bar','cat_scroll','feat_section_header','recycler']) {
+  assert.ok(homeScrollIds.has(id), `${id} must scroll with the homepage content`);
+}
+const activities = { MainActivity:['activity_main','dialog_download'], ScienceLabActivity:['activity_science_lab','item_science_card'], GameDetailActivity:['activity_game_detail'], SettingsActivity:['activity_settings'], GameActivity:['activity_game'] };
 for(const [activity,layouts] of Object.entries(activities)) {
   const source=fs.readFileSync(path.join(root,'java/com/game100/center',activity+'.kt'),'utf8');
   const ids=new Set(layouts.flatMap(l=>[...idsByLayout.get(l)]));
