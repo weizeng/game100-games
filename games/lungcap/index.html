@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>肺活量测试</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#0b0e14;color:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;justify-content:center;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+#app{width:100%;max-width:430px;min-height:100%;display:flex;flex-direction:column;background:radial-gradient(120% 55% at 50% 0%,#0e1c2b 0%,#0b0e14 62%)}
+#top{display:flex;align-items:center;justify-content:space-between;padding:10px 12px}
+#title{font-size:18px;font-weight:800}
+#topbtns{display:flex;gap:8px}
+.icobtn{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #27405a;background:#101a26;color:#fff}
+.icobtn:active{transform:scale(.93)}
+#hud{display:flex;justify-content:space-between;align-items:center;padding:2px 16px 6px;font-size:14px;color:#a9c6e2}
+#hud b{color:#ffd54f;font-size:17px}
+#cwrap{padding:2px 10px}
+canvas{width:100%;display:block;border-radius:14px;background:#07090d;border:1px solid #1e3048;touch-action:none}
+#demoWrap{display:none;margin:8px 12px 0;padding:10px 14px;border-radius:12px;background:#0e1a26;border:1px solid #1f4b5e;font-size:15px;line-height:1.7;color:#cfe8f5}
+#demoWrap .row{display:flex;gap:8px;margin-top:8px}
+#expWrap{display:none;margin:8px 12px 0;padding:12px 14px;border-radius:12px;background:#0e1a26;border:1px solid #27405a}
+#volNum{font-size:42px;font-weight:800;color:#4fc3f7;text-align:center;letter-spacing:1px}
+#volNum small{font-size:16px;color:#a9c6e2;font-weight:400}
+#holdBtn{display:block;width:100%;min-height:96px;margin-top:10px;font-size:20px;font-weight:800;color:#fff;background:linear-gradient(135deg,#29b6f6,#0288d1);border:none;border-radius:16px;touch-action:none;box-shadow:0 4px 16px rgba(41,182,246,.35)}
+#holdBtn.holding{background:linear-gradient(135deg,#66bb6a,#2e7d32);box-shadow:0 4px 20px rgba(102,187,106,.5);transform:scale(.98)}
+#holdHint{text-align:center;font-size:14px;color:#a9c6e2;margin-top:8px;min-height:22px}
+#trialList{display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap}
+.tchip{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;padding:6px 10px;border-radius:10px;background:#16283a;border:1px solid #27405a;font-size:14px;font-weight:700;color:#4fc3f7}
+#trialMsg{text-align:center;font-size:14px;color:#cfe8f5;margin-top:8px;min-height:22px;line-height:1.6}
+#btnToQuiz{display:none;width:100%;min-height:52px;margin-top:10px;font-size:18px;font-weight:800;color:#fff;background:linear-gradient(135deg,#29b6f6,#0288d1);border:none;border-radius:14px}
+#quizWrap{display:none;margin:8px 12px 0;padding:12px 14px;border-radius:12px;background:#0e1a26;border:1px solid #27405a}
+#qTitle{font-size:16px;font-weight:700;line-height:1.6;margin-bottom:10px}
+.qopt{display:block;width:100%;min-height:48px;margin-top:8px;padding:8px 12px;font-size:15px;text-align:left;color:#eef2f7;background:#16283a;border:1px solid #2c4a68;border-radius:12px}
+.qopt:active{transform:scale(.98)}
+.qopt.right{background:#1b4d2e;border-color:#43a047;color:#c8e6c9}
+.qopt.wrong{background:#4d1b1b;border-color:#e53935;color:#ffcdd2}
+.qopt:disabled{opacity:1}
+#qWhy{display:none;margin-top:10px;font-size:14px;line-height:1.7;color:#ffe0b2;background:#231a0e;border-radius:10px;padding:8px 10px}
+#btnNext{display:none;width:100%;min-height:48px;margin-top:10px;font-size:16px;font-weight:800;color:#fff;background:linear-gradient(135deg,#29b6f6,#0288d1);border:none;border-radius:12px}
+.screen{margin:12px;padding:20px 18px;border-radius:16px;background:#0f1622;border:1px solid #27405a}
+.screen h2{font-size:23px;margin-bottom:10px}
+.screen p{font-size:15px;line-height:1.85;color:#c9d9ea;margin-bottom:6px}
+.screen .tip{font-size:13px;color:#8fa8c2}
+.bigbtn{display:block;width:100%;min-height:52px;margin-top:14px;font-size:18px;font-weight:800;color:#fff;background:linear-gradient(135deg,#29b6f6,#0288d1);border:none;border-radius:14px;box-shadow:0 4px 14px rgba(41,182,246,.35)}
+.bigbtn:active{transform:scale(.97)}
+.smbtn{flex:1;min-height:46px;font-size:16px;font-weight:700;color:#fff;background:#2b3a4d;border:1px solid #3d526b;border-radius:12px}
+.smbtn.hot{background:linear-gradient(135deg,#29b6f6,#0288d1);border:none}
+#endBody .score{font-size:17px;line-height:2;color:#d7e7f5}
+#endBody .score b{color:#ffd54f;font-size:22px}
+#endBody .eval{font-size:19px;font-weight:800;color:#69f0ae}
+#endBody h3{font-size:17px;margin:12px 0 8px;color:#ffd54f}
+#endBody .con{font-size:14.5px;line-height:1.9;color:#c9d9ea;background:#0a0f16;border-radius:10px;padding:10px 12px}
+#overlay{position:fixed;inset:0;background:rgba(4,6,9,.8);display:none;align-items:center;justify-content:center;z-index:50}
+#ocard{background:#0f1622;border:1px solid #27405a;border-radius:16px;padding:28px 30px;text-align:center}
+#ocard h3{font-size:20px;margin-bottom:16px}
+#ocard .row{display:flex;gap:10px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div id="title">🫁 肺活量测试</div>
+    <div id="topbtns">
+      <button class="icobtn" id="btnPause" style="display:none">⏸</button>
+      <button class="icobtn" id="btnMute">🔊</button>
+    </div>
+  </div>
+  <div id="hud" style="display:none"><span id="hudV"></span></div>
+  <div id="cwrap"><canvas id="cv" width="360" height="360"></canvas></div>
+
+  <div id="demoWrap">
+    <div id="demoCap">👀 先看呼吸演示…</div>
+    <div class="row"><button class="smbtn hot" id="btnSkip">⏩ 跳过演示</button></div>
+  </div>
+
+  <div id="expWrap">
+    <div id="volNum">0 <small>mL</small></div>
+    <button id="holdBtn">👆 按住吸气</button>
+    <div id="holdHint">按住按钮深吸气，松开呼气</div>
+    <div id="trialList"></div>
+    <div id="trialMsg"></div>
+    <button id="btnToQuiz">📝 进入答题</button>
+  </div>
+
+  <div id="quizWrap">
+    <div id="qTitle"></div>
+    <div id="qOpts"></div>
+    <div id="qWhy"></div>
+    <button id="btnNext">下一题 →</button>
+  </div>
+
+  <div class="screen" id="scrStart">
+    <h2>🫁 肺活量测试</h2>
+    <p><b>玩法说明</b><br>
+    1️⃣ 先看演示：呼吸时肌肉、胸廓、肺如何配合<br>
+    2️⃣ 做实验：<b>按住</b>按钮深吸气，<b>松开</b>呼气，测 <b>3 次</b>取最大值 = 你的肺活量<br>
+    3️⃣ 答 3 道呼吸小题，每题 <b>+10</b> 分</p>
+    <p class="tip">💡 肺活量 = 一次尽力吸气后能呼出的最大气量（mL）<br>📱 请把手机放稳，用平时最深的吸气来测</p>
+    <button class="bigbtn" id="btnStart">▶ 开始</button>
+  </div>
+
+  <div class="screen" id="scrEnd" style="display:none">
+    <h2>🎉 实验完成！</h2>
+    <div id="endBody"></div>
+    <button class="bigbtn" id="btnRetry">🔁 再来一次</button>
+  </div>
+</div>
+
+<div id="overlay">
+  <div id="ocard">
+    <h3>⏸ 已暂停</h3>
+    <div class="row">
+      <button class="smbtn hot" id="btnResume">▶ 继续</button>
+      <button class="smbtn" id="btnQuit">🏠 开始页</button>
+    </div>
+  </div>
+</div>
+
+<script>'use strict';
+/* ================= 肺活量测试 ================= */
+function $(id){ return document.getElementById(id); }
+var cv=$('cv'), ctx=cv.getContext('2d');
+var W=cv.width, H=cv.height;
+var FONT='-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif';
+
+/* ---------- 音频（全部 WebAudio 合成） ---------- */
+var AC=null;
+function ac(){
+  if(!AC){ var C=window.AudioContext||window.webkitAudioContext; AC=new C(); }
+  if(AC.state==='suspended'){ AC.resume(); }
+  return AC;
+}
+var muted=localStorage.getItem('g100_mute')==='1';
+function beep(f0,f1,dur,type,vol,delay){
+  if(muted) return;
+  try{
+    var a=ac(), t=a.currentTime+(delay||0);
+    var o=a.createOscillator(), g=a.createGain();
+    o.type=type;
+    o.frequency.setValueAtTime(Math.max(30,f0),t);
+    if(f1 && f1!==f0){ o.frequency.exponentialRampToValueAtTime(Math.max(30,f1),t+dur); }
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol,t+0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t); o.stop(t+dur+0.05);
+  }catch(e){}
+}
+function sClick(){ beep(660,660,0.07,'square',0.10,0); }
+function sCorrect(){ beep(523,523,0.12,'sine',0.22,0); beep(784,784,0.20,'sine',0.22,0.11); }
+function sWrong(){ beep(200,120,0.28,'sawtooth',0.16,0); }
+function sWin(){ var n=[523,659,784,1047]; for(var i=0;i<n.length;i++){ beep(n[i],n[i],0.16,'triangle',0.22,i*0.13); } }
+var noiseBuf=null;
+function sBreath(up){
+  if(muted) return;
+  try{
+    var a=ac(), t=a.currentTime, dur=1.1, i;
+    if(!noiseBuf){
+      noiseBuf=a.createBuffer(1,Math.floor(a.sampleRate*1.6),a.sampleRate);
+      var d=noiseBuf.getChannelData(0);
+      for(i=0;i<d.length;i++){ d[i]=Math.random()*2-1; }
+    }
+    var src=a.createBufferSource(); src.buffer=noiseBuf; src.loop=true;
+    var f=a.createBiquadFilter(); f.type='bandpass'; f.frequency.value=750; f.Q.value=0.7;
+    var g=a.createGain();
+    if(up){
+      g.gain.setValueAtTime(0.001,t);
+      g.gain.exponentialRampToValueAtTime(0.22,t+dur*0.85);
+    }else{
+      g.gain.setValueAtTime(0.22,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    }
+    src.connect(f); f.connect(g); g.connect(a.destination);
+    src.start(t); src.stop(t+dur+0.15);
+  }catch(e){}
+}
+
+/* ---------- 状态 ---------- */
+var state='start', paused=false;
+var tG=0, lastTs=0;
+var lungF=0;               /* 肺充盈度 0..1 */
+var demoPhase='in', demoT=0, demoCycles=0, demoOver=false;
+var airParts=[], airAcc=0;
+var vol=0, peak=0, inhaling=false, inhaleT=0, exhaling=false, exhaleT=0, breathSndT=0;
+var trials=[];
+var qi=0, qScore=0;
+var QUIZ=[
+  {q:'1️⃣ 吸气时，膈肌处于什么状态？',
+   o:['收缩，膈顶下降','舒张，膈顶上升','保持不动','先舒张后收缩'],a:0,
+   w:'✅ 吸气时膈肌收缩，膈顶下降，胸廓上下径增大，肺随之扩张。'},
+  {q:'2️⃣ 深吸气时，胸廓容积和肺内气压如何变化？',
+   o:['胸廓扩大，肺内气压下降','胸廓缩小，肺内气压上升','胸廓扩大，肺内气压上升','都没有变化'],a:0,
+   w:'✅ 胸廓扩大 → 肺扩张 → 肺内气压低于外界大气压，空气被压入肺内。'},
+  {q:'3️⃣ 下列哪项不能有效提高肺活量？',
+   o:['长期坚持跑步、游泳等有氧运动','长期久坐、缺乏运动','练习深呼吸、扩胸运动','保持挺胸抬头的正确姿势'],a:1,
+   w:'✅ 久坐少动会使呼吸肌力量下降、胸廓活动度变小，肺活量难以提高。'}
+];
+
+function easeIO(p){ return p<0.5 ? 4*p*p*p : 1-Math.pow(-2*p+2,3)/2; }
+function rr(c,x,y,w,h,r){
+  c.beginPath();
+  c.moveTo(x+r,y);
+  c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r);
+  c.closePath();
+}
+
+/* ---------- 绘制 ---------- */
+function drawLungs(){
+  var f=lungF;
+  ctx.clearRect(0,0,W,H);
+  /* 胸廓外框 */
+  ctx.strokeStyle='rgba(140,180,220,0.22)'; ctx.lineWidth=3;
+  rr(ctx,38,48,284,272,42); ctx.stroke();
+  /* 气管 */
+  ctx.fillStyle='#d98ca6';
+  rr(ctx,168,8,24,62,10); ctx.fill();
+  /* 支气管 */
+  ctx.strokeStyle='#d98ca6'; ctx.lineWidth=11; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(176,64); ctx.lineTo(132,100); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(184,64); ctx.lineTo(228,100); ctx.stroke();
+  /* 肺 */
+  var sc=0.72+0.42*f;
+  var g=ctx.createLinearGradient(0,80,0,270);
+  g.addColorStop(0,'#f8bbd0'); g.addColorStop(1,'#ec407a');
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.ellipse(118,172,54*sc,80*sc,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(242,172,54*sc,80*sc,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.16)';
+  ctx.beginPath(); ctx.ellipse(104,150,22*sc,36*sc,-0.25,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(228,150,22*sc,36*sc,-0.25,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(255,138,160,0.9)'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.ellipse(118,172,54*sc,80*sc,0,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(242,172,54*sc,80*sc,0,0,Math.PI*2); ctx.stroke();
+  /* 气流粒子 */
+  for(var i=0;i<airParts.length;i++){
+    var p=airParts[i];
+    ctx.save();
+    ctx.globalAlpha=Math.max(0,Math.min(1,p.life));
+    ctx.fillStyle='#a5dcff';
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  /* 膈肌：吸气时下降变平，呼气时上升成穹顶 */
+  var dy=282+42*f, lift=56-36*f;
+  ctx.strokeStyle='#ef5350'; ctx.lineWidth=9; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(50,dy); ctx.quadraticCurveTo(180,dy-lift,310,dy); ctx.stroke();
+  ctx.fillStyle='#ffb3ab'; ctx.font='700 12px '+FONT;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('膈肌',180,dy+18);
+  /* 标注 */
+  ctx.fillStyle='rgba(200,220,240,0.75)'; ctx.font='700 12px '+FONT;
+  ctx.fillText('气管',208,34);
+  ctx.fillText('肺',118,172-80*sc-12);
+  ctx.fillText(f>0.5?'吸气中…':'呼气中…',180,344);
+}
+function render(){ drawLungs(); }
+
+/* ---------- 更新 ---------- */
+function spawnAir(up){
+  if(up){
+    airParts.push({x:172+Math.random()*16,y:16,vy:130,life:1,r:2+Math.random()*2});
+  }else{
+    var lx=Math.random()<0.5;
+    airParts.push({x:(lx?118:242)+(Math.random()-0.5)*30,y:120,vy:-110,life:1,r:2+Math.random()*2});
+  }
+}
+function update(dt){
+  tG+=dt;
+  var i;
+  if(state==='start'||state==='end'){
+    lungF=0.18+0.10*Math.sin(tG*1.4); /* 待机微呼吸 */
+  }
+  if(state==='demo' && !demoOver){
+    demoT+=dt;
+    airAcc+=dt;
+    if(demoPhase==='in'){
+      var p=Math.min(1,demoT/2.6);
+      lungF=easeIO(p);
+      if(airAcc>0.07){ airAcc=0; spawnAir(true); }
+      if(p>=1){ demoPhase='out'; demoT=0; setDemoCap(1); sBreath(false); }
+    }else{
+      var q=Math.min(1,demoT/2.6);
+      lungF=1-easeIO(q);
+      if(airAcc>0.07){ airAcc=0; spawnAir(false); }
+      if(q>=1){
+        demoPhase='in'; demoT=0; demoCycles++;
+        if(demoCycles>=2){ demoDone(); }
+        else{ setDemoCap(0); sBreath(true); }
+      }
+    }
+  }
+  if(state==='exp'){
+    if(inhaling){
+      inhaleT+=dt;
+      vol=Math.min(4500,4600*(1-Math.exp(-0.55*inhaleT)));
+      if(vol>peak) peak=vol;
+      lungF=vol/4500;
+      breathSndT+=dt;
+      if(breathSndT>1.0){ breathSndT=0; sBreath(true); }
+      airAcc+=dt;
+      if(airAcc>0.09){ airAcc=0; spawnAir(true); }
+      $('volNum').innerHTML=Math.round(vol)+' <small>mL</small>';
+    }else if(exhaling){
+      exhaleT+=dt;
+      var e=Math.min(1,exhaleT/0.9);
+      vol=peak*(1-easeIO(e));
+      lungF=Math.max(0,vol/4500);
+      airAcc+=dt;
+      if(airAcc>0.09){ airAcc=0; spawnAir(false); }
+      $('volNum').innerHTML=Math.round(vol)+' <small>mL</small>';
+      if(e>=1){
+        exhaling=false; vol=0; peak=0; lungF=0;
+        $('volNum').innerHTML='0 <small>mL</small>';
+        if(trials.length>=3){ $('btnToQuiz').style.display='block'; }
+      }
+    }
+  }
+  for(i=airParts.length-1;i>=0;i--){
+    var ap=airParts[i];
+    ap.y+=ap.vy*dt; ap.life-=dt*1.1;
+    if(ap.life<=0||ap.y<-10||ap.y>H+10) airParts.splice(i,1);
+  }
+}
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(paused){ lastTs=ts; return; }
+  var dt=Math.min(0.05,(ts-lastTs)/1000||0);
+  lastTs=ts;
+  update(dt);
+  render();
+}
+
+/* ---------- 界面 ---------- */
+function setHud(txt){ $('hudV').innerHTML=txt; }
+function showStart(){
+  state='start'; paused=false;
+  $('overlay').style.display='none';
+  $('hud').style.display='none';
+  $('demoWrap').style.display='none';
+  $('expWrap').style.display='none';
+  $('quizWrap').style.display='none';
+  $('scrEnd').style.display='none';
+  $('scrStart').style.display='block';
+  $('btnPause').style.display='none';
+}
+function setDemoCap(k){
+  if(k===0) $('demoCap').innerHTML='🫁 <b>吸气</b>：肋间肌、膈肌<b>收缩</b> → 胸廓扩大 → 肺扩张，空气进入';
+  else $('demoCap').innerHTML='😮‍💨 <b>呼气</b>：肋间肌、膈肌<b>舒张</b> → 胸廓缩小 → 肺回缩，空气排出';
+}
+function startDemo(){
+  ac(); sClick();
+  state='demo'; demoOver=false;
+  demoPhase='in'; demoT=0; demoCycles=0;
+  lungF=0; airParts=[];
+  $('scrStart').style.display='none';
+  $('scrEnd').style.display='none';
+  $('hud').style.display='none';
+  $('expWrap').style.display='none';
+  $('quizWrap').style.display='none';
+  $('demoWrap').style.display='block';
+  setDemoCap(0); sBreath(true);
+  $('btnSkip').textContent='⏩ 跳过演示';
+  $('btnSkip').onclick=function(){ sClick(); demoCycles=2; demoDone(); };
+  $('btnPause').style.display='block';
+}
+function demoDone(){
+  if(demoOver) return;
+  demoOver=true;
+  $('demoCap').innerHTML='✅ 演示结束！记住：肌肉<b>收缩</b>→胸廓扩大→<b>吸气</b>；肌肉<b>舒张</b>→胸廓缩小→<b>呼气</b>。肺是被胸廓带着运动的！';
+  $('btnSkip').textContent='🧪 开始实验';
+  $('btnSkip').onclick=function(){ startExp(); };
+}
+function updTrials(){
+  var h='';
+  for(var i=0;i<trials.length;i++){ h+='<div class="tchip">'+trials[i]+'</div>'; }
+  for(var j=trials.length;j<3;j++){ h+='<div class="tchip" style="color:#54687e">-</div>'; }
+  $('trialList').innerHTML=h;
+  setHud('🧪 实验：第 <b>'+Math.min(trials.length+1,3)+'</b>/3 次');
+}
+function startExp(){
+  sClick();
+  state='exp';
+  trials=[]; vol=0; peak=0; lungF=0;
+  inhaling=false; exhaling=false;
+  $('demoWrap').style.display='none';
+  $('quizWrap').style.display='none';
+  $('expWrap').style.display='block';
+  $('hud').style.display='block';
+  $('volNum').innerHTML='0 <small>mL</small>';
+  $('holdHint').textContent='按住按钮深吸气，松开呼气';
+  $('trialMsg').textContent='';
+  $('btnToQuiz').style.display='none';
+  $('holdBtn').textContent='👆 按住吸气';
+  updTrials();
+  $('btnPause').style.display='block';
+}
+function endInhale(){
+  if(!inhaling) return;
+  inhaling=false;
+  $('holdBtn').classList.remove('holding');
+  $('holdBtn').textContent='👆 按住吸气';
+  var p=Math.round(peak);
+  if(p<300){
+    $('trialMsg').textContent='⚠️ 这次吸气太短了（'+p+' mL），不计数，再深深吸一次！';
+    vol=0; peak=0; lungF=0;
+    $('volNum').innerHTML='0 <small>mL</small>';
+    return;
+  }
+  trials.push(p);
+  updTrials();
+  $('trialMsg').textContent='✅ 第'+trials.length+'次：'+p+' mL'+(trials.length<3?'，再来一次！':'，完成！');
+  $('holdHint').textContent=trials.length>=3?'🎉 3 次测完，看看你的肺活量！':'👆 按住开始第'+(trials.length+1)+'次';
+  exhaling=true; exhaleT=0;
+  sBreath(false);
+}
+var holdBtn=$('holdBtn');
+holdBtn.addEventListener('pointerdown',function(e){
+  if(state!=='exp'||paused||exhaling||trials.length>=3) return;
+  e.preventDefault();
+  inhaling=true; inhaleT=0; peak=0; breathSndT=1;
+  sBreath(true);
+  holdBtn.classList.add('holding');
+  holdBtn.textContent='🌬️ 吸气中…松开呼气';
+});
+holdBtn.addEventListener('contextmenu',function(e){ e.preventDefault(); });
+window.addEventListener('pointerup',function(){ endInhale(); });
+window.addEventListener('pointercancel',function(){ endInhale(); });
+
+/* ---------- 答题 ---------- */
+function startQuiz(){
+  sClick();
+  state='quiz'; qi=0; qScore=0;
+  $('expWrap').style.display='none';
+  $('quizWrap').style.display='block';
+  $('hud').style.display='block';
+  renderQuiz();
+}
+function renderQuiz(){
+  var Q=QUIZ[qi];
+  setHud('📝 答题：第 <b>'+(qi+1)+'</b>/3 题 · 得分 <b>'+qScore+'</b>');
+  $('qTitle').innerHTML=Q.q;
+  $('qWhy').style.display='none';
+  $('btnNext').style.display='none';
+  var box=$('qOpts'); box.innerHTML='';
+  for(var j=0;j<Q.o.length;j++){
+    (function(j){
+      var b=document.createElement('button');
+      b.className='qopt';
+      b.textContent=String.fromCharCode(65+j)+'．'+Q.o[j];
+      b.addEventListener('pointerdown',function(e){ e.preventDefault(); answer(j,b); });
+      box.appendChild(b);
+    })(j);
+  }
+}
+function answer(j,btn){
+  var Q=QUIZ[qi];
+  var opts=$('qOpts').children;
+  for(var k=0;k<opts.length;k++){ opts[k].disabled=true; }
+  if(j===Q.a){
+    qScore+=10;
+    btn.classList.add('right');
+    sCorrect();
+    if(navigator.vibrate){ try{ navigator.vibrate(60); }catch(e){} }
+  }else{
+    btn.classList.add('wrong');
+    opts[Q.a].classList.add('right');
+    sWrong();
+    if(navigator.vibrate){ try{ navigator.vibrate(180); }catch(e){} }
+  }
+  setHud('📝 答题：第 <b>'+(qi+1)+'</b>/3 题 · 得分 <b>'+qScore+'</b>');
+  $('qWhy').innerHTML=Q.w;
+  $('qWhy').style.display='block';
+  $('btnNext').textContent=(qi<2)?'下一题 →':'查看结果 🎉';
+  $('btnNext').style.display='block';
+}
+$('btnNext').addEventListener('pointerdown',function(e){
+  e.preventDefault(); sClick();
+  qi++;
+  if(qi<3) renderQuiz();
+  else showEnd();
+});
+$('btnToQuiz').addEventListener('pointerdown',function(e){ e.preventDefault(); startQuiz(); });
+
+/* ---------- 结束 ---------- */
+function rating(v){
+  if(v<2000) return '还要加油，多锻炼！';
+  if(v<=3500) return '良好！';
+  return '优秀！';
+}
+function showEnd(){
+  sWin();
+  state='end';
+  $('quizWrap').style.display='none';
+  $('hud').style.display='none';
+  $('btnPause').style.display='none';
+  var vital=trials.length?Math.max.apply(null,trials):0;
+  var best=parseInt(localStorage.getItem('g100_lungcap_hs')||'0',10);
+  if(qScore>best){ best=qScore; localStorage.setItem('g100_lungcap_hs',String(best)); }
+  var html='<div class="score">🫁 你的肺活量：<b>'+vital+'</b> mL<br>'+
+    '<span class="eval">'+rating(vital)+'</span><br>'+
+    '📝 答题得分：<b>'+qScore+'</b> / 30<br>'+
+    '📊 最高分：<b>'+best+'</b></div>'+
+    '<h3>📚 实验结论</h3><div class="con">'+
+    '🔬 <b>呼吸运动原理</b>：呼吸肌（肋间肌、膈肌）<b>收缩</b> → 胸廓扩大 → 肺扩张 → <b>吸气</b>；'+
+    '呼吸肌<b>舒张</b> → 胸廓缩小 → 肺回缩 → <b>呼气</b>。肺本身没有肌肉，是被胸廓“带着”运动的。<br>'+
+    '💪 <b>影响肺活量的因素</b>：体育锻炼（尤其跑步、游泳等有氧运动）、姿势（挺胸抬头让胸廓充分打开）、'+
+    '身体健康状况、年龄等。想提高肺活量，就从每天锻炼开始吧！</div>';
+  $('endBody').innerHTML=html;
+  $('scrEnd').style.display='block';
+  window.scrollTo(0,0);
+}
+
+/* ---------- 暂停 / 静音 ---------- */
+$('btnPause').addEventListener('pointerdown',function(e){
+  e.preventDefault();
+  if(state==='demo'||state==='exp'||state==='quiz'){
+    if(inhaling){ inhaling=false; vol=0; peak=0; lungF=0; $('holdBtn').classList.remove('holding'); $('volNum').innerHTML='0 <small>mL</small>'; }
+    paused=true;
+    $('overlay').style.display='flex';
+  }
+});
+$('btnResume').addEventListener('pointerdown',function(e){
+  e.preventDefault(); sClick();
+  paused=false;
+  $('overlay').style.display='none';
+});
+$('btnQuit').addEventListener('pointerdown',function(e){
+  e.preventDefault(); sClick();
+  showStart();
+});
+function updMute(){ $('btnMute').textContent=muted?'🔇':'🔊'; }
+$('btnMute').addEventListener('pointerdown',function(e){
+  e.preventDefault();
+  muted=!muted;
+  localStorage.setItem('g100_mute',muted?'1':'0');
+  updMute();
+  if(!muted) sClick();
+});
+$('btnStart').addEventListener('pointerdown',function(e){ e.preventDefault(); startDemo(); });
+$('btnRetry').addEventListener('pointerdown',function(e){ e.preventDefault(); startExp(); });
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden && (state==='demo'||state==='exp'||state==='quiz') && !paused){
+    if(inhaling){ inhaling=false; vol=0; peak=0; lungF=0; }
+    paused=true;
+    $('overlay').style.display='flex';
+  }
+});
+
+/* ---------- 启动 ---------- */
+updMute();
+showStart();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

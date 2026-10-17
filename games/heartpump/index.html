@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>心脏泵血</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#0b0e14;color:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;justify-content:center;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+#app{width:100%;max-width:430px;min-height:100%;display:flex;flex-direction:column;background:radial-gradient(120% 55% at 50% 0%,#231318 0%,#0b0e14 62%)}
+#top{display:flex;align-items:center;justify-content:space-between;padding:10px 12px}
+#title{font-size:18px;font-weight:800}
+#topbtns{display:flex;gap:8px}
+.icobtn{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #3a2a30;background:#1a1216;color:#fff}
+.icobtn:active{transform:scale(.93)}
+#hud{display:flex;justify-content:space-between;align-items:center;padding:2px 16px 6px;font-size:14px;color:#d7a7ab}
+#hud b{color:#ffd54f;font-size:17px}
+#legend{display:flex;justify-content:center;gap:16px;padding:0 12px 4px;font-size:13px;color:#c9b3b6}
+#cwrap{padding:2px 10px}
+canvas{width:100%;display:block;border-radius:14px;background:#07090d;border:1px solid #33202a;touch-action:none}
+#prompt{display:none;min-height:66px;margin:8px 12px 0;padding:10px 14px;border-radius:12px;background:#1c1216;border:1px solid #5a2b33;font-size:16px;line-height:1.6}
+#prompt b{color:#ffd54f}
+#demoWrap{display:none;margin:8px 12px 0;padding:10px 14px;border-radius:12px;background:#101a20;border:1px solid #1f4b5e;font-size:15px;line-height:1.7;color:#cfe8f5}
+#demoWrap.row{display:flex;gap:8px;margin-top:8px}
+.screen{margin:12px;padding:20px 18px;border-radius:16px;background:#151017;border:1px solid #3a2a30}
+.screen h2{font-size:23px;margin-bottom:10px}
+.screen p{font-size:15px;line-height:1.85;color:#d9c4c7;margin-bottom:6px}
+.screen.tip{font-size:13px;color:#9d8a8d}
+.bigbtn{display:block;width:100%;min-height:52px;margin-top:14px;font-size:18px;font-weight:800;color:#fff;background:linear-gradient(135deg,#ef5350,#c62828);border:none;border-radius:14px;box-shadow:0 4px 14px rgba(239,83,80,.35)}
+.bigbtn:active{transform:scale(.97)}
+.smbtn{flex:1;min-height:46px;font-size:16px;font-weight:700;color:#fff;background:#2b3a4d;border:1px solid #3d526b;border-radius:12px}
+.smbtn.hot{background:linear-gradient(135deg,#ef5350,#c62828);border:none}
+#endBody.score{font-size:17px;line-height:2;color:#f3e2e4}
+#endBody.score b{color:#ffd54f;font-size:22px}
+#endBody h3{font-size:17px;margin:12px 0 8px;color:#ffd54f}
+#endBody.con{font-size:14.5px;line-height:1.9;color:#d9c4c7;background:#0f0b0d;border-radius:10px;padding:10px 12px}
+#endBody.con.bl{color:#4fc3f7}
+#endBody.con.rd{color:#ff8a80}
+#overlay{position:fixed;inset:0;background:rgba(4,6,9,.8);display:none;align-items:center;justify-content:center;z-index:50}
+#ocard{background:#171218;border:1px solid #3a2a30;border-radius:16px;padding:28px 30px;text-align:center}
+#ocard h3{font-size:20px;margin-bottom:16px}
+#ocard.row{display:flex;gap:10px}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="top">
+<div id="title">❤️ 心脏泵血</div>
+<div id="topbtns">
+<button class="icobtn" id="btnPause" style="display:none">⏸</button>
+<button class="icobtn" id="btnMute">🔊</button>
+</div>
+</div>
+<div id="hud" style="display:none">
+<span>🏆 得分 <b id="scoreV">0</b></span>
+<span>🚩 第 <b id="progV">1</b>/10 站</span>
+</div>
+<div id="legend" style="display:none">
+<span>🔵 肺循环</span><span>🔴 体循环</span>
+</div>
+<div id="cwrap"><canvas id="cv" width="360" height="440"></canvas></div>
+<div id="prompt"></div>
+<div id="demoWrap">
+<div id="demoTxt">👀 先看一遍血液循环演示…</div>
+<div class="row"><button class="smbtn hot" id="btnSkip">⏩ 跳过演示</button></div>
+</div>
+
+<div class="screen" id="scrStart">
+<h2>❤️ 心脏泵血</h2>
+<p>🩸 <b>玩法说明</b><br>
+1️⃣ 先看演示：血液如何流经心脏、肺和全身<br>
+2️⃣ 再挑战：看清“血液现在在哪”，点出它的<b>下一站</b><br>
+3️⃣ 答对 <b>+10</b> 分，答错 <b>-5</b> 分，共 10 站</p>
+<p class="tip">🔵 蓝色站点 = 肺循环　🔴 红色站点 = 体循环<br>💡 心脏会一直“lub-dub”跳动，仔细看四个腔！</p>
+<button class="bigbtn" id="btnStart">▶ 开始</button>
+</div>
+
+<div class="screen" id="scrEnd" style="display:none">
+<h2>🏁 挑战完成！</h2>
+<div id="endBody"></div>
+<button class="bigbtn" id="btnRetry">🔁 再来一次</button>
+</div>
+</div>
+
+<div id="overlay">
+<div id="ocard">
+<h3>⏸ 已暂停</h3>
+<div class="row">
+<button class="smbtn hot" id="btnResume">▶ 继续</button>
+<button class="smbtn" id="btnQuit">🏠 开始页</button>
+</div>
+</div>
+</div>
+
+<script>'use strict';
+/* ================= 心脏泵血 ================= */
+function $(id){ return document.getElementById(id);}
+var cv=$('cv'), ctx=cv.getContext('2d');
+var W=cv.width, H=cv.height;
+
+/* ---------- 音频（全部 WebAudio 合成） ---------- */
+var AC=null;
+function ac(){
+if(!AC){ var C=window.AudioContext||window.webkitAudioContext; AC=new C();}
+if(AC.state==='suspended'){ AC.resume();}
+return AC;
+}
+var muted=localStorage.getItem('g100_mute')==='1';
+function beep(f0,f1,dur,type,vol,delay){
+if(muted) return;
+try{
+var a=ac(), t=a.currentTime+(delay||0);
+var o=a.createOscillator(), g=a.createGain();
+o.type=type;
+o.frequency.setValueAtTime(Math.max(30,f0),t);
+if(f1 && f1!==f0){ o.frequency.exponentialRampToValueAtTime(Math.max(30,f1),t+dur);}
+g.gain.setValueAtTime(0.0001,t);
+g.gain.exponentialRampToValueAtTime(vol,t+0.015);
+g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+o.connect(g); g.connect(a.destination);
+o.start(t); o.stop(t+dur+0.05);
+}catch(e){}
+}
+function sClick(){ beep(660,660,0.07,'square',0.10,0);}
+function sCorrect(){ beep(523,523,0.12,'sine',0.22,0); beep(784,784,0.20,'sine',0.22,0.11);}
+function sWrong(){ beep(200,120,0.28,'sawtooth',0.16,0);}
+function sWin(){ var n=[523,659,784,1047]; for(var i=0;i<n.length;i++){ beep(n[i],n[i],0.16,'triangle',0.22,i*0.13);}}
+function thump(delay,vol){
+if(muted) return;
+try{
+var a=ac(), t=a.currentTime+delay;
+var o=a.createOscillator(), g=a.createGain();
+o.type='sine';
+o.frequency.setValueAtTime(72,t);
+o.frequency.exponentialRampToValueAtTime(36,t+0.14);
+g.gain.setValueAtTime(vol,t);
+g.gain.exponentialRampToValueAtTime(0.0001,t+0.17);
+o.connect(g); g.connect(a.destination);
+o.start(t); o.stop(t+0.20);
+}catch(e){}
+}
+function sHeart(){ thump(0,0.50); thump(0.23,0.34);} /* lub-dub */
+
+/* ---------- 数据 ---------- */
+var C_PULM='#29B6F6', C_SYS='#EF5350';
+var ST=[
+{n:'右心房',sys:0,x:64, y:262},
+{n:'右心室',sys:0,x:64, y:176},
+{n:'肺动脉',sys:0,x:102,y:104},
+{n:'肺部', sys:0,x:180,y:56},
+{n:'肺静脉',sys:0,x:258,y:104},
+{n:'左心房',sys:0,x:296,y:176},
+{n:'左心室',sys:1,x:296,y:262},
+{n:'主动脉',sys:1,x:258,y:342},
+{n:'全身毛细血管',sys:1,x:180,y:392},
+{n:'上下腔静脉',sys:1,x:102,y:342}
+];
+var DEMO_TXT=[
+'① 静脉血从流入 🔵肺循环',
+'② 收缩，把血液泵入 🔵肺循环',
+'③ 把静脉血送往 🔵肺循环',
+'④ 在：排出二氧化碳、吸入氧气，静脉血变成动脉血！ 🔵肺循环',
+'⑤ 动脉血经流回 🔵肺循环',
+'⑥ 动脉血从流入 🔴体循环',
+'⑦ 收缩，把动脉血泵入 🔴体循环',
+'⑧ 把动脉血输送到 🔴体循环',
+'⑨ 在全身：释放氧气、带走废物，动脉血变回静脉血 🔴体循环',
+'⑩ 静脉血经回到，完成一圈！ 🔴体循环'
+];
+var FONT='-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif';
+ctx.font='700 13px '+FONT;
+for(var mi=0; mi<ST.length; mi++){
+var sn=ST[mi];
+sn.fs = sn.n.length>=6? 11: 13;
+ctx.font='700 '+sn.fs+'px '+FONT;
+sn.w = Math.max(56, Math.ceil(ctx.measureText(sn.n).width)+26);
+sn.h = 40;
+}
+
+/* ---------- 状态 ---------- */
+var state='start', paused=false;
+var score=0, cur=0, answered=0;
+var segDone=[], flashes=[], shakes=[];
+for(var si=0; si<10; si++){ segDone.push(false); flashes.push(0); shakes.push(0);}
+var particles=[], floats=[];
+var beatT=0, lastBeat=-1, tG=0, lastTs=0;
+var demoSeg=0, demoT=0, demoPhase='travel', demoOver=false;
+var dropPos={x:ST[0].x, y:ST[0].y};
+var endTimer=-1;
+
+function easeIO(p){ return p<0.5? 4*p*p*p: 1-Math.pow(-2*p+2,3)/2;}
+function rr(c,x,y,w,h,r){
+c.beginPath();
+c.moveTo(x+r,y);
+c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
+c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r);
+c.closePath();
+}
+
+/* ---------- 粒子 / 飘字 ---------- */
+function puff(x,y,color){
+for(var k=0;k<10;k++){
+var a=Math.random()*Math.PI*2, sp=40+Math.random()*70;
+particles.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.6,max:0.6,r:2+Math.random()*2.5,color:color});
+}
+}
+function flowBurst(A,B,color){
+var dx=B.x-A.x, dy=B.y-A.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+for(var k=0;k<18;k++){
+var off=(Math.random()-0.5)*16, nx=-dy/d, ny=dx/d;
+var sp=d/(0.5+Math.random()*0.25);
+particles.push({x:A.x+nx*off,y:A.y+ny*off,vx:dx/d*sp,vy:dy/d*sp,life:0.8,max:0.8,r:2.5+Math.random()*2,color:color});
+}
+}
+function floatTxt(x,y,txt,color){ floats.push({x:x,y:y,txt:txt,color:color,t:0});}
+
+/* ---------- 绘制 ---------- */
+function heartPath(cx,cy,s){
+ctx.beginPath();
+ctx.moveTo(cx, cy+s*0.35);
+ctx.bezierCurveTo(cx+s*1.1, cy-s*0.55, cx+s*0.55, cy-s*1.25, cx, cy-s*0.55);
+ctx.bezierCurveTo(cx-s*0.55, cy-s*1.25, cx-s*1.1, cy-s*0.55, cx, cy+s*0.35);
+ctx.closePath();
+}
+function drawHeart(){
+var ph=beatT%1.0;
+var lub=Math.exp(-Math.pow((ph-0.06)/0.07,2));
+var dub=0.85*Math.exp(-Math.pow((ph-0.30)/0.07,2));
+var sc=1+0.10*(lub+dub);
+var cx=180, cy=228;
+ctx.save();
+ctx.translate(cx,cy); ctx.scale(sc,sc); ctx.translate(-cx,-cy);
+heartPath(cx,cy,54);
+var g=ctx.createLinearGradient(0,160,0,250);
+g.addColorStop(0,'#f06292'); g.addColorStop(1,'#c62828');
+ctx.fillStyle=g; ctx.fill();
+ctx.save(); ctx.clip();
+ctx.fillStyle='rgba(41,182,246,0.32)'; ctx.fillRect(cx-62,cy-72,62,144);
+ctx.fillStyle='rgba(255,138,128,0.22)'; ctx.fillRect(cx,cy-72,62,144);
+ctx.restore();
+ctx.strokeStyle='rgba(255,255,255,0.55)'; ctx.lineWidth=2;
+ctx.beginPath(); ctx.moveTo(cx,cy-54); ctx.lineTo(cx,cy+20); ctx.stroke();
+ctx.beginPath(); ctx.moveTo(cx-50,cy-12); ctx.lineTo(cx+50,cy-12); ctx.stroke();
+heartPath(cx,cy,54);
+ctx.strokeStyle='#ff8a80'; ctx.lineWidth=2.5; ctx.stroke();
+ctx.fillStyle='#fff'; ctx.font='700 11px '+FONT;
+ctx.textAlign='center'; ctx.textBaseline='middle';
+ctx.fillText('右心房',cx-32,cy-32);
+ctx.fillText('右心室',cx-32,cy+8);
+ctx.fillText('左心房',cx+32,cy-32);
+ctx.fillText('左心室',cx+32,cy+8);
+ctx.restore();
+}
+function drawLoop(){
+ctx.lineWidth=2;
+for(var i=0;i<10;i++){
+var A=ST[i], B=ST[(i+1)%10];
+var col=A.sys?C_SYS:C_PULM;
+if(segDone[i] || (state==='demo' && i<demoSeg)){
+ctx.strokeStyle=col; ctx.lineWidth=3;
+}else{
+ctx.strokeStyle='rgba(255,255,255,0.13)'; ctx.lineWidth=2;
+}
+ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+/* 箭头 */
+var dx=B.x-A.x, dy=B.y-A.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+var ax=B.x-dx/d*(B.w/2+8), ay=B.y-dy/d*(B.h/2+6);
+var ang=Math.atan2(dy,dx);
+ctx.fillStyle=(segDone[i]||(state==='demo'&&i<demoSeg))?col:'rgba(255,255,255,0.20)';
+ctx.beginPath();
+ctx.moveTo(ax,ay);
+ctx.lineTo(ax-9*Math.cos(ang-0.42),ay-9*Math.sin(ang-0.42));
+ctx.lineTo(ax-9*Math.cos(ang+0.42),ay-9*Math.sin(ang+0.42));
+ctx.closePath(); ctx.fill();
+}
+}
+function drawEmojis(){
+ctx.font='22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+ctx.fillText('🫁',180,24);
+ctx.fillText('🧍',254,400);
+}
+function drawNodes(){
+for(var i=0;i<10;i++){
+var s=ST[i], fl=flashes[i], sh=shakes[i];
+var ox=sh>0? Math.sin(tG*55)*5*sh: 0;
+var zs=1+(fl>0?0.14*fl:0);
+var w=s.w*zs, h=s.h*zs;
+var col=s.sys?C_SYS:C_PULM;
+ctx.save();
+if(state==='challenge'){ ctx.shadowColor=col; ctx.shadowBlur=10;}
+ctx.fillStyle=col;
+rr(ctx,s.x+ox-w/2,s.y-h/2,w,h,h/2); ctx.fill();
+ctx.shadowBlur=0;
+ctx.strokeStyle='rgba(255,255,255,'+(0.35+0.45*fl).toFixed(2)+')';
+ctx.lineWidth=2;
+rr(ctx,s.x+ox-w/2,s.y-h/2,w,h,h/2); ctx.stroke();
+ctx.fillStyle='#fff';
+ctx.font='700 '+s.fs+'px '+FONT;
+ctx.textAlign='center'; ctx.textBaseline='middle';
+ctx.fillText(s.n,s.x+ox,s.y+1);
+ctx.restore();
+}
+}
+function drawCurGlow(){
+var s=ST[cur], p=(Math.sin(tG*5)+1)/2;
+ctx.save();
+ctx.strokeStyle='rgba(255,213,79,'+(0.45+0.5*p).toFixed(2)+')';
+ctx.lineWidth=3;
+rr(ctx,s.x-s.w/2-7,s.y-s.h/2-7,s.w+14,s.h+14,(s.h+14)/2);
+ctx.stroke(); ctx.restore();
+}
+function drawParticles(){
+for(var i=0;i<particles.length;i++){
+var p=particles[i], a=Math.max(0,p.life/p.max);
+ctx.save(); ctx.globalAlpha=a; ctx.fillStyle=p.color;
+ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+ctx.restore();
+}
+}
+function drawFloats(){
+ctx.textAlign='center'; ctx.textBaseline='middle';
+for(var i=0;i<floats.length;i++){
+var f=floats[i];
+ctx.save();
+ctx.globalAlpha=Math.max(0,1-f.t);
+ctx.fillStyle=f.color;
+ctx.font='800 19px '+FONT;
+ctx.fillText(f.txt,f.x,f.y-36*f.t);
+ctx.restore();
+}
+}
+function drawDrop(){
+if(state!=='demo'||demoOver) return;
+ctx.save();
+ctx.shadowColor='#ff5252'; ctx.shadowBlur=14;
+ctx.fillStyle='#ff1744';
+ctx.beginPath(); ctx.arc(dropPos.x,dropPos.y,7,0,Math.PI*2); ctx.fill();
+ctx.restore();
+}
+function render(){
+ctx.clearRect(0,0,W,H);
+drawLoop();
+drawHeart();
+drawEmojis();
+if(state==='challenge') drawCurGlow();
+drawNodes();
+drawDrop();
+drawParticles();
+drawFloats();
+}
+
+/* ---------- 更新 ---------- */
+function update(dt){
+tG+=dt;
+beatT+=dt;
+var bi=Math.floor(beatT/1.0);
+if(bi!==lastBeat){
+lastBeat=bi;
+if((state==='demo'||state==='challenge')) sHeart();
+}
+if(state==='demo' &&!demoOver) updateDemo(dt);
+if(endTimer>0){
+endTimer-=dt;
+if(endTimer<=0){ endTimer=-1; showEnd();}
+}
+var i;
+for(i=particles.length-1;i>=0;i--){
+var p=particles[i];
+p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
+if(p.life<=0) particles.splice(i,1);
+}
+for(i=floats.length-1;i>=0;i--){
+floats[i].t+=dt;
+if(floats[i].t>=1) floats.splice(i,1);
+}
+for(i=0;i<10;i++){
+if(flashes[i]>0) flashes[i]=Math.max(0,flashes[i]-dt*2.2);
+if(shakes[i]>0) shakes[i]=Math.max(0,shakes[i]-dt*3.5);
+}
+}
+function updateDemo(dt){
+if(demoSeg>=10) return;
+var A=ST[demoSeg], B=ST[(demoSeg+1)%10];
+if(demoPhase==='travel'){
+demoT+=dt;
+var pr=Math.min(1,demoT/1.05), e=easeIO(pr);
+dropPos.x=A.x+(B.x-A.x)*e;
+dropPos.y=A.y+(B.y-A.y)*e;
+if(pr>=1){
+demoPhase='dwell'; demoT=0;
+var ni=(demoSeg+1)%10;
+flashes[ni]=1;
+puff(B.x,B.y,B.sys?C_SYS:C_PULM);
+}
+}else{
+demoT+=dt;
+if(demoT>=0.55){
+demoSeg++; demoT=0; demoPhase='travel';
+if(demoSeg<10){ $('demoTxt').innerHTML='👀 '+DEMO_TXT[demoSeg];}
+else{ demoDone();}
+}
+}
+}
+function loop(ts){
+requestAnimationFrame(loop);
+if(paused){ lastTs=ts; return;}
+var dt=Math.min(0.05,(ts-lastTs)/1000||0);
+lastTs=ts;
+update(dt);
+render();
+}
+
+/* ---------- 界面 ---------- */
+function showStart(){
+state='start'; paused=false;
+$('overlay').style.display='none';
+$('hud').style.display='none';
+$('legend').style.display='none';
+$('prompt').style.display='none';
+$('demoWrap').style.display='none';
+$('scrEnd').style.display='none';
+$('scrStart').style.display='block';
+$('btnPause').style.display='none';
+}
+function startDemo(){
+ac(); sClick();
+state='demo'; demoOver=false;
+demoSeg=0; demoT=0; demoPhase='travel';
+dropPos={x:ST[0].x,y:ST[0].y};
+particles=[]; floats=[]; endTimer=-1;
+for(var i=0;i<10;i++){ segDone[i]=false; flashes[i]=0; shakes[i]=0;}
+flashes[0]=1;
+$('scrStart').style.display='none';
+$('scrEnd').style.display='none';
+$('hud').style.display='none';
+$('prompt').style.display='none';
+$('legend').style.display='flex';
+$('demoWrap').style.display='block';
+$('demoTxt').innerHTML='👀 '+DEMO_TXT[0];
+$('btnSkip').textContent='⏩ 跳过演示';
+$('btnSkip').onclick=function(){ sClick(); demoSeg=10; demoDone();};
+$('btnPause').style.display='block';
+}
+function demoDone(){
+if(demoOver) return;
+demoOver=true;
+$('demoTxt').innerHTML='✅ 演示结束！血液完成了一次完整循环。<br>🔵 肺循环：右心室→肺→左心房　🔴 体循环：左心室→全身→右心房';
+$('btnSkip').textContent='💪 进入挑战';
+$('btnSkip').onclick=function(){ startChallenge();};
+}
+function updHud(){
+$('scoreV').textContent=score;
+$('progV').textContent=Math.min(answered+1,10);
+}
+function setPrompt(){
+$('prompt').innerHTML='🩸 血液在<br>👇 下一站是？点一点节点！';
+}
+function startChallenge(){
+sClick();
+state='challenge';
+score=0; cur=0; answered=0; endTimer=-1;
+particles=[]; floats=[];
+for(var i=0;i<10;i++){ segDone[i]=false; flashes[i]=0; shakes[i]=0;}
+$('demoWrap').style.display='none';
+$('prompt').style.display='block';
+$('hud').style.display='flex';
+$('legend').style.display='flex';
+$('btnPause').style.display='block';
+updHud(); setPrompt();
+}
+function toXY(e){
+var r=cv.getBoundingClientRect();
+return {x:(e.clientX-r.left)*W/r.width, y:(e.clientY-r.top)*H/r.height};
+}
+cv.addEventListener('pointerdown',function(e){
+if(state!=='challenge'||paused) return;
+e.preventDefault();
+var p=toXY(e);
+for(var i=0;i<10;i++){
+var s=ST[i];
+if(Math.abs(p.x-s.x)<=s.w/2+10 && Math.abs(p.y-s.y)<=s.h/2+10){ hit(i); return;}
+}
+});
+function hit(i){
+var next=(cur+1)%10;
+if(i===next){
+score+=10; answered++;
+floatTxt(ST[i].x,ST[i].y-34,'+10','#69f0ae');
+sCorrect();
+flowBurst(ST[cur],ST[i],ST[i].sys?C_SYS:C_PULM);
+segDone[cur]=true;
+flashes[i]=1;
+cur=next;
+updHud(); setPrompt();
+if(answered>=10){ endTimer=1.4; sWin();}
+}else{
+score=Math.max(0,score-5);
+floatTxt(ST[i].x,ST[i].y-34,'-5','#ff5252');
+sWrong();
+shakes[i]=1;
+if(navigator.vibrate){ try{ navigator.vibrate(180);}catch(e){}}
+updHud();
+}
+}
+function gradeTxt(){
+if(score>=90) return '🌟 循环小达人！';
+if(score>=70) return '👍 很不错，继续加油！';
+if(score>=40) return '🙂 及格了，多练几次吧！';
+return '💪 别灰心，再看一遍演示吧！';
+}
+function showEnd(){
+state='end';
+$('prompt').style.display='none';
+$('hud').style.display='none';
+$('legend').style.display='none';
+$('btnPause').style.display='none';
+var best=parseInt(localStorage.getItem('g100_heartpump_hs')||'0',10);
+if(score>best){ best=score; localStorage.setItem('g100_heartpump_hs',String(best));}
+var html='<div class="score">🏆 得分：<b>'+score+'</b> / 100<br>'+
+'📊 最高分：<b>'+best+'</b><br>'+gradeTxt()+'</div>'+
+'<h3>📚 实验结论</h3><div class="con">'+
+'<span class="bl">🔵 肺循环</span>：右心室 → 肺动脉 → 肺 → 肺静脉 → 左心房<br>'+
+'血液在肺部排出二氧化碳、吸收氧气，由静脉血变成动脉血。<br>'+
+'<span class="rd">🔴 体循环</span>：左心室 → 主动脉 → 全身毛细血管 → 上下腔静脉 → 右心房<br>'+
+'血液把氧气和养料送到全身各处，带走废物，由动脉血变回静脉血。<br>'+
+'🩸 <b>动脉血</b>含氧丰富、颜色鲜红；<b>静脉血</b>含氧少、颜色暗红。<br>'+
+'⚠️ 记住：<b>肺动脉</b>里流的是静脉血，<b>肺静脉</b>里流的是动脉血，别被名字骗了！</div>';
+$('endBody').innerHTML=html;
+$('scrEnd').style.display='block';
+window.scrollTo(0,0);
+}
+
+/* ---------- 暂停 / 静音 ---------- */
+$('btnPause').addEventListener('pointerdown',function(e){
+e.preventDefault();
+if(state==='demo'||state==='challenge'){
+paused=true;
+$('overlay').style.display='flex';
+}
+});
+$('btnResume').addEventListener('pointerdown',function(e){
+e.preventDefault(); sClick();
+paused=false;
+$('overlay').style.display='none';
+});
+$('btnQuit').addEventListener('pointerdown',function(e){
+e.preventDefault(); sClick();
+showStart();
+});
+function updMute(){ $('btnMute').textContent=muted?'🔇':'🔊';}
+$('btnMute').addEventListener('pointerdown',function(e){
+e.preventDefault();
+muted=!muted;
+localStorage.setItem('g100_mute',muted?'1':'0');
+updMute();
+if(!muted) sClick();
+});
+$('btnStart').addEventListener('pointerdown',function(e){ e.preventDefault(); startDemo();});
+$('btnRetry').addEventListener('pointerdown',function(e){ e.preventDefault(); startChallenge();});
+document.addEventListener('visibilitychange',function(){
+if(document.hidden && (state==='demo'||state==='challenge') &&!paused){
+paused=true;
+$('overlay').style.display='flex';
+}
+});
+
+/* ---------- 启动 ---------- */
+updMute();
+showStart();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
