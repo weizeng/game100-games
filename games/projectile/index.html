@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抛物线实验</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#cv{position:fixed;inset:0;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;pointer-events:none}
+.pill{background:rgba(10,14,26,.7);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.pill b{color:#FFD54F}
+.spacer{flex:1}
+.iconBtn{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(10,14,26,.7);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#panel{position:fixed;left:10px;right:10px;bottom:10px;z-index:6;background:rgba(10,14,26,.88);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:10px 14px}
+.ctl{margin:4px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:#c5cae9;margin-bottom:0}
+.ctl label b{color:#FFD54F}
+input[type=range]{width:100%;height:44px;-webkit-appearance:none;appearance:none;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#FF7043;margin-top:-11px;box-shadow:0 0 8px rgba(255,112,67,.8)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#2a3350}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border:none;border-radius:50%;background:#FF7043}
+.rowBtns{display:flex;gap:10px;margin-top:6px}
+.actBtn{flex:1;min-height:48px;border:none;border-radius:12px;font-size:16px;font-weight:bold;color:#fff;background:linear-gradient(135deg,#FF7043,#E53935);cursor:pointer}
+.actBtn:active{transform:scale(.96)}
+.actBtn.ghost{background:rgba(255,255,255,.12)}
+.actBtn:disabled{opacity:.45}
+#readout{font-size:13px;color:#c5cae9;line-height:1.6;margin-top:6px;min-height:20px}
+#readout b{color:#FFD54F}
+.overlay{position:fixed;inset:0;background:rgba(3,5,12,.9);display:flex;align-items:center;justify-content:center;z-index:20;padding:24px}
+.card{background:linear-gradient(160deg,#141a2e,#0a0e1a);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:26px 24px;max-width:370px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.6);max-height:88vh;overflow-y:auto}
+.card h1{font-size:26px;margin-bottom:6px}
+.card h2{font-size:17px;color:#FF7043;margin:12px 0 6px}
+.card p{font-size:14px;color:#c5cae9;line-height:1.7;margin:8px 0;text-align:left}
+.card p.c{text-align:center}
+.formula{background:rgba(255,112,67,.1);border:1px dashed rgba(255,112,67,.5);border-radius:10px;padding:10px;font-size:15px;color:#FFD54F;margin:10px 0;font-family:monospace;word-break:break-all}
+.bigBtn{display:inline-block;margin-top:14px;padding:14px 52px;font-size:18px;border:none;border-radius:999px;background:linear-gradient(135deg,#FF7043,#E53935);color:#fff;cursor:pointer;min-height:52px}
+.bigBtn:active{transform:scale(.96)}
+.score{font-size:44px;font-weight:bold;color:#FFEB3B;margin:6px 0}
+.hidden{display:none!important}
+.optBtn{display:block;width:100%;min-height:48px;margin:8px 0;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:16px;cursor:pointer}
+.optBtn:active{transform:scale(.97)}
+.optBtn.right{border-color:#66BB6A;background:rgba(102,187,106,.25)}
+.optBtn.wrong{border-color:#FF5252;background:rgba(255,82,82,.25)}
+.optBtn:disabled{opacity:.8}
+.segRow{display:flex;gap:8px;margin:6px 0}
+.segBtn{flex:1;min-height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#fff;font-size:13px;cursor:pointer}
+.segBtn.sel{border-color:#FF7043;background:rgba(255,112,67,.25);color:#FF7043;font-weight:bold}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill" id="roundPill">第 <b>1</b>/5 轮</div>
+  <div class="pill">得分 <b id="scorePill">0</b></div>
+  <div class="spacer"></div>
+  <button class="iconBtn" id="muteBtn" title="静音">🔊</button>
+  <button class="iconBtn" id="pauseBtn" title="暂停">⏸</button>
+</div>
+<div id="panel">
+<div class="ctl"><label>发射角度 <b id="angVal">45°</b></label>
+<input type="range" id="ang" min="10" max="80" step="1" value="45"></div>
+<div class="ctl"><label>初速度 <b id="velVal">18 m/s</b></label>
+<input type="range" id="vel" min="5" max="30" step="0.5" value="18"></div>
+<div class="rowBtns"><button class="actBtn" id="fireBtn">🚀 发射</button></div>
+<div id="readout"></div>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="card">
+    <h1>🎯 抛物线实验</h1>
+    <p class="c" style="color:#FF7043">🔬 初中物理 · 力学实验</p>
+    <p>拖动滑杆设置<b>发射角度</b>（10°–80°）和<b>初速度</b>（5–30 m/s），点击「🚀发射」。炮弹按真实抛物线飞向靶子：落点距靶心 &lt;1m 得100分「命中靶心！」，&lt;2.5m 得60分，脱靶得20分。共5轮——试试不同角度，找出射程最远的发射角！</p>
+    <h2>📏 本实验公式</h2>
+    <div class="formula">R = v₀² · sin2θ / g</div>
+    <button class="bigBtn" id="startBtn">开始实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <div class="card">
+    <h1>⏸ 已暂停</h1>
+    <p class="c">实验已暂停，数据保留</p>
+    <button class="bigBtn" id="resumeBtn">继续实验</button>
+  </div>
+</div>
+<div class="overlay hidden" id="quizOv">
+  <div class="card">
+    <h1 id="quizTitle">🤔 预测一下</h1>
+    <p class="c" id="quizQ"></p>
+    <div id="quizOpts"></div>
+  </div>
+</div>
+<div class="overlay hidden" id="endOv">
+  <div class="card">
+    <h1>🎓 实验完成</h1>
+    <div class="score" id="finalScore">0</div>
+    <p class="c" id="bestLine">历史最高：0</p>
+    <h2>📝 实验结论</h2>
+    <p id="conclusion"></p>
+    <div class="formula" id="endFormula"></div>
+    <button class="bigBtn" id="retryBtn">再做一次</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============ 基础框架（勿改） ============ */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+var W=0,H=0,DPR=1,PANEL_H=0;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  PANEL_H=document.getElementById('panel').offsetHeight||150;
+  if(window.onResize)window.onResize();
+}
+window.addEventListener('resize',resize);
+var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,delay){if(muted)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.15,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
+function sClick(){tone(600,0.06,'square',0.08);}
+function sGood(){tone(660,0.1,'sine',0.15);tone(880,0.15,'sine',0.15,0.1);}
+function sBad(){tone(220,0.2,'sawtooth',0.12);tone(160,0.25,'sawtooth',0.12,0.12);}
+function sWin(){var n=[523,659,784,1047];for(var i=0;i<n.length;i++){tone(n[i],0.15,'sine',0.15,i*0.12);}}
+function sTick(){tone(440,0.05,'square',0.06);}
+function buzz(ms){try{if(navigator.vibrate){navigator.vibrate(ms||30);}}catch(e){}}
+var floats=[];
+function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color||'#FFD54F',life:1});}
+function drawFloats(dt){ctx.textAlign='center';for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.life-=dt*0.7;f.y-=34*dt;if(f.life<=0){floats.splice(i,1);continue;}ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;}}
+var HSKEY='g100_projectile_hs';
+function getBest(){return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}
+function setBest(v){if(v>getBest()){localStorage.setItem(HSKEY,String(v));}}
+function $(id){return document.getElementById(id);}
+function show(id){$(id).classList.remove('hidden');}
+function hide(id){$(id).classList.add('hidden');}
+function setMuteBtn(){$('muteBtn').textContent=muted?'🔇':'🔊';}
+$('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted){sClick();}});
+setMuteBtn();
+/* ============ 游戏状态（按需改） ============ */
+var state='start',paused=false,round=1,score=0,lastT=0;
+function updHUD(){$('roundPill').innerHTML='第 <b>'+round+'</b>/5 轮';$('scorePill').textContent=score;}
+function addScore(n,x,y){score+=n;updHUD();if(x!==undefined){floatText(x,y,'+'+n,n>=80?'#66BB6A':'#FFD54F');}}
+$('pauseBtn').addEventListener('click',function(){if(state!=='play')return;sClick();paused=true;show('pauseOv');});
+$('resumeBtn').addEventListener('click',function(){sClick();paused=false;hide('pauseOv');lastT=performance.now();});
+$('startBtn').addEventListener('click',function(){sClick();hide('startOv');startGame();});
+$('retryBtn').addEventListener('click',function(){sClick();hide('endOv');startGame();});
+function startGame(){round=1;score=0;updHUD();state='play';paused=false;if(window.onStart)window.onStart();}
+/* quiz overlay helper */
+var quizCb=null;
+function askQuiz(title,question,options,cb){
+  $('quizTitle').textContent=title;$('quizQ').textContent=question;
+  var box=$('quizOpts');box.innerHTML='';quizCb=cb;
+  options.forEach(function(op,i){
+    var b=document.createElement('button');b.className='optBtn';b.textContent=op;
+    b.addEventListener('click',function(){cb(i,b);});
+    box.appendChild(b);
+  });
+  show('quizOv');
+}
+function markQuiz(chosen,correct){
+  var btns=$('quizOpts').children;
+  for(var i=0;i<btns.length;i++){btns[i].disabled=true;if(i===correct){btns[i].classList.add('right');}}
+  if(chosen!==correct&&btns[chosen]){btns[chosen].classList.add('wrong');}
+  setTimeout(function(){hide('quizOv');if(window.onQuizDone){window.onQuizDone(chosen===correct);}},900);
+}
+function endGame(conclusion,formula){
+  state='end';setBest(score);sWin();
+  $('finalScore').textContent=score+' / 500';
+  $('bestLine').textContent='历史最高：'+getBest();
+  $('conclusion').textContent=conclusion;
+  $('endFormula').textContent=formula;
+  show('endOv');
+}
+/* 主循环：游戏实现 window.onFrame(dt) 绘制+更新；window.onStart 初始化第一轮 */
+function loop(t){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(state!=='play'||paused)return;
+  ctx.clearRect(0,0,W,H);
+  if(window.onFrame){window.onFrame(dt);}
+  drawFloats(dt);
+}
+resize();updHUD();requestAnimationFrame(function(t){lastT=t;requestAnimationFrame(loop);});
+/* ============ 抛物线实验 ============ */
+var G=9.8;
+var v0=18,angDeg=45;
+var target=50;
+var flying=false,landed=false,tFly=0,tLand=0,waitT=0;
+var mx=5,y0=0,vx=0,vy=0,landX=5,targetDist=45;
+var trail=[];
+var sx=3,sy=3,gy=0;
+var CONCLUSION='实验结论：初速一定时，45°发射角射程最远；射程公式 R = v₀²·sin2θ / g。角度太大或太小都会让炮弹落得更近。';
+var FORMULA='R = v₀² · sin2θ / g';
+
+function rad(){return angDeg*Math.PI/180;}
+function rangeTheory(){return v0*v0*Math.sin(2*rad())/G;}
+function fitScale(){
+  var hMax=Math.max(2,(v0*Math.sin(rad()))*(v0*Math.sin(rad()))/(2*G)+2);
+  sy=Math.min(sx,(gy-84)/hMax);
+}
+function updReadout(){
+  $('angVal').textContent=angDeg+'°';
+  $('velVal').textContent=v0.toFixed(1)+' m/s';
+  $('readout').innerHTML='理论射程 R = v₀²·sin2θ/g = <b>'+rangeTheory().toFixed(2)+' m</b><br>本轮靶距（距炮口） <b>'+targetDist.toFixed(1)+' m</b>';
+  fitScale();
+}
+window.onResize=function(){
+  gy=H-PANEL_H-40;
+  sx=W/105;
+  fitScale();
+};
+$('ang').addEventListener('input',function(){angDeg=parseFloat(this.value);sTick();updReadout();});
+$('vel').addEventListener('input',function(){v0=parseFloat(this.value);sTick();updReadout();});
+$('fireBtn').addEventListener('click',function(){
+  if(state!=='play'||paused||flying||landed)return;
+  tone(120,0.3,'sawtooth',0.2);buzz(25);
+  /* 发射点取炮座地面 (5,0)：落点 = 5 + R，与公式完全一致 */
+  mx=5;y0=0;
+  var r=rad();
+  vx=v0*Math.cos(r);vy=v0*Math.sin(r);
+  tLand=(vy+Math.sqrt(vy*vy+2*G*y0))/G;
+  tFly=0;trail=[];flying=true;landed=false;
+  $('fireBtn').disabled=true;
+});
+function newRound(){
+  targetDist=30+Math.random()*60;
+  target=5+targetDist;
+  flying=false;landed=false;trail=[];
+  $('fireBtn').disabled=false;
+  updReadout();
+}
+function nextRound(){
+  landed=false;
+  if(round>=5){endGame(CONCLUSION,FORMULA);return;}
+  round++;updHUD();newRound();
+}
+function land(x){
+  flying=false;landed=true;waitT=1.6;landX=x;
+  var d=Math.abs(x-target);
+  var lx=Math.min(W-40,Math.max(40,x*sx));
+  if(d<1){
+    addScore(100,lx,gy-70);
+    floatText(lx,gy-100,'🎯 命中靶心！','#66BB6A');
+    sGood();buzz(90);
+  }else if(d<2.5){
+    addScore(60,lx,gy-70);
+    floatText(lx,gy-100,'👍 接近靶心（偏 '+d.toFixed(1)+'m）','#FFD54F');
+    sGood();buzz(40);
+  }else{
+    addScore(20,lx,gy-70);
+    floatText(lx,gy-100,'💨 脱靶（偏 '+d.toFixed(1)+'m）','#FF5252');
+    sBad();buzz(40);
+  }
+}
+window.onStart=function(){newRound();};
+function X(m){return m*sx;}
+function Y(m){return gy-m*sy;}
+function drawScene(){
+  ctx.fillStyle='rgba(102,187,106,.06)';ctx.fillRect(0,gy,W,H-gy);
+  ctx.strokeStyle='rgba(102,187,106,.55)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();
+  ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillStyle='#78909C';
+  for(var m=10;m<105;m+=10){
+    ctx.strokeStyle='rgba(255,255,255,.08)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(X(m),gy);ctx.lineTo(X(m),gy-8);ctx.stroke();
+    ctx.fillText(m+'m',X(m),gy+16);
+  }
+  var tx=X(target);
+  ctx.strokeStyle='#8D6E63';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(tx,gy);ctx.lineTo(tx,gy-34);ctx.stroke();
+  var cols=['#FF5252','#FFFFFF','#FF5252','#FFFFFF'];
+  for(var i=0;i<4;i++){
+    ctx.fillStyle=cols[i];
+    ctx.beginPath();ctx.arc(tx,gy-44,16-i*4,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle='#FF5252';
+  ctx.beginPath();ctx.arc(tx,gy-44,3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#FFD54F';ctx.font='bold 12px sans-serif';
+  ctx.fillText('靶 '+targetDist.toFixed(0)+'m',tx,gy-66);
+}
+function drawCannon(){
+  var bx=X(5),by=gy;
+  ctx.fillStyle='#37474F';
+  ctx.beginPath();ctx.arc(bx-8,by-10,10,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(bx+10,by-8,10,0,Math.PI*2);ctx.fill();
+  ctx.save();ctx.translate(bx,by-16);ctx.rotate(-rad());
+  ctx.fillStyle='#78909C';
+  ctx.fillRect(-8,-7,1.6*sx+8,14);
+  ctx.fillStyle='#546E7A';
+  ctx.fillRect(1.6*sx-4,-9,8,18);
+  ctx.restore();
+  ctx.fillStyle='#455A64';
+  ctx.beginPath();ctx.arc(bx,by-16,10,0,Math.PI*2);ctx.fill();
+}
+function drawBall(mx_,my_){
+  var bx=X(mx_),by=Y(Math.max(0,my_));
+  var gr=ctx.createRadialGradient(bx-2,by-2,1,bx,by,8);
+  gr.addColorStop(0,'#FFAB91');gr.addColorStop(1,'#E64A19');
+  ctx.fillStyle=gr;
+  ctx.beginPath();ctx.arc(bx,by,6,0,Math.PI*2);ctx.fill();
+}
+window.onFrame=function(dt){
+  drawScene();
+  drawCannon();
+  if(flying){
+    tFly+=dt;
+    var t=Math.min(tFly,tLand);
+    var x=mx+vx*t,y=Math.max(0,y0+vy*t-0.5*G*t*t);
+    trail.push({x:x,y:y});
+    ctx.strokeStyle='rgba(255,112,67,.75)';ctx.lineWidth=2.5;
+    ctx.beginPath();
+    for(var i=0;i<trail.length;i++){
+      var px=X(trail[i].x),py=Y(trail[i].y);
+      if(i===0){ctx.moveTo(px,py);}else{ctx.lineTo(px,py);}
+    }
+    ctx.stroke();
+    drawBall(x,y);
+    if(tFly>=tLand){land(x);}
+  }else if(landed){
+    drawBall(landX,0);
+    waitT-=dt;
+    if(waitT<=0){nextRound();}
+  }else{
+    var r=rad();
+    drawBall(5+Math.cos(r)*1.6,Math.sin(r)*1.6);
+  }
+};
+</script>
+</body>
+</html>
