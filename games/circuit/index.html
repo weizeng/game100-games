@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>简单电路</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0d1020;color:#e8ecf8;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px}
+header{width:100%;max-width:480px;display:flex;justify-content:space-between;align-items:center;padding:6px 2px}
+h1{font-size:20px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #2a3358;background:#161c34;color:#fff}
+canvas{width:100%;max-width:480px;border-radius:14px;background:#0a0d1a;border:1px solid #232c52;touch-action:none}
+.panel{width:100%;max-width:480px;background:#141a33;border:1px solid #232c52;border-radius:14px;padding:12px;margin-top:10px}
+.tip{font-size:14px;color:#9fb0d8;line-height:1.7}
+.data{display:flex;justify-content:space-around;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+.data div{text-align:center}
+.data .v{font-size:19px;font-weight:bold;color:#5ef2b8}
+.data .k{font-size:12px;color:#9fb0d8;margin-top:2px}
+.formula{text-align:center;color:#ffd75e;font-size:15px;margin-top:8px;font-weight:bold}
+.conclusion{font-size:14px;line-height:1.7;color:#c6d2f2;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,20,.92);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:30px;text-align:center}
+#overlay h2{font-size:28px;margin-bottom:12px}
+#overlay p{font-size:15px;color:#9fb0d8;line-height:1.8;margin-bottom:20px}
+#overlay button{min-width:200px;min-height:52px;font-size:18px;border:none;border-radius:14px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-weight:bold}
+.score{font-size:14px;color:#ffd75e}
+</style>
+</head>
+<body>
+<header>
+<h1>🔋 简单电路</h1>
+<div class="hbtns">
+<button id="bMute">🔊</button>
+<button id="bPause">⏸</button>
+<button id="bReset">↺</button>
+</div>
+</header>
+<div class="score" id="scoreLine">点亮 0 次 · 最高 <span id="hs">0</span> 次</div>
+<canvas id="cv" width="480" height="400"></canvas>
+<div class="panel">
+<div class="tip">👆 <b>点击</b>四个空位，轮流放入 <b>🔋电池 / 💡灯泡 / 🔌开关 / ➖导线</b>；再<b>点击开关</b>闭合。<br>集齐「电池+灯泡+闭合的开关+导线」且无空位，灯泡就会亮！灯泡越多越暗哦。</div>
+<div class="data">
+<div><div class="v" id="dV">6V</div><div class="k">电源电压</div></div>
+<div><div class="v" id="dI">0A</div><div class="k">电流</div></div>
+<div><div class="v" id="dS">断开</div><div class="k">电路状态</div></div>
+</div>
+<div class="formula">闭合回路 + 用电器 + 电源 = 电流做功</div>
+<div class="conclusion">📝 <b>实验结论：</b>只有<b>闭合电路</b>中才有持续电流。电路三要素：<b>电源</b>（提供电压）、<b>用电器</b>（消耗电能）、<b>开关</b>（控制通断），缺一不可。断开任何一处，整个回路电流为零。</div>
+</div>
+<div id="overlay"><h2>🔋 简单电路</h2><p>亲手组装一个能点亮灯泡的电路！<br>点击空位放入元件，点击开关控制通断。<br>挑战：成功点亮灯泡得分，然后会自动清空让你再来一次。</p><button id="bStart">开始实验</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+// 4个槽位：上(电池位) 右 下(开关位) 左，矩形回路
+const SLOTS=[{x:240,y:70},{x:400,y:200},{x:240,y:330},{x:80,y:200}];
+const TYPES=['empty','battery','bulb','switch','wire'];
+const ICON={empty:'＋',battery:'🔋',bulb:'💡',switch:'🔌',wire:'➖'};
+let slots=['empty','empty','empty','empty'];
+let swClosed=false,lit=false,flash=0,score=0,flow=0;
+let running=false,paused=false;
+let hs=parseInt(localStorage.getItem('g100_circuit_hs')||'0',10);
+let muted=localStorage.getItem('g100_mute')==='1';
+document.getElementById('hs').textContent=hs;
+document.getElementById('bMute').textContent=muted?'🔇':'🔊';
+let AC=null;
+function beep(f,d,type){ if(muted)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain(); o.type=type||'sine'; o.frequency.value=f; g.gain.setValueAtTime(.15,AC.currentTime); g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d); o.connect(g);g.connect(AC.destination); o.start(); o.stop(AC.currentTime+d);}catch(e){} }
+function evaluate(){
+  const hasEmpty=slots.includes('empty');
+  const nBat=slots.filter(s=>s==='battery').length;
+  const nBulb=slots.filter(s=>s==='bulb').length;
+  const hasSw=slots.includes('switch');
+  lit=!hasEmpty&&nBat>0&&nBulb>0&&hasSw&&swClosed;
+  return {nBat,nBulb};
+}
+function updPanel(){
+  const {nBat,nBulb}=evaluate();
+  const V=nBat*6, R=nBulb*10;
+  const I=lit?V/R:0;
+  document.getElementById('dV').textContent=V+'V';
+  document.getElementById('dI').textContent=I.toFixed(2)+'A';
+  document.getElementById('dS').textContent=lit?'✅ 闭合':'断开';
+  document.getElementById('dS').style.color=lit?'#5ef2b8':'#9fb0d8';
+}
+cv.addEventListener('pointerdown',e=>{
+  if(!running||paused)return;
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)*480/r.width, y=(e.clientY-r.top)*400/r.height;
+  SLOTS.forEach((s,i)=>{
+    if(Math.hypot(x-s.x,y-s.y)<48){
+      if(slots[i]==='switch'){ swClosed=!swClosed; beep(swClosed?700:400,.1,'square'); }
+      else { const nx=TYPES[(TYPES.indexOf(slots[i])+1)%TYPES.length]; slots[i]=nx; beep(500,.07); if(nx==='switch')swClosed=false; }
+      const wasLit=lit;
+      evaluate();
+      if(lit&&!wasLit){ onLit(); }
+      updPanel();
+    }
+  });
+});
+function onLit(){
+  flash=25; score++; beep(660,.12); setTimeout(()=>beep(880,.18),120); setTimeout(()=>beep(1320,.22),240);
+  if(navigator.vibrate)navigator.vibrate([50,40,50]);
+  if(score>hs){hs=score;localStorage.setItem('g100_circuit_hs',String(hs));}
+  document.getElementById('scoreLine').innerHTML='点亮 '+score+' 次 · 最高 <span id="hs">'+hs+'</span> 次';
+  setTimeout(()=>{ slots=['empty','empty','empty','empty']; swClosed=false; evaluate(); updPanel(); },1600);
+}
+function drawWire(x1,y1,x2,y2){
+  ctx.strokeStyle='#8a94b8'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+}
+function draw(){
+  ctx.clearRect(0,0,480,400);
+  // 导线回路
+  const P=SLOTS;
+  drawWire(P[3].x,P[3].y,P[0].x,P[0].y); drawWire(P[0].x,P[0].y,P[1].x,P[1].y);
+  drawWire(P[1].x,P[1].y,P[2].x,P[2].y); drawWire(P[2].x,P[2].y,P[3].x,P[3].y);
+  // 电流（亮时流动）
+  if(lit){ flow+=0.03; if(flow>1)flow-=1;
+    ctx.fillStyle='#ffd75e';
+    for(let k=0;k<4;k++){ const a=P[k],b=P[(k+1)%4];
+      for(let j=0;j<3;j++){ const t=((flow+j/3)%1);
+        const x=a.x+(b.x-a.x)*t, y=a.y+(b.y-a.y)*t;
+        ctx.beginPath(); ctx.arc(x,y,4,0,7); ctx.fill(); } }
+  }
+  // 槽位
+  SLOTS.forEach((s,i)=>{
+    const t=slots[i];
+    ctx.fillStyle=t==='empty'?'#141a33':'#1d2547';
+    ctx.strokeStyle=t==='empty'?'#3a4570':'#4d7cff'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(s.x,s.y,42,0,7); ctx.fill(); ctx.stroke();
+    ctx.font='30px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    if(t==='switch'){
+      // 开关画闸刀
+      ctx.strokeStyle=swClosed?'#5ef2b8':'#8a94b8'; ctx.lineWidth=5;
+      ctx.beginPath(); ctx.moveTo(s.x-22,s.y); ctx.lineTo(s.x+22,s.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(s.x-22,s.y);
+      if(swClosed) ctx.lineTo(s.x+22,s.y); else ctx.lineTo(s.x+14,s.y-26);
+      ctx.stroke();
+      ctx.fillStyle='#9fb0d8'; ctx.font='12px sans-serif'; ctx.fillText(swClosed?'闭合':'断开',s.x,s.y+58);
+    } else {
+      ctx.fillText(ICON[t],s.x,s.y+2);
+      if(t==='empty'){ ctx.fillStyle='#5b6a9e'; ctx.font='12px sans-serif'; ctx.fillText('点击放入',s.x,s.y+58); }
+    }
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  });
+  // 灯泡辉光
+  if(lit){ const bi=slots.indexOf('bulb'); const s=SLOTS[bi];
+    const gr=ctx.createRadialGradient(s.x,s.y,8,s.x,s.y,80);
+    gr.addColorStop(0,'rgba(255,215,94,.55)'); gr.addColorStop(1,'rgba(255,215,94,0)');
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(s.x,s.y,80,0,7); ctx.fill();
+  }
+  if(flash>0){ flash--; ctx.fillStyle='rgba(255,215,94,'+(flash/50)+')'; ctx.fillRect(0,0,480,400);
+    ctx.fillStyle='#ffd75e'; ctx.font='bold 26px sans-serif'; ctx.textAlign='center'; ctx.fillText('💡 点亮成功！',240,200); ctx.textAlign='left'; }
+}
+function loop(){ if(running&&!paused) draw(); requestAnimationFrame(loop); }
+document.getElementById('bStart').addEventListener('click',()=>{ document.getElementById('overlay').style.display='none'; running=true; updPanel(); beep(523,.15); loop(); });
+document.getElementById('bPause').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+document.getElementById('bReset').addEventListener('click',()=>{ slots=['empty','empty','empty','empty']; swClosed=false; score=0; evaluate(); updPanel(); document.getElementById('scoreLine').innerHTML='点亮 0 次 · 最高 <span id="hs">'+hs+'</span> 次'; });
+document.getElementById('bMute').addEventListener('click',e=>{ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); e.target.textContent=muted?'🔇':'🔊'; });
+loop();
+</script>
+</body>
+</html>

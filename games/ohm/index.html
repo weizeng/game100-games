@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>欧姆定律</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0d1020;color:#e8ecf8;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px}
+header{width:100%;max-width:480px;display:flex;justify-content:space-between;align-items:center;padding:6px 2px}
+h1{font-size:20px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #2a3358;background:#161c34;color:#fff}
+canvas{width:100%;max-width:480px;border-radius:14px;background:#0a0d1a;border:1px solid #232c52}
+.panel{width:100%;max-width:480px;background:#141a33;border:1px solid #232c52;border-radius:14px;padding:12px;margin-top:10px}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.row label{width:78px;font-size:14px;color:#9fb0d8}
+.row output{width:76px;text-align:right;font-size:15px;color:#ffd75e;font-weight:bold}
+input[type=range]{flex:1;height:34px;accent-color:#4d7cff}
+.btn{width:100%;min-height:48px;border:none;border-radius:12px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-size:17px;font-weight:bold;margin-top:6px}
+.btn:active{transform:scale(.97)}
+.data{display:flex;justify-content:space-around;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px;flex-wrap:wrap}
+.data div{text-align:center;min-width:70px}
+.data .v{font-size:19px;font-weight:bold;color:#5ef2b8}
+.data .k{font-size:12px;color:#9fb0d8;margin-top:2px}
+.formula{text-align:center;color:#ffd75e;font-size:17px;margin-top:8px;font-weight:bold}
+.conclusion{font-size:14px;line-height:1.7;color:#c6d2f2;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,20,.92);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:30px;text-align:center}
+#overlay h2{font-size:28px;margin-bottom:12px}
+#overlay p{font-size:15px;color:#9fb0d8;line-height:1.8;margin-bottom:20px}
+#overlay button{min-width:200px;min-height:52px;font-size:18px;border:none;border-radius:14px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-weight:bold}
+.score{font-size:14px;color:#ffd75e}
+</style>
+</head>
+<body>
+<header>
+<h1>⚡ 欧姆定律</h1>
+<div class="hbtns">
+<button id="bMute">🔊</button>
+<button id="bPause">⏸</button>
+<button id="bReset">↺</button>
+</div>
+</header>
+<div class="score" id="scoreLine">命中 0 次 · 最高 <span id="hs">0</span> 次</div>
+<canvas id="cv" width="480" height="360"></canvas>
+<div class="panel">
+<div class="row"><label>电压 U</label><input type="range" id="vR" min="0" max="12" step="0.5" value="6"><output id="vV">6.0 V</output></div>
+<div class="row"><label>电阻 R</label><input type="range" id="rR" min="2" max="100" step="1" value="20"><output id="rV">20 Ω</output></div>
+<button class="btn" id="bCheck">🎯 验证：调出目标电流</button>
+<div class="data">
+<div><div class="v" id="dU">6.0V</div><div class="k">电压U</div></div>
+<div><div class="v" id="dR">20Ω</div><div class="k">电阻R</div></div>
+<div><div class="v" id="dI">0.30A</div><div class="k">电流I</div></div>
+<div><div class="v" id="dT">—</div><div class="k">目标电流</div></div>
+</div>
+<div class="formula">I = U / R　（U=IR，R=U/I）</div>
+<div class="conclusion">📝 <b>实验结论：</b>导体中的电流跟电压成<b>正比</b>、跟电阻成<b>反比</b>。电压一定时电阻越大电流越小；电阻一定时电压越大电流越大。这就是<b>欧姆定律 I=U/R</b>。</div>
+</div>
+<div id="overlay"><h2>⚡ 欧姆定律</h2><p>拖动滑杆改变<b>电压 U</b> 和<b>电阻 R</b>，看电流表读数和灯泡亮度。<br>挑战：调出<b>目标电流</b>（误差≤0.02A）得分！<br>电子流动的速度代表电流大小哦。</p><button id="bStart">开始实验</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let U=6,R=20,target=null,hits=0,flow=0,flash=0,running=false,paused=false;
+let hs=parseInt(localStorage.getItem('g100_ohm_hs')||'0',10);
+let muted=localStorage.getItem('g100_mute')==='1';
+document.getElementById('hs').textContent=hs;
+document.getElementById('bMute').textContent=muted?'🔇':'🔊';
+let AC=null;
+function beep(f,d,type){ if(muted)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain(); o.type=type||'sine'; o.frequency.value=f; g.gain.setValueAtTime(.15,AC.currentTime); g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d); o.connect(g);g.connect(AC.destination); o.start(); o.stop(AC.currentTime+d);}catch(e){} }
+const I=()=>U/R;
+function newTarget(){ target=+(0.1+Math.random()*1.4).toFixed(2); document.getElementById('dT').textContent=target.toFixed(2)+'A'; }
+function upd(){ document.getElementById('vV').textContent=U.toFixed(1)+' V'; document.getElementById('rV').textContent=R+' Ω';
+  document.getElementById('dU').textContent=U.toFixed(1)+'V'; document.getElementById('dR').textContent=R+'Ω';
+  document.getElementById('dI').textContent=I().toFixed(2)+'A'; }
+document.getElementById('vR').addEventListener('input',e=>{ U=+e.target.value; upd(); beep(300+U*40,.05); });
+document.getElementById('rR').addEventListener('input',e=>{ R=+e.target.value; upd(); beep(600-R*4,.05); });
+document.getElementById('bCheck').addEventListener('click',()=>{ if(!running||paused||target===null)return;
+  beep(880,.12,'square');
+  if(Math.abs(I()-target)<=0.02){ hits++; flash=20; beep(660,.15); setTimeout(()=>beep(990,.2),120); if(navigator.vibrate)navigator.vibrate(60);
+    if(hits>hs){hs=hits;localStorage.setItem('g100_ohm_hs',String(hs));} newTarget(); }
+  document.getElementById('scoreLine').innerHTML='命中 '+hits+' 次 · 最高 <span id="hs">'+hs+'</span> 次';
+});
+function draw(){
+  ctx.clearRect(0,0,480,360);
+  const i=I(), P=U*i;
+  // 电路框
+  ctx.strokeStyle='#8a94b8'; ctx.lineWidth=6;
+  ctx.strokeRect(60,60,360,200);
+  // 电池（左）
+  ctx.fillStyle='#1d2547'; ctx.fillRect(44,140,34,80);
+  ctx.fillStyle='#ffd75e'; ctx.font='bold 15px sans-serif'; ctx.fillText('+',52,160); ctx.fillText('−',52,210);
+  ctx.fillStyle='#9fb0d8'; ctx.font='13px sans-serif'; ctx.fillText(U.toFixed(1)+'V',36,240);
+  // 电阻（上）
+  ctx.fillStyle='#1d2547'; ctx.fillRect(200,44,80,34);
+  ctx.fillStyle='#ffd75e'; ctx.font='bold 14px sans-serif'; ctx.fillText(R+'Ω',222,67);
+  // 灯泡（右）
+  const bright=Math.min(1,P/30);
+  ctx.fillStyle='#1d2547'; ctx.beginPath(); ctx.arc(420,160,30,0,7); ctx.fill();
+  ctx.strokeStyle='#8a94b8'; ctx.lineWidth=3; ctx.stroke();
+  ctx.fillStyle='rgba(255,215,94,'+(0.15+0.85*bright)+')';
+  ctx.beginPath(); ctx.arc(420,160,18,0,7); ctx.fill();
+  if(bright>0.05){ const gr=ctx.createRadialGradient(420,160,10,420,160,90);
+    gr.addColorStop(0,'rgba(255,215,94,'+(0.5*bright)+')'); gr.addColorStop(1,'rgba(255,215,94,0)');
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(420,160,90,0,7); ctx.fill(); }
+  // 电流表（下）
+  ctx.fillStyle='#1d2547'; ctx.beginPath(); ctx.arc(240,260,34,0,7); ctx.fill();
+  ctx.strokeStyle='#8a94b8'; ctx.lineWidth=3; ctx.stroke();
+  ctx.fillStyle='#5ef2b8'; ctx.font='bold 15px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(i.toFixed(2)+'A',240,266); ctx.textAlign='left';
+  // 电子流（速度∝电流）
+  flow+=0.004+i*0.05; if(flow>1)flow-=1;
+  if(i>0.005){ ctx.fillStyle='#ffd75e';
+    const per=4,pts=[[60,60,420,60],[420,60,420,260],[420,260,60,260],[60,260,60,60]];
+    for(let k=0;k<4;k++){ const [x1,y1,x2,y2]=pts[k];
+      for(let j=0;j<per;j++){ const t=(flow+j/per)%1;
+        ctx.beginPath(); ctx.arc(x1+(x2-x1)*t,y1+(y2-y1)*t,4,0,7); ctx.fill(); } }
+  }
+  // 功率
+  ctx.fillStyle='#9fb0d8'; ctx.font='14px sans-serif';
+  ctx.fillText('电功率 P=UI='+P.toFixed(1)+'W',150,320);
+  if(target!==null){ ctx.fillStyle='#ffd75e'; ctx.font='bold 15px sans-serif'; ctx.fillText('🎯 目标电流 '+target.toFixed(2)+'A（误差≤0.02A）',120,344); }
+  if(flash>0){ flash--; ctx.fillStyle='rgba(255,215,94,'+(flash/40)+')'; ctx.fillRect(0,0,480,360);
+    ctx.fillStyle='#ffd75e'; ctx.font='bold 26px sans-serif'; ctx.fillText('✓ 命中！',190,180); }
+}
+function loop(){ if(running&&!paused) draw(); requestAnimationFrame(loop); }
+document.getElementById('bStart').addEventListener('click',()=>{ document.getElementById('overlay').style.display='none'; running=true; upd(); newTarget(); beep(523,.15); loop(); });
+document.getElementById('bPause').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+document.getElementById('bReset').addEventListener('click',()=>{ hits=0; U=6;R=20; document.getElementById('vR').value=6; document.getElementById('rR').value=20; upd(); newTarget(); document.getElementById('scoreLine').innerHTML='命中 0 次 · 最高 <span id="hs">'+hs+'</span> 次'; });
+document.getElementById('bMute').addEventListener('click',e=>{ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); e.target.textContent=muted?'🔇':'🔊'; });
+upd(); loop();
+</script>
+</body>
+</html>
