@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>三棱镜色散</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0d1020;color:#e8ecf8;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px}
+header{width:100%;max-width:480px;display:flex;justify-content:space-between;align-items:center;padding:6px 2px}
+h1{font-size:20px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #2a3358;background:#161c34;color:#fff}
+canvas{width:100%;max-width:480px;border-radius:14px;background:#0a0d1a;border:1px solid #232c52}
+.panel{width:100%;max-width:480px;background:#141a33;border:1px solid #232c52;border-radius:14px;padding:12px;margin-top:10px}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.row label{width:76px;font-size:14px;color:#9fb0d8}
+.row output{width:64px;text-align:right;font-size:15px;color:#ffd75e;font-weight:bold}
+input[type=range]{flex:1;height:34px;accent-color:#4d7cff}
+.seg{display:flex;gap:8px;margin:8px 0}
+.seg button{flex:1;min-height:44px;border-radius:10px;border:1px solid #2a3358;background:#161c34;color:#e8ecf8;font-size:14px}
+.seg button.on{background:#4d7cff;border-color:#4d7cff;color:#fff;font-weight:bold}
+.spectrum{display:flex;height:26px;border-radius:8px;overflow:hidden;margin-top:8px;border:1px solid #2a3358}
+.spectrum div{flex:1}
+.data{display:flex;justify-content:space-around;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+.data div{text-align:center}
+.data .v{font-size:17px;font-weight:bold;color:#5ef2b8}
+.data .k{font-size:12px;color:#9fb0d8;margin-top:2px}
+.formula{text-align:center;color:#ffd75e;font-size:15px;margin-top:8px;font-weight:bold}
+.conclusion{font-size:14px;line-height:1.7;color:#c6d2f2;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,20,.92);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:30px;text-align:center}
+#overlay h2{font-size:28px;margin-bottom:12px}
+#overlay p{font-size:15px;color:#9fb0d8;line-height:1.8;margin-bottom:20px}
+#overlay button{min-width:200px;min-height:52px;font-size:18px;border:none;border-radius:14px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-weight:bold}
+</style>
+</head>
+<body>
+<header>
+<h1>🌈 三棱镜色散</h1>
+<div class="hbtns">
+<button id="bMute">🔊</button>
+<button id="bPause">⏸</button>
+<button id="bReset">↺</button>
+</div>
+</header>
+<canvas id="cv" width="480" height="400"></canvas>
+<div class="panel">
+<div class="seg" id="glassSeg">
+<button data-g="0" class="on">冕牌玻璃（弱色散）</button>
+<button data-g="1">火石玻璃（强色散）</button>
+</div>
+<div class="row"><label>入射角</label><input type="range" id="ang" min="30" max="70" value="50"><output id="angV">50°</output></div>
+<div class="spectrum" id="spec"></div>
+<div class="data">
+<div><div class="v" id="dNR">1.51</div><div class="k">n(红光)</div></div>
+<div><div class="v" id="dNV">1.53</div><div class="k">n(紫光)</div></div>
+<div><div class="v" id="dD">—</div><div class="k">偏折角差</div></div>
+</div>
+<div class="formula">n<sub>红</sub> &lt; n<sub>橙</sub> &lt; … &lt; n<sub>紫</sub>（紫光偏折最大）</div>
+<div class="conclusion">📝 <b>实验结论：</b>白光是复色光！不同颜色的光在玻璃中折射率不同——紫光折射率最大、偏折最厉害，红光最小。于是白光被分解成红橙黄绿蓝靛紫七色光谱。彩虹、雨后天晴的光带都是这个原理。</div>
+</div>
+<div id="overlay"><h2>🌈 三棱镜色散</h2><p>牛顿的经典实验：一束白光射入三棱镜，出来变成了彩虹！<br>拖动滑杆改变<b>入射角</b>，切换玻璃看色散强弱。<br>为什么紫光总是偏折得最厉害？</p><button id="bStart">开始实验</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const COLORS=[['红','#ff3b3b'],['橙','#ff8c3b'],['黄','#ffe93b'],['绿','#3bff6b'],['蓝','#3bb8ff'],['靛','#4b5bff'],['紫','#b83bff']];
+const GLASS=[{n0:1.51,disp:0.008,t:'冕牌玻璃'},{n0:1.62,disp:0.018,t:'火石玻璃'}];
+let gi=0,ang=50,running=false,paused=false,rays=[];
+let muted=localStorage.getItem('g100_mute')==='1';
+document.getElementById('bMute').textContent=muted?'🔇':'🔊';
+document.getElementById('spec').innerHTML=COLORS.map(c=>'<div style="background:'+c[1]+'"></div>').join('');
+let AC=null;
+function beep(f,d){ if(muted)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain(); o.frequency.value=f; g.gain.setValueAtTime(.1,AC.currentTime); g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d); o.connect(g);g.connect(AC.destination); o.start(); o.stop(AC.currentTime+d);}catch(e){} }
+// 三棱镜顶点 A=60°，简化：偏折角 δ ≈ (n-1)*A（小角度近似），色散体现在 n 差异上
+function calc(){
+  const g=GLASS[gi];
+  return COLORS.map((c,i)=>{ const n=g.n0+g.disp*(i-3); // 红i=0最小，紫i=6最大
+    const dev=(n-1)*60*(0.6+ang/140); // 偏折角随入射角微调
+    return {name:c[0],color:c[1],n,dev}; });
+}
+function upd(){ document.getElementById('angV').textContent=ang+'°';
+  const g=GLASS[gi],rs=calc();
+  document.getElementById('dNR').textContent=rs[0].n.toFixed(3);
+  document.getElementById('dNV').textContent=rs[6].n.toFixed(3);
+  document.getElementById('dD').textContent=(rs[6].dev-rs[0].dev).toFixed(1)+'°';
+}
+document.getElementById('ang').addEventListener('input',e=>{ ang=+e.target.value; upd(); });
+document.getElementById('glassSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
+  document.querySelectorAll('#glassSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  gi=+b.dataset.g; upd(); beep(520,.12); burst(); if(navigator.vibrate)navigator.vibrate(30); });
+function burst(){ for(let i=0;i<30;i++) rays.push({t:Math.random(),ci:Math.floor(Math.random()*7)}); if(rays.length>160)rays.splice(0,rays.length-160); }
+function draw(){
+  ctx.clearRect(0,0,480,400);
+  const rs=calc();
+  // 三棱镜
+  const ax=240,ay=90,bx=130,by=280,cx2=350,cy2=280;
+  ctx.fillStyle='rgba(160,200,255,.16)'; ctx.strokeStyle='#9fc4ff'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.lineTo(cx2,cy2); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#9fc4ff'; ctx.font='13px sans-serif'; ctx.fillText(GLASS[gi].t,196,300);
+  // 入射白光（从左）
+  const inY=190;
+  const g0=ctx.createLinearGradient(0,inY,150,inY); g0.addColorStop(0,'rgba(255,255,255,.1)'); g0.addColorStop(1,'#ffffff');
+  ctx.strokeStyle=g0; ctx.lineWidth=7; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,inY); ctx.lineTo(165,inY); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='13px sans-serif'; ctx.fillText('白光',18,inY-12);
+  // 棱镜内会聚点（简化）
+  const px=245,py=205;
+  // 出射七色光
+  rs.forEach((r,i)=>{
+    const dev=r.dev*Math.PI/180;
+    const baseA=0.28; // 出射基准方向（向右下方）
+    const a=baseA+(i-3)*0.055*(gi===1?1.9:1);
+    const ex=px+Math.cos(a)*210, ey=py+Math.sin(a)*210;
+    ctx.strokeStyle=r.color; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(ex,ey); ctx.stroke();
+    ctx.fillStyle=r.color; ctx.font='12px sans-serif';
+    if(ex<470) ctx.fillText(r.name,ex+2,ey+4);
+  });
+  // 棱镜内白光段
+  ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(165,inY); ctx.lineTo(px,py); ctx.stroke();
+  // 光子
+  ctx.fillStyle='#fff';
+  rays=rays.filter(p=>p.t<1.4);
+  rays.forEach(p=>{ p.t+=0.05; const r=rs[p.ci]; const t=Math.min(p.t,1);
+    let x,y;
+    if(t<0.45){ const f2=t/0.45; x=0+(165)*f2; y=inY; }
+    else if(t<0.6){ const f2=(t-0.45)/0.15; x=165+(px-165)*f2; y=inY+(py-inY)*f2; }
+    else { const f2=(t-0.6)/0.4; const a=0.28+(p.ci-3)*0.055*(gi===1?1.9:1);
+      x=px+Math.cos(a)*210*f2; y=py+Math.sin(a)*210*f2; }
+    ctx.fillStyle=r.color; ctx.beginPath(); ctx.arc(x,y,2.6,0,7); ctx.fill(); });
+  ctx.fillStyle='#9fb0d8'; ctx.font='13px sans-serif';
+  ctx.fillText('同一束白光，不同颜色偏折程度不同 → 色散',90,368);
+}
+function loop(){ if(running&&!paused) draw(); requestAnimationFrame(loop); }
+document.getElementById('bStart').addEventListener('click',()=>{ document.getElementById('overlay').style.display='none'; running=true; upd(); beep(523,.15); burst(); setInterval(()=>{ if(running&&!paused) burst(); },900); loop(); });
+document.getElementById('bPause').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+document.getElementById('bReset').addEventListener('click',()=>{ rays=[]; });
+document.getElementById('bMute').addEventListener('click',e=>{ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); e.target.textContent=muted?'🔇':'🔊'; });
+upd(); loop();
+</script>
+</body>
+</html>

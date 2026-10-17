@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>凸透镜成像</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0d1020;color:#e8ecf8;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px}
+header{width:100%;max-width:480px;display:flex;justify-content:space-between;align-items:center;padding:6px 2px}
+h1{font-size:20px}
+.hbtns{display:flex;gap:8px}
+.hbtns button{width:44px;height:44px;font-size:20px;border-radius:12px;border:1px solid #2a3358;background:#161c34;color:#fff}
+canvas{width:100%;max-width:480px;border-radius:14px;background:#0a0d1a;border:1px solid #232c52}
+.panel{width:100%;max-width:480px;background:#141a33;border:1px solid #232c52;border-radius:14px;padding:12px;margin-top:10px}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.row label{width:76px;font-size:14px;color:#9fb0d8}
+.row output{width:70px;text-align:right;font-size:15px;color:#ffd75e;font-weight:bold}
+input[type=range]{flex:1;height:34px;accent-color:#4d7cff}
+.data{display:flex;justify-content:space-around;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px;flex-wrap:wrap}
+.data div{text-align:center;min-width:64px}
+.data .v{font-size:18px;font-weight:bold;color:#5ef2b8}
+.data .k{font-size:12px;color:#9fb0d8;margin-top:2px}
+.nature{text-align:center;font-size:17px;font-weight:bold;color:#ffd75e;margin-top:8px}
+.formula{text-align:center;color:#ffd75e;font-size:15px;margin-top:8px;font-weight:bold}
+.conclusion{font-size:14px;line-height:1.7;color:#c6d2f2;background:#0d1328;border-radius:10px;padding:10px;margin-top:8px}
+#overlay{position:fixed;inset:0;background:rgba(5,8,20,.92);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:10;padding:30px;text-align:center}
+#overlay h2{font-size:28px;margin-bottom:12px}
+#overlay p{font-size:15px;color:#9fb0d8;line-height:1.8;margin-bottom:20px}
+#overlay button{min-width:200px;min-height:52px;font-size:18px;border:none;border-radius:14px;background:linear-gradient(135deg,#4d7cff,#7a4dff);color:#fff;font-weight:bold}
+</style>
+</head>
+<body>
+<header>
+<h1>🔍 凸透镜成像</h1>
+<div class="hbtns">
+<button id="bMute">🔊</button>
+<button id="bPause">⏸</button>
+<button id="bReset">↺</button>
+</div>
+</header>
+<canvas id="cv" width="480" height="380"></canvas>
+<div class="panel">
+<div class="row"><label>物距 u</label><input type="range" id="uR" min="4" max="30" value="18" step="0.5"><output id="uV">18cm</output></div>
+<div class="row"><label>焦距 f</label><input type="range" id="fR" min="4" max="12" value="8" step="0.5"><output id="fV">8cm</output></div>
+<div class="data">
+<div><div class="v" id="dU">18</div><div class="k">物距u(cm)</div></div>
+<div><div class="v" id="dF">8</div><div class="k">焦距f(cm)</div></div>
+<div><div class="v" id="dV">—</div><div class="k">像距v(cm)</div></div>
+<div><div class="v" id="dM">—</div><div class="k">放大率</div></div>
+</div>
+<div class="nature" id="nature">—</div>
+<div class="formula">成像公式：1/f = 1/u + 1/v</div>
+<div class="conclusion">📝 <b>实验结论：</b>u&gt;2f 成<b>倒立缩小实像</b>；u=2f 成等大实像；f&lt;u&lt;2f 成<b>倒立放大实像</b>；u=f 不成像；u&lt;f 成<b>正立放大虚像</b>（放大镜原理）。实像可呈现在光屏上，虚像只能用眼观察。</div>
+</div>
+<div id="overlay"><h2>🔍 凸透镜成像</h2><p>拖动滑杆改变<b>物距 u</b> 和<b>焦距 f</b>，观察三条特殊光线与像的变化。<br>试试把蜡烛从远处慢慢推近透镜，像经历了怎样的变化？<br>u=f 时为什么找不到像？</p><button id="bStart">开始实验</button></div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const CX=240,GROUND=300,SCALE=9; // 每cm像素
+let u=18,f=8,running=false,paused=false,lastNature='';
+let muted=localStorage.getItem('g100_mute')==='1';
+document.getElementById('bMute').textContent=muted?'🔇':'🔊';
+let AC=null;
+function beep(fr,d){ if(muted)return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain(); o.frequency.value=fr; g.gain.setValueAtTime(.12,AC.currentTime); g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d); o.connect(g);g.connect(AC.destination); o.start(); o.stop(AC.currentTime+d);}catch(e){} }
+function calc(){ const denom=1/f-1/u; if(Math.abs(denom)<1e-6) return {v:Infinity,m:Infinity}; const v=1/denom; return {v,m:Math.abs(v/u)}; }
+function nature(){ if(u>2*f) return '倒立 · 缩小 · 实像'; if(Math.abs(u-2*f)<0.01) return '倒立 · 等大 · 实像'; if(u>f) return '倒立 · 放大 · 实像'; if(Math.abs(u-f)<0.01) return '不成像（平行光）'; return '正立 · 放大 · 虚像'; }
+function upd(){ document.getElementById('uV').textContent=u+'cm'; document.getElementById('fV').textContent=f+'cm';
+  document.getElementById('dU').textContent=u; document.getElementById('dF').textContent=f;
+  const c=calc();
+  document.getElementById('dV').textContent=isFinite(c.v)?c.v.toFixed(1):'∞';
+  document.getElementById('dM').textContent=isFinite(c.m)?c.m.toFixed(2)+'×':'∞';
+  const nt='成像性质：'+nature();
+  if(nt!==lastNature&&lastNature!==''){ if(navigator.vibrate)navigator.vibrate(25); }
+  lastNature=nt;
+  document.getElementById('nature').textContent=nt;
+}
+document.getElementById('uR').addEventListener('input',e=>{ u=+e.target.value; upd(); beep(300+u*20,.05); });
+document.getElementById('fR').addEventListener('input',e=>{ f=+e.target.value; upd(); beep(300+f*30,.05); });
+function X(cm){ return CX-cm*SCALE; } // 物方cm→像素（左为正）
+function XR(cm){ return CX+cm*SCALE; } // 像方
+function draw(){
+  ctx.clearRect(0,0,480,380);
+  const c=calc();
+  // 主光轴
+  ctx.strokeStyle='#3a4570'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(10,GROUND); ctx.lineTo(470,GROUND); ctx.stroke();
+  // 透镜
+  ctx.strokeStyle='#7ab8ff'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(CX,GROUND-120); ctx.quadraticCurveTo(CX-26,GROUND-60,CX,GROUND); ctx.quadraticCurveTo(CX-26,GROUND+60,CX,GROUND+120); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CX,GROUND-120); ctx.quadraticCurveTo(CX+26,GROUND-60,CX,GROUND); ctx.quadraticCurveTo(CX+26,GROUND+60,CX,GROUND+120); ctx.stroke();
+  // F 与 2F
+  ctx.fillStyle='#9fb0d8'; ctx.font='12px sans-serif';
+  [[f,'F'],[2*f,'2F']].forEach(([d,t])=>{ if(X(d)>8){ ctx.fillRect(X(d)-1.5,GROUND-4,3,8); ctx.fillText(t,X(d)-4,GROUND+18);} if(XR(d)<472){ ctx.fillRect(XR(d)-1.5,GROUND-4,3,8); ctx.fillText(t,XR(d)-4,GROUND+18);} });
+  // 物体（蜡烛）
+  const ox=X(u), oh=70;
+  ctx.strokeStyle='#ff6b6b'; ctx.lineWidth=6; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(ox,GROUND); ctx.lineTo(ox,GROUND-oh); ctx.stroke();
+  ctx.fillStyle='#ffd75e'; ctx.beginPath(); ctx.arc(ox,GROUND-oh-8,7,0,7); ctx.fill();
+  ctx.fillStyle='#ff6b6b'; ctx.font='13px sans-serif'; ctx.fillText('物',ox-7,GROUND+34);
+  // 光线（物顶端）
+  const oy=GROUND-oh;
+  ctx.lineWidth=2.5;
+  // 1. 平行于主光轴 → 过像方焦点
+  ray(ox,oy,1,0,'#ff9f43',true);
+  // 2. 过物方焦点 → 平行射出
+  ray(ox,oy,0,0,'#5ef2b8',true,true);
+  // 3. 过光心 → 直线
+  ctx.strokeStyle='#c58bff'; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(ox,oy);
+  const slope=(oy-GROUND)/(ox-CX);
+  ctx.lineTo(CX+150,GROUND+slope*150); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(CX-150,GROUND-slope*150); ctx.stroke();
+  // 像
+  if(isFinite(c.v)&&c.v>0){
+    const ix=XR(c.v), ih=oh*c.m;
+    ctx.strokeStyle='#5ef2b8'; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.moveTo(ix,GROUND); ctx.lineTo(ix,GROUND+ih); ctx.stroke();
+    ctx.fillStyle='#5ef2b8'; ctx.fillText('像(实)',ix-16,GROUND+ih+16);
+  } else if(!isFinite(c.v)){
+    ctx.fillStyle='#ffd75e'; ctx.font='bold 16px sans-serif'; ctx.fillText('出射光平行，不成像',150,120);
+  } else {
+    // 虚像：反向延长交点
+    const vv=Math.abs(c.v), ix=X(vv), ih=oh*c.m;
+    ctx.setLineDash([6,6]); ctx.strokeStyle='#ffd75e'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(ix,GROUND-ih); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle='#ffd75e'; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.moveTo(ix,GROUND); ctx.lineTo(ix,GROUND-ih); ctx.stroke();
+    ctx.fillStyle='#ffd75e'; ctx.fillText('像(虚)',ix-14,GROUND-ih-8);
+  }
+  ctx.fillStyle='#9fb0d8'; ctx.font='13px sans-serif';
+  ctx.fillText('三条特殊光线：平行→焦点 / 焦点→平行 / 过光心直线',86,30);
+}
+function ray(x0,y0,mode,unused,color,focal,throughF){
+  // mode1: 从物顶水平到透镜，再过像方焦点
+  ctx.strokeStyle=color; ctx.setLineDash([]);
+  if(mode===1&&!throughF){
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(CX,y0); ctx.stroke();
+    const fx=XR(f), slope=(y0-GROUND)/(CX-fx);
+    ctx.beginPath(); ctx.moveTo(CX,y0); ctx.lineTo(CX+190,y0+slope*190); ctx.stroke();
+  } else if(throughF){
+    // 过物方焦点到透镜，再水平
+    const fx=X(f); const yAtLens=y0+(GROUND-y0)*((CX-x0)/(fx-x0));
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(CX,yAtLens); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(CX,yAtLens); ctx.lineTo(CX+190,yAtLens); ctx.stroke();
+  }
+}
+function loop(){ if(running&&!paused) draw(); requestAnimationFrame(loop); }
+document.getElementById('bStart').addEventListener('click',()=>{ document.getElementById('overlay').style.display='none'; running=true; upd(); beep(523,.15); loop(); });
+document.getElementById('bPause').addEventListener('click',e=>{ paused=!paused; e.target.textContent=paused?'▶':'⏸'; });
+document.getElementById('bReset').addEventListener('click',()=>{ u=18;f=8; document.getElementById('uR').value=18; document.getElementById('fR').value=8; upd(); });
+document.getElementById('bMute').addEventListener('click',e=>{ muted=!muted; localStorage.setItem('g100_mute',muted?'1':'0'); e.target.textContent=muted?'🔇':'🔊'; });
+upd(); loop();
+</script>
+</body>
+</html>
