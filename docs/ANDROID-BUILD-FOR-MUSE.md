@@ -122,3 +122,62 @@ Release 正文就是更新说明（会被转成纯文本，最多 500 字）。�
 - 通过环境变量签名生成的 AAB / APK 可以通过 `jarsigner` / `apksigner` 校验。
 
 未验证：没有在真机或模拟器上运行过（全面屏 padding、cn 离线启动、play 渠道“去商店更新”跳转，都需要真机确认）。
+
+## 附录 A：Muse 当前 VM 的实际打包环境（合并前 main 的打法，另一个 AI 照此可复现）
+
+> 上面 1–8 节是 PR 合并后的目标方案。本附录是 Muse 这台 VM 上**现在实际**打出 v4.3–v4.6 的环境与命令，路径均为本机绝对路径。两个方案的差异：本机用 Gradle 8.7 + SDK 34 + `--offline`；合并后改用仓库 `./gradlew`（8.11.1）+ SDK 36 + 三渠道。
+
+### A.1 工具链（缺一不可）
+
+- **JDK 17.0.11**：`~/jdk17`，构建时 `JAVA_HOME=$HOME/jdk17`
+- **Gradle 8.7**：`~/gradle/gradle-8.7/bin/gradle`（合并 PR 后改用仓库自带 `./gradlew`）
+- **Android SDK**：`~/android-sdk`（`android/local.properties` 里 `sdk.dir=/home/hatch/android-sdk`）
+  - platforms：`android-34`（目录里另有 android-35，是历史伪装包，不要用）
+  - build-tools：`34.0.0`（验包用 `~/android-sdk/build-tools/34.0.0/aapt`）
+- **⚠️ 本机没有 SDK 36**：PR 合并后（compileSdk/targetSdk 升 36）必须先装 `platforms;android-36` + `build-tools;36.0.0` 才能构建。本机 sdkmanager 走代理隧道会失败，历史做法是手动 curl 下载 SDK 组件压缩包解压到 `~/android-sdk` 对应目录。
+
+### A.2 依赖：离线本地 Maven 仓库
+
+- `~/localrepo`（约 258MB 的 file:// Maven 仓库）；`settings.gradle` 已按该路径是否存在自动挂载。
+- 构建**必须带 `--offline`**。不要尝试在线拉 Maven Central / Google 仓库，本机出口对这些源不稳定。
+
+### A.3 本机网络怪癖（不照做必挂，都是踩过的坑）
+
+- 启动 Gradle 前必须：`export JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=true"`
+  - `gradle.properties` 里 `org.gradle.jvmargs` 的同名参数传不到 fork 出的 daemon JVM；本机 IPv6 回环被劫持，不加这个 daemon 通信会报 `Unexpected type tag 109` / `Could not receive a message from the daemon`。
+- `gradle.properties` 已设 `kotlin.compiler.execution.strategy=in-process`（Kotlin daemon 走 localhost socket，同样受 IPv6 问题影响），不要删。
+- `org.gradle.jvmargs=-Xmx3g`。
+
+### A.4 签名（官网直装版的历史签名，必须续用同一把）
+
+- 密钥库文件：`~/workspace/game100/keystores/release.keystore`
+  - 证书 SHA-256：`8445da1196c504b382178192500d39a84093a0a1b35e01f0a67b30021264cfb8`
+- 密码存放在 `~/.game100_release_pass`（文件内容即密码）。**禁止把密码打印到对话/日志，禁止写进仓库任何文件。**
+- `android/release.properties`（已被 .gitignore，必须保留、不要删）四键，`app/build.gradle` 的 `signingConfigs.release` 读它：
+  `game100.release.storeFile` / `game100.release.storePassword` / `game100.release.keyAlias` / `game100.release.keyPassword`
+- 换签名 = 已装用户无法覆盖升级。任何情况下不要新生成密钥替换它。
+
+### A.5 打包命令（当前 main 单渠道）
+
+```bash
+cd ~/workspace/game100/android
+export JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=true"
+JAVA_HOME=$HOME/jdk17 ~/gradle/gradle-8.7/bin/gradle assembleRelease --offline
+# 产物：app/build/outputs/apk/release/app-release.apk（约 5.4MB，耗时 2–6 分钟）
+```
+
+### A.6 版本号
+
+- 当前 main 的打法：直接改 `app/build.gradle` 的 `versionCode` / `versionName` 再构建（合并 PR 后按第 3 节用 `-P` 参数，两套不要混用）。
+- 已发布到用户的最新版：**versionCode 23 / versionName 4.6**（出品方 studio 功能；该版源码尚在本地待推 main，仓库 `build.gradle` 默认值仍是 22 / 4.5）。下一次发版 versionCode 从 **24** 起，必须严格递增。
+
+### A.7 声称打包成功前必做的校验
+
+- `aapt dump badging app-release.apk` 确认 versionCode/versionName 是目标值（本机 VM 偶尔重启，会在 outputs 里留下上一次的旧产物，只看 BUILD SUCCESSFUL 会被骗）。
+- 确认签名：`apksigner verify --print-certs` 或比对 A.4 的 SHA-256。
+
+### A.8 交付
+
+- 产物拷贝为 `~/workspace/game100/game100-v<版本>-release.apk`，作为聊天附件发给用户。
+- 远程下载链接（可选）：`/opt/hatch/bin/remote-storage upload-file --path <apk>`，链接 2 天有效；本机网络不稳时此步可能失败，以附件交付为准。
+- 源码改动推回仓库：用 GitHub `push_files`，一批最多 5 个游戏（10 个文件），**推完必须查提交记录核验真的落地**，不能只看工具返回成功。
