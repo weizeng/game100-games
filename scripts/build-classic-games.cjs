@@ -1,11 +1,12 @@
 // Source for these five standalone packages lives in scripts/classics/.
 // Embed every asset: the Android downloader only needs index.html and meta.json.
 const fs = require('node:fs');
-const CLASSIC_VERSION = 2;
+const CLASSIC_VERSION = 3;
 const path = require('node:path');
 const vm = require('node:vm');
 const catalog = require('./game-ui/catalog.cjs');
 const challenges = require('./game-ui/challenges.cjs');
+const { uiBlock } = require('./game-ui/block.cjs');
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(__dirname, file), 'utf8');
 const css = read('classics/shell.css');
@@ -23,18 +24,7 @@ for (const id of ['connectfour','colorlines','yahtzee','columns','pyramid']) {
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${g.meta.name}</title><style>${css}\n${g.css || ''}
 @media(max-height:700px){.columns-frame #cv{height:42svh}.pyramid-stage canvas{max-height:33svh}}
-</style>
-<!-- GAME UI BEGIN -->
-<style>
-:root{${vars}}
-${uiCss}
-
-</style>
-<script>
-${runtime.replace('__GAME_UI_CONFIG__', JSON.stringify(config))}
-</script>
-<!-- GAME UI END -->
-</head><body>
+</style>${uiBlock(id, g.meta)}</head><body>
 <main class="wrap">
 <header class="topbar"><div><span class="edition">经典游乐场</span><h1>${g.meta.name}</h1></div><div class="tools"><button id="soundBtn" class="iconbtn" aria-label="切换音效">♪</button><button id="pauseBtn" class="iconbtn" aria-label="暂停游戏" disabled>Ⅱ</button></div></header>
 <div class="stats"><div><span>得分</span><b id="scoreV">0</b></div><div><span>最佳纪录</span><b id="bestV">0</b></div><div><span id="extraLabel">${g.extraLabel}</span><b id="extraV">—</b></div></div>
@@ -56,7 +46,7 @@ ui.init();
 `;
   for (const m of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)) new vm.Script(m[1], {filename:id});
   const dir = path.join(root,'games',id);
-  // 发布已有经典游戏的改动时递增此版本号（2026-10-20 热修：共用界面遮罩修复 → 2）
+  // 发布已有经典游戏的改动时递增此版本号（2026-10-20 热修：共用界面遮罩修复 → 2；同日皮肤 B 霓虹糖果 → 3）
   const meta = JSON.stringify({...g.meta, id, version:CLASSIC_VERSION, category:'经典重温'},null,2)+'\n';
   if (check) {
     if (!fs.existsSync(path.join(dir,'index.html')) || fs.readFileSync(path.join(dir,'index.html'),'utf8').replace(/\r\n/g,'\n') !== html || fs.readFileSync(path.join(dir,'meta.json'),'utf8').replace(/\r\n/g,'\n') !== meta) throw new Error(`Regenerate ${id}: node scripts/build-classic-games.cjs`);

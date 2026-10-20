@@ -50,4 +50,6 @@ css('maze', '& .pbtn{background:var(--soft);color:var(--ink);border:1px solid va
 css('alienlang', '& .cell.locked .ch{color:#285d44}& .cell .ch{color:var(--ink)}');
 css('mastermind', '& .pin.b{background:#243952;border-color:#243952;box-shadow:none}& .pin.w{background:white;border:1px solid #829bb4}');
 css('unblock', '& .stats{background:var(--surface);color:var(--muted);box-shadow:0 4px 0 var(--soft)}& .stats b{color:var(--accent)}');
+// 2026-10-20 皮肤 B：新登记游戏保持原有顶栏尺寸，避免页面出现滚动
+css('phtest', '& #screen-game>.topbar{padding:0;min-height:0}');
 module.exports = c;

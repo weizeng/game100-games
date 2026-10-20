@@ -20,6 +20,7 @@
   root.dataset.theme = config.theme;
   root.dataset.game = config.id;
   root.dataset.mode = mode;
+  if (config.skin) root.dataset.skin = config.skin;
   var gesture = new WeakMap();
   function labelButtons(scope) {
     scope.querySelectorAll('button').forEach(function (button) {
@@ -32,7 +33,8 @@
   }
   function decorate(container) {
     if (container.querySelector(':scope > .ui-panel') || !container.querySelector('h1,h2,.gamename')) return;
-    if (container.matches('.screen') && container.querySelector('canvas:not(#fx)')) return;
+    // A .screen that holds the playfield (canvas, or its own top bar/HUD) is the game itself, not a menu panel.
+    if (container.matches('.screen') && container.querySelector('canvas:not(#fx),.topbar,#topbar,#hud')) return;
     var panel = document.createElement('div');
     panel.className = 'ui-panel';
     while (container.firstChild) panel.appendChild(container.firstChild);
@@ -48,6 +50,7 @@
       emblem.className = 'ui-emblem'; emblem.textContent = config.icon; emblem.setAttribute('aria-hidden', 'true');
       panel.insertBefore(emblem, panel.firstChild);
       heading.textContent = config.name;
+      if (!config.challenge) { labelButtons(panel); return; }
       var switcher = document.createElement('div'); switcher.className = 'ui-mode'; switcher.setAttribute('role', 'group'); switcher.setAttribute('aria-label', '选择玩法模式');
       [['classic','经典模式'],['expert','进阶挑战']].forEach(function (item) {
         var b = document.createElement('button'); b.type = 'button'; b.textContent = item[1]; b.dataset.mode = item[0]; b.setAttribute('aria-pressed', String(mode === item[0]));
@@ -99,5 +102,18 @@
       new MutationObserver(function () { decorate(container); }).observe(container, { childList: true });
     });
     labelButtons(document);
+    if (config.skin) watchScores();
   });
+  // Score pop: only discrete jumps animate. Counters that tick every frame (distance, timers)
+  // change faster than the 300ms gate and therefore never trigger, so there is no per-frame cost.
+  function watchScores() {
+    document.querySelectorAll('#score,.topbar b,#hud b,.hud .score,.pill b,.hudbox b').forEach(function (el) {
+      var last = 0;
+      new MutationObserver(function () {
+        var now = performance.now(), quiet = now - last > 300; last = now;
+        if (!quiet) return;
+        el.classList.remove('ui-pop'); void el.offsetWidth; el.classList.add('ui-pop');
+      }).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+  }
 }());

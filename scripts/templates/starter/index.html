@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>接星星</title>
+<link rel="icon" href="data:,">
+<style>
+/* 游戏自身样式只管布局与玩法元素；颜色/面板/按钮外观交给共用皮肤（sync 时注入）。 */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;height:100%;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
+.topbar .tools{display:flex;gap:8px}
+.topbar .tools .iconbtn{min-width:44px;min-height:44px}
+#cv{width:100%;max-height:calc(100svh - 170px);aspect-ratio:360/540;object-fit:contain;touch-action:none;border-radius:16px}
+.hint{font-size:13px;text-align:center}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span class="title">⭐ 接星星</span>
+    <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
+    <span class="tools"><button class="iconbtn" id="muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+  </div>
+  <canvas id="cv"></canvas>
+  <p class="hint">按住画面左右拖动篮子 · 漏接 3 颗结束</p>
+</div>
+<div class="overlay" id="startScr"><h1>⭐ 接星星</h1><p>按住画面左右拖动篮子接住星星。<br>金星 +10，彩虹星 +30；漏接 3 颗结束。<br>每 100 分速度提升一级。</p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="pauseOv"><h1>⏸ 已暂停</h1><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="quitBtn">重新开始</button></div>
+<div class="overlay hidden" id="overScr"><h1>游戏结束</h1><div class="score" id="finalScore">0</div><p id="overText"></p><button class="btn" id="againBtn">再来一局</button></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const W=360,H=540;                       // 逻辑坐标：所有玩法/命中判定都用它
+const cv=$('cv'),ctx=cv.getContext('2d');
+const UI=window.GameUI||{pick:(a)=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;     // 共用皮肤的画布立体工具；没有时走平面画法
+if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+// ---- 状态 ----
+let state='menu',score=0,lives=3,level=1,stars=[],sparks=[],spawnT=0,last=0;
+const basket={x:W/2,w:UI.pick(84,64),y:H-46};
+let best=+UI.storageGet('starter-best')||0;$('best').textContent=best;
+// ---- 音效：WebAudio 合成，无外部资源；遵守静音开关 ----
+let muted=UI.storageGet('starter-mute')==='1',ac=null;$('muteBtn').textContent=muted?'🔇':'🔊';
+function beep(f,d,type){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.setValueAtTime(.15,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+$('muteBtn').addEventListener('click',()=>{muted=!muted;UI.storageSet('starter-mute',muted?'1':'0');$('muteBtn').textContent=muted?'🔇':'🔊';});
+// ---- 输入：pointer 事件 + 按画布显示尺寸换算到逻辑坐标（桌球 #15 的教训） ----
+function posOf(e){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches.length)?e.touches[0]:(e.changedTouches&&e.changedTouches.length)?e.changedTouches[0]:e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
+let dragging=false;
+cv.addEventListener('pointerdown',e=>{e.preventDefault();dragging=true;cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);basket.x=posOf(e).x;});
+cv.addEventListener('pointermove',e=>{if(dragging)basket.x=posOf(e).x;});
+['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,()=>{dragging=false;}));
+document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')basket.x-=24;if(e.key==='ArrowRight')basket.x+=24;});
+// ---- 流程 ----
+function show(id,on){$(id).classList.toggle('hidden',!on);}
+function start(){score=0;lives=3;level=1;stars=[];sparks=[];spawnT=0;$('score').textContent=0;show('startScr',false);show('overScr',false);show('pauseOv',false);state='play';last=performance.now();beep(660,.12);}
+function pause(){if(state!=='play')return;state='pause';show('pauseOv',true);}
+function resume(){if(state!=='pause')return;state='play';last=performance.now();show('pauseOv',false);}
+function over(){state='over';if(score>best){best=score;UI.storageSet('starter-best',best);$('best').textContent=best;}
+  $('finalScore').textContent=score;$('overText').textContent='等级 '+level+' · 最佳 '+best;show('overScr',true);beep(220,.4,'triangle');}
+$('startBtn').addEventListener('click',start);$('againBtn').addEventListener('click',start);
+$('pauseBtn').addEventListener('click',()=>state==='play'?pause():resume());$('resumeBtn').addEventListener('click',resume);
+$('quitBtn').addEventListener('click',()=>{show('pauseOv',false);start();});
+// 切到后台自动暂停（App 切换、锁屏）
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+// ---- 循环 ----
+function update(dt){
+  basket.x=Math.max(basket.w/2,Math.min(W-basket.w/2,basket.x));
+  spawnT-=dt;if(spawnT<=0){spawnT=Math.max(.35,1.1-level*.08);const rare=Math.random()<.12;stars.push({x:20+Math.random()*(W-40),y:-16,r:rare?14:11,v:(120+level*25)*UI.pick(1,1.25),rare});}
+  for(let i=stars.length-1;i>=0;i--){const s=stars[i];s.y+=s.v*dt;
+    if(s.y>basket.y-8&&s.y<basket.y+10&&Math.abs(s.x-basket.x)<basket.w/2+s.r*.5){stars.splice(i,1);score+=s.rare?30:10;$('score').textContent=score;
+      if(FX)FX.burst(sparks,s.x,basket.y-6,s.rare?'#ff8af0':'#ffd34d',14);beep(s.rare?990:780,.08);
+      const nl=1+Math.floor(score/100);if(nl>level){level=nl;beep(1200,.15,'square');}continue;}
+    if(s.y>H+20){stars.splice(i,1);lives--;beep(160,.2,'sawtooth');if(lives<=0)return over();}}
+}
+function draw(){
+  if(FX)FX.stage(ctx,W,H,'#3a1d7a','#120a2e');else{ctx.fillStyle='#1b1240';ctx.fillRect(0,0,W,H);}
+  for(const s of stars){const c=s.rare?'#ff6ad5':'#ffcc29';
+    if(FX){FX.glow(ctx,c,10);ctx.fillStyle=c;ctx.beginPath();ctx.arc(s.x,s.y,s.r*.6,0,7);ctx.fill();FX.noGlow(ctx);FX.orb(ctx,s.x,s.y,s.r,c);}
+    else{ctx.fillStyle=c;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();}}
+  if(FX){FX.shadow(ctx,basket.x,basket.y+18,basket.w/2,5);FX.tile(ctx,basket.x-basket.w/2,basket.y,basket.w,18,'#ff9f2e',8);FX.drawBurst(ctx,sparks);}
+  else{ctx.fillStyle='#ff9f2e';ctx.fillRect(basket.x-basket.w/2,basket.y,basket.w,18);}
+  ctx.font='16px sans-serif';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('❤️'.repeat(Math.max(0,lives)),10,10);
+}
+function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play')update(dt);draw();requestAnimationFrame(frame);}
+draw();requestAnimationFrame(frame);
+</script>
+</body></html>
