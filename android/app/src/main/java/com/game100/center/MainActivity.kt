@@ -344,7 +344,7 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 swipe.isRefreshing = false
                 showItems(items)
-                if (!silent) {
+                if (!silent && BuildConfig.ONLINE_CATALOG) {
                     if (remote == null) {
                         toast(getString(R.string.source_sync_failed))
                     } else {
