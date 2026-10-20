@@ -3,39 +3,89 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// ---------------------------------------------------------------------------
+// 版本号：所有渠道共用同一个 versionCode / versionName。
+// 发版时可用 -Pgame100.versionCode=23 -Pgame100.versionName=4.6 覆盖，
+// 或设置环境变量 GAME100_VERSIONCODE / GAME100_VERSIONNAME。规则见 docs/ANDROID-BUILD-FOR-MUSE.md
+// ---------------------------------------------------------------------------
+def readProp = { String name ->
+    project.findProperty(name)?.toString() ?: System.getenv(name.toUpperCase().replace('.', '_'))
+}
+def appVersionCode = (readProp("game100.versionCode") ?: "22").toInteger()
+def appVersionName = readProp("game100.versionName") ?: "4.5"
+
+// 签名：只从 release.properties（不入库）/ -P 参数 / 环境变量读取，绝不写死在仓库里。
+// 缺少任一项时 release 包不签名（可由 muse 或 apksigner/jarsigner 事后签名），不会让同步失败。
+def releaseProps = new Properties()
+def releasePropFile = rootProject.file("release.properties")
+if (releasePropFile.exists()) { releasePropFile.withInputStream { releaseProps.load(it) } }
+def signProp = { String name -> releaseProps.getProperty(name) ?: readProp(name) }
+def hasReleaseSigning = ["game100.release.storeFile", "game100.release.storePassword",
+                         "game100.release.keyAlias", "game100.release.keyPassword"].every { signProp(it) }
+
 android {
     namespace = "com.game100.center"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.game100.center"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 22
-        versionName = "4.5"
+        targetSdk = 36
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     signingConfigs {
-        release {
-            def propFile = rootProject.file("release.properties")
-            def props = new java.util.Properties()
-            if (propFile.exists()) { propFile.withInputStream { props.load(it) } }
-            def prop = { name ->
-                props.getProperty(name)
-                    ?: project.findProperty(name)?.toString()
-                    ?: System.getenv(name.toUpperCase().replace('.', '_'))
-                    ?: { throw new GradleException("缺少签名配置 " + name) }()
+        if (hasReleaseSigning) {
+            release {
+                storeFile = file(signProp("game100.release.storeFile"))
+                storePassword = signProp("game100.release.storePassword")
+                keyAlias = signProp("game100.release.keyAlias")
+                keyPassword = signProp("game100.release.keyPassword")
             }
-            storeFile = file(prop("game100.release.storeFile"))
-            storePassword = prop("game100.release.storePassword")
-            keyAlias = prop("game100.release.keyAlias")
-            keyPassword = prop("game100.release.keyPassword")
         }
+    }
+
+    // 三个发布渠道，见 docs/ANDROID-BUILD-FOR-MUSE.md
+    flavorDimensions = ["store"]
+    productFlavors {
+        // Google Play：不自更新（无 REQUEST_INSTALL_PACKAGES / 无 APK 下载安装），由 Play 负责升级；
+        // HTML 游戏仍可从 CDN 下载（WebView 中运行的 JS，属 Play 政策允许范围）
+        play {
+            dimension = "store"
+            buildConfigField("boolean", "SELF_UPDATE", "false")
+            buildConfigField("boolean", "ONLINE_CATALOG", "true")
+            buildConfigField("String", "STORE_CHANNEL", "\"play\"")
+        }
+        // 国内应用商店：完全离线（构建时把 games/ 全部打进 APK，无 INTERNET 权限，不自更新）
+        cn {
+            dimension = "store"
+            buildConfigField("boolean", "SELF_UPDATE", "false")
+            buildConfigField("boolean", "ONLINE_CATALOG", "false")
+            buildConfigField("String", "STORE_CHANNEL", "\"cn\"")
+        }
+        // 官网/GitHub 直装：保持现有行为（在线游戏库 + App 自升级）
+        direct {
+            dimension = "store"
+            buildConfigField("boolean", "SELF_UPDATE", "true")
+            buildConfigField("boolean", "ONLINE_CATALOG", "true")
+            buildConfigField("String", "STORE_CHANNEL", "\"direct\"")
+        }
+    }
+
+    sourceSets {
+        // play 与 cn 共用"无自更新"实现；direct 用 src/direct 下的完整自升级实现
+        play.java.srcDirs += "src/noSelfUpdate/java"
+        cn.java.srcDirs += "src/noSelfUpdate/java"
+        // cn：构建时生成的全部游戏 zip（见下方 zipAllGamesForCn 任务）
+        cn.assets.srcDirs += "${layout.buildDirectory.get().asFile}/generated/cnBundledGames"
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             minifyEnabled = false
             debuggable = false
         }
@@ -55,6 +105,54 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+    }
+}
+
+if (!hasReleaseSigning) {
+    logger.lifecycle("[game100] 未配置 release 签名（game100.release.*），release 产物将不签名，需要事后签名。")
+}
+
+// ---------------------------------------------------------------------------
+// cn 渠道：把仓库 games/<id>/ 全部打成 assets/bundled/<id>.zip（与 publish.yml 的 zip 结构一致：
+// 根目录直接是 index.html / meta.json 等文件），保证完全离线可玩。
+// ---------------------------------------------------------------------------
+def gamesSrcDir = rootProject.file("../games")
+def cnBundledOut = layout.buildDirectory.dir("generated/cnBundledGames/bundled")
+def zipAllGamesForCn = tasks.register("zipAllGamesForCn") {
+    description = "把 ../games 下所有游戏打包为 cn 渠道内置 assets"
+    inputs.dir(gamesSrcDir).optional()
+    outputs.dir(cnBundledOut)
+    doLast {
+        def out = cnBundledOut.get().asFile
+        project.delete(out)
+        out.mkdirs()
+        int n = 0
+        (gamesSrcDir.listFiles() ?: new File[0]).sort { it.name }.each { File g ->
+            if (!g.isDirectory()) return
+            if (!new File(g, "index.html").exists() || !new File(g, "meta.json").exists()) return
+            new File(out, "${g.name}.zip").withOutputStream { os ->
+                def zos = new java.util.zip.ZipOutputStream(os)
+                g.eachFileRecurse(groovy.io.FileType.FILES) { File f ->
+                    if (f.name.startsWith(".")) return
+                    def rel = g.toPath().relativize(f.toPath()).toString().replace('\\', '/')
+                    def e = new java.util.zip.ZipEntry(rel)
+                    e.setTime(0L) // 可复现构建
+                    zos.putNextEntry(e)
+                    f.withInputStream { zos << it }
+                    zos.closeEntry()
+                }
+                zos.close()
+            }
+            n++
+        }
+        if (n == 0) throw new GradleException("cn 渠道没有找到任何游戏（期望目录：${gamesSrcDir}）")
+        logger.lifecycle("[game100] cn 渠道内置游戏：${n} 款")
+    }
+}
+tasks.configureEach { t ->
+    if (t.name ==~ /(merge|generate|package|lintAnalyze|lintVitalAnalyze|lintReport|lint)Cn.*Assets.*/ ||
+        t.name ==~ /mergeCn.*Assets/ || t.name ==~ /generateCn.*Assets/) {
+        t.dependsOn(zipAllGamesForCn)
     }
 }
 

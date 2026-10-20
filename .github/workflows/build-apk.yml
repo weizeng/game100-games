@@ -1,14 +1,10 @@
 name: 构建 App APK（release）
-# android/ 或 games/ 有更新时：云端编译 release APK（正式签名）、
-# 发布到 releases/、更新 app.json（App 内自升级用）、刷新 CDN
+# 手动运行：云端编译 direct 渠道 release APK（正式签名，含 App 内自升级）、
+# 发布到 releases/、更新 app.json（direct 版自升级用）、刷新 CDN。
+# 以前是 push 到 android/** 或 games/** 时自动运行，常与 publish.yml 抢着 push main 而失败；
+# 现在由 muse 打包，所以改成只能手动触发。需要恢复自动的话，把 push 触发加回来即可。
+# Play / 国内商店 / TapTap 的包不走这里，见 docs/ANDROID-BUILD-FOR-MUSE.md 和 publish-stores.yml。
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'android/**'
-      - 'games/**'
-      - '.github/workflows/build-apk.yml'
-      - 'android-release.keystore.b64'
   workflow_dispatch:
 permissions:
   contents: write
@@ -26,13 +22,7 @@ jobs:
       - name: 安装 Android SDK 组件
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0" "platform-tools"
-
-      - name: 安装 Gradle
-        run: |
-          curl -sL https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/gradle.zip
-          unzip -q /tmp/gradle.zip -d /tmp
-          echo "/tmp/gradle-8.7/bin" >> "$GITHUB_PATH"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: 还原 release 签名密钥
         run: |
@@ -49,7 +39,7 @@ jobs:
           done
           ls android/app/src/main/assets/bundled | wc -l
 
-      - name: 编译 release APK
+      - name: 编译 direct 渠道 release APK
         env:
           GAME100_RELEASE_STOREFILE: /tmp/release.keystore
           GAME100_RELEASE_STOREPASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
@@ -57,13 +47,14 @@ jobs:
           GAME100_RELEASE_KEYPASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
         run: |
           cd android
-          gradle assembleRelease -x lint
+          chmod +x gradlew
+          ./gradlew assembleDirectRelease -x lint
 
       - name: 发布 APK 并更新 app.json
         run: |
           set -e
-          AAPT="$ANDROID_HOME/build-tools/34.0.0/aapt"
-          APK="$(ls android/app/build/outputs/apk/release/*.apk | head -1)"
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          APK="$(ls android/app/build/outputs/apk/direct/release/*.apk | head -1)"
           VC="$("$AAPT" dump badging "$APK" | grep -oP "versionCode='\K[0-9]+")"
           VN="$("$AAPT" dump badging "$APK" | grep -oP "versionName='\K[^']+")"
           echo "versionCode=$VC versionName=$VN"
@@ -90,7 +81,7 @@ jobs:
           git config user.name "game100-bot"
           git config user.email "game100-bot@users.noreply.github.com"
           git pull --rebase origin main || true
-          git add -A
+          git add releases app.json android/app/src/main/assets/bundled
           if git diff --cached --quiet; then echo "无变化"; exit 0; fi
           git commit -m "发布 App v${VN} [skip ci]"
           git push

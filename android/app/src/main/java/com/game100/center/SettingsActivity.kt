@@ -35,6 +35,12 @@ class SettingsActivity : AppCompatActivity() {
             getString(R.string.version_full, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 
         val btnCheck = findViewById<Button>(R.id.btn_check_update)
+        // 应用商店渠道（play / cn）不自更新，按钮改为"去商店更新"
+        if (!BuildConfig.SELF_UPDATE) btnCheck.text = "去商店更新"
+        // cn 离线版没有在线游戏库，隐藏"游戏内容来源"设置
+        if (!BuildConfig.ONLINE_CATALOG) {
+            (etUrl.parent as? android.view.View)?.visibility = android.view.View.GONE
+        }
         btnCheck.setOnClickListener {
             btnCheck.isEnabled = false
             Toast.makeText(this, getString(R.string.checking_update), Toast.LENGTH_SHORT).show()

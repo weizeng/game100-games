@@ -1,0 +1,267 @@
+name: 发布到应用商店
+# 触发：在 GitHub 发布一个 Release（附带 muse 打好并签名的 AAB / APK），或手动指定 tag 运行。
+# 附件命名约定、需要的 Secrets / Variables 见 docs/PUBLISHING.md。
+# 每个商店 job 互相独立：缺少该商店的凭证时只在摘要里提示"已跳过"，不会让整个流程失败。
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要发布的 Release tag（例如 v4.6）
+        required: true
+      play_track:
+        description: Google Play 轨道
+        type: choice
+        options: [internal, alpha, beta, production]
+        default: internal
+      play_user_fraction:
+        description: 仅 production 分阶段发布时填写，例如 0.1（留空=全量）
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-stores-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  EXPECTED_PACKAGE: ${{ vars.EXPECTED_PACKAGE || 'com.game100.center' }}
+  BUNDLETOOL_VERSION: '1.18.3'
+
+jobs:
+  validate:
+    name: 校验安装包
+    runs-on: ubuntu-latest
+    outputs:
+      version_code: ${{ steps.check.outputs.version_code }}
+      version_name: ${{ steps.check.outputs.version_name }}
+      play_aab: ${{ steps.check.outputs.play_aab }}
+      cn_apk: ${{ steps.check.outputs.cn_apk }}
+      taptap_apk: ${{ steps.check.outputs.taptap_apk }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 下载本次与上一个 Release 的附件
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist prev
+          gh release download "$TAG" --pattern '*.aab' --pattern '*.apk' --dir dist || true
+          ls -la dist
+          # 上一个已发布（非草稿、非预发布）的 Release，用于 versionCode 递增检查
+          PREV=$(gh release list --exclude-drafts --exclude-pre-releases --limit 20 --json tagName,publishedAt \
+                 --jq "[.[] | select(.tagName != \"$TAG\")] | sort_by(.publishedAt) | last | .tagName // empty")
+          echo "上一个 Release: ${PREV:-无}"
+          if [ -n "$PREV" ]; then
+            gh release download "$PREV" --pattern '*.aab' --pattern '*.apk' --dir prev || true
+          fi
+
+      - name: 准备 bundletool
+        run: |
+          curl -sSfL -o bundletool.jar \
+            "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+
+      - name: 校验（包名 / versionCode / 签名证书 / targetSdk / 禁止权限）
+        id: check
+        env:
+          SIGNING_CERT_SHA256: ${{ vars.SIGNING_CERT_SHA256 }}
+          MIN_TARGET_SDK: ${{ vars.MIN_TARGET_SDK || '36' }}
+        run: |
+          python3 scripts/publish/validate_release.py \
+            --dist dist --prev prev --bundletool bundletool.jar \
+            --package "$EXPECTED_PACKAGE" --certs "$SIGNING_CERT_SHA256" \
+            --min-target-sdk "$MIN_TARGET_SDK" --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: 生成更新说明
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_BODY="$(gh release view "$TAG" --json body --jq .body)" \
+            python3 scripts/publish/release_notes.py release-notes
+          { echo "### 更新说明（中文，最多 500 字）"; echo '```'; cat release-notes/notes.txt; echo; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: |
+            dist/
+            release-notes/
+          retention-days: 7
+
+  google-play:
+    name: Google Play
+    needs: validate
+    if: needs.validate.outputs.play_aab != ''
+    runs-on: ubuntu-latest
+    env:
+      HAS_CREDS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+    steps:
+      - name: 缺少凭证则跳过
+        if: env.HAS_CREDS != 'true'
+        run: echo "⏭️ Google Play：未配置 secrets.PLAY_SERVICE_ACCOUNT_JSON，已跳过" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/download-artifact@v4
+        if: env.HAS_CREDS == 'true'
+        with:
+          name: release-files
+
+      - name: 上传到 Google Play
+        if: env.HAS_CREDS == 'true'
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.EXPECTED_PACKAGE }}
+          releaseFiles: dist/${{ needs.validate.outputs.play_aab }}
+          releaseName: ${{ needs.validate.outputs.version_name }} (${{ needs.validate.outputs.version_code }})
+          track: ${{ inputs.play_track || vars.PLAY_TRACK || 'internal' }}
+          # 应用还没正式发布过时，Play 只接受 draft；正式上线后改成 completed（变量 PLAY_RELEASE_STATUS）
+          status: ${{ inputs.play_user_fraction != '' && 'inProgress' || vars.PLAY_RELEASE_STATUS || 'completed' }}
+          userFraction: ${{ inputs.play_user_fraction }}
+          whatsNewDirectory: release-notes/whatsnew
+
+      - name: 摘要
+        if: env.HAS_CREDS == 'true'
+        env:
+          TRACK: ${{ inputs.play_track || vars.PLAY_TRACK || 'internal' }}
+        run: echo "✅ Google Play：已上传 versionCode ${{ needs.validate.outputs.version_code }} 到 ${TRACK} 轨道" >> "$GITHUB_STEP_SUMMARY"
+
+  taptap:
+    name: TapTap
+    needs: validate
+    if: needs.validate.outputs.taptap_apk != ''
+    runs-on: ubuntu-latest
+    env:
+      HAS_CREDS: ${{ secrets.TAPTAP_CLIENT_ID != '' && secrets.TAPTAP_SERVER_SECRET != '' && vars.TAPTAP_APP_ID != '' }}
+    steps:
+      - name: 缺少凭证则跳过
+        if: env.HAS_CREDS != 'true'
+        run: echo "⏭️ TapTap：未配置 TAPTAP_CLIENT_ID / TAPTAP_SERVER_SECRET / vars.TAPTAP_APP_ID，已跳过" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v4
+        if: env.HAS_CREDS == 'true'
+      - uses: actions/download-artifact@v4
+        if: env.HAS_CREDS == 'true'
+        with:
+          name: release-files
+      - name: 上传 APK（官方 API）
+        if: env.HAS_CREDS == 'true'
+        env:
+          TAPTAP_CLIENT_ID: ${{ secrets.TAPTAP_CLIENT_ID }}
+          TAPTAP_SERVER_SECRET: ${{ secrets.TAPTAP_SERVER_SECRET }}
+          TAPTAP_APP_ID: ${{ vars.TAPTAP_APP_ID }}
+        run: |
+          python3 scripts/publish/taptap_upload.py "dist/${{ needs.validate.outputs.taptap_apk }}"
+          echo "✅ TapTap：APK 已上传。⚠️ 需要到 TapTap 开发者中心 > 商店 > 游戏资料 > 商店资料 手动选择该 APK 并提交审核（官方没有提审 API）" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 国内商店：脚本已按官方文档写好但未实测，默认关闭。
+  # 资质（企业主体 / 软著 / 版号 / APP 备案）到位后，把对应仓库变量设为 'true' 才会运行。
+  # ---------------------------------------------------------------------------
+  huawei:
+    name: 华为 AppGallery
+    needs: validate
+    if: vars.ENABLE_HUAWEI == 'true' && needs.validate.outputs.cn_apk != ''
+    runs-on: ubuntu-latest
+    env:
+      HAS_CREDS: ${{ secrets.HUAWEI_CLIENT_ID != '' && secrets.HUAWEI_CLIENT_SECRET != '' && vars.HUAWEI_APP_ID != '' }}
+    steps:
+      - name: 缺少凭证则跳过
+        if: env.HAS_CREDS != 'true'
+        run: echo "⏭️ 华为：未配置 HUAWEI_CLIENT_ID / HUAWEI_CLIENT_SECRET / vars.HUAWEI_APP_ID，已跳过" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v4
+        if: env.HAS_CREDS == 'true'
+      - uses: actions/download-artifact@v4
+        if: env.HAS_CREDS == 'true'
+        with:
+          name: release-files
+      - name: 上传并提交审核
+        if: env.HAS_CREDS == 'true'
+        env:
+          HUAWEI_CLIENT_ID: ${{ secrets.HUAWEI_CLIENT_ID }}
+          HUAWEI_CLIENT_SECRET: ${{ secrets.HUAWEI_CLIENT_SECRET }}
+          HUAWEI_APP_ID: ${{ vars.HUAWEI_APP_ID }}
+          HUAWEI_RELEASE_PHASE: ${{ vars.HUAWEI_RELEASE_PHASE || '0' }}
+          RELEASE_NOTES_FILE: release-notes/notes.txt
+        run: |
+          python3 scripts/publish/huawei_upload.py "dist/${{ needs.validate.outputs.cn_apk }}"
+          echo "✅ 华为：已上传并提交审核" >> "$GITHUB_STEP_SUMMARY"
+
+  xiaomi:
+    name: 小米
+    needs: validate
+    if: vars.ENABLE_XIAOMI == 'true' && needs.validate.outputs.cn_apk != ''
+    runs-on: ubuntu-latest
+    env:
+      HAS_CREDS: ${{ secrets.XIAOMI_PRIVATE_KEY != '' && secrets.XIAOMI_PUBLIC_CERT != '' && vars.XIAOMI_USERNAME != '' }}
+    steps:
+      - name: 缺少凭证则跳过
+        if: env.HAS_CREDS != 'true'
+        run: echo "⏭️ 小米：未配置 XIAOMI_PRIVATE_KEY / XIAOMI_PUBLIC_CERT / vars.XIAOMI_USERNAME，已跳过" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v4
+        if: env.HAS_CREDS == 'true'
+      - uses: actions/download-artifact@v4
+        if: env.HAS_CREDS == 'true'
+        with:
+          name: release-files
+      - name: 上传（自动发布接口）
+        if: env.HAS_CREDS == 'true'
+        env:
+          XIAOMI_USERNAME: ${{ vars.XIAOMI_USERNAME }}
+          XIAOMI_APP_NAME: ${{ vars.XIAOMI_APP_NAME || '游戏100' }}
+          XIAOMI_PRIVATE_KEY: ${{ secrets.XIAOMI_PRIVATE_KEY }}
+          XIAOMI_PUBLIC_CERT: ${{ secrets.XIAOMI_PUBLIC_CERT }}
+          RELEASE_NOTES_FILE: release-notes/notes.txt
+        run: |
+          pip install --quiet cryptography
+          python3 scripts/publish/xiaomi_upload.py "dist/${{ needs.validate.outputs.cn_apk }}"
+          echo "✅ 小米：已推送" >> "$GITHUB_STEP_SUMMARY"
+
+  oppo:
+    name: OPPO
+    needs: validate
+    if: vars.ENABLE_OPPO == 'true' && needs.validate.outputs.cn_apk != ''
+    runs-on: ubuntu-latest
+    env:
+      HAS_CREDS: ${{ secrets.OPPO_CLIENT_ID != '' && secrets.OPPO_CLIENT_SECRET != '' }}
+    steps:
+      - name: 缺少凭证则跳过
+        if: env.HAS_CREDS != 'true'
+        run: echo "⏭️ OPPO：未配置 OPPO_CLIENT_ID / OPPO_CLIENT_SECRET，已跳过" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v4
+        if: env.HAS_CREDS == 'true'
+      - uses: actions/download-artifact@v4
+        if: env.HAS_CREDS == 'true'
+        with:
+          name: release-files
+      - name: 上传并提交新版本
+        if: env.HAS_CREDS == 'true'
+        env:
+          OPPO_CLIENT_ID: ${{ secrets.OPPO_CLIENT_ID }}
+          OPPO_CLIENT_SECRET: ${{ secrets.OPPO_CLIENT_SECRET }}
+          VERSION_CODE: ${{ needs.validate.outputs.version_code }}
+          RELEASE_NOTES_FILE: release-notes/notes.txt
+        run: |
+          python3 scripts/publish/oppo_upload.py "dist/${{ needs.validate.outputs.cn_apk }}"
+          echo "✅ OPPO：已提交（异步审核）" >> "$GITHUB_STEP_SUMMARY"
+
+  vivo:
+    name: vivo
+    needs: validate
+    if: vars.ENABLE_VIVO == 'true' && needs.validate.outputs.cn_apk != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: 提醒手动上传
+        run: |
+          {
+            echo "📝 vivo：请手动上传 ${{ needs.validate.outputs.cn_apk }}（versionCode ${{ needs.validate.outputs.version_code }}）。"
+            echo "官方 Publishing API 文档注明只支持「普通应用」，游戏会返回 A0308，所以这里没有自动上传。"
+            echo "如果 vivo 以后给游戏开放 API，可按 docs/PUBLISHING.md 补上 app.upload.apk + app.update.submit。"
+          } >> "$GITHUB_STEP_SUMMARY"
