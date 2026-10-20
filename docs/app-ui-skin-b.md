@@ -1,6 +1,8 @@
 # 游戏100 App 外壳 · 皮肤 B「霓虹糖果 Pop Arcade」改版方案（2026-10-20）
 
-> 状态：**提案**，在本地分支 `design/app-skin-b` 上，未合并、未推送。已经 rebase 到 4.10（`3eaffe1c`），没有冲突；在 4.10 上编译通过，4.10 的 13 个单元测试也全部通过。
+> 状态：**已选定并随 v4.11 发布**（Logo 选 B 糖果手柄，商店图标在 `docs/store-assets/icon-512.png`）。以下为当初的提案内容。
+>
+> 原状态：提案，在本地分支 `design/app-skin-b` 上，未合并、未推送。已经 rebase 到 4.10（`3eaffe1c`），没有冲突；在 4.10 上编译通过，4.10 的 13 个单元测试也全部通过。
 
 ## 1. 设计目标
 
@@ -22,8 +24,8 @@
 | 方案 | 说明 | 文件 |
 |---|---|---|
 | A 金币 100 | 街机投币的金币，正面压印“100”，背景是放射光。48px 下最好认 | `docs/app-design/logos/coin/` |
-| B 糖果手柄 | 粉色果冻手柄配四颗糖豆按键，顶上一枚“100”金币牌。一看就是游戏 | `docs/app-design/logos/pad/` |
-| C 霓虹「游」方块 | 粉色果冻方块上压白色“游”字，底部是“100”铭牌，背景是霓虹网格地平线。中文辨识度最高 | `docs/app-design/logos/block/`（分支里目前用的这个） |
+| B 糖果手柄 | 粉色果冻手柄配四颗糖豆按键，顶上一枚“100”金币牌。一看就是游戏 | `docs/app-design/logos/pad/`（**用户选定，v4.11 起使用**） |
+| C 霓虹「游」方块 | 粉色果冻方块上压白色“游”字，底部是“100”铭牌，背景是霓虹网格地平线。中文辨识度最高 | `docs/app-design/logos/block/` |
 
 - 全部是手写矢量，不是 AI 生成的图片。数字和汉字用开源字体（Titan One、Noto Sans CJK，均为 OFL 授权）转成路径，不依赖手机上装的字体。
 - 每个方案都有：
@@ -45,7 +47,7 @@
 | `res/values/themes.xml` | 改成深色主题，状态栏用浅色图标；对话框主题；立体按钮样式 `Button3D`（Primary 金币 / Secondary 玻璃 / Danger 红） |
 | `res/values-v31/themes.xml`（新） | Android 12+ 系统启动页：深紫底 + 前景图标 |
 | `res/mipmap-anydpi-v26/ic_launcher*.xml`（新） | 自适应图标，含 monochrome 层；minSdk 26，不需要 PNG 兜底 |
-| `res/drawable/ic_launcher_{background,foreground,monochrome}.xml`（新） | 方案 C 的三层 |
+| `res/drawable/ic_launcher_{background,foreground,monochrome}.xml`（新） | 方案 B 糖果手柄的三层（v4.11 选定） |
 | `res/drawable/logo_tile.xml`、`wordmark.xml`（新） | 首页标题栏、设置页用的小图标，以及「游戏100」字标 |
 | `res/drawable/btn_{coin,pink,cyan,glass,danger}.xml`（新） | 立体按钮，带按下和禁用状态 |
 | `res/drawable/pill_*.xml`、`surface_panel.xml`、`search_bg.xml`、`science_*`、`game_icon_bg.xml` | 改成皮肤 B：玻璃面板 + 台阶阴影，搜索框做成内凹槽 |
