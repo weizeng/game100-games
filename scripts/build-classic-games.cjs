@@ -1,6 +1,7 @@
 // Source for these five standalone packages lives in scripts/classics/.
 // Embed every asset: the Android downloader only needs index.html and meta.json.
 const fs = require('node:fs');
+const CLASSIC_VERSION = 2;
 const path = require('node:path');
 const vm = require('node:vm');
 const catalog = require('./game-ui/catalog.cjs');
@@ -55,7 +56,8 @@ ui.init();
 `;
   for (const m of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)) new vm.Script(m[1], {filename:id});
   const dir = path.join(root,'games',id);
-  const meta = JSON.stringify({...g.meta, id, version:1, category:'经典重温'},null,2)+'\n';
+  // 发布已有经典游戏的改动时递增此版本号（2026-10-20 热修：共用界面遮罩修复 → 2）
+  const meta = JSON.stringify({...g.meta, id, version:CLASSIC_VERSION, category:'经典重温'},null,2)+'\n';
   if (check) {
     if (!fs.existsSync(path.join(dir,'index.html')) || fs.readFileSync(path.join(dir,'index.html'),'utf8').replace(/\r\n/g,'\n') !== html || fs.readFileSync(path.join(dir,'meta.json'),'utf8').replace(/\r\n/g,'\n') !== meta) throw new Error(`Regenerate ${id}: node scripts/build-classic-games.cjs`);
   } else {
