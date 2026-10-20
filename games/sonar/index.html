@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>声呐寻宝</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;background:linear-gradient(180deg,#020b1d,#062a5e);color:#e8f4ff;font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;user-select:none;-webkit-user-select:none;}
+#wrap{position:fixed;inset:0;display:flex;flex-direction:column;touch-action:none;}
+#hud{display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;}
+.stat{background:rgba(13,71,161,.45);border:1px solid rgba(80,160,255,.35);border-radius:12px;padding:7px 10px;font-size:14px;white-space:nowrap;}
+.spacer{flex:1;}
+.btn{min-width:44px;min-height:44px;border:1px solid rgba(120,190,255,.4);border-radius:12px;background:rgba(13,71,161,.55);color:#fff;font-size:20px;cursor:pointer;}
+.btn:active{transform:scale(.93);}
+#cvwrap{flex:1;position:relative;}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,8,20,.85);z-index:10;padding:20px;}
+.card{background:linear-gradient(160deg,#0a2a5e,#04122e);border:1px solid rgba(120,190,255,.35);border-radius:20px;padding:26px 22px;max-width:430px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.55);max-height:92%;overflow-y:auto;}
+.card h1{font-size:34px;margin-bottom:10px;}
+.card h2{font-size:26px;margin-bottom:12px;}
+.card p{font-size:15px;line-height:1.75;color:#bcd9ff;margin-bottom:12px;text-align:left;}
+.card p.center{text-align:center;}
+.bigbtn{display:block;width:100%;min-height:52px;margin-top:10px;border:none;border-radius:14px;font-size:19px;font-weight:700;color:#fff;background:linear-gradient(135deg,#1e88e5,#0d47a1);cursor:pointer;}
+.bigbtn.ghost{background:rgba(255,255,255,.1);border:1px solid rgba(120,190,255,.4);}
+.bigbtn:active{transform:scale(.97);}
+.kbd{display:inline-block;background:rgba(255,255,255,.14);border-radius:6px;padding:1px 8px;color:#fff;font-weight:700;}
+.hidden{display:none!important;}
+.tip{font-size:13px;color:#8fb8e8;margin-top:8px;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="stat">🌊 第<span id="lv">1</span>/7关</div>
+    <div class="stat">📡 声呐 <span id="pg">3</span></div>
+    <div class="stat">⭐ <span id="sc">0</span></div>
+    <div class="stat">🏆 <span id="hs">0</span></div>
+    <div class="spacer"></div>
+    <button class="btn" id="bHint">💡</button>
+    <button class="btn" id="bMute">🔊</button>
+    <button class="btn" id="bPause">⏸</button>
+  </div>
+  <div id="cvwrap">
+    <canvas id="cv"></canvas>
+
+    <div class="overlay" id="ovStart">
+      <div class="card">
+        <h1>📡 声呐寻宝</h1>
+        <p class="center">深海底埋着一只宝箱🧰，用声呐把它找出来！</p>
+        <p>1️⃣ 点任意格子发射声呐，数字 = 该格到宝箱的<span class="kbd">曼哈曼距离</span>（横+竖格数）。<br>
+        2️⃣ 每关只有 <span class="kbd">3 次</span>声呐，用完后点一格<span class="kbd">下挖</span>判定。<br>
+        3️⃣ 挖中过关得分，挖错本关重来。<br>
+        4️⃣ 关卡越大网格越大（8×6 → 12×10），共 7 关。</p>
+        <button class="bigbtn" id="bStart">开始寻宝</button>
+        <div class="tip">💡 卡住就点右上角 💡 看三角定位思路</div>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovHint">
+      <div class="card">
+        <h2>💡 三角定位思路</h2>
+        <p>声呐数字 d 表示：宝箱位于「到该格曼哈曼距离恰为 d」的<span class="kbd">菱形圈</span>上。<br><br>
+        🔹 先在网格中央附近发第 1 次声呐，缩小大范围。<br>
+        🔹 第 2 次选另一个方向发射，两次的菱形圈<span class="kbd">交点</span>只有 2~4 个候选格。<br>
+        🔹 第 3 次对着候选格附近发射：数字越小，宝箱离该格越近——<span class="kbd">找小数字格子的交集</span>，基本就能锁定！<br><br>
+        ⚠️ 别把 3 次声呐全打在角落里，中央开局信息量最大。</p>
+        <button class="bigbtn" id="bCloseHint">明白了</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovPause">
+      <div class="card">
+        <h2>⏸ 已暂停</h2>
+        <p class="center">声呐兵正在待命……</p>
+        <button class="bigbtn" id="bResume">继续</button>
+        <button class="bigbtn ghost" id="bRestart">重开本关</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovResult">
+      <div class="card">
+        <h2 id="resTitle">🎉 找到宝箱！</h2>
+        <p class="center" id="resText"></p>
+        <button class="bigbtn" id="bNext">下一关 ➜</button>
+        <button class="bigbtn ghost hidden" id="bRetry">重试本关</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovWin">
+      <div class="card">
+        <h1>🏆 寻宝大师！</h1>
+        <p class="center" id="winText"></p>
+        <button class="bigbtn" id="bAgain">再来一局</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ================= 音效 ================= */
+let AC=null;
+let muted=localStorage.getItem('g100_mute')==='1';
+function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}catch(e){return null;}}
+function tone(f,t0,d,type,v,slide){if(muted)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+t0;o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,slide),t+d);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.18,t+0.015);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.06);}catch(e){}}
+const sClick=()=>tone(720,0,0.07,'triangle',0.15);
+const sPing=()=>{tone(1250,0,0.35,'sine',0.22,480);tone(1250,0.42,0.3,'sine',0.13,620);};
+const sScore=()=>{tone(660,0,0.12,'triangle',0.18);tone(880,0.1,0.12,'triangle',0.18);tone(1320,0.2,0.22,'triangle',0.18);};
+const sWin=()=>{[523,659,784,1047,1319].forEach((f,i)=>tone(f,i*0.11,0.2,'triangle',0.2));};
+const sFail=()=>tone(200,0,0.5,'sawtooth',0.2,70);
+function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+
+/* ================= 状态 ================= */
+const LEVELS=[{c:8,r:6},{c:9,r:6},{c:10,r:7},{c:10,r:8},{c:11,r:9},{c:12,r:10},{c:12,r:10}];
+const PINGS=3;
+let lv=0,score=0,hs=parseInt(localStorage.getItem('g100_sonar_hs')||'0',10)||0;
+let tx=0,ty=0,pings=[],phase='ping',started=false,paused=false,resultShown=false,found=false,foundT=0;
+let rings=[],parts=[],floats=[],marks=[];
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){const r=cv.parentElement.getBoundingClientRect();DPR=Math.min(2,window.devicePixelRatio||1);W=r.width;H=r.height;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+window.addEventListener('resize',resize);resize();
+
+function grid(){const L=LEVELS[lv];const s=Math.min((W-24)/L.c,(H-24)/L.r);return{s:s,ox:(W-s*L.c)/2,oy:(H-s*L.r)/2,c:L.c,r:L.r};}
+function cellAt(px,py){const g=grid();const x=Math.floor((px-g.ox)/g.s),y=Math.floor((py-g.oy)/g.s);if(x<0||y<0||x>=g.c||y>=g.r)return null;return{x:x,y:y};}
+
+function newLevel(i){lv=i;const L=LEVELS[lv];tx=Math.floor(Math.random()*L.c);ty=Math.floor(Math.random()*L.r);pings=[];phase='ping';resultShown=false;found=false;rings=[];marks=[];document.getElementById('lv').textContent=lv+1;document.getElementById('pg').textContent=PINGS;hideAll();}
+function hideAll(){['ovStart','ovHint','ovPause','ovResult','ovWin'].forEach(id=>document.getElementById(id).classList.add('hidden'));}
+function updHUD(){$('sc').textContent=score;$('hs').textContent=hs;}
+function $(id){return document.getElementById(id);}
+function saveHS(){if(score>hs){hs=score;localStorage.setItem('g100_sonar_hs',String(hs));}updHUD();}
+
+/* ================= 操作 ================= */
+cv.addEventListener('pointerdown',e=>{
+  if(!started||paused||resultShown)return;
+  const r=cv.getBoundingClientRect();const cell=cellAt(e.clientX-r.left,e.clientY-r.top);
+  if(!cell)return;
+  if(phase==='ping'){
+    if(pings.some(p=>p.x===cell.x&&p.y===cell.y))return;
+    if(pings.length>=PINGS)return;
+    const g=grid(),cx=g.ox+(cell.x+0.5)*g.s,cy=g.oy+(cell.y+0.5)*g.s;
+    const d=Math.abs(cell.x-tx)+Math.abs(cell.y-ty);
+    pings.push({x:cell.x,y:cell.y,d:d});
+    rings.push({x:cx,y:cy,r:6,max:g.s*1.6,a:1});
+    floats.push({x:cx,y:cy-g.s*0.4,txt:'d='+d,t:0,life:1.6,color:'#7ee787'});
+    sPing();buzz(25);
+    $('pg').textContent=PINGS-pings.length;
+    if(pings.length>=PINGS){phase='dig';setTimeout(()=>{if(phase==='dig'&&!resultShown)floats.push({x:W/2,y:H*0.12,txt:'声呐用尽！点一格下挖 ⛏',t:0,life:2.2,color:'#ffd54f'});},400);}
+  }else if(phase==='dig'){
+    digAt(cell);
+  }
+});
+
+function digAt(cell){
+  const g=grid(),cx=g.ox+(cell.x+0.5)*g.s,cy=g.oy+(cell.y+0.5)*g.s;
+  if(cell.x===tx&&cell.y===ty){
+    found=true;foundT=0;
+    const gain=200+(lv+1)*100;
+    score+=gain;saveHS();
+    for(let i=0;i<40;i++){const a=Math.random()*Math.PI*2,sp=40+Math.random()*140;parts.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-60,t:0,life:0.9+Math.random()*0.6,c:['#ffd54f','#ffca28','#fff176','#ffb300'][i%4],r:2+Math.random()*3});}
+    floats.push({x:cx,y:cy-g.s,txt:'+'+gain,t:0,life:1.8,color:'#ffd54f'});
+    sWin();buzz([40,60,40]);
+    resultShown=true;phase='done';
+    setTimeout(()=>{
+      if(lv>=LEVELS.length-1){$('winText').textContent='7 关全通！总分 '+score+'，最高 '+hs;$('ovWin').classList.remove('hidden');}
+      else{$('resTitle').textContent='🎉 找到宝箱！';$('resText').textContent='第 '+(lv+1)+' 关通过，得 '+gain+' 分';$('bNext').classList.remove('hidden');$('bRetry').classList.add('hidden');$('ovResult').classList.remove('hidden');}
+    },1100);
+  }else{
+    marks.push({x:cell.x,y:cell.y,t:0});
+    sFail();buzz(150);
+    floats.push({x:cx,y:cy-g.s*0.4,txt:'挖空了…',t:0,life:1.6,color:'#ef9a9a'});
+    resultShown=true;phase='done';
+    setTimeout(()=>{$('resTitle').textContent='💥 挖错了！';$('resText').textContent='宝箱不在那里，本关重来';$('bNext').classList.add('hidden');$('bRetry').classList.remove('hidden');$('ovResult').classList.remove('hidden');},900);
+  }
+}
+
+/* ================= 绘制 ================= */
+function rr(x,y,w,h,rad){ctx.beginPath();ctx.moveTo(x+rad,y);ctx.arcTo(x+w,y,x+w,y+h,rad);ctx.arcTo(x+w,y+h,x,y+h,rad);ctx.arcTo(x,y+h,x,y,rad);ctx.arcTo(x,y,x+w,y,rad);ctx.closePath();}
+let lastT=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const t=ts/1000;let dt=Math.min(0.05,t-(lastT||t));lastT=t;
+  if(paused||!started)return;
+  update(dt);draw(t);
+}
+function update(dt){
+  rings=rings.filter(r=>{r.r+=(r.max-r.r)*Math.min(1,dt*3);r.a-=dt*0.9;return r.a>0;});
+  parts=parts.filter(p=>{p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=260*dt;return p.t<p.life;});
+  floats=floats.filter(f=>{f.t+=dt;f.y-=34*dt;return f.t<f.life;});
+  marks=marks.filter(m=>{m.t+=dt;return m.t<1.2;});
+  if(found)foundT+=dt;
+}
+function draw(t){
+  const grd=ctx.createLinearGradient(0,0,0,H);grd.addColorStop(0,'#020b1d');grd.addColorStop(1,'#062a5e');
+  ctx.fillStyle=grd;ctx.fillRect(0,0,W,H);
+  // 背景气泡
+  ctx.fillStyle='rgba(120,190,255,.07)';
+  for(let i=0;i<14;i++){const bx=(i*97+t*12)%W,by=H-((i*61+t*22)%(H+40))+20;ctx.beginPath();ctx.arc(bx,by,2+(i%3),0,7);ctx.fill();}
+  const g=grid();
+  for(let y=0;y<g.r;y++)for(let x=0;x<g.c;x++){
+    const px=g.ox+x*g.s+2,py=g.oy+y*g.s+2,w=g.s-4,h=g.s-4;
+    const sh=Math.sin(t*1.6+x*0.7+y*0.9)*0.5+0.5;
+    ctx.fillStyle='rgba(30,110,190,'+(0.16+sh*0.08)+')';
+    rr(px,py,w,h,7);ctx.fill();
+  }
+  // 声呐数字
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  pings.forEach(p=>{
+    const cx=g.ox+(p.x+0.5)*g.s,cy=g.oy+(p.y+0.5)*g.s;
+    ctx.fillStyle='rgba(13,71,161,.85)';ctx.beginPath();ctx.arc(cx,cy,g.s*0.32,0,7);ctx.fill();
+    ctx.strokeStyle='#7ee787';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#e8ffef';ctx.font='bold '+Math.floor(g.s*0.34)+'px system-ui';ctx.fillText(p.d,cx,cy+1);
+  });
+  // 声呐波纹
+  rings.forEach(r=>{ctx.strokeStyle='rgba(126,231,135,'+Math.max(0,r.a)+')';ctx.lineWidth=3;ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,7);ctx.stroke();});
+  // 挖错标记
+  marks.forEach(m=>{const cx=g.ox+(m.x+0.5)*g.s,cy=g.oy+(m.y+0.5)*g.s;ctx.strokeStyle='rgba(239,154,154,'+Math.max(0,1-m.t)+')';ctx.lineWidth=4;const k=g.s*0.2;ctx.beginPath();ctx.moveTo(cx-k,cy-k);ctx.lineTo(cx+k,cy+k);ctx.moveTo(cx+k,cy-k);ctx.lineTo(cx-k,cy+k);ctx.stroke();});
+  // 宝箱（找到后弹出）
+  if(found){
+    const cx=g.ox+(tx+0.5)*g.s,cy=g.oy+(ty+0.5)*g.s;
+    const pop=foundT<0.45?(1-Math.pow(1-foundT/0.45,3)):1;
+    ctx.font=(g.s*0.62*pop)+'px system-ui';ctx.fillText('🧰',cx,cy);
+  }
+  // 下挖阶段：高亮提示可点
+  if(phase==='dig'&&!resultShown){
+    ctx.strokeStyle='rgba(255,213,79,'+(0.4+0.3*Math.sin(t*5))+')';ctx.lineWidth=2;
+    rr(g.ox,g.oy,g.c*g.s,g.r*g.s,10);ctx.stroke();
+  }
+  // 粒子
+  parts.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();ctx.globalAlpha=1;});
+  // 飘字
+  floats.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/f.life);ctx.fillStyle=f.color;ctx.font='bold 17px system-ui';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;});
+  // 阶段提示条
+  ctx.fillStyle='rgba(2,10,25,.55)';rr(10,H-44,Math.min(300,W-20),32,10);ctx.fill();
+  ctx.fillStyle='#bcd9ff';ctx.font='14px system-ui';ctx.textAlign='left';
+  ctx.fillText(phase==='ping'?'👆 点格子发射声呐（剩余 '+(PINGS-pings.length)+' 次）':(phase==='dig'?'⛏ 声呐用尽，点一格下挖！':''),22,H-28);
+}
+
+/* ================= 按钮 ================= */
+$('bStart').onclick=()=>{sClick();started=true;newLevel(0);updHUD();requestAnimationFrame(loop);};
+$('bHint').onclick=()=>{sClick();$('ovHint').classList.remove('hidden');};
+$('bCloseHint').onclick=()=>{sClick();$('ovHint').classList.add('hidden');};
+$('bPause').onclick=()=>{if(!started||resultShown)return;sClick();paused=true;$('ovPause').classList.remove('hidden');};
+$('bResume').onclick=()=>{sClick();paused=false;$('ovPause').classList.add('hidden');};
+$('bRestart').onclick=()=>{sClick();paused=false;newLevel(lv);};
+$('bNext').onclick=()=>{sClick();newLevel(lv+1);};
+$('bRetry').onclick=()=>{sClick();newLevel(lv);};
+$('bAgain').onclick=()=>{sClick();score=0;updHUD();newLevel(0);};
+$('bMute').onclick=function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');this.textContent=muted?'🔇':'🔊';if(!muted)sClick();};
+if(muted)$('bMute').textContent='🔇';
+updHUD();
+</script>
+</body>
+</html>

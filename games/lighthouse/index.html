@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>灯塔引航</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;background:linear-gradient(180deg,#0a0f2e,#1a0e00);color:#fff3e0;font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;user-select:none;-webkit-user-select:none;}
+#wrap{position:fixed;inset:0;display:flex;flex-direction:column;touch-action:none;}
+#hud{display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;}
+.stat{background:rgba(120,60,0,.45);border:1px solid rgba(255,180,80,.35);border-radius:12px;padding:7px 10px;font-size:14px;white-space:nowrap;}
+.spacer{flex:1;}
+.btn{min-width:44px;min-height:44px;border:1px solid rgba(255,190,100,.4);border-radius:12px;background:rgba(150,80,10,.55);color:#fff;font-size:20px;cursor:pointer;}
+.btn:active{transform:scale(.93);}
+#cvwrap{flex:1;position:relative;}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,6,16,.85);z-index:10;padding:20px;}
+.card{background:linear-gradient(160deg,#3a2200,#120b02);border:1px solid rgba(255,190,100,.4);border-radius:20px;padding:26px 22px;max-width:430px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.55);max-height:92%;overflow-y:auto;}
+.card h1{font-size:34px;margin-bottom:10px;}
+.card h2{font-size:26px;margin-bottom:12px;}
+.card p{font-size:15px;line-height:1.75;color:#ffe0b2;margin-bottom:12px;text-align:left;}
+.card p.center{text-align:center;}
+.bigbtn{display:block;width:100%;min-height:52px;margin-top:10px;border:none;border-radius:14px;font-size:19px;font-weight:700;color:#fff;background:linear-gradient(135deg,#ff9800,#e65100);cursor:pointer;}
+.bigbtn.ghost{background:rgba(255,255,255,.1);border:1px solid rgba(255,190,100,.4);}
+.bigbtn:active{transform:scale(.97);}
+.kbd{display:inline-block;background:rgba(255,255,255,.14);border-radius:6px;padding:1px 8px;color:#fff;font-weight:700;}
+.hidden{display:none!important;}
+.tip{font-size:13px;color:#d7a86e;margin-top:8px;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="stat">🗼 第<span id="lv">1</span>/5关</div>
+    <div class="stat">🚢 <span id="sh">0</span>/<span id="shT">2</span></div>
+    <div class="stat">⭐ <span id="sc">0</span></div>
+    <div class="stat">🏆 <span id="hs">0</span></div>
+    <div class="spacer"></div>
+    <button class="btn" id="bHint">💡</button>
+    <button class="btn" id="bMute">🔊</button>
+    <button class="btn" id="bPause">⏸</button>
+  </div>
+  <div id="cvwrap">
+    <canvas id="cv"></canvas>
+
+    <div class="overlay" id="ovStart">
+      <div class="card">
+        <h1>🗼 灯塔引航</h1>
+        <p class="center">深夜的海面危机四伏，船只需要你的灯塔指引！</p>
+        <p>1️⃣ <span class="kbd">拖动屏幕</span>旋转中央灯塔的光束。<br>
+        2️⃣ 船只从边缘直线驶向右侧<span class="kbd">港口 ⚓</span>，航线上有暗礁🪨。<br>
+        3️⃣ <span class="kbd">光束照亮的暗礁</span>会被船只自动绕行；<span class="kbd">没照亮的暗礁</span>会把船撞沉！<br>
+        4️⃣ 全部船只进港过关，<span class="kbd">撞沉 1 艘即失败</span>。<br>
+        5️⃣ 共 5 关，船只和暗礁越来越多、船速越来越快。</p>
+        <button class="bigbtn" id="bStart">开始引航</button>
+        <div class="tip">💡 卡住就点右上角 💡 看引航思路</div>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovHint">
+      <div class="card">
+        <h2>💡 引航思路</h2>
+        <p>🔹 光束转动有惯性、转不快——<span class="kbd">提前预判</span>，别等船到礁前才转。<br>
+        🔹 优先照亮<span class="kbd">离船最近</span>的那颗暗礁，远的可以等。<br>
+        🔹 一颗暗礁可能挡住多艘船的航线：照亮这种<span class="kbd">咽喉礁</span>最划算。<br>
+        🔹 船只绕行需要一点提前量，被照亮的暗礁会发光——盯着发光的礁确认船已绕过再转走。</p>
+        <button class="bigbtn" id="bCloseHint">明白了</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovPause">
+      <div class="card">
+        <h2>⏸ 已暂停</h2>
+        <p class="center">船队原地待命……</p>
+        <button class="bigbtn" id="bResume">继续</button>
+        <button class="bigbtn ghost" id="bRestart">重开本关</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovResult">
+      <div class="card">
+        <h2 id="resTitle">🎉 全部进港！</h2>
+        <p class="center" id="resText"></p>
+        <button class="bigbtn" id="bNext">下一关 ➜</button>
+        <button class="bigbtn ghost hidden" id="bRetry">重试本关</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovWin">
+      <div class="card">
+        <h1>🏆 金牌引航员！</h1>
+        <p class="center" id="winText"></p>
+        <button class="bigbtn" id="bAgain">再来一局</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ================= 音效 ================= */
+let AC=null;
+let muted=localStorage.getItem('g100_mute')==='1';
+function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}catch(e){return null;}}
+function tone(f,t0,d,type,v,slide){if(muted)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+t0;o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,slide),t+d);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.18,t+0.015);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.06);}catch(e){}}
+const sClick=()=>tone(700,0,0.07,'triangle',0.15);
+const sDock=()=>{tone(587,0,0.12,'triangle',0.2);tone(880,0.1,0.2,'triangle',0.2);};
+const sWarn=()=>tone(440,0,0.18,'square',0.12,330);
+const sSink=()=>{tone(300,0,0.4,'sawtooth',0.22,60);tone(150,0.1,0.6,'sawtooth',0.18,40);};
+const sWin=()=>{[523,659,784,1047].forEach((f,i)=>tone(f,i*0.12,0.2,'triangle',0.2));};
+function buzz(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+
+/* ================= 状态 ================= */
+const LEVELS=[
+  {ships:2,reefs:2,speed:52},
+  {ships:2,reefs:3,speed:62},
+  {ships:3,reefs:4,speed:70},
+  {ships:3,reefs:5,speed:80},
+  {ships:4,reefs:6,speed:90}
+];
+const HALF=Math.PI/8.5; // 光束半角
+let lv=0,score=0,hs=parseInt(localStorage.getItem('g100_lighthouse_hs')||'0',10)||0;
+let started=false,paused=false,resultShown=false;
+let beamA=-Math.PI/2,beamT=-Math.PI/2; // 当前角 / 目标角
+let ships=[],reefs=[],parts=[],floats=[],spawnQueue=[],spawnT=0,docked=0;
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1,LX=0,LY=0;
+function $(id){return document.getElementById(id);}
+function resize(){const r=cv.parentElement.getBoundingClientRect();DPR=Math.min(2,window.devicePixelRatio||1);W=r.width;H=r.height;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);LX=W*0.42;LY=H*0.5;}
+window.addEventListener('resize',resize);resize();
+function saveHS(){if(score>hs){hs=score;localStorage.setItem('g100_lighthouse_hs',String(hs));}}
+function updHUD(){$('lv').textContent=lv+1;$('sh').textContent=docked;$('shT').textContent=LEVELS[lv].ships;$('sc').textContent=score;$('hs').textContent=hs;}
+
+function angDiff(a,b){let d=a-b;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;return d;}
+function beamLit(x,y){
+  const dx=x-LX,dy=y-LY,dist=Math.hypot(dx,dy);
+  if(dist>Math.hypot(W,H))return false;
+  return Math.abs(angDiff(Math.atan2(dy,dx),beamA))<HALF;
+}
+function segDist(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay,L2=dx*dx+dy*dy;
+  let t=L2?((px-ax)*dx+(py-ay)*dy)/L2:0;t=Math.max(0,Math.min(1,t));
+  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+}
+
+function newLevel(i){
+  lv=i;const L=LEVELS[lv];
+  ships=[];reefs=[];parts=[];floats=[];spawnQueue=[];docked=0;spawnT=0;
+  beamA=-Math.PI/2;beamT=-Math.PI/2;
+  resultShown=false;
+  const port={x:W-34,y:H*0.5};
+  // 暗礁：放在中部海域，尽量落在可能的航线上
+  for(let k=0;k<L.reefs;k++){
+    let rx,ry,tries=0;
+    do{rx=W*(0.2+Math.random()*0.5);ry=H*(0.15+Math.random()*0.7);tries++;}
+    while(tries<40&&reefs.some(r=>Math.hypot(r.x-rx,r.y-ry)<90));
+    reefs.push({x:rx,y:ry,r:20+Math.random()*8,lit:false});
+  }
+  // 船只出生点：左/上/下边缘
+  for(let k=0;k<L.ships;k++){
+    const e=Math.random();
+    let sx,sy;
+    if(e<0.5){sx=-30;sy=H*(0.15+Math.random()*0.7);}
+    else if(e<0.75){sx=W*(0.1+Math.random()*0.5);sy=-30;}
+    else{sx=W*(0.1+Math.random()*0.5);sy=H+30;}
+    spawnQueue.push({sx:sx,sy:sy,delay:k*2.6});
+  }
+  updHUD();
+  ['ovStart','ovHint','ovPause','ovResult','ovWin'].forEach(id=>$(id).classList.add('hidden'));
+}
+function spawnShip(q){
+  const port={x:W-34,y:H*0.5};
+  const dx=port.x-q.sx,dy=port.y-q.sy,L=Math.hypot(dx,dy);
+  const danger=reefs.filter(r=>segDist(r.x,r.y,q.sx,q.sy,port.x,port.y)<r.r+10).map(r=>({reef:r,hit:false}));
+  ships.push({x:q.sx,y:q.sy,vx:dx/L*LEVELS[lv].speed,vy:dy/L*LEVELS[lv].speed,ang:Math.atan2(dy,dx),danger:danger,state:'sail',det:0,warned:false});
+}
+
+/* ================= 输入：拖动转光束 ================= */
+let dragging=false;
+function pointAngle(e){const r=cv.getBoundingClientRect();return Math.atan2(e.clientY-r.top-LY,e.clientX-r.left-LX);}
+cv.addEventListener('pointerdown',e=>{if(!started||paused||resultShown)return;dragging=true;beamT=pointAngle(e);sClick();});
+window.addEventListener('pointermove',e=>{if(dragging&&started&&!paused&&!resultShown)beamT=pointAngle(e);});
+window.addEventListener('pointerup',()=>{dragging=false;});
+
+/* ================= 主循环 ================= */
+let lastT=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const t=ts/1000;let dt=Math.min(0.05,t-(lastT||t));lastT=t;
+  if(paused||!started)return;
+  update(dt,t);draw(t);
+}
+function update(dt,t){
+  // 光束缓动
+  beamA+=angDiff(beamT,beamA)*Math.min(1,dt*6);
+  // 暗礁是否被照亮
+  reefs.forEach(r=>{r.lit=beamLit(r.x,r.y);});
+  // 出生
+  if(spawnQueue.length){
+    spawnT+=dt;
+    while(spawnQueue.length&&spawnQueue[0].delay<=spawnT){spawnShip(spawnQueue.shift());}
+  }
+  const portX=W-34;
+  ships=ships.filter(s=>{
+    if(s.state!=='sail')return true;
+    s.x+=s.vx*dt;s.y+=s.vy*dt;
+    // 绕行偏移衰减
+    if(s.det>0){s.det-=dt;}
+    for(const d of s.danger){
+      if(d.hit)continue;
+      const dist=Math.hypot(s.x-d.reef.x,s.y-d.reef.y);
+      if(dist<d.reef.r+14){
+        if(d.reef.lit){
+          d.hit=true;
+          // 自动绕行：垂直偏移一小段
+          const nx=-s.vy,ny=s.vx,nl=Math.hypot(nx,ny)||1;
+          s.x+=nx/nl*16;s.y+=ny/nl*16;
+          floats.push({x:s.x,y:s.y-24,txt:'💨 绕行',t:0,life:1,color:'#a5d6a7'});
+          sDock();buzz(20);
+        }else{
+          // 撞沉
+          s.state='sink';s.sinkT=0;
+          for(let i=0;i<34;i++){const a=Math.random()*Math.PI*2,sp=30+Math.random()*120;parts.push({x:s.x,y:s.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-40,t:0,life:0.8+Math.random()*0.6,c:['#ff8a65','#ff7043','#ffd54f','#eceff1'][i%4],r:2+Math.random()*3});}
+          floats.push({x:s.x,y:s.y-30,txt:'💥 撞沉了！',t:0,life:2,color:'#ef9a9a'});
+          sSink();buzz([80,60,120]);
+          failLevel();
+          return true;
+        }
+      }else if(dist<d.reef.r+70&&!d.hit&&!d.reef.lit&&!s.warned){
+        s.warned=true;sWarn();
+        floats.push({x:d.reef.x,y:d.reef.y-d.reef.r-14,txt:'⚠️',t:0,life:1.4,color:'#ffd54f'});
+      }
+    }
+    if(s.x>=portX-14){ // 进港
+      s.state='dock';docked++;
+      const gain=60;score+=gain;saveHS();
+      floats.push({x:portX,y:s.y,txt:'+'+gain,t:0,life:1.4,color:'#ffd54f'});
+      sDock();updHUD();
+      if(docked>=LEVELS[lv].ships&&!resultShown)winLevel();
+      return false;
+    }
+    return true;
+  });
+  // 沉没动画计时
+  ships.forEach(s=>{if(s.state==='sink')s.sinkT=(s.sinkT||0)+dt;});
+  ships=ships.filter(s=>s.state!=='sink'||s.sinkT<1.2);
+  parts=parts.filter(p=>{p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=200*dt;return p.t<p.life;});
+  floats=floats.filter(f=>{f.t+=dt;f.y-=30*dt;return f.t<f.life;});
+}
+function winLevel(){
+  resultShown=true;
+  const gain=100+(lv+1)*50;
+  score+=gain;saveHS();
+  sWin();buzz([40,60,40]);
+  setTimeout(()=>{
+    if(lv>=LEVELS.length-1){$('winText').textContent='5 关全通！总分 '+score+'，最高 '+hs;$('ovWin').classList.remove('hidden');}
+    else{$('resTitle').textContent='🎉 全部进港！';$('resText').textContent='第 '+(lv+1)+' 关通过，得 '+gain+' 分';$('bNext').classList.remove('hidden');$('bRetry').classList.add('hidden');$('ovResult').classList.remove('hidden');}
+  },800);
+}
+function failLevel(){
+  if(resultShown)return;resultShown=true;
+  setTimeout(()=>{$('resTitle').textContent='💥 船只撞沉！';$('resText').textContent='有船撞上了没照亮的暗礁';$('bNext').classList.add('hidden');$('bRetry').classList.remove('hidden');$('ovResult').classList.remove('hidden');},1100);
+}
+
+function draw(t){
+  const grd=ctx.createLinearGradient(0,0,0,H);grd.addColorStop(0,'#0a0f2e');grd.addColorStop(1,'#241203');
+  ctx.fillStyle=grd;ctx.fillRect(0,0,W,H);
+  // 海浪纹
+  ctx.strokeStyle='rgba(255,180,80,.08)';ctx.lineWidth=2;
+  for(let i=0;i<5;i++){ctx.beginPath();const yy=H*0.12+i*H*0.18;for(let x=0;x<=W;x+=24)ctx.lineTo(x,yy+Math.sin(x*0.02+t*1.2+i)*8);ctx.stroke();}
+  const range=Math.hypot(W,H);
+  // 光束
+  ctx.save();ctx.translate(LX,LY);ctx.rotate(beamA);
+  const bg=ctx.createLinearGradient(0,0,range,0);
+  bg.addColorStop(0,'rgba(255,220,120,.5)');bg.addColorStop(1,'rgba(255,220,120,.03)');
+  ctx.fillStyle=bg;ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,range,-HALF,HALF);ctx.closePath();ctx.fill();
+  ctx.restore();
+  // 中央岛 + 灯塔
+  ctx.fillStyle='#2e4a2e';ctx.beginPath();ctx.arc(LX,LY,34,0,7);ctx.fill();
+  ctx.fillStyle='#3d5f3d';ctx.beginPath();ctx.arc(LX,LY,26,0,7);ctx.fill();
+  ctx.font='38px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🗼',LX,LY-4);
+  // 港口
+  ctx.fillStyle='rgba(255,152,0,.25)';ctx.fillRect(W-52,H*0.5-70,52,140);
+  ctx.strokeStyle='#ff9800';ctx.lineWidth=3;ctx.strokeRect(W-52,H*0.5-70,52,140);
+  ctx.font='30px system-ui';ctx.fillText('⚓',W-26,H*0.5);
+  // 暗礁
+  reefs.forEach(r=>{
+    if(r.lit){ctx.strokeStyle='rgba(255,220,120,'+(0.5+0.3*Math.sin(t*6))+')';ctx.lineWidth=3;ctx.beginPath();ctx.arc(r.x,r.y,r.r+8,0,7);ctx.stroke();}
+    ctx.font=(r.r*1.7)+'px system-ui';ctx.fillText('🪨',r.x,r.y);
+  });
+  // 船只
+  ships.forEach(s=>{
+    if(s.state==='dock')return;
+    ctx.save();ctx.translate(s.x,s.y);
+    if(s.state==='sink'){ctx.globalAlpha=Math.max(0,1-(s.sinkT||0));ctx.rotate(s.ang+ (s.sinkT||0)*2);}
+    else ctx.rotate(s.ang);
+    ctx.font='30px system-ui';ctx.fillText('🚢',0,0);
+    ctx.restore();ctx.globalAlpha=1;
+  });
+  // 粒子 / 飘字
+  parts.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();ctx.globalAlpha=1;});
+  ctx.textAlign='center';
+  floats.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/f.life);ctx.fillStyle=f.color;ctx.font='bold 16px system-ui';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;});
+  // 操作提示
+  ctx.fillStyle='rgba(8,6,16,.6)';ctx.fillRect(10,H-40,Math.min(280,W-20),30);
+  ctx.fillStyle='#ffe0b2';ctx.font='14px system-ui';ctx.textAlign='left';
+  ctx.fillText('👆 按住拖动旋转光束，照亮暗礁 🪨',20,H-20);
+}
+
+/* ================= 按钮 ================= */
+$('bStart').onclick=()=>{sClick();started=true;newLevel(0);requestAnimationFrame(loop);};
+$('bHint').onclick=()=>{sClick();$('ovHint').classList.remove('hidden');};
+$('bCloseHint').onclick=()=>{sClick();$('ovHint').classList.add('hidden');};
+$('bPause').onclick=()=>{if(!started||resultShown)return;sClick();paused=true;$('ovPause').classList.remove('hidden');};
+$('bResume').onclick=()=>{sClick();paused=false;$('ovPause').classList.add('hidden');};
+$('bRestart').onclick=()=>{sClick();paused=false;newLevel(lv);};
+$('bNext').onclick=()=>{sClick();newLevel(lv+1);};
+$('bRetry').onclick=()=>{sClick();newLevel(lv);};
+$('bAgain').onclick=()=>{sClick();score=0;newLevel(0);updHUD();};
+$('bMute').onclick=function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');this.textContent=muted?'🔇':'🔊';if(!muted)sClick();};
+if(muted)$('bMute').textContent='🔇';
+updHUD();
+</script>
+</body>
+</html>

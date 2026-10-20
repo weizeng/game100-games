@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>潮汐寻宝</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;background:linear-gradient(180deg,#012a26,#013b35);color:#e0f2f1;font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;user-select:none;-webkit-user-select:none;}
+#wrap{position:fixed;inset:0;display:flex;flex-direction:column;touch-action:none;}
+#hud{display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:5;flex-wrap:wrap;}
+.stat{background:rgba(0,105,92,.5);border:1px solid rgba(100,220,200,.35);border-radius:12px;padding:7px 10px;font-size:14px;white-space:nowrap;}
+.spacer{flex:1;}
+.btn{min-width:44px;min-height:44px;border:1px solid rgba(100,220,200,.4);border-radius:12px;background:rgba(0,105,92,.6);color:#fff;font-size:20px;cursor:pointer;}
+.btn:active{transform:scale(.93);}
+#cvwrap{flex:1;position:relative;}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(1,20,18,.87);z-index:10;padding:20px;}
+.card{background:linear-gradient(160deg,#04403a,#021a17);border:1px solid rgba(100,220,200,.4);border-radius:20px;padding:26px 22px;max-width:430px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.55);max-height:92%;overflow-y:auto;}
+.card h1{font-size:34px;margin-bottom:10px;}
+.card h2{font-size:26px;margin-bottom:12px;}
+.card p{font-size:15px;line-height:1.75;color:#b2dfdb;margin-bottom:12px;text-align:left;}
+.card p.center{text-align:center;}
+.bigbtn{display:block;width:100%;min-height:52px;margin-top:10px;border:none;border-radius:14px;font-size:19px;font-weight:700;color:#fff;background:linear-gradient(135deg,#009688,#00695c);cursor:pointer;}
+.bigbtn.ghost{background:rgba(255,255,255,.1);border:1px solid rgba(100,220,200,.4);}
+.bigbtn:active{transform:scale(.97);}
+.kbd{display:inline-block;background:rgba(255,255,255,.14);border-radius:6px;padding:1px 8px;color:#fff;font-weight:700;}
+.hidden{display:none!important;}
+.tip{font-size:13px;color:#80cbc4;margin-top:8px;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="stat">🌊 第<span id="lv">1</span>/5关</div>
+    <div class="stat">💰 <span id="tr">0</span>/<span id="trT">2</span></div>
+    <div class="stat">👣 <span id="st">0</span></div>
+    <div class="stat">⏱ <span id="tm">75</span>s</div>
+    <div class="stat">⭐ <span id="sc">0</span></div>
+    <div class="stat">🏆 <span id="hs">0</span></div>
+    <div class="spacer"></div>
+    <button class="btn" id="bHint">💡</button>
+    <button class="btn" id="bMute">🔊</button>
+    <button class="btn" id="bPause">⏸</button>
+  </div>
+  <div id="cvwrap">
+    <canvas id="cv"></canvas>
+
+    <div class="overlay" id="ovStart">
+      <div class="card">
+        <h1>🌊 潮汐寻宝</h1>
+        <p class="center">潜水员要穿过潮汐之门，拿走所有宝箱！</p>
+        <p>1️⃣ 点<span class="kbd">相邻格子</span>移动潜水员 🤿，拿光所有宝箱 💰 即过关。<br>
+        2️⃣ <span class="kbd">🌊 涨潮门</span>（蓝色）：涨潮时开、退潮时关。<br>
+        3️⃣ <span class="kbd">🏖 退潮门</span>（沙色）：退潮时开、涨潮时关。<br>
+        4️⃣ 潮汐每 <span class="kbd">4 秒</span>切换一次，关着的门是墙、走不过去。<br>
+        5️⃣ 每关有<span class="kbd">步数</span>和<span class="kbd">时间</span>限制，用完即失败。<br>
+        6️⃣ 共 5 关，地图越来越大、门越来越多。</p>
+        <button class="bigbtn" id="bStart">开始潜水</button>
+        <div class="tip">💡 卡住就点右上角 💡 看潮汐思路</div>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovHint">
+      <div class="card">
+        <h2>💡 潮汐思路</h2>
+        <p>🔹 潮汐每 4 秒切换：<span class="kbd">记住周期</span>，盯着顶部的倒计时条。<br>
+        🔹 提前站在要过的门旁边<span class="kbd">等门开</span>，别绕远路。<br>
+        🔹 蓝色 🌊 门和沙色 🏖 门开合时机正好相反——规划路线时把<span class="kbd">两种门串起来</span>，一次涨潮走蓝门、一次退潮走沙门。<br>
+        🔹 宝箱一般在门后面：先看清整张图，再决定先拿哪个。<br>
+        🔹 步数比时间更宝贵，能直走就别绕。</p>
+        <button class="bigbtn" id="bCloseHint">明白了</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovPause">
+      <div class="card">
+        <h2>⏸ 已暂停</h2>
+        <p class="center">潮汐已冻结……</p>
+        <button class="bigbtn" id="bResume">继续</button>
+        <button class="bigbtn ghost" id="bRestart">重开本关</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovResult">
+      <div class="card">
+        <h2 id="resTitle">🎉 宝箱全拿！</h2>
+        <p class="center" id="resText"></p>
+        <button class="bigbtn" id="bNext">下一关 ➜</button>
+        <button class="bigbtn ghost hidden" id="bRetry">重试本关</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="ovWin">
+      <div class="card">
+        <h1>🏆 深海寻宝王！</h1>
+        <p class="center" id="winText"></p>
+        <button class="bigbtn" id="bAgain">再来一局</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ================= 音效 ================= */
+let AC=null;
+let muted=localStorage.getItem('g100_mute')==='1';
+function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}catch(e){return null;}}
+function tone(f,t0,d,type,v,slide){if(muted)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+t0;o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,slide),t+d);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.18,t+0.015);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.06);}catch(e){}}
+const sClick=()=>tone(660,0,0.06,'triangle',0.13);
+const sStep=()=>tone(300,0,0.05,'sine',0.08,380);
+const sGate=()=>tone(520,0,0.12,'sine',0.12,780);
+const sScore=()=>{tone(784,0,0.1,'triangle',0.18);tone(1047,0.09,0.18,'triangle',0.18);};
+const sTide=()=>{tone(240,0,0.4,'sine',0.12,520);};
+const sWin=()=>{[523,659,784,1047,1319].forEach((f,i)=>tone(f,i*0.11,0.2,'triangle',0.2));};
+const sFail=()=>tone(200,0,0.5,'sawtooth',0.2,70);
+function buzz(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+
+/* ================= 状态 ================= */
+const LEVELS=[
+  {n:6,gates:2,tr:2,steps:40,time:75},
+  {n:7,gates:4,tr:3,steps:48,time:70},
+  {n:8,gates:6,tr:3,steps:56,time:65},
+  {n:8,gates:8,tr:4,steps:62,time:62},
+  {n:9,gates:10,tr:4,steps:70,time:60}
+];
+const TIDE_PERIOD=4;
+let lv=0,score=0,hs=parseInt(localStorage.getItem('g100_tideseek_hs')||'0',10)||0;
+let started=false,paused=false,resultShown=false;
+let N=6,cells=[],px=0,py=0,treasures=[],got=0,stepsLeft=0,timeLeft=0,tideT=0,highTide=true;
+let dx=0,dy=0,moveT=1; // 潜水员插值动画
+let parts=[],floats=[];
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function $(id){return document.getElementById(id);}
+function resize(){const r=cv.parentElement.getBoundingClientRect();DPR=Math.min(2,window.devicePixelRatio||1);W=r.width;H=r.height;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+window.addEventListener('resize',resize);resize();
+function saveHS(){if(score>hs){hs=score;localStorage.setItem('g100_tideseek_hs',String(hs));}}
+function updHUD(){$('lv').textContent=lv+1;$('tr').textContent=got;$('trT').textContent=treasures.length;$('st').textContent=stepsLeft;$('tm').textContent=Math.ceil(timeLeft);$('sc').textContent=score;$('hs').textContent=hs;}
+function gateOpen(c){ // c: 0空地 1涨潮门 2退潮门
+  if(c===1)return highTide;
+  if(c===2)return !highTide;
+  return true;
+}
+
+function newLevel(i){
+  lv=i;const L=LEVELS[lv];
+  N=L.n;cells=[];treasures=[];got=0;stepsLeft=L.steps;timeLeft=L.time;tideT=0;highTide=true;
+  parts=[];floats=[];resultShown=false;
+  px=0;py=0;dx=0;dy=0;moveT=1;
+  for(let y=0;y<N;y++){cells.push([]);for(let x=0;x<N;x++)cells[y].push(0);}
+  const taken={'0,0':1};
+  const pick=()=>{let x,y,k=0;do{x=Math.floor(Math.random()*N);y=Math.floor(Math.random()*N);k++;}while(taken[x+','+y]&&k<200);taken[x+','+y]=1;return{x:x,y:y};};
+  // 宝箱：离起点稍远
+  for(let k=0;k<L.tr;k++){const p=pick();treasures.push({x:p.x,y:p.y,got:false});}
+  // 潮汐门：交替两种
+  for(let k=0;k<L.gates;k++){const p=pick();cells[p.y][p.x]=(k%2===0)?1:2;}
+  updHUD();
+  ['ovStart','ovHint','ovPause','ovResult','ovWin'].forEach(id=>$(id).classList.add('hidden'));
+}
+function grid(){const s=Math.min((W-24)/N,(H-24)/N);return{s:s,ox:(W-s*N)/2,oy:(H-s*N)/2};}
+
+cv.addEventListener('pointerdown',e=>{
+  if(!started||paused||resultShown||moveT<1)return;
+  const r=cv.getBoundingClientRect();
+  const g=grid();
+  const x=Math.floor((e.clientX-r.left-g.ox)/g.s),y=Math.floor((e.clientY-r.top-g.oy)/g.s);
+  if(x<0||y<0||x>=N||y>=N)return;
+  if(Math.abs(x-px)+Math.abs(y-py)!==1)return; // 只走相邻
+  if(!gateOpen(cells[y][x])){ // 门关着
+    floats.push({x:g.ox+(x+0.5)*g.s,y:g.oy+(y+0.5)*g.s,txt:highTide?'退潮才开 🏖':'涨潮才开 🌊',t:0,life:1.4,color:'#ffcc80'});
+    sClick();buzz(30);return;
+  }
+  if(stepsLeft<=0)return;
+  dx=x;dy=y;moveT=0;stepsLeft--;sStep();
+  // 踩到宝箱
+  const tr=treasures.find(t=>!t.got&&t.x===x&&t.y===y);
+  if(tr){
+    tr.got=true;got++;
+    const gain=80;score+=gain;saveHS();
+    const cx=g.ox+(x+0.5)*g.s,cy=g.oy+(y+0.5)*g.s;
+    for(let k=0;k<26;k++){const a=Math.random()*Math.PI*2,sp=40+Math.random()*120;parts.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-50,t:0,life:0.7+Math.random()*0.5,c:['#ffd54f','#ffca28','#fff176'][k%3],r:2+Math.random()*3});}
+    floats.push({x:cx,y:cy-g.s*0.6,txt:'+'+gain,t:0,life:1.5,color:'#ffd54f'});
+    sScore();buzz(40);
+    updHUD();
+    if(got>=treasures.length){setTimeout(()=>{if(!resultShown)winLevel();},450);return;}
+  }
+  updHUD();
+  if(stepsLeft<=0)setTimeout(()=>{if(!resultShown)failLevel('👣 步数用完了！');},450);
+});
+
+function winLevel(){
+  resultShown=true;
+  const gain=100+(lv+1)*60+Math.ceil(timeLeft)+stepsLeft*2;
+  score+=gain;saveHS();
+  sWin();buzz([40,60,40]);
+  setTimeout(()=>{
+    if(lv>=LEVELS.length-1){$('winText').textContent='5 关全通！总分 '+score+'，最高 '+hs;$('ovWin').classList.remove('hidden');}
+    else{$('resTitle').textContent='🎉 宝箱全拿！';$('resText').textContent='第 '+(lv+1)+' 关通过，得 '+gain+' 分（剩余步数+时间奖励）';$('bNext').classList.remove('hidden');$('bRetry').classList.add('hidden');$('ovResult').classList.remove('hidden');}
+  },600);
+}
+function failLevel(msg){
+  if(resultShown)return;resultShown=true;
+  sFail();buzz(150);
+  setTimeout(()=>{$('resTitle').textContent='💥 失败';$('resText').textContent=msg||'再接再厉';$('bNext').classList.add('hidden');$('bRetry').classList.remove('hidden');$('ovResult').classList.remove('hidden');},600);
+}
+
+/* ================= 主循环 ================= */
+let lastT=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const t=ts/1000;let dt=Math.min(0.05,t-(lastT||t));lastT=t;
+  if(paused||!started)return;
+  update(dt);draw(t);
+}
+function update(dt){
+  // 潮汐
+  tideT+=dt;
+  if(tideT>=TIDE_PERIOD){tideT=0;highTide=!highTide;sTide();floats.push({x:W/2,y:70,txt:highTide?'🌊 涨潮！蓝门开了':'🏖 退潮！沙门开了',t:0,life:1.8,color:'#80deea'});}
+  timeLeft-=dt;
+  if(timeLeft<=0){timeLeft=0;failLevel('⏱ 时间到了！');}
+  if(moveT<1)moveT=Math.min(1,moveT+dt*5);
+  if(moveT>=1){px=dx;py=dy;}
+  parts=parts.filter(p=>{p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=240*dt;return p.t<p.life;});
+  floats=floats.filter(f=>{f.t+=dt;f.y-=30*dt;return f.t<f.life;});
+  updHUD();
+}
+function draw(t){
+  const grd=ctx.createLinearGradient(0,0,0,H);grd.addColorStop(0,'#012a26');grd.addColorStop(1,'#013b35');
+  ctx.fillStyle=grd;ctx.fillRect(0,0,W,H);
+  const g=grid();
+  // 潮汐倒计时条
+  const bw=Math.min(320,W-40),bx=(W-bw)/2,by=8;
+  ctx.fillStyle='rgba(0,0,0,.4)';rr(bx,by,bw,26,13);ctx.fill();
+  const frac=1-tideT/TIDE_PERIOD;
+  ctx.fillStyle=highTide?'#29b6f6':'#d7a86e';rr(bx+3,by+3,(bw-6)*frac,20,10);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText((highTide?'🌊 涨潮 ':'🏖 退潮 ')+Math.ceil(TIDE_PERIOD-tideT)+'s',W/2,by+13);
+  // 图例
+  ctx.font='12px system-ui';ctx.textAlign='left';
+  ctx.fillStyle='#b2dfdb';ctx.fillText('🌊蓝门涨潮开   🏖沙门退潮开',12,by+40);
+
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const px0=g.ox+x*g.s+2,py0=g.oy+y*g.s+3,w=g.s-4,h=g.s-5;
+    const c=cells[y][x];
+    if(c===0){
+      const sh=Math.sin(t*1.4+x*0.6+y*0.8)*0.5+0.5;
+      ctx.fillStyle='rgba(0,120,110,'+(0.22+sh*0.08)+')';
+    }else if(c===1){
+      ctx.fillStyle=gateOpen(c)?'rgba(41,182,246,.55)':'rgba(41,182,246,.13)';
+    }else{
+      ctx.fillStyle=gateOpen(c)?'rgba(215,168,110,.55)':'rgba(215,168,110,.13)';
+    }
+    rr(px0,py0,w,h,7);ctx.fill();
+    if(c===1||c===2){
+      ctx.font=(g.s*0.4)+'px system-ui';ctx.textAlign='center';
+      ctx.fillText(gateOpen(c)?(c===1?'🌊':'🏖'):'🔒',px0+w/2,py0+h/2);
+    }
+    // 可走高亮（潜水员相邻）
+    if(moveT>=1&&Math.abs(x-px)+Math.abs(y-py)===1&&gateOpen(cells[y][x])){
+      ctx.strokeStyle='rgba(255,235,150,'+(0.5+0.3*Math.sin(t*5))+')';ctx.lineWidth=2;rr(px0,py0,w,h,7);ctx.stroke();
+    }
+  }
+  // 宝箱
+  treasures.forEach(tr=>{
+    if(tr.got)return;
+    const cx=g.ox+(tr.x+0.5)*g.s,cy=g.oy+(tr.y+0.5)*g.s+Math.sin(t*3+tr.x)*3;
+    ctx.font=(g.s*0.5)+'px system-ui';ctx.textAlign='center';ctx.fillText('💰',cx,cy);
+  });
+  // 潜水员（插值移动）
+  const ix=px+(dx-px)*easeOut(moveT),iy=py+(dy-py)*easeOut(moveT);
+  const cx=g.ox+(ix+0.5)*g.s,cy=g.oy+(iy+0.5)*g.s;
+  ctx.font=(g.s*0.55)+'px system-ui';ctx.textAlign='center';ctx.fillText('🤿',cx,cy);
+  // 粒子 / 飘字
+  parts.forEach(p=>{ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();ctx.globalAlpha=1;});
+  floats.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/f.life);ctx.fillStyle=f.color;ctx.font='bold 16px system-ui';ctx.textAlign='center';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;});
+}
+function easeOut(x){return 1-Math.pow(1-x,3);}
+function rr(x,y,w,h,rad){ctx.beginPath();ctx.moveTo(x+rad,y);ctx.arcTo(x+w,y,x+w,y+h,rad);ctx.arcTo(x+w,y+h,x,y+h,rad);ctx.arcTo(x,y+h,x,y,rad);ctx.arcTo(x,y,x+w,y,rad);ctx.closePath();}
+
+/* ================= 按钮 ================= */
+$('bStart').onclick=()=>{sClick();started=true;newLevel(0);requestAnimationFrame(loop);};
+$('bHint').onclick=()=>{sClick();$('ovHint').classList.remove('hidden');};
+$('bCloseHint').onclick=()=>{sClick();$('ovHint').classList.add('hidden');};
+$('bPause').onclick=()=>{if(!started||resultShown)return;sClick();paused=true;$('ovPause').classList.remove('hidden');};
+$('bResume').onclick=()=>{sClick();paused=false;$('ovPause').classList.add('hidden');};
+$('bRestart').onclick=()=>{sClick();paused=false;newLevel(lv);};
+$('bNext').onclick=()=>{sClick();newLevel(lv+1);};
+$('bRetry').onclick=()=>{sClick();newLevel(lv);};
+$('bAgain').onclick=()=>{sClick();score=0;newLevel(0);updHUD();};
+$('bMute').onclick=function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');this.textContent=muted?'🔇':'🔊';if(!muted)sClick();};
+if(muted)$('bMute').textContent='🔇';
+updHUD();
+</script>
+</body>
+</html>

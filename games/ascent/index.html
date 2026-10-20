@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>深海归途</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#001a2e;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;color:#e1f5fe}
+#cv{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;z-index:5;pointer-events:none}
+.hud .btn{pointer-events:auto}
+.btn{width:44px;height:44px;font-size:22px;background:rgba(2,119,189,.55);border:2px solid #4fc3f7;border-radius:12px;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center}
+.scoreBox{text-align:center;font-size:15px;font-weight:bold;color:#b3e5fc;text-shadow:0 0 8px #0288d1}
+.oxyWrap{position:fixed;top:64px;left:12px;right:12px;z-index:5;pointer-events:none}
+.oxyBar{height:16px;background:rgba(0,0,0,.55);border:2px solid #4fc3f7;border-radius:9px;overflow:hidden}
+.oxyFill{height:100%;width:100%;background:linear-gradient(90deg,#00e5ff,#0277bd);border-radius:6px;transition:width .2s}
+.oxyLabel{font-size:12px;color:#b3e5fc;margin-top:2px;text-shadow:0 1px 2px #000}
+.overlay{position:fixed;inset:0;background:rgba(0,20,40,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;padding:24px;text-align:center}
+.overlay h1{font-size:42px;margin-bottom:6px;color:#4fc3f7;text-shadow:0 0 18px #0288d1}
+.overlay h2{font-size:20px;margin-bottom:14px;color:#81d4fa}
+.overlay p{font-size:15px;line-height:1.8;color:#b3e5fc;margin-bottom:18px;max-width:320px}
+.bigBtn{min-width:180px;min-height:52px;font-size:20px;font-weight:bold;background:linear-gradient(180deg,#0288d1,#01579b);color:#fff;border:3px solid #4fc3f7;border-radius:16px;cursor:pointer;box-shadow:0 0 20px rgba(2,119,189,.7);padding:12px 28px}
+.bigBtn:active{transform:scale(.95)}
+.hidden{display:none!important}
+.hsLine{font-size:14px;color:#ffd54f;margin-top:12px}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div class="hud">
+  <button class="btn" id="pauseBtn">⏸</button>
+  <div class="scoreBox">🏆 <span id="score">0</span><br><span style="font-size:11px;font-weight:normal">最高 <span id="hs">0</span></span></div>
+  <button class="btn" id="muteBtn">🔊</button>
+</div>
+<div class="oxyWrap"><div class="oxyBar"><div class="oxyFill" id="oxyFill"></div></div><div class="oxyLabel">🫧 氧气 <span id="depth">2000</span>m</div></div>
+<div class="overlay" id="startOv">
+  <h1>🤿</h1><h2>深海归途</h2>
+  <p>潜水员从海底自动上浮！左右拖动躲避障碍。<br>🫧氧气瓶回氧 · 🪼水母扣氧+减速<br>🦈鲨鱼扣大氧 · 到达海面过关，越深越难！</p>
+  <button class="bigBtn" id="startBtn">开始上浮</button>
+  <div class="hsLine">最高分：<span id="hsStart">0</span></div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <h1>⏸</h1><h2>已暂停</h2>
+  <button class="bigBtn" id="resumeBtn">继续</button>
+</div>
+<div class="overlay hidden" id="endOv">
+  <h1 id="endEmoji">💀</h1><h2 id="endTitle">氧气耗尽</h2>
+  <p id="endDesc"></p>
+  <button class="bigBtn" id="retryBtn">再来一次</button>
+  <div class="hsLine">最高分：<span id="hsEnd">0</span></div>
+</div>
+<script>
+'use strict';
+// ===== 深海归途：竖版上浮躲避 =====
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(2,window.devicePixelRatio||1);W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+window.addEventListener('resize',resize);resize();
+
+// ===== 音效 =====
+var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function tone(f,d,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,f+slide),c.currentTime+d);g.gain.setValueAtTime(vol||.18,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+d);}catch(e){}}
+function sndClick(){tone(600,.08,'square',.1);}
+function sndScore(){tone(880,.12,'sine',.18);setTimeout(function(){tone(1320,.15,'sine',.18);},90);}
+function sndFail(){tone(220,.4,'sawtooth',.2,-150);}
+function sndWin(){var n=[523,659,784,1046],i=0;(function p(){if(i<n.length){tone(n[i],.18,'triangle',.2);i++;setTimeout(p,140);}})();}
+function sndHurt(){tone(150,.25,'sawtooth',.22,-80);}
+function updateMuteBtn(){document.getElementById('muteBtn').textContent=muted?'🔇':'🔊';}
+updateMuteBtn();
+
+// ===== 游戏状态 =====
+var HSKEY='g100_ascent_hs',hs=parseInt(localStorage.getItem(HSKEY)||'0',10)||0;
+var state='start',level=1,score=0,oxygen=100,depth=0,depthMax=0;
+var player={x:0,y:0,r:22,slowT:0};
+var ents=[],parts=[],floats=[],bubbles=[];
+var spawnT=0,lastT=0,dist=0;
+var easeT=0;
+
+function newLevel(lv){
+  level=lv;depthMax=1200+lv*800;depth=depthMax;oxygen=100;
+  player.x=W/2;player.y=H*0.72;player.slowT=0;
+  ents=[];parts=[];floats=[];bubbles=[];spawnT=0;dist=0;
+}
+function startGame(){level=1;score=0;newLevel(1);state='play';hideAll();lastT=performance.now();sndClick();}
+function hideAll(){['startOv','pauseOv','endOv'].forEach(function(id){document.getElementById(id).classList.add('hidden');});}
+function showEnd(win,extra){
+  state='end';
+  var e=document.getElementById('endEmoji'),t=document.getElementById('endTitle'),d=document.getElementById('endDesc');
+  if(win){e.textContent='🌅';t.textContent='第'+level+'关 · 到达海面！';sndWin();}
+  else{e.textContent='💀';t.textContent='氧气耗尽';sndFail();}
+  if(score>hs){hs=score;localStorage.setItem(HSKEY,String(hs));}
+  d.textContent='得分 '+score+' ｜ 剩余氧气 +'+Math.round(oxygen*2)+' 奖励'+(extra||'');
+  document.getElementById('hsEnd').textContent=hs;
+  document.getElementById('endOv').classList.remove('hidden');
+  if(win){ // 下一关奖励结算并自动继续
+    score+=Math.round(oxygen*2)+level*500;
+    setTimeout(function(){newLevel(level+1);state='play';hideAll();lastT=performance.now();},1600);
+  }
+}
+function burst(x,y,n,col){for(var i=0;i<n;i++){var a=Math.random()*Math.PI*2,s=40+Math.random()*120;parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.7+Math.random()*.4,t:0,col:col,r:2+Math.random()*3});}}
+function floatText(x,y,txt,col){floats.push({x:x,y:y,txt:txt,t:0,col:col||'#fff'});}
+function vibrate(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+
+// ===== 输入：拖动左右移动 =====
+var targetX=null;
+function onMove(x){if(state==='play')targetX=x;}
+cv.addEventListener('pointerdown',function(e){ac();onMove(e.clientX);});
+cv.addEventListener('pointermove',function(e){if(e.buttons)onMove(e.clientX);});
+document.getElementById('pauseBtn').addEventListener('click',function(){if(state==='play'){state='pause';document.getElementById('pauseOv').classList.remove('hidden');sndClick();}});
+document.getElementById('resumeBtn').addEventListener('click',function(){document.getElementById('pauseOv').classList.add('hidden');state='play';lastT=performance.now();sndClick();});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('retryBtn').addEventListener('click',startGame);
+document.getElementById('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');updateMuteBtn();if(!muted)sndClick();});
+
+// ===== 生成障碍 =====
+function spawn(){
+  var density=Math.min(.9,.45+level*.08);
+  if(Math.random()>density)return;
+  var x=30+Math.random()*(W-60),r=Math.random();
+  if(r<.30){ents.push({t:'tank',x:x,y:-40,r:20,vy:60+level*8,sway:0});}
+  else if(r<.58){ents.push({t:'jelly',x:x,y:-40,r:24,vy:70+level*10,sway:1.5+Math.random(),ph:Math.random()*6});}
+  else{var dir=Math.random()<.5?-1:1;ents.push({t:'shark',x:dir<0?W+50:-50,y:-60-Math.random()*H*.5,r:34,vy:40+level*6,vx:dir*(90+level*14+Math.random()*40)});}
+}
+
+function step(dt){
+  // 氧气消耗
+  oxygen-=dt*2.2;
+  if(oxygen<=0){oxygen=0;showEnd(false);return;}
+  var spd=(player.slowT>0?0.55:1)*(1+level*.12);
+  player.slowT=Math.max(0,player.slowT-dt);
+  // 上浮
+  var asc=110*spd;depth-=asc*dt;dist+=asc*dt;
+  score+=Math.round(asc*dt*0.1);
+  if(targetX!==null){player.x+=(targetX-player.x)*Math.min(1,dt*10);}
+  player.x=Math.max(20,Math.min(W-20,player.x));
+  // 实体
+  spawnT-=dt;if(spawnT<=0){spawn();spawnT=Math.max(.25,.75-level*.06);}
+  for(var i=ents.length-1;i>=0;i--){var e=ents[i];
+    e.y+=e.vy*dt*spd+(e.t==='tank'||e.t==='jelly'?asc*dt*0.5:0);
+    if(e.t==='jelly'){e.x+=Math.sin(e.ph+=dt*e.sway)*40*dt;}
+    if(e.t==='shark'){e.x+=e.vx*dt;}
+    if(e.y>H+80||e.x<-90||e.x>W+90){ents.splice(i,1);continue;}
+    var dx=e.x-player.x,dy=e.y-player.y,rr=e.r+player.r;
+    if(dx*dx+dy*dy<rr*rr){
+      if(e.t==='tank'){oxygen=Math.min(100,oxygen+30);score+=50;sndScore();burst(e.x,e.y,12,'#4fc3f7');floatText(e.x,e.y,'+30 🫧','#4fc3f7');}
+      else if(e.t==='jelly'){oxygen-=12;player.slowT=2;sndHurt();vibrate(80);burst(e.x,e.y,14,'#ce93d8');floatText(e.x,e.y,'-12 🪼','#ce93d8');}
+      else{oxygen-=35;sndHurt();vibrate([60,40,60]);burst(e.x,e.y,20,'#ef5350');floatText(e.x,e.y,'-35 🦈','#ef5350');}
+      ents.splice(i,1);continue;
+    }
+  }
+  // 气泡背景
+  if(Math.random()<dt*8)bubbles.push({x:Math.random()*W,y:H+10,r:1+Math.random()*3,vy:30+Math.random()*40});
+  for(var b=bubbles.length-1;b>=0;b--){bubbles[b].y-=bubbles[b].vy*dt;if(bubbles[b].y<-10)bubbles.splice(b,1);}
+  // 粒子/飘字
+  for(var p=parts.length-1;p>=0;p--){var q=parts[p];q.t+=dt;if(q.t>q.life){parts.splice(p,1);continue;}q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=60*dt;}
+  for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.t+=dt;fl.y-=40*dt;if(fl.t>1.1)floats.splice(f,1);}
+  if(depth<=0){depth=0;showEnd(true,'');return;}
+  document.getElementById('score').textContent=score;
+  document.getElementById('hs').textContent=hs;
+  document.getElementById('oxyFill').style.width=oxygen+'%';
+  document.getElementById('depth').textContent=Math.ceil(depth);
+}
+
+function draw(){
+  var g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#013a63');g.addColorStop(.5,'#012a4a');g.addColorStop(1,'#000d1a');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // 海面光
+  if(depth<400){ctx.fillStyle='rgba(79,195,247,'+(0.25*(1-depth/400))+')';ctx.fillRect(0,0,W,60);}
+  ctx.fillStyle='rgba(179,229,252,.5)';
+  bubbles.forEach(function(b){ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();});
+  // 实体
+  ents.forEach(function(e){
+    ctx.font=(e.r*2)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    var em=e.t==='tank'?'🫧':e.t==='jelly'?'🪼':'🦈';
+    if(e.t==='shark'&&e.vx>0){ctx.save();ctx.translate(e.x,e.y);ctx.scale(-1,1);ctx.fillText(em,0,0);ctx.restore();}
+    else ctx.fillText(em,e.x,e.y);
+  });
+  // 潜水员（缓动浮动）
+  easeT+=0.016;
+  var fy=player.y+Math.sin(easeT*4)*4;
+  ctx.font='52px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🤿',player.x,fy);
+  if(player.slowT>0){ctx.font='20px serif';ctx.fillText('🐌',player.x+24,fy-24);}
+  // 粒子
+  parts.forEach(function(q){ctx.globalAlpha=1-q.t/q.life;ctx.fillStyle=q.col;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,7);ctx.fill();});
+  ctx.globalAlpha=1;
+  // 飘字
+  ctx.font='bold 18px sans-serif';
+  floats.forEach(function(fl){ctx.globalAlpha=1-fl.t/1.1;ctx.fillStyle=fl.col;ctx.fillText(fl.txt,fl.x,fl.y);});
+  ctx.globalAlpha=1;
+  // 关卡
+  ctx.font='bold 14px sans-serif';ctx.textAlign='left';ctx.fillStyle='#81d4fa';
+  ctx.fillText('第'+level+'关',12,H-14);
+}
+
+function loop(t){
+  requestAnimationFrame(loop);
+  if(state!=='play')return;
+  var dt=Math.min(.05,(t-lastT)/1000||.016);lastT=t;
+  step(dt);draw();
+}
+document.getElementById('hsStart').textContent=hs;
+document.getElementById('hs').textContent=hs;
+draw();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

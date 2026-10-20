@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>章鱼喷墨</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#12061f;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;color:#f3e5f5}
+#cv{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;z-index:5;pointer-events:none}
+.hud .btn{pointer-events:auto}
+.btn{width:44px;height:44px;font-size:22px;background:rgba(74,20,140,.6);border:2px solid #ce93d8;border-radius:12px;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center}
+.scoreBox{text-align:center;font-size:15px;font-weight:bold;color:#e1bee7;text-shadow:0 0 8px #7b1fa2}
+.statBar{position:fixed;top:64px;left:12px;right:12px;z-index:5;pointer-events:none;display:flex;gap:12px;align-items:center}
+.hearts{font-size:20px;letter-spacing:2px}
+.inkWrap{flex:1}
+.inkBar{height:14px;background:rgba(0,0,0,.55);border:2px solid #ce93d8;border-radius:8px;overflow:hidden}
+.inkFill{height:100%;width:100%;background:linear-gradient(90deg,#7b1fa2,#e1bee7);transition:width .2s}
+.inkLabel{font-size:12px;color:#e1bee7;margin-top:2px}
+.overlay{position:fixed;inset:0;background:rgba(20,5,35,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;padding:24px;text-align:center}
+.overlay h1{font-size:42px;margin-bottom:6px;color:#ce93d8;text-shadow:0 0 18px #7b1fa2}
+.overlay h2{font-size:20px;margin-bottom:14px;color:#e1bee7}
+.overlay p{font-size:15px;line-height:1.8;color:#ce93d8;margin-bottom:18px;max-width:330px}
+.bigBtn{min-width:180px;min-height:52px;font-size:20px;font-weight:bold;background:linear-gradient(180deg,#7b1fa2,#4a148c);color:#fff;border:3px solid #ce93d8;border-radius:16px;cursor:pointer;box-shadow:0 0 20px rgba(123,31,162,.7);padding:12px 28px}
+.bigBtn:active{transform:scale(.95)}
+.hidden{display:none!important}
+.hsLine{font-size:14px;color:#ffd54f;margin-top:12px}
+#fireBtn{position:fixed;right:18px;bottom:26px;width:84px;height:84px;border-radius:50%;font-size:36px;background:radial-gradient(circle at 35% 30%,#8e24aa,#4a148c);border:3px solid #e1bee7;color:#fff;z-index:6;box-shadow:0 0 24px rgba(142,36,170,.8)}
+#fireBtn:active{transform:scale(.92)}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div class="hud">
+  <button class="btn" id="pauseBtn">⏸</button>
+  <div class="scoreBox">🐙 <span id="score">0</span> 击杀<br><span style="font-size:11px;font-weight:normal">最高 <span id="hs">0</span></span></div>
+  <button class="btn" id="muteBtn">🔊</button>
+</div>
+<div class="statBar">
+  <div class="hearts" id="hearts">❤️❤️❤️</div>
+  <div class="inkWrap"><div class="inkBar"><div class="inkFill" id="inkFill"></div></div><div class="inkLabel">🖤 墨囊 <span id="inkNum">10</span>/10</div></div>
+</div>
+<button id="fireBtn" class="hidden">💦</button>
+<div class="overlay" id="startOv">
+  <h1>🐙</h1><h2>章鱼喷墨</h2>
+  <p>螃蟹🦀从四面八方游来！拖动手指旋转瞄准，<br>自动连喷墨汁击退它们。<br>墨囊 10 发，击杀回 2 发 · 被碰到扣 1 血（共 3 血）<br>波次越高螃蟹越多越快！</p>
+  <button class="bigBtn" id="startBtn">开始战斗</button>
+  <div class="hsLine">最高分：<span id="hsStart">0</span></div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <h1>⏸</h1><h2>已暂停</h2>
+  <button class="bigBtn" id="resumeBtn">继续</button>
+</div>
+<div class="overlay hidden" id="endOv">
+  <h1>🦀</h1><h2>章鱼被包围了！</h2>
+  <p id="endDesc"></p>
+  <button class="bigBtn" id="retryBtn">再来一次</button>
+  <div class="hsLine">最高分：<span id="hsEnd">0</span></div>
+</div>
+<script>
+'use strict';
+// ===== 章鱼喷墨：中央旋转射击 =====
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(2,window.devicePixelRatio||1);W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);CX=W/2;CY=H/2;}
+var CX=0,CY=0;
+window.addEventListener('resize',resize);resize();
+
+// ===== 音效 =====
+var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function tone(f,d,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,f+slide),c.currentTime+d);g.gain.setValueAtTime(vol||.15,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+d);}catch(e){}}
+function sndClick(){tone(700,.07,'square',.09);}
+function sndShoot(){tone(400,.09,'square',.08,-200);}
+function sndKill(){tone(900,.1,'triangle',.16);setTimeout(function(){tone(1350,.12,'triangle',.14);},70);}
+function sndHurt(){tone(130,.3,'sawtooth',.2,-60);}
+function sndFail(){tone(180,.6,'sawtooth',.2,-120);}
+function sndWin(){var n=[523,659,784,1046],i=0;(function p(){if(i<n.length){tone(n[i],.16,'triangle',.18);i++;setTimeout(p,130);}})();}
+function updateMuteBtn(){document.getElementById('muteBtn').textContent=muted?'🔇':'🔊';}
+updateMuteBtn();
+
+// ===== 状态 =====
+var HSKEY='g100_inkspray_hs',hs=parseInt(localStorage.getItem(HSKEY)||'0',10)||0;
+var state='start',kills=0,hp=3,ink=10,wave=1,aimA=-Math.PI/2;
+var crabs=[],shots=[],parts=[],floats=[];
+var fireT=0,spawnQ=0,spawnT=0,invuln=0,lastT=0,waveClearT=0;
+var INK_MAX=10;
+
+function startWave(w){
+  wave=w;spawnQ=3+w*2;spawnT=0;waveClearT=0;
+  floatText(CX,CY-90,'第 '+w+' 波','#ce93d8');
+}
+function startGame(){kills=0;hp=3;ink=INK_MAX;aimA=-Math.PI/2;crabs=[];shots=[];parts=[];floats=[];fireT=0;invuln=0;state='play';hideAll();startWave(1);lastT=performance.now();sndClick();document.getElementById('fireBtn').classList.remove('hidden');}
+function hideAll(){['startOv','pauseOv','endOv'].forEach(function(id){document.getElementById(id).classList.add('hidden');});}
+function showEnd(){
+  state='end';sndFail();
+  if(kills>hs){hs=kills;localStorage.setItem(HSKEY,String(hs));}
+  document.getElementById('endDesc').textContent='坚持到第 '+wave+' 波 · 击杀 '+kills+' 只螃蟹';
+  document.getElementById('hsEnd').textContent=hs;
+  document.getElementById('endOv').classList.remove('hidden');
+  document.getElementById('fireBtn').classList.add('hidden');
+}
+function burst(x,y,n,col){for(var i=0;i<n;i++){var a=Math.random()*Math.PI*2,s=50+Math.random()*140;parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.6+Math.random()*.4,t:0,col:col,r:2+Math.random()*3});}}
+function floatText(x,y,txt,col){floats.push({x:x,y:y,txt:txt,t:0,col:col||'#fff'});}
+function vibrate(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+
+// ===== 输入：拖动旋转瞄准，点击喷墨 =====
+function aimAt(x,y){if(state!=='play')return;var dx=x-CX,dy=y-CY;if(dx*dx+dy*dy>900)aimA=Math.atan2(dy,dx);}
+function fireOne(){
+  if(state!=='play'||ink<=0)return;
+  ink--;fireT=0;sndShoot();
+  shots.push({x:CX+Math.cos(aimA)*40,y:CY+Math.sin(aimA)*40,vx:Math.cos(aimA)*520,vy:Math.sin(aimA)*520,t:0});
+  updateStats();
+}
+cv.addEventListener('pointerdown',function(e){ac();aimAt(e.clientX,e.clientY);});
+cv.addEventListener('pointermove',function(e){if(e.buttons)aimAt(e.clientX,e.clientY);});
+document.getElementById('fireBtn').addEventListener('pointerdown',function(e){e.preventDefault();ac();fireOne();});
+document.getElementById('pauseBtn').addEventListener('click',function(){if(state==='play'){state='pause';document.getElementById('pauseOv').classList.remove('hidden');sndClick();}});
+document.getElementById('resumeBtn').addEventListener('click',function(){document.getElementById('pauseOv').classList.add('hidden');state='play';lastT=performance.now();sndClick();});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('retryBtn').addEventListener('click',startGame);
+document.getElementById('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');updateMuteBtn();if(!muted)sndClick();});
+
+function spawnCrab(){
+  var side=Math.floor(Math.random()*4),x,y;
+  if(side===0){x=-40;y=Math.random()*H;}else if(side===1){x=W+40;y=Math.random()*H;}
+  else if(side===2){x=Math.random()*W;y=-40;}else{x=Math.random()*W;y=H+40;}
+  var sp=55+wave*9+Math.random()*25;
+  crabs.push({x:x,y:y,r:24,sp:sp,wob:Math.random()*6,hit:0});
+}
+function updateStats(){
+  document.getElementById('score').textContent=kills;
+  document.getElementById('hs').textContent=hs;
+  document.getElementById('hearts').textContent='❤️'.repeat(hp)+'🖤'.repeat(Math.max(0,3-hp));
+  document.getElementById('inkFill').style.width=(ink/INK_MAX*100)+'%';
+  document.getElementById('inkNum').textContent=ink;
+}
+
+function step(dt){
+  invuln=Math.max(0,invuln-dt);
+  // 生成
+  if(spawnQ>0){spawnT-=dt;if(spawnT<=0){spawnCrab();spawnQ--;spawnT=Math.max(.3,1.1-wave*.08);}}
+  else if(crabs.length===0){waveClearT+=dt;if(waveClearT>1.2){sndWin();startWave(wave+1);ink=Math.min(INK_MAX,ink+3);floatText(CX,CY-60,'墨囊+3','#e1bee7');}}
+  // 自动连喷
+  fireT+=dt;
+  if(fireT>=.5&&ink>0&&crabs.length>0)fireOne();
+  // 墨汁
+  for(var i=shots.length-1;i>=0;i--){var s=shots[i];s.t+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;
+    if(s.x<-30||s.x>W+30||s.y<-30||s.y>H+30||s.t>1.6){shots.splice(i,1);continue;}
+    var hit=false;
+    for(var j=crabs.length-1;j>=0;j--){var c=crabs[j],dx=s.x-c.x,dy=s.y-c.y;
+      if(dx*dx+dy*dy<(c.r+8)*(c.r+8)){ // 击中击退
+        crabs.splice(j,1);shots.splice(i,1);hit=true;
+        kills++;ink=Math.min(INK_MAX,ink+2);sndKill();
+        burst(c.x,c.y,16,'#7b1fa2');floatText(c.x,c.y,'+1 🦀','#e1bee7');
+        updateStats();break;
+      }
+    }
+    if(hit)continue;
+  }
+  // 螃蟹
+  for(var k=crabs.length-1;k>=0;k--){var cr=crabs[k];
+    var ax=CX-cr.x,ay=CY-cr.y,d=Math.hypot(ax,ay)||1;
+    cr.wob+=dt*4;
+    var wx=Math.cos(cr.wob)*20,wy=Math.sin(cr.wob)*20;
+    cr.x+=(ax/d)*cr.sp*dt+wx*dt;cr.y+=(ay/d)*cr.sp*dt+wy*dt;
+    if(d<62){ // 碰到章鱼
+      crabs.splice(k,1);
+      if(invuln<=0){hp--;invuln=1;sndHurt();vibrate([70,40,70]);burst(CX,CY,22,'#ef5350');floatText(CX,CY-50,'-1 ❤️','#ef5350');updateStats();
+        if(hp<=0){showEnd();return;}
+      }
+    }
+  }
+  // 粒子/飘字
+  for(var p=parts.length-1;p>=0;p--){var q=parts[p];q.t+=dt;if(q.t>q.life){parts.splice(p,1);continue;}q.x+=q.vx*dt;q.y+=q.vy*dt;q.vx*=.98;q.vy*=.98;}
+  for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.t+=dt;fl.y-=36*dt;if(fl.t>1.2)floats.splice(f,1);}
+}
+
+function draw(){
+  var g=ctx.createRadialGradient(CX,CY,40,CX,CY,Math.max(W,H)*.7);
+  g.addColorStop(0,'#2a0a45');g.addColorStop(1,'#0a0312');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // 沙地涟漪
+  ctx.strokeStyle='rgba(206,147,216,.08)';ctx.lineWidth=2;
+  for(var r=80;r<Math.max(W,H);r+=60){ctx.beginPath();ctx.arc(CX,CY,r+((performance.now()/40)%60),0,7);ctx.stroke();}
+  // 墨汁
+  shots.forEach(function(s){ctx.fillStyle='#0a0a0a';ctx.strokeStyle='#ce93d8';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(s.x,s.y,9,0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle='rgba(206,147,216,.5)';ctx.beginPath();ctx.arc(s.x,s.y,4,0,7);ctx.fill();});
+  // 螃蟹
+  crabs.forEach(function(c){
+    ctx.font='46px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    var a=Math.atan2(CY-c.y,CX-c.x);
+    ctx.save();ctx.translate(c.x,c.y);ctx.rotate(a+Math.PI/2);ctx.fillText('🦀',0,0);ctx.restore();
+  });
+  // 章鱼（缓动呼吸 + 瞄准线）
+  var br=1+Math.sin(performance.now()/300)*.05;
+  ctx.save();ctx.translate(CX,CY);ctx.scale(br,br);
+  ctx.font='72px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🐙',0,0);ctx.restore();
+  if(invuln>0&&Math.floor(invuln*10)%2===0){ctx.strokeStyle='rgba(239,83,80,.9)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(CX,CY,52,0,7);ctx.stroke();}
+  // 瞄准方向
+  ctx.strokeStyle='rgba(206,147,216,.45)';ctx.lineWidth=3;ctx.setLineDash([8,8]);
+  ctx.beginPath();ctx.moveTo(CX+Math.cos(aimA)*52,CY+Math.sin(aimA)*52);
+  ctx.lineTo(CX+Math.cos(aimA)*110,CY+Math.sin(aimA)*110);ctx.stroke();ctx.setLineDash([]);
+  // 粒子
+  parts.forEach(function(q){ctx.globalAlpha=1-q.t/q.life;ctx.fillStyle=q.col;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,7);ctx.fill();});
+  ctx.globalAlpha=1;
+  ctx.font='bold 20px sans-serif';
+  floats.forEach(function(fl){ctx.globalAlpha=1-fl.t/1.2;ctx.fillStyle=fl.col;ctx.textAlign='center';ctx.fillText(fl.txt,fl.x,fl.y);});
+  ctx.globalAlpha=1;
+  ctx.font='bold 14px sans-serif';ctx.textAlign='left';ctx.fillStyle='#ce93d8';
+  ctx.fillText('第'+wave+'波',12,H-14);
+}
+
+function loop(t){
+  requestAnimationFrame(loop);
+  if(state!=='play')return;
+  var dt=Math.min(.05,(t-lastT)/1000||.016);lastT=t;
+  step(dt);draw();
+}
+document.getElementById('hsStart').textContent=hs;
+document.getElementById('hs').textContent=hs;
+updateStats();draw();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
