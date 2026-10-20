@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>炼金转化</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:linear-gradient(160deg,#3d2c0d 0%,#1c1408 55%,#0a0803 100%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none;overflow-x:hidden}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;z-index:1}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:9px 12px;font-size:14px;gap:6px}
+.topbar .title{font-weight:700;font-size:16px}
+.topbar .stat{color:#e6d9f5;font-size:12px}
+.topbar .stat b{color:#fff;font-size:14px}
+.tbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:17px;min-width:42px;height:42px;border-radius:11px;cursor:pointer;transition:transform .08s}
+.tbtn:active{transform:scale(.9)}
+.screen{width:100%;display:none;flex-direction:column;align-items:center;gap:10px}
+.screen.on{display:flex}
+.card{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.card h1{font-size:26px;margin-bottom:8px;background:linear-gradient(90deg,#ffd54f,#b8860b);-webkit-background-clip:text;background-clip:text;color:transparent}
+.card h2{font-size:22px;margin-bottom:8px}
+.card p{color:#e9e2f2;font-size:14px;line-height:1.9;margin-bottom:12px;text-align:left}
+.card p b{color:#ffd54f}
+.bigbtn{background:linear-gradient(135deg,#b8860b,#ffd54f);border:none;color:#3d2f00;font-size:18px;font-weight:700;padding:14px 44px;border-radius:999px;cursor:pointer;box-shadow:0 6px 18px rgba(184,134,11,.45);transition:transform .1s;min-height:48px}
+.bigbtn:active{transform:scale(.93)}
+.ghostbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:14px;padding:10px 22px;border-radius:999px;cursor:pointer;min-height:44px}
+.ghostbtn:active{transform:scale(.93)}
+.best{color:#ffd76a;font-size:14px;margin-top:8px}
+.target{background:rgba(184,134,11,.16);border:1px solid rgba(255,213,79,.45);border-radius:14px;padding:12px;width:100%;text-align:center}
+.target .tlabel{font-size:13px;color:#ffd54f;margin-bottom:4px}
+.target .titem{font-size:34px;animation:targetglow 2s ease-in-out infinite}
+@keyframes targetglow{0%,100%{filter:drop-shadow(0 0 4px rgba(255,213,79,.4))}50%{filter:drop-shadow(0 0 14px rgba(255,213,79,.9))}}
+.target .tname{font-size:13px;color:#ffe9a8}
+.rules{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:10px 12px;width:100%}
+.rules .rlabel{font-size:13px;color:#d9cdf0;margin-bottom:6px;text-align:center}
+.rules .rlist{display:flex;flex-wrap:wrap;gap:6px 10px;justify-content:center;font-size:15px}
+.rules .rlist .rr{background:rgba(255,213,79,.08);border:1px solid rgba(255,213,79,.25);border-radius:8px;padding:4px 8px;white-space:nowrap}
+.inv{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:10px;width:100%}
+.inv .ilabel{font-size:13px;color:#d9cdf0;margin-bottom:8px;text-align:center}
+.invgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.elbtn{background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.12);border-radius:12px;min-height:62px;font-size:28px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;transition:transform .1s,border-color .15s}
+.elbtn .cnt{position:absolute;top:2px;right:6px;font-size:12px;font-weight:800;color:#ffd54f}
+.elbtn .inf{font-size:10px;color:#8fbf8f}
+.elbtn.sel{border-color:#ffd54f;box-shadow:0 0 12px rgba(255,213,79,.5);transform:scale(1.06)}
+.elbtn.zero{opacity:.35}
+.elbtn:active{transform:scale(.92)}
+.mixbar{width:100%;display:flex;align-items:center;justify-content:center;gap:8px}
+.slot{width:56px;height:56px;border:2px dashed rgba(255,213,79,.4);border-radius:12px;font-size:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,213,79,.05);transition:transform .15s}
+.slot.pop{animation:slotpop .3s cubic-bezier(.34,1.56,.64,1)}
+@keyframes slotpop{0%{transform:scale(.5)}100%{transform:scale(1)}}
+.slot.shake{animation:slotshake .4s}
+@keyframes slotshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.plus{font-size:24px;color:#ffd54f}
+.hint{color:#d9cdf0;font-size:13px;text-align:center;line-height:1.7}
+.hint b{color:#ffd54f}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px)}
+.ov.on{display:flex}
+.pausecard{background:#1d1408;border:1px solid rgba(255,213,79,.3);border-radius:18px;padding:28px 32px;text-align:center;display:flex;flex-direction:column;gap:12px;max-width:86vw;max-height:82vh;overflow-y:auto}
+.pausecard h2{font-size:20px}
+.pausecard p{color:#e9e2f2;font-size:14px;line-height:2;text-align:left}
+.pausecard p b{color:#ffd54f}
+#toast{position:fixed;top:38%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.82);border:1px solid rgba(255,213,79,.4);color:#fff;font-size:16px;font-weight:700;padding:12px 26px;border-radius:999px;z-index:70;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;max-width:92vw}
+.float{position:fixed;pointer-events:none;z-index:60;font-weight:800;font-size:22px;animation:floatup 1.1s ease-out forwards;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+@keyframes floatup{0%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-52px)}}
+.spark{position:fixed;pointer-events:none;z-index:60;font-size:20px;animation:sparkfly 1s ease-out forwards}
+@keyframes sparkfly{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.3)}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div class="wrap">
+  <div class="topbar">
+    <span class="title">⚗️ 炼金转化</span>
+    <span class="stat">第<b id="level">1</b>/8关 · 步数<b id="steps">0/2</b> · ⭐<b id="score">0</b></span>
+    <span><button class="tbtn" id="hintBtn" aria-label="提示">💡</button><button class="tbtn" id="sndBtn" aria-label="静音开关">🔊</button><button class="tbtn" id="pauseBtn" aria-label="暂停">⏸</button></span>
+  </div>
+  <div class="screen on" id="s-start">
+    <div class="card">
+      <h1>⚗️ 炼金转化</h1>
+      <p>🧪 <b>玩法</b>：底部基础元素（🔥💧🪨🌪️）无限使用，<b>点选两种</b>元素自动合成<br>
+      📜 <b>合成表</b>：按表组合，如 🔥+💧=♨️，产物加入库存、可继续合成<br>
+      🎯 <b>目标</b>：在<b>步数限制</b>内合成出顶部目标产物<br>
+      ⚠️ 合错了不扣步数，但浪费合成物；步数用完 → 本关重来<br>
+      ✅ 过关得分 = 关卡×100 + 剩余步数×20<br>
+      📈 共 <b>8 关</b>：规则 2→5 条，链条 2→4 步<br>
+      💡 卡关了点右上角 <b>💡</b> 看下一步提示</p>
+      <button class="bigbtn" id="startBtn">开始炼金</button>
+      <div class="best">🏅 最高分：<b id="best0">0</b></div>
+    </div>
+  </div>
+  <div class="screen" id="s-game">
+    <div class="target">
+      <div class="tlabel">🎯 本关目标产物</div>
+      <div class="titem" id="titem">♨️</div>
+      <div class="tname" id="tname">蒸汽</div>
+    </div>
+    <div class="rules">
+      <div class="rlabel">📜 合成规则表</div>
+      <div class="rlist" id="rlist"></div>
+    </div>
+    <div class="inv">
+      <div class="ilabel">🧰 材料（基础无限 · 产物可继续合成）</div>
+      <div class="invgrid" id="invgrid"></div>
+    </div>
+    <div class="mixbar">
+      <div class="slot" id="slot0"></div>
+      <span class="plus">＋</span>
+      <div class="slot" id="slot1"></div>
+      <button class="ghostbtn" id="clearBtn">清除</button>
+    </div>
+    <div class="hint" id="hint">👆 点选两种材料进行合成</div>
+  </div>
+  <div class="screen" id="s-end">
+    <div class="card">
+      <h2 id="endTitle">🏆 炼金大师！</h2>
+      <p id="endDesc" style="text-align:center"></p>
+      <div class="best">🏅 最高分：<b id="best1">0</b></div>
+      <button class="bigbtn" id="againBtn">再炼一炉</button>
+    </div>
+  </div>
+</div>
+<div class="ov" id="pauseov"><div class="pausecard"><h2>⏸ 中场休息</h2><button class="bigbtn" id="resumeBtn">继续</button><button class="ghostbtn" id="quitBtn">重开一局</button></div></div>
+<div class="ov" id="hintov"><div class="pausecard"><h2>💡 下一步提示</h2><p id="hintText"></p><button class="bigbtn" id="hintClose">知道了</button></div></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+/* ===== 音效 ===== */
+let AC=null;
+let soundOn=localStorage.getItem('g100_mute')!=='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,when){if(!soundOn)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.value=f;const t=a.currentTime+(when||0);g.gain.setValueAtTime(v||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.03);}catch(e){}}
+function sweep(f0,f1,d,type,v){if(!soundOn)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain();o.type=type||'sine';const t=a.currentTime;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+d);g.gain.setValueAtTime(v||0.1,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.03);}catch(e){}}
+const sClick=()=>tone(640,0.07,'square',0.07);
+const sMix=()=>{sweep(300,700,0.22,'triangle',0.1);tone(900,0.1,'sine',0.08,0.18);};
+const sFizz=()=>tone(180,0.25,'sawtooth',0.1);
+const sPass=()=>{[523,659,784,1047].forEach((f,i)=>tone(f,0.14,'triangle',0.12,i*0.1));};
+const sWin=()=>{[523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,0.18,'triangle',0.12,i*0.11));};
+/* ===== 工具 ===== */
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._tm);t._tm=setTimeout(()=>{t.style.opacity='0';},1300);}
+function floatTxt(txt,color){const d=document.createElement('div');d.className='float';d.textContent=txt;d.style.color=color||'#ffd54f';d.style.left='50%';d.style.top='28%';document.body.appendChild(d);setTimeout(()=>d.remove(),1150);}
+function sparkles(n,emojis){for(let i=0;i<n;i++){const d=document.createElement('div');d.className='spark';d.textContent=emojis[i%emojis.length];d.style.left=(30+Math.random()*40)+'%';d.style.top='34%';d.style.setProperty('--dx',(Math.random()-0.5)*260+'px');d.style.setProperty('--dy',(-60-Math.random()*140)+'px');document.body.appendChild(d);setTimeout(()=>d.remove(),1050);}}
+function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');}
+/* ===== 数据 ===== */
+const HSKEY='g100_alchemy_hs';
+const NAMES={'🔥':'火','💧':'水','🪨':'土','🌪️':'风','♨️':'蒸汽','🌋':'熔岩','🌧️':'雨','🌾':'丰收','🌱':'幼苗','🌵':'仙人掌','🗿':'石像','🌊':'海洋','🌈':'彩虹','💠':'魔晶','❄️':'雪'};
+const LEVELS=[
+ {base:['🔥','💧','🪨'],target:'♨️',maxSteps:2,
+  rules:[['🔥','💧','♨️'],['🔥','🪨','🌋']],
+  tip:'试试先把<b>🔥火和💧水</b>合在一起！'},
+ {base:['🔥','🪨','🌪️'],target:'🌋',maxSteps:2,
+  rules:[['🔥','🪨','🌋'],['🪨','🌪️','🌵']],
+  tip:'试试先把<b>🔥火和🪨土</b>合在一起！'},
+ {base:['🔥','💧','🌪️'],target:'🌧️',maxSteps:3,
+  rules:[['🔥','💧','♨️'],['♨️','🌪️','🌧️'],['💧','🌪️','❄️']],
+  tip:'雨是两步链：先把<b>🔥火+💧水</b>合成♨️蒸汽，再和🌪️风合！'},
+ {base:['💧','🪨','🔥'],target:'🌾',maxSteps:3,
+  rules:[['💧','🪨','🌱'],['🌱','🔥','🌾'],['🔥','🪨','🌋']],
+  tip:'先把<b>💧水+🪨土</b>合成🌱幼苗，再和🔥火合！'},
+ {base:['🔥','💧','🪨','🌪️'],target:'🗿',maxSteps:4,
+  rules:[['🔥','💧','♨️'],['♨️','🪨','🗿'],['🪨','🌪️','🌵'],['🔥','🪨','🌋']],
+  tip:'🗿石像 = ♨️蒸汽 + 🪨土。先做蒸汽（🔥+💧），小心别被🌋熔岩带偏！'},
+ {base:['🔥','💧','🪨','🌪️'],target:'🌊',maxSteps:4,
+  rules:[['🔥','💧','♨️'],['♨️','🌪️','🌧️'],['🌧️','💧','🌊'],['🔥','🪨','🌋'],['🌋','💧','🗿']],
+  tip:'海洋是三步链：🔥+💧=♨️ → ♨️+🌪️=🌧️ → 🌧️+💧=🌊。先做蒸汽！'},
+ {base:['🔥','💧','🪨','🌪️'],target:'🌈',maxSteps:5,
+  rules:[['🔥','🪨','🌋'],['🌋','💧','♨️'],['♨️','🌪️','🌈'],['💧','🪨','🌱'],['🌱','🔥','🌾']],
+  tip:'彩虹是三步链：第一步是<b>🔥火+🪨土=🌋熔岩</b>！'},
+ {base:['🔥','💧','🪨','🌪️'],target:'💠',maxSteps:5,
+  rules:[['🔥','💧','♨️'],['♨️','🪨','🗿'],['🗿','🌪️','💠'],['🔥','🪨','🌋'],['🌋','💧','🌊']],
+  tip:'魔晶是三步链：🔥+💧=♨️ → ♨️+🪨=🗿 → 🗿+🌪️=💠。从蒸汽开始！'}
+];
+const STRATEGY='先看目标，再看合成表里哪条规则能产出它，倒着往回推需要的材料；基础元素无限用，产物用一次少一个，别乱合浪费步数。';
+let running=false,paused=false,lock=false;
+let level=1,score=0,stepsUsed=0;
+let inv={},sel=[];
+function best(){return parseInt(localStorage.getItem(HSKEY)||'0',10);}
+function saveBest(){if(score>best())localStorage.setItem(HSKEY,String(score));}
+function refreshBest(){$('best0').textContent=best();$('best1').textContent=best();}
+function refreshHud(){$('level').textContent=level;$('steps').textContent=stepsUsed+'/'+LEVELS[level-1].maxSteps;$('score').textContent=score;}
+function isBase(e){return LEVELS[level-1].base.indexOf(e)>=0;}
+function ruleKey(a,b){return [a,b].sort().join('|');}
+function buildRuleMap(){
+  const m={};
+  LEVELS[level-1].rules.forEach(r=>{m[ruleKey(r[0],r[1])]=r[2];});
+  return m;
+}
+let ruleMap={};
+/* ===== 渲染 ===== */
+function renderAll(){
+  const L=LEVELS[level-1];
+  $('titem').textContent=L.target;
+  $('tname').textContent=NAMES[L.target];
+  $('rlist').innerHTML=L.rules.map(r=>'<span class="rr">'+r[0]+'+'+r[1]+'='+r[2]+'</span>').join('');
+  const grid=$('invgrid');grid.innerHTML='';
+  const elems=L.base.concat(Object.keys(inv).filter(e=>inv[e]>0&&L.base.indexOf(e)<0));
+  elems.forEach(e=>{
+    const b=document.createElement('button');
+    b.className='elbtn';
+    const isSel=sel.indexOf(e)>=0;
+    const cnt=isBase(e)?Infinity:(inv[e]||0);
+    if(isSel)b.classList.add('sel');
+    if(!isBase(e)&&cnt<=0)b.classList.add('zero');
+    b.innerHTML=e+(isBase(e)?'<span class="inf">∞</span>':'<span class="cnt">×'+(inv[e]||0)+'</span>');
+    b.addEventListener('click',()=>pick(e));
+    grid.appendChild(b);
+  });
+  $('slot0').textContent=sel[0]||'';
+  $('slot1').textContent=sel[1]||'';
+  refreshHud();
+}
+function setHint(t){$('hint').innerHTML=t;}
+/* ===== 流程 ===== */
+function startGame(){
+  running=true;paused=false;lock=false;level=1;score=0;
+  $('pauseov').classList.remove('on');$('hintov').classList.remove('on');
+  showScreen('s-game');refreshBest();newLevel();sClick();
+}
+function newLevel(){
+  inv={};sel=[];stepsUsed=0;lock=false;
+  ruleMap=buildRuleMap();
+  renderAll();
+  setHint('👆 点选两种材料进行合成（'+LEVELS[level-1].maxSteps+' 步内造出 '+LEVELS[level-1].target+'）');
+  refreshHud();
+}
+function pick(e){
+  if(!running||paused||lock)return;
+  if(!isBase(e)&&(inv[e]||0)<=0&&sel.indexOf(e)<0){toast('这个产物库存不足');return;}
+  if(sel.indexOf(e)>=0){sel=sel.filter(x=>x!==e);sClick();renderAll();return;}
+  if(sel.length>=2)return;
+  sel.push(e);sClick();
+  $('slot'+(sel.length-1)).classList.add('pop');
+  setTimeout(()=>{$('slot0').classList.remove('pop');$('slot1').classList.remove('pop');},320);
+  renderAll();
+  if(sel.length===2)setTimeout(attempt,260);
+}
+function attempt(){
+  if(!running||paused||lock)return;
+  const a=sel[0],b=sel[1];
+  const prod=ruleMap[ruleKey(a,b)];
+  if(!prod){
+    sFizz();buzz(60);
+    $('slot0').classList.add('shake');$('slot1').classList.add('shake');
+    setTimeout(()=>{$('slot0').classList.remove('shake');$('slot1').classList.remove('shake');},450);
+    setHint('🌀 '+a+'+'+b+' <b>没有反应…</b>对照合成表再试（不扣步数）');
+    sel=[];renderAll();return;
+  }
+  // 消耗产物（基础元素无限）
+  if(!isBase(a))inv[a]--;
+  if(!isBase(b))inv[b]--;
+  inv[prod]=(inv[prod]||0)+1;
+  stepsUsed++;sel=[];
+  sMix();buzz(50);
+  sparkles(10,['⚗️','✨','💫']);
+  floatTxt('+'+prod,'#ffd54f');
+  renderAll();
+  if(prod===LEVELS[level-1].target){passLevel();return;}
+  const L=LEVELS[level-1];
+  if(stepsUsed>=L.maxSteps){failLevel();return;}
+  setHint('✅ 合成 <b>'+prod+NAMES[prod]+'</b>！已加入库存（剩余 '+(L.maxSteps-stepsUsed)+' 步）');
+}
+function passLevel(){
+  lock=true;
+  const L=LEVELS[level-1];
+  const award=level*100+(L.maxSteps-stepsUsed)*20;
+  score+=award;
+  sPass();buzz(80);
+  sparkles(20,['✨','⭐','🌟','💛']);
+  floatTxt('+'+award,'#ffd54f');
+  setHint('🎉 目标 <b>'+L.target+'</b> 达成！');
+  refreshHud();
+  setTimeout(()=>{
+    if(level>=8)endGame();
+    else{level++;newLevel();}
+  },1500);
+}
+function failLevel(){
+  lock=true;
+  sFizz();buzz(150);
+  setHint('😵 <b>步数用完了！</b>本关重来——试试先规划好合成链');
+  setTimeout(newLevel,1500);
+}
+function endGame(){
+  running=false;paused=false;lock=false;
+  $('pauseov').classList.remove('on');$('hintov').classList.remove('on');
+  const nb=score>best();
+  saveBest();refreshBest();
+  $('endTitle').textContent=nb?'🏆 新纪录！':'⚗️ 炼成完成';
+  $('endDesc').innerHTML='8 关全部通关！<br>本局得分 <b style="color:#ffd54f;font-size:22px">'+score+'</b>';
+  showScreen('s-end');
+  if(nb)sWin();else sPass();
+}
+/* ===== 暂停/静音/提示 ===== */
+$('pauseBtn').addEventListener('click',()=>{
+  if(!running||paused)return;
+  paused=true;$('pauseov').classList.add('on');sClick();
+});
+$('resumeBtn').addEventListener('click',()=>{paused=false;$('pauseov').classList.remove('on');sClick();});
+$('quitBtn').addEventListener('click',()=>{sClick();running=false;paused=false;lock=false;$('pauseov').classList.remove('on');showScreen('s-start');refreshBest();});
+function refreshSnd(){$('sndBtn').textContent=soundOn?'🔊':'🔇';}
+$('sndBtn').addEventListener('click',()=>{soundOn=!soundOn;localStorage.setItem('g100_mute',soundOn?'0':'1');refreshSnd();if(soundOn)sClick();});
+$('hintBtn').addEventListener('click',()=>{
+  if(!running||paused)return;
+  $('hintText').innerHTML='<b>通用策略</b>：'+STRATEGY+'<br><br><b>本关</b>：'+LEVELS[level-1].tip;
+  $('hintov').classList.add('on');sClick();
+});
+$('hintClose').addEventListener('click',()=>{$('hintov').classList.remove('on');sClick();});
+$('clearBtn').addEventListener('click',()=>{if(!running||paused)return;sel=[];sClick();renderAll();});
+$('startBtn').addEventListener('click',startGame);
+$('againBtn').addEventListener('click',startGame);
+refreshSnd();refreshBest();
+</script>
+</body>
+</html>

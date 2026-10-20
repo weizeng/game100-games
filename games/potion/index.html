@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>魔药调配</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:linear-gradient(160deg,#2b1a3d 0%,#141020 55%,#08070d 100%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none;overflow-x:hidden}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;z-index:1}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:9px 12px;font-size:14px;gap:6px}
+.topbar .title{font-weight:700;font-size:16px}
+.topbar .stat{color:#e6d9f5;font-size:12px}
+.topbar .stat b{color:#fff;font-size:14px}
+.tbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:17px;min-width:42px;height:42px;border-radius:11px;cursor:pointer;transition:transform .08s}
+.tbtn:active{transform:scale(.9)}
+.screen{width:100%;display:none;flex-direction:column;align-items:center;gap:10px}
+.screen.on{display:flex}
+.card{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.card h1{font-size:26px;margin-bottom:8px;background:linear-gradient(90deg,#ce93d8,#9c27b0);-webkit-background-clip:text;background-clip:text;color:transparent}
+.card h2{font-size:22px;margin-bottom:8px}
+.card p{color:#e9e2f2;font-size:14px;line-height:1.9;margin-bottom:12px;text-align:left}
+.card p b{color:#ce93d8}
+.bigbtn{background:linear-gradient(135deg,#9c27b0,#ce93d8);border:none;color:#fff;font-size:18px;font-weight:700;padding:14px 44px;border-radius:999px;cursor:pointer;box-shadow:0 6px 18px rgba(156,39,176,.45);transition:transform .1s;min-height:48px}
+.bigbtn:active{transform:scale(.93)}
+.ghostbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:14px;padding:10px 22px;border-radius:999px;cursor:pointer;min-height:44px}
+.ghostbtn:active{transform:scale(.93)}
+.best{color:#ffd76a;font-size:14px;margin-top:8px}
+.recipe{background:rgba(106,27,154,.18);border:1px solid rgba(206,147,216,.4);border-radius:14px;padding:12px;width:100%;text-align:center}
+.recipe .rlabel{font-size:13px;color:#ce93d8;margin-bottom:6px}
+.recipe .rseq{font-size:22px;line-height:1.6}
+.recipe .rseq .cnt{font-size:14px;color:#ffd76a;font-weight:700;vertical-align:middle}
+.cauldronwrap{position:relative;width:100%;display:flex;flex-direction:column;align-items:center;gap:6px}
+.cauldron{font-size:88px;filter:drop-shadow(0 6px 18px rgba(156,39,176,.6));transition:transform .2s}
+.cauldron.shake{animation:shake .5s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-12px) rotate(-6deg)}40%{transform:translateX(10px) rotate(5deg)}60%{transform:translateX(-8px)}80%{transform:translateX(6px)}}
+.poured{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;min-height:56px;width:100%;padding:8px;font-size:26px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center}
+.poured .ph{color:#8a7ba3;font-size:13px}
+.pouritem{animation:drop .35s cubic-bezier(.34,1.56,.64,1)}
+@keyframes drop{0%{transform:translateY(-34px) scale(.4);opacity:0}100%{transform:translateY(0) scale(1);opacity:1}}
+.shelf{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+.matbtn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;min-height:64px;font-size:30px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:transform .1s,border-color .15s}
+.matbtn span{font-size:11px;color:#d9cdf0}
+.matbtn:active{transform:scale(.9);border-color:#ce93d8}
+.hint{color:#d9cdf0;font-size:13px;text-align:center;line-height:1.7}
+.hint b{color:#ce93d8}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px)}
+.ov.on{display:flex}
+.pausecard{background:#1d1526;border:1px solid rgba(206,147,216,.3);border-radius:18px;padding:28px 32px;text-align:center;display:flex;flex-direction:column;gap:12px;max-width:86vw;max-height:82vh;overflow-y:auto}
+.pausecard h2{font-size:20px}
+.pausecard p{color:#e9e2f2;font-size:14px;line-height:2;text-align:left}
+.pausecard p b{color:#ce93d8}
+#toast{position:fixed;top:38%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.82);border:1px solid rgba(206,147,216,.4);color:#fff;font-size:16px;font-weight:700;padding:12px 26px;border-radius:999px;z-index:70;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;max-width:92vw}
+.float{position:fixed;pointer-events:none;z-index:60;font-weight:800;font-size:22px;animation:floatup 1.1s ease-out forwards;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+@keyframes floatup{0%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-52px)}}
+.spark{position:fixed;pointer-events:none;z-index:60;font-size:20px;animation:sparkfly 1s ease-out forwards}
+@keyframes sparkfly{0%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.3)}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div class="wrap">
+  <div class="topbar">
+    <span class="title">🧪 魔药调配</span>
+    <span class="stat">第<b id="level">1</b>/8关 · ⭐<b id="score">0</b></span>
+    <span><button class="tbtn" id="hintBtn" aria-label="提示">💡</button><button class="tbtn" id="sndBtn" aria-label="静音开关">🔊</button><button class="tbtn" id="pauseBtn" aria-label="暂停">⏸</button></span>
+  </div>
+  <div class="screen on" id="s-start">
+    <div class="card">
+      <h1>🧪 魔药调配</h1>
+      <p>🔮 <b>配方书</b>：按配方从左到右的顺序、把材料逐个投入坩埚（×2 就是连续投 2 次）<br>
+      ⚠️ <b>顺序错了会爆炸</b>💥，本关重来！<br>
+      ✅ 全对 → 过关撒花，得分 = <b>关卡 × 100</b><br>
+      📈 共 <b>8 关</b>：配方 3 步 → 8 步，材料种类 3 → 6<br>
+      💡 卡关了点右上角 <b>💡</b> 看解题思路</p>
+      <button class="bigbtn" id="startBtn">开始调配</button>
+      <div class="best">🏅 最高分：<b id="best0">0</b></div>
+    </div>
+  </div>
+  <div class="screen" id="s-game">
+    <div class="recipe">
+      <div class="rlabel">📖 本关配方（从左到右依次投入）</div>
+      <div class="rseq" id="rseq"></div>
+    </div>
+    <div class="cauldronwrap">
+      <div class="cauldron" id="cauldron">🥘</div>
+      <div class="poured" id="poured"></div>
+    </div>
+    <div class="shelf" id="shelf"></div>
+    <div class="hint" id="hint">👆 按配方顺序点击下方材料投入坩埚</div>
+  </div>
+  <div class="screen" id="s-end">
+    <div class="card">
+      <h2 id="endTitle">🏆 炼成大师！</h2>
+      <p id="endDesc" style="text-align:center"></p>
+      <div class="best">🏅 最高分：<b id="best1">0</b></div>
+      <button class="bigbtn" id="againBtn">再来一炉</button>
+    </div>
+  </div>
+</div>
+<div class="ov" id="pauseov"><div class="pausecard"><h2>⏸ 中场休息</h2><button class="bigbtn" id="resumeBtn">继续</button><button class="ghostbtn" id="quitBtn">重开一局</button></div></div>
+<div class="ov" id="hintov"><div class="pausecard"><h2>💡 解题思路</h2><p id="hintText"></p><button class="bigbtn" id="hintClose">知道了</button></div></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+/* ===== 音效 ===== */
+let AC=null;
+let soundOn=localStorage.getItem('g100_mute')!=='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,when){if(!soundOn)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.value=f;const t=a.currentTime+(when||0);g.gain.setValueAtTime(v||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.03);}catch(e){}}
+function sweep(f0,f1,d,type,v){if(!soundOn)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain();o.type=type||'sine';const t=a.currentTime;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+d);g.gain.setValueAtTime(v||0.1,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.03);}catch(e){}}
+const sClick=()=>tone(640,0.07,'square',0.07);
+const sPour=()=>sweep(500,180,0.25,'sine',0.12);
+const sBoom=()=>{tone(90,0.5,'sawtooth',0.2);sweep(400,60,0.45,'square',0.15);};
+const sPass=()=>{[523,659,784,1047].forEach((f,i)=>tone(f,0.14,'triangle',0.12,i*0.1));};
+const sWin=()=>{[523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,0.18,'triangle',0.12,i*0.11));};
+/* ===== 工具 ===== */
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._tm);t._tm=setTimeout(()=>{t.style.opacity='0';},1300);}
+function floatTxt(txt,color){const d=document.createElement('div');d.className='float';d.textContent=txt;d.style.color=color||'#ce93d8';d.style.left='50%';d.style.top='28%';document.body.appendChild(d);setTimeout(()=>d.remove(),1150);}
+function sparkles(n,emojis){for(let i=0;i<n;i++){const d=document.createElement('div');d.className='spark';d.textContent=emojis[i%emojis.length];d.style.left=(30+Math.random()*40)+'%';d.style.top='38%';d.style.setProperty('--dx',(Math.random()-0.5)*260+'px');d.style.setProperty('--dy',(-60-Math.random()*140)+'px');document.body.appendChild(d);setTimeout(()=>d.remove(),1050);}}
+function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');}
+/* ===== 数据 ===== */
+const HSKEY='g100_potion_hs';
+const MATS=[
+ {e:'🌿',n:'草药'},{e:'🍄',n:'蘑菇'},{e:'💧',n:'露水'},
+ {e:'💎',n:'魔晶'},{e:'🍯',n:'蜂蜜'},{e:'🕷️',n:'蜘蛛'}
+];
+const LEVELS=[
+ {steps:['🌿','🌿','🍄'],tip:'只有 2 种材料：先投 2 次🌿，最后 1 次🍄。默念"草草菇"再动手！'},
+ {steps:['💧','💎','💎'],tip:'先投 1 次💧，再投 2 次💎。默念"水晶晶"！'},
+ {steps:['🍯','🍯','🕷️','🌿'],tip:'共 3 种材料：蜂蜜投 2 次，接着蜘蛛 1 次，最后草药 1 次。默念"蜜蜜蛛草"！'},
+ {steps:['🍄','🍄','💧','💧'],tip:'两种材料各 2 次：先"菇菇"，再"水水"。注意切换点！'},
+ {steps:['💎','💎','🌿','🍯','🍯'],tip:'5 步了！顺序是 晶晶→草→蜜蜜。建议把配方抄在心里："晶晶草蜜蜜"。'},
+ {steps:['🕷️','💧','💧','🍄','🌿','🌿'],tip:'6 步、4 种材料：蛛→水水→菇→草草。默念"蛛水水菇草草"，别漏中间的菇！'},
+ {steps:['🍯','🍯','🍯','💎','💧','💧','🕷️'],tip:'7 步：蜜蜜蜜→晶→水水→蛛。开头连投 3 次蜂蜜最容易手滑，数着投！'},
+ {steps:['🌿','🌿','🍄','🍄','💎','💎','🍯','🕷️'],tip:'最终关 8 步：草草菇菇晶晶蜜蛛。分两段记："草草菇菇"、"晶晶蜜蛛"，稳！'}
+];
+const STRATEGY='先看配方从左到右的顺序，数字是每种材料要连续投几次；投错顺序或材料都会爆炸，建议先默念一遍顺序再动手。';
+let running=false,paused=false,lock=false;
+let level=1,score=0,poured=[];
+function best(){return parseInt(localStorage.getItem(HSKEY)||'0',10);}
+function saveBest(){if(score>best())localStorage.setItem(HSKEY,String(score));}
+function refreshBest(){$('best0').textContent=best();$('best1').textContent=best();}
+function refreshHud(){$('level').textContent=level;$('score').textContent=score;}
+function groupSteps(steps){const g=[];steps.forEach(e=>{if(g.length&&g[g.length-1].e===e)g[g.length-1].n++;else g.push({e:e,n:1});});return g;}
+function renderRecipe(){
+  const g=groupSteps(LEVELS[level-1].steps);
+  $('rseq').innerHTML=g.map(x=>x.e+'<span class="cnt">×'+x.n+'</span>').join('　');
+}
+function renderPoured(){
+  const box=$('poured');
+  if(!poured.length){box.innerHTML='<span class="ph">坩埚空空如也…</span>';return;}
+  box.innerHTML=poured.map(e=>'<span class="pouritem">'+e+'</span>').join('');
+}
+function buildShelf(){
+  const sh=$('shelf');sh.innerHTML='';
+  MATS.forEach(m=>{
+    const b=document.createElement('button');
+    b.className='matbtn';b.innerHTML=m.e+'<span>'+m.n+'</span>';
+    b.addEventListener('click',()=>pour(m.e));
+    sh.appendChild(b);
+  });
+}
+/* ===== 流程 ===== */
+function startGame(){
+  running=true;paused=false;lock=false;level=1;score=0;
+  $('pauseov').classList.remove('on');$('hintov').classList.remove('on');
+  showScreen('s-game');refreshHud();refreshBest();newLevel();sClick();
+}
+function newLevel(){
+  poured=[];lock=false;
+  renderRecipe();renderPoured();
+  $('cauldron').textContent='🥘';
+  setHint('👆 第 <b>'+level+'</b> 关：按配方顺序投入（共 '+LEVELS[level-1].steps.length+' 步）');
+  refreshHud();
+}
+function setHint(t){$('hint').innerHTML=t;}
+function pour(e){
+  if(!running||paused||lock)return;
+  sPour();buzz(30);
+  const steps=LEVELS[level-1].steps;
+  if(e!==steps[poured.length]){
+    explode();return;
+  }
+  poured.push(e);renderPoured();
+  tone(300+poured.length*90,0.12,'sine',0.1);
+  if(poured.length>=steps.length)passLevel();
+}
+function explode(){
+  lock=true;sBoom();buzz(200);
+  const c=$('cauldron');
+  c.textContent='💥';c.classList.add('shake');
+  sparkles(14,['💥','🔥','💨','⚫']);
+  floatTxt('爆炸了！','#ff5252');
+  setHint('💥 <b>顺序错了！</b>本关重来——先默念一遍再动手');
+  setTimeout(()=>{
+    c.classList.remove('shake');
+    newLevel();
+  },1300);
+}
+function passLevel(){
+  lock=true;
+  const award=level*100;score+=award;
+  sPass();buzz(80);
+  $('cauldron').textContent='✨';
+  sparkles(20,['✨','⭐','🌟','💜']);
+  floatTxt('+'+award,'#ce93d8');
+  refreshHud();
+  setTimeout(()=>{
+    if(level>=8){endGame();}
+    else{level++;newLevel();}
+  },1400);
+}
+function endGame(){
+  running=false;paused=false;lock=false;
+  $('pauseov').classList.remove('on');$('hintov').classList.remove('on');
+  const nb=score>best();
+  saveBest();refreshBest();
+  $('endTitle').textContent=nb?'🏆 新纪录！':'🧪 调配完成';
+  $('endDesc').innerHTML='8 关全部通关！<br>本局得分 <b style="color:#ce93d8;font-size:22px">'+score+'</b>';
+  showScreen('s-end');
+  if(nb)sWin();else sPass();
+}
+/* ===== 暂停/静音/提示 ===== */
+$('pauseBtn').addEventListener('click',()=>{
+  if(!running||paused)return;
+  paused=true;$('pauseov').classList.add('on');sClick();
+});
+$('resumeBtn').addEventListener('click',()=>{paused=false;$('pauseov').classList.remove('on');sClick();});
+$('quitBtn').addEventListener('click',()=>{sClick();running=false;paused=false;lock=false;$('pauseov').classList.remove('on');showScreen('s-start');refreshBest();});
+function refreshSnd(){$('sndBtn').textContent=soundOn?'🔊':'🔇';}
+$('sndBtn').addEventListener('click',()=>{soundOn=!soundOn;localStorage.setItem('g100_mute',soundOn?'0':'1');refreshSnd();if(soundOn)sClick();});
+$('hintBtn').addEventListener('click',()=>{
+  if(!running||paused)return;
+  $('hintText').innerHTML='<b>通用策略</b>：'+STRATEGY+'<br><br><b>本关</b>：'+LEVELS[level-1].tip;
+  $('hintov').classList.add('on');sClick();
+});
+$('hintClose').addEventListener('click',()=>{$('hintov').classList.remove('on');sClick();});
+$('startBtn').addEventListener('click',startGame);
+$('againBtn').addEventListener('click',startGame);
+buildShelf();refreshSnd();refreshBest();
+</script>
+</body>
+</html>
