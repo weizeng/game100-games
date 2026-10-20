@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>21点</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#0c1417;font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;color:#e8f4f6;touch-action:manipulation;user-select:none}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;overflow-y:auto;padding:64px 8px 120px}
+#table{width:min(94vw,560px);background:radial-gradient(ellipse at 50% 30%,#123c30,#0a2a22 70%);border:3px solid #00e67655;border-radius:18px;box-shadow:0 0 40px #00e67633,inset 0 0 60px #00000066;padding:18px 12px;text-align:center}
+.handLabel{font-size:14px;color:#9fd8c0;margin:6px 0;letter-spacing:2px}
+.hand{min-height:96px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;align-items:center;padding:6px 0}
+.card{width:62px;height:88px;border-radius:8px;background:linear-gradient(160deg,#ffffff,#dfe9ec);color:#123;position:relative;font-weight:900;box-shadow:0 4px 10px #00000088;animation:deal .3s ease-out;display:flex;flex-direction:column;align-items:center;justify-content:center}
+@keyframes deal{from{transform:translateY(-30px) rotate(-8deg);opacity:0}to{transform:none;opacity:1}}
+.card.red{color:#c62828}
+.card .s{font-size:22px}.card .r{font-size:16px}
+.card.back{background:repeating-linear-gradient(45deg,#7b1fa2,#7b1fa2 8px,#9c27b0 8px,#9c27b0 16px);border:2px solid #e040fb}
+.card.bj{box-shadow:0 0 18px #ffd54a;border:2px solid #ffd54a}
+#msg{min-height:34px;font-size:19px;font-weight:800;color:#ffd54a;text-shadow:0 0 10px #ffd54a88;margin:6px 0}
+.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;z-index:5;background:#0c1417ee}
+.hud .info{font-size:15px;font-weight:700}
+.hud .btns{display:flex;gap:10px}
+.cbtn{width:44px;height:44px;border-radius:50%;border:2px solid #00e676;background:#00e67622;color:#00e676;font-size:20px;display:flex;align-items:center;justify-content:center}
+#betRow{display:flex;gap:10px;justify-content:center;margin:10px 0;flex-wrap:wrap}
+.chip{min-width:64px;min-height:48px;border-radius:24px;border:2px solid #ffd54a;background:#ffd54a1a;color:#ffd54a;font-size:16px;font-weight:900;padding:8px 14px}
+.chip.sel{background:#ffd54a;color:#1a1000;box-shadow:0 0 14px #ffd54a}
+.ctl{position:fixed;bottom:12px;left:0;right:0;z-index:5;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:0 8px}
+.pbtn{min-width:72px;min-height:56px;padding:10px 14px;border-radius:14px;border:2px solid #00e676;background:#00e6761e;color:#d6fff0;font-size:17px;font-weight:900}
+.pbtn:active{background:#00e67655}
+.pbtn:disabled{opacity:.35;border-color:#555;color:#999}
+.overlay{position:fixed;inset:0;background:rgba(8,14,17,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;text-align:center;padding:24px}
+.overlay h1{font-size:32px;color:#ffd54a;text-shadow:0 0 18px #ffd54a;margin-bottom:12px}
+.overlay p{font-size:15px;line-height:1.8;color:#cfe3e6;max-width:430px;margin-bottom:6px}
+.bigbtn{margin-top:14px;min-width:180px;min-height:52px;font-size:19px;font-weight:800;color:#0a1a12;background:linear-gradient(180deg,#7dffa8,#00e676);border:none;border-radius:12px;cursor:pointer;box-shadow:0 0 24px #00e67688}
+.bigbtn:active{transform:scale(.96)}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="hud">
+  <div class="info">💰<span id="chips">100</span> 注<span id="betV">10</span> 局<span id="round">0</span>/8</div>
+  <div class="btns"><div class="cbtn" id="muteBtn">🔊</div><div class="cbtn" id="pauseBtn">⏸</div></div>
+</div>
+<div id="wrap">
+  <div id="table">
+    <div class="handLabel">🤖 庄家 <span id="dVal"></span></div>
+    <div class="hand" id="dHand"></div>
+    <div id="msg">选择注额，点「发牌」开始</div>
+    <div class="handLabel">😎 你 <span id="pVal"></span></div>
+    <div class="hand" id="pHand"></div>
+  </div>
+  <div id="betRow">
+    <button class="chip" data-b="5">5</button>
+    <button class="chip sel" data-b="10">10</button>
+    <button class="chip" data-b="25">25</button>
+  </div>
+</div>
+<div class="ctl">
+  <button class="pbtn" id="bDeal">🂡 发牌</button>
+  <button class="pbtn" id="bHit" disabled>➕ 要牌</button>
+  <button class="pbtn" id="bStand" disabled>✋ 停牌</button>
+  <button class="pbtn" id="bDouble" disabled>✌️ 双倍</button>
+</div>
+<div class="overlay" id="startOv">
+  <h1>🃏 21点</h1>
+  <p>标准 21 点对战庄家！<br>🂡 发牌 → ➕ 要牌 / ✋ 停牌 / ✌️ 双倍（翻倍注、只再要一张）<br>庄家 <b>17 点停牌</b>；BlackJack 赔付 <b>1.5 倍</b><br>筹码 100 开局，共 <b>8 局</b>，看最终盈利<br>最高盈利自动存档 🏅</p>
+  <button class="bigbtn" id="startBtn">上 桌</button>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <h1>⏸ 已暂停</h1>
+  <button class="bigbtn" id="resumeBtn">继 续</button>
+  <button class="bigbtn" id="restartBtn1" style="background:linear-gradient(180deg,#9db8ff,#5f7cff)">重 来</button>
+</div>
+<div class="overlay hidden" id="endOv">
+  <h1 id="endTitle">🃏 结算</h1>
+  <p id="endText"></p><p id="hsText"></p>
+  <button class="bigbtn" id="restartBtn2">再战8局</button>
+</div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const HSK='g100_blackjack_hs',MKEY='g100_mute';
+let muted=localStorage.getItem(MKEY)==='1';
+let AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function beep(f0,f1,dur,type,vol){if(muted)return;const a=ac();if(!a)return;const o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f0,a.currentTime);if(f1)o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),a.currentTime+dur);g.gain.setValueAtTime(vol||0.1,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+dur);}
+const SFX={
+ deal(){beep(500,800,0.1,'triangle',0.1);setTimeout(()=>beep(500,800,0.1,'triangle',0.1),110);},
+ card(){beep(650,650,0.07,'triangle',0.09);},
+ win(){[523,659,784,1046,1318].forEach((f,i)=>setTimeout(()=>beep(f,f,0.14,'triangle',0.12),i*90));if(navigator.vibrate)navigator.vibrate(60);},
+ lose(){beep(400,90,0.5,'sawtooth',0.14);if(navigator.vibrate)navigator.vibrate(120);},
+ push(){beep(600,600,0.15,'sine',0.1);},
+ chip(){beep(900,1200,0.06,'square',0.08);},
+ click(){beep(700,900,0.06,'square',0.08);}
+};
+$('muteBtn').textContent=muted?'🔇':'🔊';
+$('muteBtn').onclick=()=>{muted=!muted;localStorage.setItem(MKEY,muted?'1':'0');$('muteBtn').textContent=muted?'🔇':'🔊';if(!muted)SFX.click();};
+const SUITS=[{s:'♠',red:false},{s:'♥',red:true},{s:'♦',red:true},{s:'♣',red:false}];
+const RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+let G=null;
+function newGame(){G={over:false,paused:false,chips:100,bet:10,round:0,deck:[],ph:[],dh:[],phase:'idle',doubled:false};
+ $('chips').textContent=100;$('round').textContent='0/8';setBet(10);clearHands();msg('选择注额，点「发牌」开始');setBtns();}
+function newDeck(){G.deck=[];for(let d=0;d<2;d++)for(const su of SUITS)for(const r of RANKS)G.deck.push({r,s:su.s,red:su.red});
+ for(let i=G.deck.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=G.deck[i];G.deck[i]=G.deck[j];G.deck[j]=t;}}
+function val(hand){let t=0,a=0;for(const c of hand){if(c.r==='A'){t+=11;a++;}else if('JQK'.indexOf(c.r)>=0)t+=10;else t+=+c.r;}
+ while(t>21&&a>0){t-=10;a--;}return t;}
+function isBJ(hand){return hand.length===2&&val(hand)===21;}
+function cardEl(c,faceDown,bj){
+ const d=document.createElement('div');d.className='card'+(faceDown?' back':'')+(c.red&&!faceDown?' red':'')+(bj?' bj':'');
+ if(!faceDown)d.innerHTML='<div class="r">'+c.r+'</div><div class="s">'+c.s+'</div>';
+ return d;}
+function clearHands(){$('dHand').innerHTML='';$('pHand').innerHTML='';$('dVal').textContent='';$('pVal').textContent='';}
+function render(hide){
+ $('dHand').innerHTML='';$('pHand').innerHTML='';
+ G.dh.forEach((c,i)=>$('dHand').appendChild(cardEl(c,hide&&i===1,false)));
+ G.ph.forEach(c=>$('pHand').appendChild(cardEl(c,false,isBJ(G.ph))));
+ $('pVal').textContent='('+val(G.ph)+')';
+ $('dVal').textContent=hide?'(?)':'('+val(G.dh)+')';
+ $('chips').textContent=G.chips;$('round').textContent=G.round+'/8';}
+function msg(t){$('msg').textContent=t;}
+function setBtns(){
+ const idle=G.phase==='idle';
+ $('bDeal').disabled=!idle||G.chips<=0;
+ $('bHit').disabled=idle;$('bStand').disabled=idle;
+ $('bDouble').disabled=idle||G.ph.length!==2||G.chips<G.bet;}
+function setBet(b){G.bet=Math.min(b,G.chips);$('betV').textContent=G.bet;
+ document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',+c.dataset.b===b));}
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{if(G.phase!=='idle')return;setBet(+c.dataset.b);SFX.chip();}));
+function draw(){return G.deck.pop();}
+function deal(){
+ if(G.phase!=='idle'||G.chips<=0)return;
+ if(G.chips<G.bet)G.bet=G.chips;
+ G.chips-=G.bet;G.round++;G.doubled=false;G.phase='play';
+ if(G.deck.length<20)newDeck();
+ G.ph=[draw(),draw()];G.dh=[draw(),draw()];
+ SFX.deal();render(true);setBtns();
+ if(isBJ(G.ph)){
+  if(isBJ(G.dh)){settle('push');}else{settle('bj');}
+ }else msg('你的 '+val(G.ph)+' 点：要牌 / 停牌 / 双倍？');}
+function hit(){
+ if(G.phase!=='play')return;
+ G.ph.push(draw());SFX.card();render(true);setBtns();
+ const v=val(G.ph);
+ if(v>21)settle('bust');else if(v===21)stand();else msg('你的 '+v+' 点：要牌 / 停牌？');}
+function stand(){
+ if(G.phase!=='play')return;
+ G.phase='dealer';
+ render(false);SFX.card();
+ (function dLoop(){
+  if(G.paused){setTimeout(dLoop,300);return;}
+  if(val(G.dh)<17){G.dh.push(draw());SFX.card();render(false);setTimeout(dLoop,600);}
+  else{
+   const pv=val(G.ph),dv=val(G.dh);
+   if(dv>21)settle('dbust');else if(dv>pv)settle('lose');else if(dv<pv)settle('win');else settle('push');
+  }
+ })();}
+function double(){
+ if(G.phase!=='play'||G.ph.length!==2||G.chips<G.bet)return;
+ G.chips-=G.bet;G.bet*=2;G.doubled=true;
+ G.ph.push(draw());SFX.card();render(true);
+ const v=val(G.ph);
+ if(v>21)settle('bust');else{msg('双倍后 '+v+' 点，庄家行动…');setTimeout(stand,700);}}
+function settle(kind){
+ G.phase='settle';
+ render(false);
+ const b=G.bet;
+ let txt,col;
+ if(kind==='bj'){const w=Math.floor(b*2.5);G.chips+=w;txt='🎉 BLACKJACK！ +'+(w-b);col='#ffd54a';SFX.win();}
+ else if(kind==='win'){G.chips+=b*2;txt='✅ 你赢了！ +'+b;col='#00e676';SFX.win();}
+ else if(kind==='dbust'){G.chips+=b*2;txt='💥 庄家爆牌！ +'+b;col='#00e676';SFX.win();}
+ else if(kind==='push'){G.chips+=b;txt='🤝 平局，退回注金';col='#9fd8c0';SFX.push();}
+ else if(kind==='bust'){txt='💥 你爆牌了！ -'+b;col='#ff5252';SFX.lose();}
+ else{txt='😞 庄家胜 -'+b;col='#ff5252';SFX.lose();}
+ $('msg').style.color=col;msg(txt);
+ G.phase='idle';
+ if(G.round>=8){setTimeout(endGame,1400);}
+ else setTimeout(()=>{$('msg').style.color='#ffd54a';msg('第 '+(G.round+1)+' 局：点「发牌」继续');render(false);setBtns();},1400);
+ render(false);setBtns();
+ if(G.chips<=0&&G.phase==='idle'&&G.round<8){msg('筹码输光了…点发牌以 100 重新开始');G.chips=100;}
+}
+function endGame(){
+ G.over=true;SFX.win();
+ const profit=G.chips-100;
+ const hs=Math.max(profit,+(localStorage.getItem(HSK)||0));localStorage.setItem(HSK,hs);
+ $('endTitle').textContent=profit>=0?'🏆 盈利收官！':'📉 下次再战';
+ $('endText').innerHTML='8 局结束，筹码 <b style="color:#ffd54a">'+G.chips+'</b>，盈利 <b style="color:'+(profit>=0?'#00e676':'#ff5252')+'">'+(profit>=0?'+':'')+profit+'</b>';
+ $('hsText').innerHTML='🏅 历史最高盈利 <b style="color:#ffd54a">'+hs+'</b>';
+ setTimeout(()=>$('endOv').classList.remove('hidden'),600);}
+/* 暂停 */
+let pausedBackup=null;
+$('pauseBtn').onclick=()=>{if(!G||G.over||G.phase!=='play')return;G.paused=true;pausedBackup=true;$('pauseOv').classList.remove('hidden');SFX.click();};
+$('resumeBtn').onclick=()=>{G.paused=false;$('pauseOv').classList.add('hidden');SFX.click();};
+$('restartBtn1').onclick=()=>{$('pauseOv').classList.add('hidden');G.paused=false;newGame();SFX.click();};
+$('restartBtn2').onclick=()=>{$('endOv').classList.add('hidden');newGame();SFX.click();};
+$('bDeal').onclick=()=>deal();
+$('bHit').onclick=()=>hit();
+$('bStand').onclick=()=>stand();
+$('bDouble').onclick=()=>double();
+$('startBtn').onclick=()=>{ac();SFX.click();$('startOv').classList.add('hidden');newGame();};
+newGame();
+</script>
+</body>
+</html>

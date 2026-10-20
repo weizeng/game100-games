@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>霓虹鱼缸</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#02141a;font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;color:#d6fdff;touch-action:manipulation;user-select:none}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column}
+#cv{display:block;border-radius:10px;box-shadow:0 0 40px #18ffff55}
+.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;z-index:5;pointer-events:none}
+.hud .info{font-size:15px;font-weight:700;text-shadow:0 0 8px #18ffff}
+.hud .btns{pointer-events:auto;display:flex;gap:10px}
+.cbtn{width:44px;height:44px;border-radius:50%;border:2px solid #18ffff;background:#18ffff22;color:#18ffff;font-size:20px;display:flex;align-items:center;justify-content:center}
+.stats{position:fixed;top:60px;left:0;right:0;z-index:5;padding:0 16px;pointer-events:none}
+.stat{margin-bottom:8px;font-size:13px;font-weight:700}
+.stat .bar{height:12px;border-radius:6px;background:#0b2b33;margin-top:3px;overflow:hidden;border:1px solid #18ffff44}
+.stat .fill{height:100%;border-radius:6px;transition:width .3s}
+.ctl{position:fixed;bottom:14px;left:0;right:0;z-index:5;display:flex;justify-content:center;gap:12px;flex-wrap:wrap;padding:0 10px}
+.pbtn{min-width:64px;min-height:56px;padding:8px 12px;border-radius:14px;border:2px solid #18ffff;background:#18ffff1e;color:#d6fdff;font-size:15px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:manipulation}
+.pbtn:active{background:#18ffff55}
+.pbtn .em{font-size:22px}
+.overlay{position:fixed;inset:0;background:rgba(2,20,26,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;text-align:center;padding:24px}
+.overlay h1{font-size:32px;color:#18ffff;text-shadow:0 0 18px #18ffff;margin-bottom:12px}
+.overlay p{font-size:15px;line-height:1.8;color:#bfeef2;max-width:430px;margin-bottom:6px}
+.bigbtn{margin-top:14px;min-width:180px;min-height:52px;font-size:19px;font-weight:800;color:#02262c;background:linear-gradient(180deg,#a5fdff,#18ffff);border:none;border-radius:12px;cursor:pointer;box-shadow:0 0 24px #18ffff88}
+.bigbtn:active{transform:scale(.96)}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="hud">
+  <div class="info">⏱<span id="time">60</span> 分<span id="score">0</span></div>
+  <div class="btns"><div class="cbtn" id="muteBtn">🔊</div><div class="cbtn" id="pauseBtn">⏸</div></div>
+</div>
+<div class="stats">
+  <div class="stat">🍤 饱食度 <span id="vFood">80</span><div class="bar"><div class="fill" id="bFood" style="width:80%;background:#ffab40"></div></div></div>
+  <div class="stat">💧 水质 <span id="vWater">80</span><div class="bar"><div class="fill" id="bWater" style="width:80%;background:#29b6f6"></div></div></div>
+  <div class="stat">🌡 水温 <span id="vTemp">24°C</span>（舒适 20~28°C）<div class="bar"><div class="fill" id="bTemp" style="width:60%;background:#ef5350"></div></div></div>
+</div>
+<div id="wrap"><canvas id="cv" width="600" height="700"></canvas></div>
+<div class="ctl">
+  <div class="pbtn" id="bFeed"><span class="em">🍤</span>喂食</div>
+  <div class="pbtn" id="bWater"><span class="em">💧</span>换水</div>
+  <div class="pbtn" id="bHot"><span class="em">🔥</span>升温</div>
+  <div class="pbtn" id="bCold"><span class="em">❄️</span>降温</div>
+</div>
+<div class="overlay" id="startOv">
+  <h1>🐠 霓虹鱼缸</h1>
+  <p>赛博电子鱼养护挑战！<br>🍤 饱食度、💧 水质、🌡 水温随时间下降<br>🍤 喂食 +饱食 ｜ 💧 换水 +水质<br>🔥 升温 / ❄️ 降温，把水温保持在 <b>20~28°C</b><br>三项都在健康区（30~90）鱼儿冒 💗 并涨分<br>任一项归零 → 鱼儿翻肚肚，扣分！<br>60 秒一局，看你能养多好</p>
+  <button class="bigbtn" id="startBtn">开 始 养 鱼</button>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <h1>⏸ 已暂停</h1>
+  <button class="bigbtn" id="resumeBtn">继 续</button>
+  <button class="bigbtn" id="restartBtn1" style="background:linear-gradient(180deg,#9db8ff,#5f7cff)">重 来</button>
+</div>
+<div class="overlay hidden" id="endOv">
+  <h1 id="endTitle">🐠 时间到！</h1>
+  <p id="endText"></p><p id="hsText"></p>
+  <button class="bigbtn" id="restartBtn2">再养一缸</button>
+</div>
+<script>
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=600,H=700,HSK='g100_neonfish_hs',MKEY='g100_mute';
+let muted=localStorage.getItem(MKEY)==='1';
+const $=id=>document.getElementById(id);
+function fit(){const availH=innerHeight-60-200;const s=Math.min(innerWidth/W,Math.max(200,availH)/H)*0.98;cv.style.width=W*s+'px';cv.style.height=H*s+'px';}
+addEventListener('resize',fit);fit();
+let AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function beep(f0,f1,dur,type,vol){if(muted)return;const a=ac();if(!a)return;const o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f0,a.currentTime);if(f1)o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),a.currentTime+dur);g.gain.setValueAtTime(vol||0.1,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+dur);}
+const SFX={
+ feed(){beep(400,700,0.1,'triangle',0.1);setTimeout(()=>beep(500,800,0.1,'triangle',0.1),90);},
+ water(){beep(900,300,0.25,'sine',0.1);},
+ temp(){beep(300,500,0.15,'triangle',0.1);},
+ heart(){beep(1200,1800,0.12,'sine',0.09);},
+ dead(){beep(400,80,0.5,'sawtooth',0.15);if(navigator.vibrate)navigator.vibrate(150);},
+ click(){beep(700,900,0.06,'square',0.08);},
+ over(){[523,659,784].forEach((f,i)=>setTimeout(()=>beep(f,f,0.18,'triangle',0.12),i*130));}
+};
+$('muteBtn').textContent=muted?'🔇':'🔊';
+$('muteBtn').onclick=()=>{muted=!muted;localStorage.setItem(MKEY,muted?'1':'0');$('muteBtn').textContent=muted?'🔇':'🔊';if(!muted)SFX.click();};
+function tap(el,fn){el.addEventListener('touchstart',e=>{e.preventDefault();fn();},{passive:false});el.addEventListener('click',e=>{e.preventDefault();fn();});}
+let G=null;
+function newGame(){
+ G={over:false,paused:false,time:60,score:0,tick:0,
+   food:80,water:80,temp:24,parts:[],floats:[],bubbles:[],
+   fish:[
+    {x:150,y:280,dir:1,ph:0,c:'#ff6d9d',dead:false,dt:0},
+    {x:400,y:420,dir:-1,ph:2,c:'#18ffff',dead:false,dt:0},
+    {x:280,y:540,dir:1,ph:4,c:'#e040fb',dead:false,dt:0}
+   ]};
+ for(let i=0;i<30;i++)G.bubbles.push({x:Math.random()*W,y:Math.random()*H,r:2+Math.random()*4,s:0.5+Math.random()*1.5});
+}
+function healthy(){return G.food>=30&&G.food<=95&&G.water>=30&&G.water<=95&&G.temp>=20&&G.temp<=28;}
+function action(fn,sfx){if(!G||G.over||G.paused)return;fn();if(sfx)sfx();}
+tap($('bFeed'),()=>action(()=>{G.food=Math.min(100,G.food+18);G.water=Math.max(0,G.water-4);burst(300,300,'#ffab40',10);floatTxt(300,260,'+饱食','#ffab40');},SFX.feed));
+tap($('bWater'),()=>action(()=>{G.water=Math.min(100,G.water+22);G.food=Math.max(0,G.food-5);burst(300,350,'#29b6f6',10);floatTxt(300,310,'+水质','#29b6f6');},SFX.water));
+tap($('bHot'),()=>action(()=>{G.temp=Math.min(40,G.temp+2);floatTxt(300,330,'+2°C','#ef5350');},SFX.temp));
+tap($('bCold'),()=>action(()=>{G.temp=Math.max(4,G.temp-2);floatTxt(300,330,'-2°C','#29b6f6');},SFX.temp));
+function burst(x,y,c,n){for(let i=0;i<n;i++)G.parts.push({x,y,vx:(Math.random()-0.5)*6,vy:-Math.random()*4-1,life:30+Math.random()*20,c,heart:Math.random()<0.35});}
+function floatTxt(x,y,txt,c){G.floats.push({x,y,txt,c,life:70});}
+function update(){
+ if(!G||G.over||G.paused)return;
+ G.time-=1/60;
+ if(G.time<=0){G.time=0;endGame();return;}
+ G.tick++;
+ // 数值衰减
+ if(G.tick%60===0){
+  G.food=Math.max(0,G.food-(2.2+Math.random()*1.5));
+  G.water=Math.max(0,G.water-(2.6+Math.random()*1.5));
+  G.temp+= (Math.random()<0.5?-1:1)*(0.4+Math.random()*0.6);
+  G.temp=Math.max(4,Math.min(40,G.temp));
+ }
+ const ok=healthy();
+ for(const f of G.fish){
+  if(f.dead){f.dt--;if(f.dt<=0){f.dead=false;f.ph=Math.random()*6;burst(f.x,f.y,'#00e676',8);}continue;}
+  f.ph+=0.03;
+  f.x+=Math.cos(f.ph)*1.6*f.dir;
+  f.y+=Math.sin(f.ph*1.7)*0.9;
+  if(f.x<60)f.dir=1;if(f.x>W-60)f.dir=-1;
+  if(f.y<180)f.y=180;if(f.y>H-60)f.y=H-60;
+  if(ok&&G.tick%90===0)burst(f.x,f.y-16,'#ff6d9d',3);
+ }
+ if(G.tick%60===0){
+  if(ok){G.score+=10;SFX.heart();}
+  // 归零惩罚
+  if(G.food<=0||G.water<=0||G.temp<=4||G.temp>=40){
+   const alive=G.fish.filter(f=>!f.dead);
+   if(alive.length){const f=alive[Math.floor(Math.random()*alive.length)];f.dead=true;f.dt=240;G.score=Math.max(0,G.score-20);SFX.dead();floatTxt(f.x,f.y-30,'翻肚了! -20','#ff5252');
+    // 抢救：把归零项拉回 25
+    if(G.food<=0)G.food=25;if(G.water<=0)G.water=25;if(G.temp<=4)G.temp=20;if(G.temp>=40)G.temp=28;}
+  }
+ }
+ for(const b of G.bubbles){b.y-=b.s;if(b.y<120){b.y=H;b.x=Math.random()*W;}}
+ for(const p of G.parts){p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life--;}
+ G.parts=G.parts.filter(p=>p.life>0);
+ for(const f of G.floats){f.y-=0.9;f.life--;}
+ G.floats=G.floats.filter(f=>f.life>0);
+ // HUD
+ $('time').textContent=Math.ceil(G.time);$('score').textContent=G.score;
+ $('vFood').textContent=Math.round(G.food);$('bFood').style.width=G.food+'%';
+ $('vWater').textContent=Math.round(G.water);$('bWater').style.width=G.water+'%';
+ $('vTemp').textContent=G.temp.toFixed(1)+'°C';$('bTemp').style.width=((G.temp-4)/36*100)+'%';
+ $('bTemp').style.background=(G.temp>=20&&G.temp<=28)?'#00e676':'#ef5350';
+}
+function endGame(){G.over=true;SFX.over();
+ const hs=Math.max(G.score,+(localStorage.getItem(HSK)||0));localStorage.setItem(HSK,hs);
+ const alive=G.fish.filter(f=>!f.dead).length;
+ $('endText').innerHTML='最终得分 <b style="color:#ffd54a">'+G.score+'</b> ｜ 存活 '+alive+'/3 条';
+ $('hsText').innerHTML='🏅 最高分 <b style="color:#18ffff">'+hs+'</b>';
+ setTimeout(()=>$('endOv').classList.remove('hidden'),400);}
+function drawFish(f){
+ ctx.save();ctx.translate(f.x,f.y);ctx.scale(f.dir,1);
+ if(f.dead){ctx.rotate(Math.PI);ctx.globalAlpha=0.75;}
+ const c=f.c;
+ ctx.shadowColor=c;ctx.shadowBlur=18;ctx.fillStyle=c;
+ // 身体
+ ctx.beginPath();ctx.ellipse(0,0,34,20,0,0,7);ctx.fill();
+ // 尾巴
+ ctx.beginPath();ctx.moveTo(-32,0);ctx.lineTo(-52,-14);ctx.lineTo(-52,14);ctx.closePath();ctx.fill();
+ // 条纹（赛博电路）
+ ctx.shadowBlur=0;ctx.strokeStyle='#ffffffaa';ctx.lineWidth=2;
+ ctx.beginPath();ctx.moveTo(-8,-14);ctx.lineTo(-2,14);ctx.moveTo(8,-17);ctx.lineTo(14,17);ctx.stroke();
+ // 眼睛
+ ctx.fillStyle='#04141a';ctx.beginPath();ctx.arc(18,-6,5,0,7);ctx.fill();
+ ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(19.5,-7.5,1.8,0,7);ctx.fill();
+ ctx.restore();
+}
+function draw(){
+ const gr=ctx.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#032830');gr.addColorStop(1,'#02141a');
+ ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
+ // 鱼缸玻璃边缘
+ ctx.strokeStyle='#18ffff';ctx.lineWidth=4;ctx.shadowColor='#18ffff';ctx.shadowBlur=12;
+ ctx.strokeRect(8,110,W-16,H-130);ctx.shadowBlur=0;
+ // 水草
+ ctx.strokeStyle='#00e67688';ctx.lineWidth=6;
+ for(let i=0;i<4;i++){const gx=60+i*150;ctx.beginPath();ctx.moveTo(gx,H-24);
+  ctx.quadraticCurveTo(gx+20*Math.sin(Date.now()*0.002+i),H-120,gx-10,H-180);ctx.stroke();}
+ // 气泡
+ ctx.fillStyle='#bfeef233';
+ for(const b of G?G.bubbles:[]) {ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();}
+ if(G){for(const f of G.fish)drawFish(f);
+  for(const p of G.parts){ctx.globalAlpha=Math.min(1,p.life/30);
+   if(p.heart){ctx.font='16px sans-serif';ctx.fillText('💗',p.x,p.y);}else{ctx.fillStyle=p.c;ctx.fillRect(p.x-2,p.y-2,5,5);}}
+  ctx.globalAlpha=1;
+  ctx.font='bold 20px sans-serif';ctx.textAlign='center';
+  for(const f of G.floats){ctx.globalAlpha=Math.min(1,f.life/40);ctx.fillStyle=f.c;ctx.shadowColor=f.c;ctx.shadowBlur=8;ctx.fillText(f.txt,f.x,f.y);ctx.shadowBlur=0;}ctx.globalAlpha=1;
+  // 状态表情
+  ctx.font='26px sans-serif';ctx.textAlign='left';
+  ctx.fillText(healthy()?'😊':'😟',20,105);
+ }
+}
+function loop(){update();draw();requestAnimationFrame(loop);}
+$('startBtn').onclick=()=>{ac();SFX.click();$('startOv').classList.add('hidden');newGame();loop();};
+$('pauseBtn').onclick=()=>{if(!G||G.over)return;G.paused=true;$('pauseOv').classList.remove('hidden');SFX.click();};
+$('resumeBtn').onclick=()=>{G.paused=false;$('pauseOv').classList.add('hidden');SFX.click();};
+$('restartBtn1').onclick=()=>{$('pauseOv').classList.add('hidden');newGame();SFX.click();};
+$('restartBtn2').onclick=()=>{$('endOv').classList.add('hidden');newGame();SFX.click();};
+draw();
+</script>
+</body>
+</html>
