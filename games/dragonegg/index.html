@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>龙蛋孵化</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:linear-gradient(160deg,#3d1420 0%,#1a0e14 55%,#08060a 100%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none;overflow-x:hidden}
+.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;z-index:1}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:9px 12px;font-size:14px}
+.topbar .title{font-weight:700;font-size:16px}
+.topbar .stat{color:#f3dce0;font-size:12px}
+.topbar .stat b{color:#fff;font-size:14px}
+.tbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:17px;min-width:42px;height:42px;border-radius:11px;cursor:pointer;transition:transform .08s}
+.tbtn:active{transform:scale(.9)}
+.screen{width:100%;display:none;flex-direction:column;align-items:center;gap:10px}
+.screen.on{display:flex}
+.card{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.card h1{font-size:26px;margin-bottom:8px;background:linear-gradient(90deg,#ff8a80,#ff5252);-webkit-background-clip:text;background-clip:text;color:transparent}
+.card h2{font-size:22px;margin-bottom:8px}
+.card p{color:#f3e4e6;font-size:14px;line-height:1.9;margin-bottom:12px;text-align:left}
+.card p b{color:#ff8a80}
+.bigbtn{background:linear-gradient(135deg,#ff5252,#ff8a80);border:none;color:#fff;font-size:18px;font-weight:700;padding:14px 44px;border-radius:999px;cursor:pointer;box-shadow:0 6px 18px rgba(255,82,82,.45);transition:transform .1s;min-height:48px}
+.bigbtn:active{transform:scale(.93)}
+.ghostbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:14px;padding:10px 22px;border-radius:999px;cursor:pointer;min-height:44px}
+.ghostbtn:active{transform:scale(.93)}
+.best{color:#ffb3ab;font-size:14px;margin-top:8px}
+#cvwrap{width:100%;display:flex;justify-content:center}
+#cv{border-radius:14px;background:rgba(255,255,255,.03);touch-action:none;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.hint{color:#ecdfe1;font-size:13px;text-align:center;line-height:1.7}
+.hint b{color:#ff8a80}
+.ctrls{width:100%;display:flex;gap:10px}
+.actbtn{flex:1;border:none;border-radius:16px;font-size:19px;font-weight:700;color:#fff;min-height:60px;cursor:pointer;transition:transform .08s,box-shadow .2s;touch-action:none}
+.actbtn:active,.actbtn.hold{transform:scale(.94)}
+#heatBtn{background:linear-gradient(135deg,#ff6f00,#ff3d00);box-shadow:0 6px 18px rgba(255,61,0,.4)}
+#fanBtn{background:linear-gradient(135deg,#0288d1,#00bcd4);box-shadow:0 6px 18px rgba(0,188,212,.35)}
+.pbar{width:100%;height:20px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,.12);position:relative}
+.pbar .fill{height:100%;width:0%;background:linear-gradient(90deg,#ff8a80,#ff5252,#ffd54f);border-radius:999px;transition:width .2s}
+.pbar .lbl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.warn{width:100%;text-align:center;font-size:16px;font-weight:800;color:#ffd54f;min-height:26px;animation:blink .5s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:40;backdrop-filter:blur(4px)}
+.ov.on{display:flex}
+.pausecard{background:#241016;border:1px solid rgba(255,82,82,.3);border-radius:18px;padding:28px 32px;text-align:center;display:flex;flex-direction:column;gap:12px;max-width:86vw}
+.pausecard h2{font-size:20px}
+#toast{position:fixed;top:38%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.82);border:1px solid rgba(255,82,82,.4);color:#fff;font-size:16px;font-weight:700;padding:12px 26px;border-radius:999px;z-index:70;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;max-width:92vw}
+.float{position:fixed;pointer-events:none;z-index:60;font-weight:800;font-size:22px;animation:floatup 1.1s ease-out forwards;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+@keyframes floatup{0%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-52px)}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div class="wrap">
+  <div class="topbar">
+    <span class="title">🐣 龙蛋孵化</span>
+    <span class="stat">⏱<b id="time">90</b>s · 🐣<b id="prog">0</b>% · ⭐<b id="score">0</b></span>
+    <span><button class="tbtn" id="sndBtn" aria-label="静音开关">🔊</button><button class="tbtn" id="pauseBtn" aria-label="暂停">⏸</button></span>
+  </div>
+  <div class="screen on" id="s-start">
+    <div class="card">
+      <h1>🐣 龙蛋孵化</h1>
+      <p>魔法森林深处，一颗龙蛋等待破壳！<br>
+      🌡 <b>控温</b>：温度会自然下降，按住 <b>🔥加热</b> 升温、<b>🌬️扇风</b> 降温<br>
+      💚 保持温度在 <b>绿色舒适区</b> 内，孵化进度上涨<br>
+      🥵 过热（红）/🥶 过冷（蓝）会让进度 <b>倒扣</b><br>
+      ⛈ <b>天气事件</b>："寒流""热浪"会打乱温度，注意预警<br>
+      ⏱ <b>90 秒</b>内进度 100% → 小龙破壳 🐉！</p>
+      <button class="bigbtn" id="startBtn">开始孵化</button>
+      <div class="best">🏅 最高分：<b id="best0">0</b></div>
+    </div>
+  </div>
+  <div class="screen" id="s-game">
+    <div class="warn" id="warn"></div>
+    <div id="cvwrap"><canvas id="cv" width="360" height="380"></canvas></div>
+    <div class="pbar"><div class="fill" id="pfill"></div><div class="lbl" id="plbl">孵化进度 0%</div></div>
+    <div class="ctrls">
+      <button class="actbtn" id="heatBtn">🔥 加热</button>
+      <button class="actbtn" id="fanBtn">🌬️ 扇风</button>
+    </div>
+    <div class="hint">按住按钮持续控温 · 绿色区间 <b>42°–62°</b> 最舒服</div>
+  </div>
+  <div class="screen" id="s-end">
+    <div class="card">
+      <h2 id="endTitle">🐉 孵化成功！</h2>
+      <p id="endDesc" style="text-align:center"></p>
+      <div class="best">🏅 最高分：<b id="best1">0</b></div>
+      <button class="bigbtn" id="againBtn">再孵一颗</button>
+    </div>
+  </div>
+</div>
+<div class="ov" id="pauseov"><div class="pausecard"><h2>⏸ 中场休息</h2><button class="bigbtn" id="resumeBtn">继续</button><button class="ghostbtn" id="quitBtn">重开一局</button></div></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+/* ===== 音效 ===== */
+let AC=null;
+let soundOn=localStorage.getItem('g100_mute')!=='1';
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
+function tone(f,d,type,v,when){if(!soundOn)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.value=f;const t=a.currentTime+(when||0);g.gain.setValueAtTime(v||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.03);}catch(e){}}
+function sweep(f0,f1,d,type,v){if(!soundOn)return;const a=ac();if(!a)return;try{const o=a.createOscillator(),g=a.createGain();o.type=type||'sine';const t=a.currentTime;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+d);g.gain.setValueAtTime(v||0.1,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.03);}catch(e){}}
+const sClick=()=>tone(640,0.07,'square',0.07);
+const sHeat=()=>tone(120+Math.random()*80,0.09,'sawtooth',0.06);       // 加热噼啪
+const sFan=()=>sweep(900,300,0.25,'sine',0.05);                        // 扇风呼呼
+const sWarn=()=>{[660,660,880].forEach((f,i)=>tone(f,0.12,'square',0.09,i*0.15));}; // 天气预警
+const sMilestone=()=>{[784,988].forEach((f,i)=>tone(f,0.1,'triangle',0.1,i*0.07));}; // 进度里程碑
+const sWin=()=>{[523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,0.18,'triangle',0.12,i*0.1));};
+const sLose=()=>{tone(220,0.3,'sawtooth',0.1);tone(147,0.45,'sawtooth',0.09,0.12);};
+/* ===== 工具 ===== */
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._tm);t._tm=setTimeout(()=>{t.style.opacity='0';},1300);}
+function floatTxt(txt,color){const d=document.createElement('div');d.className='float';d.textContent=txt;d.style.color=color||'#ffd54f';d.style.left='50%';d.style.top='30%';document.body.appendChild(d);setTimeout(()=>d.remove(),1150);}
+function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');}
+/* ===== 常量/状态 ===== */
+const HSKEY='g100_dragonegg_hs';
+const cv=$('cv'),ctx=cv.getContext('2d');
+const ZONE_LO=42,ZONE_HI=62,TIME_MAX=90;
+let running=false,paused=false,ended=false;
+let temp=50,progress=0,timeLeft=TIME_MAX,score=0;
+let heating=false,fanning=false;
+let evt=null;            // {phase:'warn'|'active',kind:'cold'|'heat',t:dur}
+let evtNext=8+Math.random()*6;
+let parts=[],tickAcc=0,mile=0,winAnim=0;
+function best(){return parseInt(localStorage.getItem(HSKEY)||'0',10);}
+function saveBest(){if(score>best())localStorage.setItem(HSKEY,String(score));}
+function refreshBest(){$('best0').textContent=best();$('best1').textContent=best();}
+function refreshHud(){$('time').textContent=Math.ceil(timeLeft);$('prog').textContent=Math.floor(progress);$('score').textContent=score;$('pfill').style.width=progress+'%';$('plbl').textContent='孵化进度 '+Math.floor(progress)+'%';}
+function startGame(){
+  running=true;paused=false;ended=false;winAnim=0;
+  temp=50;progress=0;timeLeft=TIME_MAX;score=0;mile=0;
+  heating=false;fanning=false;evt=null;evtNext=8+Math.random()*6;parts=[];
+  $('pauseov').classList.remove('on');$('warn').textContent='';
+  showScreen('s-game');refreshHud();refreshBest();
+  toast('🌡 把温度保持在绿色区间！');sClick();
+}
+function endGame(win){
+  running=false;ended=true;
+  $('pauseov').classList.remove('on');$('warn').textContent='';
+  if(win){score=1000+Math.ceil(timeLeft)*15;winAnim=0.001;}
+  else{score=Math.floor(progress)*5;}
+  const nb=score>best();
+  saveBest();refreshBest();
+  $('endTitle').textContent=win?'🐉 孵化成功！':'🥚 孵化失败…';
+  $('endDesc').innerHTML=(win?'小龙破壳而出！<br>':'时间到了，龙蛋还没孵化。<br>')+'孵化进度 <b>'+Math.floor(progress)+'%</b><br>本局得分 <b style="color:#ff8a80;font-size:22px">'+score+'</b>'+(win?'<br>剩余 <b>'+Math.ceil(timeLeft)+'</b> 秒':'');
+  showScreen('s-end');
+  if(win){sWin();buzz([80,60,80]);for(let i=0;i<60;i++)parts.push(mkPart(180,220,true));}
+  else{sLose();buzz(200);}
+}
+/* ===== 输入（按住控温） ===== */
+function bindHold(el,set){
+  const on=e=>{e.preventDefault();if(!running||paused||ended)return;set(true);el.classList.add('hold');sClick();};
+  const off=()=>{set(false);el.classList.remove('hold');};
+  el.addEventListener('pointerdown',on);
+  el.addEventListener('pointerup',off);
+  el.addEventListener('pointercancel',off);
+  el.addEventListener('pointerleave',off);
+  el.addEventListener('contextmenu',e=>e.preventDefault());
+}
+bindHold($('heatBtn'),v=>heating=v);
+bindHold($('fanBtn'),v=>fanning=v);
+/* ===== 天气事件 ===== */
+function updEvent(dt){
+  if(evt){
+    evt.t-=dt;
+    if(evt.phase==='warn'&&evt.t<=0){
+      evt={phase:'active',kind:evt.kind,t:9};
+      sWarn();buzz([120,80,120]);
+    }else if(evt.phase==='active'&&evt.t<=0){evt=null;evtNext=10+Math.random()*8;$('warn').textContent='';}
+    return;
+  }
+  evtNext-=dt;
+  if(evtNext<=0){
+    const kind=Math.random()<0.5?'cold':'heat';
+    evt={phase:'warn',kind:kind,t:3};
+    $('warn').textContent=kind==='cold'?'⚠ 预警：寒流即将来临！':'⚠ 预警：热浪即将来临！';
+    sWarn();
+  }
+}
+/* ===== 粒子 ===== */
+function mkPart(x,y,burst){
+  const cols=burst?['#ffd54f','#ff8a80','#fff59d','#ff5252','#fff']:['#ffab40','#ff6f00','#ffe0b2'];
+  return{x:x+(Math.random()-0.5)*(burst?260:70),y:y+(Math.random()-0.5)*(burst?200:60),
+    vx:(Math.random()-0.5)*(burst?5:1.6),vy:burst?(Math.random()-0.5)*5-1:-1-Math.random()*2,
+    life:1,c:cols[(Math.random()*cols.length)|0],r:2+Math.random()*3.5};
+}
+/* ===== 绘制 ===== */
+function tempColor(t){
+  // 蓝(冷)→白(适中)→红(热)
+  if(t<ZONE_LO){const p=Math.max(0,1-(ZONE_LO-t)/42);return 'rgb('+Math.round(120+135*p)+','+Math.round(170+60*p)+',255)';}
+  if(t>ZONE_HI){const p=Math.min(1,(t-ZONE_HI)/38);return 'rgb(255,'+Math.round(220-150*p)+','+Math.round(210-160*p)+')';}
+  return '#fff8e7';
+}
+function drawEgg(x,y,s,cracks,hot){
+  ctx.save();ctx.translate(x,y);
+  ctx.rotate(Math.sin(performance.now()/600)*0.035);
+  // 蛋体
+  const g=ctx.createRadialGradient(-s*0.25,-s*0.35,s*0.15,0,0,s*1.05);
+  g.addColorStop(0,'#ffffff');g.addColorStop(0.55,tempColor(temp));g.addColorStop(1,'#d7c9b8');
+  ctx.fillStyle=g;
+  ctx.beginPath();
+  ctx.moveTo(0,-s);
+  ctx.bezierCurveTo(s*0.72,-s*0.55,s*0.78,s*0.35,0,s*0.95);
+  ctx.bezierCurveTo(-s*0.78,s*0.35,-s*0.72,-s*0.55,0,-s);
+  ctx.fill();
+  ctx.strokeStyle='rgba(90,60,40,.45)';ctx.lineWidth=2.5;ctx.stroke();
+  // 舒适区开心光晕
+  if(temp>=ZONE_LO&&temp<=ZONE_HI&&running&&!ended){
+    ctx.strokeStyle='rgba(255,213,79,'+(0.35+0.25*Math.sin(performance.now()/300))+')';
+    ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(0,0,s*0.95,s*1.05,0,0,7);ctx.stroke();
+  }
+  // 裂纹
+  ctx.strokeStyle='rgba(60,35,25,.75)';ctx.lineWidth=2;
+  for(let i=0;i<cracks;i++){
+    const a=-Math.PI/2+(i-1.5)*0.5+Math.sin(i*7)*0.2;
+    ctx.beginPath();
+    let px=Math.cos(a)*s*0.3,py=Math.sin(a)*s*0.4;
+    ctx.moveTo(px,py);
+    for(let k=0;k<4;k++){px+=(Math.random()-0.5)*22;py+=12+Math.random()*10;ctx.lineTo(px,py);}
+    ctx.stroke();
+  }
+  // 眼睛（可爱）
+  if(!ended||winAnim===0){
+    ctx.fillStyle='#4e342e';
+    ctx.beginPath();ctx.arc(-s*0.22,-s*0.1,s*0.07,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(s*0.22,-s*0.1,s*0.07,0,7);ctx.fill();
+  }
+  ctx.restore();
+}
+function drawThermo(){
+  const x=36,y0=40,y1=330,w=26;
+  // 背景槽
+  ctx.fillStyle='rgba(255,255,255,.08)';
+  ctx.beginPath();ctx.roundRect(x-w/2,y0,w,y1-y0,13);ctx.fill();
+  // 蓝→绿→红渐变
+  const g=ctx.createLinearGradient(0,y1,0,y0);
+  g.addColorStop(0,'#4fc3f7');g.addColorStop(0.42,'#69f0ae');g.addColorStop(0.58,'#69f0ae');g.addColorStop(1,'#ff5252');
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.roundRect(x-w/2+3,y0+3,w-6,y1-y0-6,10);ctx.fill();
+  // 温度指示
+  const ty=y1-(temp/100)*(y1-y0);
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,ty,11,0,7);ctx.fill();
+  ctx.fillStyle='#333';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(Math.round(temp)+'°',x,ty);
+  // 舒适区框
+  const zy1=y1-(ZONE_LO/100)*(y1-y0),zy0=y1-(ZONE_HI/100)*(y1-y0);
+  ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.setLineDash([6,4]);
+  ctx.strokeRect(x-w/2-6,zy0,w+12,zy1-zy0);ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='12px sans-serif';ctx.textAlign='left';
+  ctx.fillText('🌡',x+w/2+12,y0+6);
+}
+function draw(dt){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  drawThermo();
+  const ex=210,ey=205,es=62;
+  if(ended&&winAnim>0){
+    // 胜利：破壳 + 小龙
+    const p=Math.min(1,winAnim/1.2),e=p<0.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+    ctx.save();ctx.translate(ex,ey);
+    ctx.fillStyle='#efe6d4';
+    ctx.beginPath();ctx.ellipse(-30*e,30,44,26,-0.4,0,7);ctx.fill();
+    ctx.beginPath();ctx.ellipse(30*e,30,44,26,0.4,0,7);ctx.fill();
+    ctx.font='96px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.globalAlpha=Math.min(1,e*1.4);
+    ctx.fillText('🐉',0,-30*Math.min(1,e*1.2));
+    ctx.restore();
+  }else if(ended){
+    // 失败：灰蛋
+    ctx.save();ctx.globalAlpha=0.45;drawEgg(ex,ey,es,0,false);ctx.restore();
+    ctx.font='40px serif';ctx.textAlign='center';ctx.fillText('😢',ex,ey-90);
+  }else{
+    const cracks=Math.floor(progress/25);
+    drawEgg(ex,ey,es*(1+0.04*Math.sin(performance.now()/450)),cracks,heating);
+    if(temp>78){ctx.font='30px serif';ctx.textAlign='center';ctx.fillText('🥵',ex,ey-95);}
+    else if(temp<22){ctx.font='30px serif';ctx.textAlign='center';ctx.fillText('🥶',ex,ey-95);}
+  }
+  // 天气图标
+  if(evt&&evt.phase==='active'){
+    ctx.font='34px serif';ctx.textAlign='center';
+    ctx.fillText(evt.kind==='cold'?'❄️':'☀️',ex,60+Math.sin(performance.now()/300)*5);
+  }
+  // 粒子
+  for(let i=parts.length-1;i>=0;i--){
+    const pt=parts[i];pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=0.06;pt.life-=dt*0.85;
+    if(pt.life<=0){parts.splice(i,1);continue;}
+    ctx.globalAlpha=Math.max(0,pt.life);ctx.fillStyle=pt.c;
+    ctx.beginPath();ctx.arc(pt.x,pt.y,pt.r,0,7);ctx.fill();ctx.globalAlpha=1;
+  }
+}
+/* ===== 主循环 ===== */
+let lastT=0;
+function loop(t){
+  requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(t-lastT)/1000||0);lastT=t;
+  if(!running||paused){if(running)draw(0);return;}
+  if(ended){winAnim+=dt;draw(dt);return;}
+  // 温度
+  let cool=2.2;
+  if(evt&&evt.phase==='active'&&evt.kind==='cold')cool=4.8;
+  temp-=cool*dt;
+  if(heating)temp+=9*dt;
+  if(fanning)temp-=7*dt;
+  if(evt&&evt.phase==='active'&&evt.kind==='heat')temp+=4*dt;
+  temp=Math.max(0,Math.min(100,temp));
+  // 进度
+  const inZone=temp>=ZONE_LO&&temp<=ZONE_HI;
+  if(inZone){
+    progress+=(100/62)*dt;
+    if(heating&&Math.random()<dt*8)parts.push(mkPart(210,205,false));
+  }else{
+    progress-=3.5*dt;
+    if(progress<0)progress=0;
+  }
+  if(progress>=100){progress=100;refreshHud();endGame(true);return;}
+  // 里程碑
+  const m=Math.floor(progress/25);
+  if(m>mile){mile=m;sMilestone();floatTxt('孵化 '+m*25+'%！','#ffd54f');buzz(40);}
+  // 音效节拍
+  tickAcc+=dt;
+  if(heating&&tickAcc>0.12){tickAcc=0;sHeat();}
+  if(fanning&&tickAcc>0.3){tickAcc=0;sFan();}
+  updEvent(dt);
+  timeLeft-=dt;
+  if(timeLeft<=0){timeLeft=0;refreshHud();endGame(false);return;}
+  refreshHud();
+  draw(dt);
+}
+requestAnimationFrame(loop);
+/* ===== 暂停/静音 ===== */
+$('pauseBtn').addEventListener('click',()=>{
+  if(!running||paused||ended)return;
+  paused=true;$('pauseov').classList.add('on');sClick();
+});
+$('resumeBtn').addEventListener('click',()=>{paused=false;$('pauseov').classList.remove('on');sClick();});
+$('quitBtn').addEventListener('click',()=>{sClick();running=false;paused=false;ended=false;$('pauseov').classList.remove('on');showScreen('s-start');refreshBest();});
+function refreshSnd(){$('sndBtn').textContent=soundOn?'🔊':'🔇';}
+$('sndBtn').addEventListener('click',()=>{soundOn=!soundOn;localStorage.setItem('g100_mute',soundOn?'0':'1');refreshSnd();if(soundOn)sClick();});
+$('startBtn').addEventListener('click',startGame);
+$('againBtn').addEventListener('click',startGame);
+refreshSnd();refreshBest();
+</script>
+</body>
+</html>
