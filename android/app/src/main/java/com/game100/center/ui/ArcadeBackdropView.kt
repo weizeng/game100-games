@@ -17,13 +17,14 @@ import android.view.animation.LinearInterpolator
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** A living arcade stage, drawn behind the title. Only visible cards keep a frame clock. */
+/** A living arcade stage (skin B): slow candy sunburst + glints behind the emblem. Only visible cards keep a frame clock. */
 class ArcadeBackdropView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val visibleBounds = Rect()
-    private val mint = Color.rgb(185, 233, 214)
+    private val mint = Color.WHITE
+    private val rays = android.graphics.Path()
     private var phase = 0f
     private var glow: Shader? = null
     private var sheen: Shader? = null
@@ -44,9 +45,9 @@ class ArcadeBackdropView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         glow = if (w > 0 && h > 0) RadialGradient(w * .79f, h * .27f, w * .48f,
-            intArrayOf(0x4249B8D8, Color.TRANSPARENT), null, Shader.TileMode.CLAMP) else null
+            intArrayOf(0x40FFFFFF, Color.TRANSPARENT), null, Shader.TileMode.CLAMP) else null
         sheen = if (w > 0) LinearGradient(-w * .18f, 0f, w * .18f, h * .12f,
-            intArrayOf(Color.TRANSPARENT, 0x18C2F8FF, Color.TRANSPARENT), null, Shader.TileMode.CLAMP) else null
+            intArrayOf(Color.TRANSPARENT, 0x30FFFFFF, Color.TRANSPARENT), null, Shader.TileMode.CLAMP) else null
         updateClock()
     }
 
@@ -68,22 +69,21 @@ class ArcadeBackdropView @JvmOverloads constructor(
         val cx = w * .79f
         val cy = h * .27f
         val radius = w * .245f
+        // 糖果放射光：14 道白色光束绕徽章缓慢旋转（与游戏内皮肤 B 的开场光一致）
+        val far = w * 1.2f
+        rays.reset()
+        for (i in 0 until 14) {
+            val a0 = Math.toRadians((i * 360.0 / 14) + phase * 25.0)
+            val a1 = a0 + Math.toRadians(9.0)
+            rays.moveTo(cx, cy)
+            rays.lineTo(cx + cos(a0).toFloat() * far, cy + sin(a0).toFloat() * far)
+            rays.lineTo(cx + cos(a1).toFloat() * far, cy + sin(a1).toFloat() * far)
+            rays.close()
+        }
         paint.color = mint
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = resources.displayMetrics.density
-        paint.alpha = 48
-        canvas.drawCircle(cx, cy, radius, paint)
-        paint.alpha = 22
-        canvas.drawCircle(cx, cy, radius * 1.3f, paint)
-        canvas.save()
-        canvas.rotate(phase * 360f - 36f, cx, cy)
-        paint.alpha = 165
-        paint.strokeWidth = 2f * resources.displayMetrics.density
-        canvas.drawArc(cx - radius, cy - radius, cx + radius, cy + radius,
-            0f, 48f, false, paint)
         paint.style = Paint.Style.FILL
-        canvas.drawCircle(cx + radius, cy, 3f * resources.displayMetrics.density, paint)
-        canvas.restore()
+        paint.alpha = 30
+        canvas.drawPath(rays, paint)
         // Four small glints share the same clock; the lower text area stays quiet.
         for (i in 0..3) {
             val angle = (phase * 2.0 * Math.PI + i * Math.PI / 2)

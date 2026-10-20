@@ -39,19 +39,21 @@ class GameDetailActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.detail_icon).apply {
             text = game.icon
-            background = GameAdapter.tileBackground(this@GameDetailActivity, game.color)
+            background = GameAdapter.tileBackground(this@GameDetailActivity, game.color, sizeDp = 132f, radiusDp = 38f)
         }
+        findViewById<android.view.View>(R.id.detail_hero).background =
+            GameAdapter.heroBackground(this, game.color)
         findViewById<TextView>(R.id.detail_name).text = game.name
         findViewById<TextView>(R.id.detail_category).text = game.category
         findViewById<TextView>(R.id.detail_size).text =
-            if (game.size > 0) "${formatSize(game.size)}  ·  离线可玩" else "已下载到本机"
+            if (game.size > 0) "${formatSize(game.size)}  ·  下载后离线可玩" else "✔ 已下载到本机 · 没网也能玩"
         findViewById<TextView>(R.id.detail_desc).text =
             game.desc.ifBlank { "暂无简介" }
 
         // 出品方：点击按该出品方筛选
         val studio = game.displayStudio()
         findViewById<TextView>(R.id.detail_studio).apply {
-            text = "出品方 · $studio"
+            text = "出品方 · $studio ›"
             setOnClickListener {
                 val intent = Intent(this@GameDetailActivity, MainActivity::class.java).apply {
                     putExtra("search_query", studio)
@@ -127,7 +129,9 @@ class GameDetailActivity : AppCompatActivity() {
         val repo = com.game100.center.data.GameRepository(this)
         fun refreshPlayButton() {
             if (repo.isInstalled(game.id)) {
-                btnPlay.text = "开始游戏"
+                btnPlay.text = "▶ 开始游戏"
+                btnPlay.setBackgroundResource(R.drawable.btn_coin)
+                btnPlay.setTextColor(getColor(R.color.coin_ink))
                 btnPlay.setOnClickListener {
                     val intent = Intent(this, GameActivity::class.java).apply {
                         putExtra("game_id", game.id)
@@ -136,6 +140,8 @@ class GameDetailActivity : AppCompatActivity() {
                 }
             } else {
                 btnPlay.text = "⬇ 下载游戏"
+                btnPlay.setBackgroundResource(R.drawable.btn_cyan)
+                btnPlay.setTextColor(getColor(R.color.cyan_ink))
                 btnPlay.setOnClickListener {
                     Toast.makeText(this, "正在下载 ${game.name}...", Toast.LENGTH_SHORT).show()
                     // 用 MainActivity 的下载逻辑：先返回列表页触发下载
