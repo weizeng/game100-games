@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>珍珠贝</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{width:100%;height:100%;background:#0a0616;overflow:hidden;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#f3e9ff}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  #stage{position:relative;width:100%;max-width:480px;height:100%;max-height:850px;background:linear-gradient(180deg,#1b1038 0%,#120a26 55%,#070412 100%);overflow:hidden;box-shadow:0 0 40px rgba(106,27,154,.5)}
+  .hud{position:absolute;top:8px;left:10px;right:10px;display:flex;justify-content:space-between;z-index:5;font-size:15px;text-shadow:0 2px 4px #000}
+  .hud .pill{background:rgba(40,20,70,.8);border:1px solid rgba(200,150,255,.4);border-radius:20px;padding:5px 12px;font-weight:bold}
+  .iconbtn{position:absolute;width:46px;height:46px;border-radius:50%;background:rgba(40,20,70,.85);border:1px solid rgba(200,150,255,.45);color:#f3e9ff;font-size:22px;display:flex;align-items:center;justify-content:center;z-index:6;cursor:pointer}
+  #pauseBtn{top:52px;right:10px}
+  #muteBtn{top:52px;right:64px}
+  #comboBar{position:absolute;top:52px;left:12px;z-index:5;font-size:14px;font-weight:bold;color:#ffe082;text-shadow:0 2px 4px #000}
+  #grid{position:absolute;top:110px;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr;gap:6px;padding:0 14px 14px}
+  .shell{position:relative;border-radius:18px;background:rgba(60,30,100,.35);border:1px solid rgba(180,130,255,.25);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden}
+  .shell .face{font-size:64px;transition:transform .28s cubic-bezier(.34,1.56,.64,1);transform:scale(1)}
+  .shell.open .face{transform:scale(1.15)}
+  .shell .content{position:absolute;font-size:56px;opacity:0;transform:scale(.4);transition:all .22s ease-out}
+  .shell.open .content{opacity:1;transform:scale(1)}
+  .shell.open.pearl{box-shadow:inset 0 0 30px rgba(255,235,180,.55);border-color:#ffe082}
+  .shell.open.crab{box-shadow:inset 0 0 30px rgba(255,80,80,.5);border-color:#ef5350}
+  .shell.pop{animation:pop .3s ease}
+  @keyframes pop{50%{transform:scale(.93)}}
+  .float{position:absolute;font-size:22px;font-weight:bold;pointer-events:none;z-index:7;animation:floatUp 1s ease-out forwards;text-shadow:0 2px 6px #000}
+  @keyframes floatUp{to{transform:translateY(-46px);opacity:0}}
+  .overlay{position:absolute;inset:0;background:rgba(10,5,25,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;text-align:center;padding:24px}
+  .overlay h1{font-size:38px;margin-bottom:10px;text-shadow:0 0 18px rgba(180,120,255,.8)}
+  .overlay p{font-size:15px;line-height:2;color:#d9c8f5;margin-bottom:12px;max-width:330px}
+  .bigbtn{min-width:200px;min-height:56px;font-size:21px;font-weight:bold;border:none;border-radius:16px;background:linear-gradient(180deg,#9c27b0,#4a148c);color:#fff;cursor:pointer;margin-top:8px;box-shadow:0 4px 0 #2a0a52,0 6px 16px rgba(0,0,0,.5)}
+  .bigbtn:active{transform:translateY(3px);box-shadow:0 1px 0 #2a0a52}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+  <div class="hud">
+    <div class="pill">⏱ <span id="time">60</span>s</div>
+    <div class="pill">⭐ <span id="score">0</span></div>
+    <div class="pill">🏆 <span id="hs">0</span></div>
+  </div>
+  <div id="comboBar">🔥连击 x0</div>
+  <div id="muteBtn" class="iconbtn">🔊</div>
+  <div id="pauseBtn" class="iconbtn">⏸</div>
+  <div id="grid"></div>
+  <div id="startOv" class="overlay">
+    <h1>🦪 珍珠贝</h1>
+    <p>贝壳随机开合：<br>开出 <b>🦪珍珠</b>→快点！1.2秒内点中得分<br>开出 <b>🦀螃蟹</b>→千万别点，点了扣分<br>连续点中珍珠，连击加成更高！<br>60秒比高分。</p>
+    <button class="bigbtn" id="startBtn">开 始</button>
+  </div>
+  <div id="pauseOv" class="overlay hidden">
+    <h1>⏸ 已暂停</h1>
+    <button class="bigbtn" id="resumeBtn">继 续</button>
+    <button class="bigbtn" id="restartBtn1">重 来</button>
+  </div>
+  <div id="endOv" class="overlay hidden">
+    <h1>🏁 时间到！</h1>
+    <p id="endText"></p>
+    <button class="bigbtn" id="restartBtn2">再来一局</button>
+  </div>
+</div></div>
+<script>
+'use strict';
+var muted=localStorage.getItem('g100_mute')==='1';
+var AC=null;
+function ac(){ if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}} if(AC&&AC.state==='suspended')AC.resume(); return AC; }
+function tone(f,d,type,vol,slide){ if(muted)return; var a=ac(); if(!a)return;
+  var o=a.createOscillator(),g=a.createGain(); o.type=type||'sine';
+  o.frequency.setValueAtTime(f,a.currentTime);
+  if(slide)o.frequency.exponentialRampToValueAtTime(slide,a.currentTime+d);
+  g.gain.setValueAtTime(vol||0.16,a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);
+  o.connect(g);g.connect(a.destination); o.start();o.stop(a.currentTime+d+0.02); }
+var SFX={
+  open:function(){tone(300,0.1,'sine',0.08,500);},
+  pearl:function(c){tone(700+c*60,0.12,'sine',0.16,1400); if(navigator.vibrate)navigator.vibrate(20);},
+  crab:function(){tone(160,0.3,'sawtooth',0.14,70); if(navigator.vibrate)navigator.vibrate([40,40,40]);},
+  empty:function(){tone(400,0.07,'triangle',0.06);},
+  over:function(){tone(520,0.2,'triangle',0.15,660);setTimeout(function(){tone(660,0.25,'triangle',0.15,880);},150);},
+  click:function(){tone(660,0.06,'sine',0.1);}
+};
+var stage=document.getElementById('stage'), grid=document.getElementById('grid');
+var state='menu', score=0, combo=0, timeLeft=60, openMax=2;
+var shells=[];
+var hs=parseInt(localStorage.getItem('g100_pearlcatch_hs')||'0',10)||0;
+document.getElementById('hs').textContent=hs;
+var lastT=0, spawnAcc=0, elapsed=0, pausedAt=0;
+function buildGrid(){
+  grid.innerHTML=''; shells=[];
+  for(var i=0;i<6;i++){
+    var d=document.createElement('div'); d.className='shell';
+    d.innerHTML='<div class="face">🐚</div><div class="content"></div>';
+    (function(idx,el){
+      el.addEventListener('pointerdown',function(e){e.preventDefault();tapShell(idx,el);});
+    })(i,d);
+    grid.appendChild(d);
+    shells.push({el:d,content:el.querySelector('.content'),open:false,kind:'',until:0});
+  }
+}
+function updHUD(){ document.getElementById('time').textContent=Math.ceil(timeLeft);
+  document.getElementById('score').textContent=score;
+  document.getElementById('comboBar').textContent='🔥连击 x'+combo; }
+function floatAt(el,txt,color){
+  var r=stage.getBoundingClientRect(), s=el.getBoundingClientRect();
+  var f=document.createElement('div'); f.className='float'; f.textContent=txt; f.style.color=color;
+  f.style.left=((s.left-r.left)+s.width/2-10)+'px'; f.style.top=((s.top-r.top)+10)+'px';
+  stage.appendChild(f); setTimeout(function(){f.remove();},1000);
+}
+function tryOpen(now){
+  var open=0,closed=[];
+  for(var i=0;i<6;i++){ if(shells[i].open)open++; else closed.push(i); }
+  if(open>=openMax||!closed.length)return;
+  var i=closed[Math.floor(Math.random()*closed.length)];
+  var s=shells[i], r=Math.random();
+  s.kind=r<0.62?'pearl':(r<0.84?'crab':'empty');
+  s.content.textContent=s.kind==='pearl'?'🦪':(s.kind==='crab'?'🦀':'');
+  s.el.classList.add('open',s.kind);
+  s.open=true; s.until=now+(s.kind==='pearl'?1200:1500)+Math.random()*300;
+  SFX.open();
+}
+function tapShell(idx,el){
+  if(state!=='play')return;
+  var s=shells[idx];
+  el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+  if(!s.open){ SFX.empty(); return; }
+  if(s.kind==='pearl'){
+    combo++;
+    var pts=10+(combo-1)*5;
+    score+=pts; SFX.pearl(Math.min(combo,8));
+    floatAt(el,'+'+pts+' 🦪','#ffe082');
+    closeShell(s);
+  }else if(s.kind==='crab'){
+    score=Math.max(0,score-15); combo=0;
+    SFX.crab(); stage.style.transform='translateX(0)';
+    floatAt(el,'-15 🦀','#ff8a80');
+    closeShell(s);
+  }else{
+    SFX.empty(); combo=0; closeShell(s);
+  }
+  updHUD();
+}
+function closeShell(s){ s.open=false; s.kind=''; s.el.classList.remove('open','pearl','crab'); }
+function end(){
+  if(state!=='play')return; state='end'; SFX.over();
+  var nhs=false;
+  if(score>hs){hs=score;localStorage.setItem('g100_pearlcatch_hs',String(hs));nhs=true;
+    document.getElementById('hs').textContent=hs;}
+  document.getElementById('endText').innerHTML='本局得分：<b>'+score+'</b>'+(nhs?' 🎉新纪录！':'');
+  document.getElementById('endOv').classList.remove('hidden');
+}
+function reset(){
+  score=0;combo=0;timeLeft=60;elapsed=0;spawnAcc=0;
+  for(var i=0;i<6;i++)closeShell(shells[i]);
+  updHUD();
+  document.getElementById('startOv').classList.add('hidden');
+  document.getElementById('endOv').classList.add('hidden');
+  document.getElementById('pauseOv').classList.add('hidden');
+  state='play';
+}
+document.getElementById('startBtn').onclick=function(){SFX.click();reset();};
+document.getElementById('restartBtn1').onclick=function(){SFX.click();reset();};
+document.getElementById('restartBtn2').onclick=function(){SFX.click();reset();};
+document.getElementById('pauseBtn').onclick=function(){
+  if(state==='play'){state='pause';pausedAt=performance.now();document.getElementById('pauseOv').classList.remove('hidden');}};
+document.getElementById('resumeBtn').onclick=function(){
+  if(state==='pause'){var d=performance.now()-pausedAt;
+    for(var i=0;i<6;i++)shells[i].until+=d;
+    state='play';document.getElementById('pauseOv').classList.add('hidden');SFX.click();}};
+function setMuteBtn(){document.getElementById('muteBtn').textContent=muted?'🔇':'🔊';}
+document.getElementById('muteBtn').onclick=function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted)SFX.click();};
+setMuteBtn();
+buildGrid();
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(state!=='play')return;
+  var dt=Math.min(0.05,(ts-lastT)/1000||0.016); lastT=ts;
+  timeLeft-=dt; elapsed+=dt;
+  if(timeLeft<=0){timeLeft=0;updHUD();end();}
+  // 随时间加难度
+  openMax=elapsed>35?3:2;
+  spawnAcc-=dt;
+  if(spawnAcc<=0){ tryOpen(performance.now()); spawnAcc=openMax>2?0.55:0.8; }
+  var now=performance.now();
+  for(var i=0;i<6;i++){ var s=shells[i];
+    if(s.open&&now>s.until){ if(s.kind==='pearl'){combo=0;updHUD();} closeShell(s); } }
+  updHUD();
+}
+requestAnimationFrame(function(ts){lastT=ts;requestAnimationFrame(loop);});
+updHUD();
+</script>
+</body>
+</html>

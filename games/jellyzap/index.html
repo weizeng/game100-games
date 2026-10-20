@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>电鳗伏击</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#050a24;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;color:#e8eaf6}
+#cv{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;z-index:5;pointer-events:none}
+.hud .btn{pointer-events:auto}
+.btn{width:44px;height:44px;font-size:22px;background:rgba(26,35,126,.6);border:2px solid #7986cb;border-radius:12px;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center}
+.scoreBox{text-align:center;font-size:15px;font-weight:bold;color:#c5cae9;text-shadow:0 0 8px #3949ab}
+.chgWrap{position:fixed;left:12px;right:12px;bottom:16px;z-index:5;pointer-events:none}
+.chgBar{height:18px;background:rgba(0,0,0,.55);border:2px solid #7986cb;border-radius:10px;overflow:hidden}
+.chgFill{height:100%;width:0%;background:linear-gradient(90deg,#3949ab,#ffee58,#ffea00);border-radius:7px}
+.chgLabel{font-size:13px;color:#c5cae9;margin-top:3px;text-align:center;text-shadow:0 1px 2px #000}
+.overlay{position:fixed;inset:0;background:rgba(5,10,36,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;padding:24px;text-align:center}
+.overlay h1{font-size:42px;margin-bottom:6px;color:#ffee58;text-shadow:0 0 18px #3949ab}
+.overlay h2{font-size:20px;margin-bottom:14px;color:#c5cae9}
+.overlay p{font-size:15px;line-height:1.8;color:#9fa8da;margin-bottom:18px;max-width:340px}
+.bigBtn{min-width:180px;min-height:52px;font-size:20px;font-weight:bold;background:linear-gradient(180deg,#3949ab,#1a237e);color:#fff;border:3px solid #7986cb;border-radius:16px;cursor:pointer;box-shadow:0 0 20px rgba(57,73,171,.7);padding:12px 28px}
+.bigBtn:active{transform:scale(.95)}
+.hidden{display:none!important}
+.hsLine{font-size:14px;color:#ffd54f;margin-top:12px}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div class="hud">
+  <button class="btn" id="pauseBtn">⏸</button>
+  <div class="scoreBox">⚡ <span id="score">0</span> 分<br><span style="font-size:11px;font-weight:normal">最高 <span id="hs">0</span></span></div>
+  <button class="btn" id="muteBtn">🔊</button>
+</div>
+<div class="chgWrap"><div class="chgBar"><div class="chgFill" id="chgFill"></div></div><div class="chgLabel" id="chgLabel">按住屏幕蓄电，松手放电 ⚡</div></div>
+<div class="overlay" id="startOv">
+  <h1>⚡</h1><h2>电鳗伏击</h2>
+  <p>你是守在海底的电鳗！<b>按住屏幕蓄电</b>（0~100%），<b>松手释放范围电击</b>。<br>🐟小鱼10分 · 🐠中鱼25分 · 🐡大鱼50分<br>🦈鲨鱼电不死！被电到会<b>暴怒加速冲来</b>——再电它一次把它吓跑，碰到你就完了！</p>
+  <button class="bigBtn" id="startBtn">开始伏击</button>
+  <div class="hsLine">最高分：<span id="hsStart">0</span></div>
+</div>
+<div class="overlay hidden" id="pauseOv">
+  <h1>⏸</h1><h2>已暂停</h2>
+  <button class="bigBtn" id="resumeBtn">继续</button>
+</div>
+<div class="overlay hidden" id="endOv">
+  <h1>🦈</h1><h2>被鲨鱼咬到了！</h2>
+  <p id="endDesc"></p>
+  <button class="bigBtn" id="retryBtn">再来一次</button>
+  <div class="hsLine">最高分：<span id="hsEnd">0</span></div>
+</div>
+<script>
+'use strict';
+// ===== 电鳗伏击：蓄电释放 =====
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),W=0,H=0,DPR=1;
+var EX=0,EY=0; // 电鳗位置
+function resize(){DPR=Math.min(2,window.devicePixelRatio||1);W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);EX=W/2;EY=H*0.78;}
+window.addEventListener('resize',resize);resize();
+
+// ===== 音效 =====
+var AC=null,muted=localStorage.getItem('g100_mute')==='1',chgOsc=null,chgGain=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
+function tone(f,d,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,f+slide),c.currentTime+d);g.gain.setValueAtTime(vol||.15,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+d);}catch(e){}}
+function sndClick(){tone(650,.07,'square',.09);}
+function sndCatch(v){tone(700+v*3,.1,'triangle',.16);setTimeout(function(){tone(1050+v*4,.12,'triangle',.13);},60);}
+function sndFail(){tone(160,.7,'sawtooth',.22,-100);}
+function sndShark(){tone(90,.5,'sawtooth',.2,60);}
+function sndFlee(){tone(300,.2,'square',.12,500);}
+function zapNoise(){if(muted)return;var c=ac();if(!c)return;try{var len=c.sampleRate*.35,buf=c.createBuffer(1,len,c.sampleRate),d=buf.getChannelData(0);for(var i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2);var s=c.createBufferSource(),g=c.createGain(),f=c.createBiquadFilter();f.type='highpass';f.frequency.value=1200;s.buffer=buf;g.gain.value=.3;s.connect(f);f.connect(g);g.connect(c.destination);s.start();}catch(e){}}
+function chgStart(){if(muted)return;var c=ac();if(!c)return;try{chgOsc=c.createOscillator();chgGain=c.createGain();chgOsc.type='sawtooth';chgOsc.frequency.value=80;chgGain.gain.value=.05;chgOsc.connect(chgGain);chgGain.connect(c.destination);chgOsc.start();}catch(e){}}
+function chgTick(p){if(chgOsc)try{chgOsc.frequency.value=80+p*4;}catch(e){}}
+function chgStop(){if(chgOsc)try{chgOsc.stop();}catch(e){}chgOsc=null;}
+function updateMuteBtn(){document.getElementById('muteBtn').textContent=muted?'🔇':'🔊';}
+updateMuteBtn();
+
+// ===== 状态 =====
+var HSKEY='g100_jellyzap_hs',hs=parseInt(localStorage.getItem(HSKEY)||'0',10)||0;
+var state='start',score=0,charge=0,charging=false,cool=0,elapsed=0;
+var fishes=[],sharks=[],waves=[],parts=[],floats=[],plankton=[];
+var fishT=0,sharkT=8,lastT=0;
+var FISH=[{e:'🐟',v:10,r:18,sp:[70,120]},{e:'🐠',v:25,r:24,sp:[50,90]},{e:'🐡',v:50,r:30,sp:[35,60]}];
+
+function startGame(){score=0;charge=0;charging=false;cool=0;elapsed=0;fishes=[];sharks=[];waves=[];parts=[];floats=[];fishT=0;sharkT=8;state='play';hideAll();lastT=performance.now();sndClick();}
+function hideAll(){['startOv','pauseOv','endOv'].forEach(function(id){document.getElementById(id).classList.add('hidden');});}
+function showEnd(){
+  state='end';sndFail();chgStop();
+  if(score>hs){hs=score;localStorage.setItem(HSKEY,String(hs));}
+  document.getElementById('endDesc').textContent='存活 '+Math.round(elapsed)+' 秒 · 捕鱼得分 '+score;
+  document.getElementById('hsEnd').textContent=hs;
+  document.getElementById('endOv').classList.remove('hidden');
+}
+function burst(x,y,n,col){for(var i=0;i<n;i++){var a=Math.random()*Math.PI*2,s=60+Math.random()*180;parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.5+Math.random()*.4,t:0,col:col,r:2+Math.random()*3});}}
+function floatText(x,y,txt,col){floats.push({x:x,y:y,txt:txt,t:0,col:col||'#fff'});}
+function vibrate(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+
+// ===== 输入：按住蓄电，松手放电 =====
+cv.addEventListener('pointerdown',function(e){ac();if(state!=='play'||cool>0)return;charging=true;charge=0;chgStart();});
+window.addEventListener('pointerup',function(){if(state==='play'&&charging)release();});
+cv.addEventListener('pointercancel',function(){if(charging){charging=false;charge=0;chgStop();}});
+function release(){
+  charging=false;chgStop();
+  if(charge<5)return;
+  cool=.45;zapNoise();vibrate(60);
+  var rad=70+charge*2.6; // 满电约330
+  waves.push({r:20,max:rad,t:0});
+  burst(EX,EY,Math.round(10+charge*.3),'#ffee58');
+  // 鱼
+  var gained=0;
+  for(var i=fishes.length-1;i>=0;i--){var f=fishes[i],d=Math.hypot(f.x-EX,f.y-EY);
+    if(d<rad+f.r){fishes.splice(i,1);gained+=f.v;burst(f.x,f.y,12,'#ffee58');floatText(f.x,f.y,'+'+f.v,'#ffee58');}
+  }
+  if(gained>0){score+=gained;sndCatch(charge);}
+  // 鲨鱼：巡游中被电→暴怒；暴怒中被电→吓跑
+  for(var j=sharks.length-1;j>=0;j--){var s=sharks[j],ds=Math.hypot(s.x-EX,s.y-EY);
+    if(ds<rad+s.r){
+      if(s.mode==='cruise'){s.mode='rage';sndShark();vibrate([80,40,80]);floatText(s.x,s.y,'🦈暴怒！','#ef5350');burst(s.x,s.y,14,'#ef5350');}
+      else if(s.mode==='rage'){sharks.splice(j,1);score+=100;sndFlee();burst(s.x,s.y,20,'#ffee58');floatText(s.x,s.y,'吓跑了 +100','#ffee58');}
+    }
+  }
+  charge=0;updateHUD();
+}
+document.getElementById('pauseBtn').addEventListener('click',function(){if(state==='play'){state='pause';charging=false;charge=0;chgStop();document.getElementById('pauseOv').classList.remove('hidden');sndClick();}});
+document.getElementById('resumeBtn').addEventListener('click',function(){document.getElementById('pauseOv').classList.add('hidden');state='play';lastT=performance.now();sndClick();});
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('retryBtn').addEventListener('click',startGame);
+document.getElementById('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');updateMuteBtn();if(!muted)sndClick();});
+
+function spawnFish(){
+  var k=Math.random(),fi=k<.55?0:k<.85?1:2,cfg=FISH[fi];
+  var dir=Math.random()<.5?-1:1;
+  fishes.push({e:cfg.e,v:cfg.v,r:cfg.r,x:dir<0?W+40:-40,y:40+Math.random()*(EY-160),
+    vx:dir*(cfg.sp[0]+Math.random()*(cfg.sp[1]-cfg.sp[0])+elapsed*.4),ph:Math.random()*6});
+}
+function spawnShark(){
+  var dir=Math.random()<.5?-1:1;
+  sharks.push({x:dir<0?W+60:-60,y:80+Math.random()*(EY-200),r:36,vx:dir*(45+Math.random()*20),mode:'cruise'});
+}
+function updateHUD(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('hs').textContent=hs;
+  document.getElementById('chgFill').style.width=charge+'%';
+  var lbl=document.getElementById('chgLabel');
+  if(charging)lbl.textContent='⚡ 蓄电中 '+Math.round(charge)+'% …松手放电！';
+  else if(cool>0)lbl.textContent='⚡ 放电冷却中…';
+  else lbl.textContent='按住屏幕蓄电，松手放电 ⚡';
+}
+
+function step(dt){
+  elapsed+=dt;cool=Math.max(0,cool-dt);
+  if(charging){charge=Math.min(100,charge+dt*55);chgTick(charge);updateHUD();}
+  // 鱼群刷新
+  fishT-=dt;if(fishT<=0){spawnFish();if(Math.random()<.4+elapsed*.002)spawnFish();fishT=Math.max(.4,1.4-elapsed*.008);}
+  // 鲨鱼频率递增
+  sharkT-=dt;if(sharkT<=0){spawnShark();sharkT=Math.max(5,16-elapsed*.05);}
+  // 鱼
+  for(var i=fishes.length-1;i>=0;i--){var f=fishes[i];f.x+=f.vx*dt;f.y+=Math.sin((f.ph+=dt*3))*30*dt;
+    if(f.x<-60||f.x>W+60)fishes.splice(i,1);}
+  // 鲨鱼
+  for(var j=sharks.length-1;j>=0;j--){var s=sharks[j];
+    if(s.mode==='cruise'){
+      var dx=EX-s.x,dy=EY-s.y,d=Math.hypot(dx,dy)||1;
+      s.x+=dx/d*55*dt;s.y+=dy/d*55*dt;
+    }else if(s.mode==='rage'){
+      var rx=EX-s.x,ry=EY-s.y,rd=Math.hypot(rx,ry)||1;
+      s.x+=rx/rd*260*dt;s.y+=ry/rd*260*dt;
+    }
+    var dd=Math.hypot(s.x-EX,s.y-EY);
+    if(dd<55){showEnd();return;}
+    if(s.x<-120||s.x>W+120||s.y<-120||s.y>H+120)sharks.splice(j,1);
+  }
+  // 电波扩散
+  for(var wv=waves.length-1;wv>=0;wv--){var w=waves[wv];w.t+=dt*4;w.r+=(w.max-w.r)*Math.min(1,dt*6);if(w.t>1.2)waves.splice(wv,1);}
+  // 浮游生物
+  if(Math.random()<dt*6)plankton.push({x:Math.random()*W,y:H+8,r:1+Math.random()*2.5,vy:15+Math.random()*25});
+  for(var p=plankton.length-1;p>=0;p--){plankton[p].y-=plankton[p].vy*dt;if(plankton[p].y<-10)plankton.splice(p,1);}
+  // 粒子/飘字
+  for(var q=parts.length-1;q>=0;q--){var pt=parts[q];pt.t+=dt;if(pt.t>pt.life){parts.splice(q,1);continue;}pt.x+=pt.vx*dt;pt.y+=pt.vy*dt;pt.vx*=.96;pt.vy*=.96;}
+  for(var f2=floats.length-1;f2>=0;f2--){var fl=floats[f2];fl.t+=dt;fl.y-=38*dt;if(fl.t>1.1)floats.splice(f2,1);}
+}
+
+function draw(){
+  var g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0a1030');g.addColorStop(.7,'#060a20');g.addColorStop(1,'#02040f');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(159,168,218,.6)';
+  plankton.forEach(function(p){ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();});
+  // 海底
+  ctx.fillStyle='#0d1440';ctx.fillRect(0,EY+46,W,H-EY);
+  ctx.fillStyle='rgba(121,134,203,.25)';ctx.fillRect(0,EY+46,W,3);
+  // 鱼
+  fishes.forEach(function(f){ctx.font=(f.r*2)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.save();ctx.translate(f.x,f.y);if(f.vx>0)ctx.scale(-1,1);ctx.fillText(f.e,0,0);ctx.restore();});
+  // 鲨鱼（暴怒红色描边）
+  sharks.forEach(function(s){ctx.font='64px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.save();ctx.translate(s.x,s.y);
+    var a=Math.atan2(EY-s.y,EX-s.x);ctx.rotate(s.vx>0&&s.mode==='cruise'?Math.PI:0);
+    if(s.mode==='rage'){ctx.shadowColor='#ef5350';ctx.shadowBlur=20;}
+    ctx.fillText('🦈',0,0);ctx.restore();ctx.shadowBlur=0;
+    if(s.mode==='rage'){ctx.font='18px serif';ctx.fillText('💢',s.x,s.y-44);}});
+  // 蓄电圈
+  if(charging){var rr=70+charge*2.6;
+    ctx.strokeStyle='rgba(255,238,88,'+(.4+charge/200)+')';ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(EX,EY,rr,0,7);ctx.stroke();
+    ctx.strokeStyle='rgba(255,238,88,.9)';ctx.lineWidth=5;
+    ctx.beginPath();ctx.arc(EX,EY,54,-Math.PI/2,-Math.PI/2+charge/100*Math.PI*2);ctx.stroke();}
+  // 电波
+  waves.forEach(function(w){ctx.globalAlpha=1-w.t/1.2;
+    ctx.strokeStyle='#ffee58';ctx.lineWidth=6;ctx.beginPath();ctx.arc(EX,EY,w.r,0,7);ctx.stroke();
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(EX,EY,w.r*.85,0,7);ctx.stroke();});
+  ctx.globalAlpha=1;
+  // 电鳗（缓动摆动）
+  var sw=Math.sin(performance.now()/250)*6;
+  ctx.save();ctx.translate(EX,EY+sw*.4);ctx.rotate(sw/120);
+  ctx.font='64px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🐍',0,0);
+  if(charging){ctx.shadowColor='#ffee58';ctx.shadowBlur=10+charge*.3;ctx.fillText('⚡',0,-44);ctx.shadowBlur=0;}
+  ctx.restore();
+  // 粒子
+  parts.forEach(function(q){ctx.globalAlpha=1-q.t/q.life;ctx.fillStyle=q.col;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,7);ctx.fill();});
+  ctx.globalAlpha=1;
+  ctx.font='bold 18px sans-serif';
+  floats.forEach(function(fl){ctx.globalAlpha=1-fl.t/1.1;ctx.fillStyle=fl.col;ctx.textAlign='center';ctx.fillText(fl.txt,fl.x,fl.y);});
+  ctx.globalAlpha=1;
+  ctx.font='bold 14px sans-serif';ctx.textAlign='left';ctx.fillStyle='#9fa8da';
+  ctx.fillText(Math.round(elapsed)+'s',12,H-14);
+}
+
+function loop(t){
+  requestAnimationFrame(loop);
+  if(state!=='play')return;
+  var dt=Math.min(.05,(t-lastT)/1000||.016);lastT=t;
+  step(dt);draw();
+}
+document.getElementById('hsStart').textContent=hs;
+document.getElementById('hs').textContent=hs;
+updateHUD();draw();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

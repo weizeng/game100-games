@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>换壳蟹</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{width:100%;height:100%;background:#160c04;overflow:hidden;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#ffe9d6}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  #stage{position:relative;width:100%;max-width:480px;height:100%;max-height:850px;background:linear-gradient(180deg,#2a1608 0%,#1d0f06 55%,#0d0603 100%);overflow:hidden;box-shadow:0 0 40px rgba(230,81,0,.4)}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  .hud{position:absolute;top:8px;left:10px;right:10px;display:flex;justify-content:space-between;z-index:5;font-size:15px;text-shadow:0 2px 4px #000}
+  .hud .pill{background:rgba(60,30,10,.8);border:1px solid rgba(255,180,120,.4);border-radius:20px;padding:5px 12px;font-weight:bold}
+  .iconbtn{position:absolute;width:46px;height:46px;border-radius:50%;background:rgba(60,30,10,.85);border:1px solid rgba(255,180,120,.45);color:#ffe9d6;font-size:22px;display:flex;align-items:center;justify-content:center;z-index:6;cursor:pointer}
+  #pauseBtn{top:52px;right:10px}
+  #muteBtn{top:52px;right:64px}
+  #targetBar{position:absolute;top:52px;left:12px;z-index:5;font-size:14px;font-weight:bold;color:#ffcc80;text-shadow:0 2px 4px #000}
+  .overlay{position:absolute;inset:0;background:rgba(20,10,4,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;text-align:center;padding:24px}
+  .overlay h1{font-size:38px;margin-bottom:10px;text-shadow:0 0 18px rgba(255,150,60,.8)}
+  .overlay p{font-size:15px;line-height:2;color:#f5d9b8;margin-bottom:12px;max-width:340px}
+  .bigbtn{min-width:200px;min-height:56px;font-size:21px;font-weight:bold;border:none;border-radius:16px;background:linear-gradient(180deg,#fb8c00,#bf360c);color:#fff;cursor:pointer;margin-top:8px;box-shadow:0 4px 0 #6d1f00,0 6px 16px rgba(0,0,0,.5)}
+  .bigbtn:active{transform:translateY(3px);box-shadow:0 1px 0 #6d1f00}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+  <canvas id="cv"></canvas>
+  <div class="hud">
+    <div class="pill">⏱ <span id="time">90</span>s</div>
+    <div class="pill">🐚 <span id="shell">0</span>/5</div>
+    <div class="pill">⭐ <span id="score">0</span></div>
+    <div class="pill">🏆 <span id="hs">0</span></div>
+  </div>
+  <div id="targetBar">目标：找 <b>1号</b> 壳</div>
+  <div id="muteBtn" class="iconbtn">🔊</div>
+  <div id="pauseBtn" class="iconbtn">⏸</div>
+  <div id="startOv" class="overlay">
+    <h1>🦀 换壳蟹</h1>
+    <p>点击/拖动移动寄居蟹！<br>沙滩上有 1~5 号贝壳（越来越大），<br>90 秒内<b>按从小到大顺序</b>换上。<br>只能换更大的壳，集齐 5 号壳过关，<br>剩余时间越多加分越多！<br>⚠ 小心巡逻的章鱼 🐙，碰到扣 10 秒！</p>
+    <button class="bigbtn" id="startBtn">开 始</button>
+  </div>
+  <div id="pauseOv" class="overlay hidden">
+    <h1>⏸ 已暂停</h1>
+    <button class="bigbtn" id="resumeBtn">继 续</button>
+    <button class="bigbtn" id="restartBtn1">重 来</button>
+  </div>
+  <div id="endOv" class="overlay hidden">
+    <h1 id="endTitle">🏁</h1>
+    <p id="endText"></p>
+    <button class="bigbtn" id="restartBtn2">再来一局</button>
+  </div>
+</div></div>
+<script>
+'use strict';
+var muted=localStorage.getItem('g100_mute')==='1';
+var AC=null;
+function ac(){ if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}} if(AC&&AC.state==='suspended')AC.resume(); return AC; }
+function tone(f,d,type,vol,slide){ if(muted)return; var a=ac(); if(!a)return;
+  var o=a.createOscillator(),g=a.createGain(); o.type=type||'sine';
+  o.frequency.setValueAtTime(f,a.currentTime);
+  if(slide)o.frequency.exponentialRampToValueAtTime(slide,a.currentTime+d);
+  g.gain.setValueAtTime(vol||0.15,a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);
+  o.connect(g);g.connect(a.destination); o.start();o.stop(a.currentTime+d+0.02); }
+var SFX={
+  swap:function(){tone(400,0.1,'sine',0.16,800);setTimeout(function(){tone(600,0.12,'sine',0.14,1000);},80); if(navigator.vibrate)navigator.vibrate(25);},
+  bump:function(){tone(200,0.12,'square',0.08,150);},
+  octo:function(){tone(120,0.35,'sawtooth',0.14,60); if(navigator.vibrate)navigator.vibrate([60,40,60]);},
+  win:function(){var n=[523,659,784,1047,1319]; for(var i=0;i<n.length;i++)(function(i){setTimeout(function(){tone(n[i],0.2,'triangle',0.15);},i*130);})(i);},
+  lose:function(){tone(280,0.3,'triangle',0.13,120);setTimeout(function(){tone(180,0.4,'triangle',0.12,80);},200);},
+  click:function(){tone(660,0.06,'sine',0.1);}
+};
+var stage=document.getElementById('stage'), cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+var W=480,H=800; cv.width=W; cv.height=H;
+var state='menu', score=0, timeLeft=90, nextShell=1, crab, shells, octo, parts, floats, sand, last=0, octoHitCd=0;
+var hs=parseInt(localStorage.getItem('g100_shellswap_hs')||'0',10)||0;
+document.getElementById('hs').textContent=hs;
+var SHELL_POS=[[70,300],[410,280],[120,560],[370,580],[240,430]];
+function rnd(a,b){return a+Math.random()*(b-a);}
+function reset(){
+  score=0; timeLeft=90; nextShell=1; parts=[]; floats=[]; octoHitCd=0;
+  crab={x:W/2,y:H-140,tx:W/2,ty:H-140};
+  shells=[];
+  for(var i=0;i<5;i++) shells.push({n:i+1,x:SHELL_POS[i][0],y:SHELL_POS[i][1],taken:false});
+  octo={x:W/2,y:180,t:0,r:30};
+  sand=[];
+  for(var s=0;s<60;s++) sand.push({x:Math.random()*W,y:Math.random()*H,r:rnd(1,3)});
+  updHUD();
+  document.getElementById('startOv').classList.add('hidden');
+  document.getElementById('endOv').classList.add('hidden');
+  document.getElementById('pauseOv').classList.add('hidden');
+  state='play';
+}
+function updHUD(){ document.getElementById('time').textContent=Math.ceil(timeLeft);
+  document.getElementById('shell').textContent=(nextShell-1);
+  document.getElementById('score').textContent=score;
+  document.getElementById('targetBar').innerHTML=nextShell<=5?('目标：找 <b>'+nextShell+'号</b> 壳'):'🎉 已集齐！'; }
+function boom(x,y,c,n){ for(var i=0;i<n;i++){var a=Math.random()*6.28,s=rnd(40,160);
+  parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0.7,max:0.7,c:c,s:rnd(2,5)});} }
+function addFloat(x,y,txt,c){ floats.push({x:x,y:y,txt:txt,c:c||'#fff',life:1.2,max:1.2}); }
+function end(win){
+  if(state!=='play')return; state='end';
+  if(win){ var bonus=Math.ceil(timeLeft)*5; score+=bonus; SFX.win(); if(navigator.vibrate)navigator.vibrate([40,40,80]); }
+  else { SFX.lose(); }
+  var nhs=false;
+  if(score>hs){hs=score;localStorage.setItem('g100_shellswap_hs',String(hs));nhs=true;
+    document.getElementById('hs').textContent=hs;}
+  document.getElementById('endTitle').textContent=win?'🎉 换装成功！':'🏁 时间到';
+  document.getElementById('endText').innerHTML=(win?('剩余 '+Math.ceil(timeLeft)+'s，加成 +'+Math.ceil(timeLeft)*5+' 分<br>'):'')+
+    '本局得分：<b>'+score+'</b>'+(nhs?' 🎉新纪录！':'')+'<br>换到 '+ (nextShell-1) +' 号壳';
+  document.getElementById('endOv').classList.remove('hidden');
+}
+/* 输入：点击/拖动移动 */
+var dragging=false;
+function posOf(e){ var r=cv.getBoundingClientRect();
+  var p=e.touches?e.touches[0]:(e.changedTouches?e.changedTouches[0]:e);
+  return {x:(p.clientX-r.left)/r.width*W, y:(p.clientY-r.top)/r.height*H}; }
+cv.addEventListener('pointerdown',function(e){ if(state!=='play')return; dragging=true; var p=posOf(e); crab.tx=p.x; crab.ty=p.y; e.preventDefault(); });
+cv.addEventListener('pointermove',function(e){ if(state!=='play'||!dragging)return; var p=posOf(e); crab.tx=p.x; crab.ty=p.y; });
+window.addEventListener('pointerup',function(){ dragging=false; });
+document.getElementById('startBtn').onclick=function(){SFX.click();reset();};
+document.getElementById('restartBtn1').onclick=function(){SFX.click();reset();};
+document.getElementById('restartBtn2').onclick=function(){SFX.click();reset();};
+document.getElementById('pauseBtn').onclick=function(){
+  if(state==='play'){state='pause';document.getElementById('pauseOv').classList.remove('hidden');}};
+document.getElementById('resumeBtn').onclick=function(){
+  if(state==='pause'){state='play';document.getElementById('pauseOv').classList.add('hidden');SFX.click();}};
+function setMuteBtn(){document.getElementById('muteBtn').textContent=muted?'🔇':'🔊';}
+document.getElementById('muteBtn').onclick=function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted)SFX.click();};
+setMuteBtn();
+function dist(a,b){ var dx=a.x-b.x,dy=a.y-b.y; return Math.sqrt(dx*dx+dy*dy); }
+function easeOut(t){return 1-Math.pow(1-t,3);}
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(state!=='play')return;
+  var dt=Math.min(0.05,(ts-last)/1000||0.016); last=ts;
+  timeLeft-=dt; octoHitCd-=dt;
+  if(timeLeft<=0){timeLeft=0;updHUD();end(false);}
+  // 螃蟹缓动跟随
+  var dx=crab.tx-crab.x, dy=crab.ty-crab.y;
+  crab.x+=dx*Math.min(1,dt*8); crab.y+=dy*Math.min(1,dt*8);
+  // 章鱼巡逻（正弦游荡）
+  octo.t+=dt;
+  octo.x=W/2+Math.sin(octo.t*0.7)*150;
+  octo.y=180+Math.sin(octo.t*1.3)*70+octo.t*0; // 保持在上半区
+  // 捡壳
+  for(var i=0;i<shells.length;i++){ var s=shells[i];
+    if(s.taken)continue;
+    if(dist(crab,s)<44){
+      if(s.n===nextShell){
+        s.taken=true; nextShell++; score+=100;
+        SFX.swap(); boom(s.x,s.y,'#ffcc80',16);
+        addFloat(s.x,s.y-30,'+100 换上'+s.n+'号','#ffcc80');
+        if(nextShell>5){ updHUD(); end(true); }
+      }else{
+        SFX.bump(); addFloat(s.x,s.y-30,'先找'+nextShell+'号!','#ff8a80');
+        // 弹开一小段防止重复触发
+        crab.tx=crab.x+(crab.x-s.x)*0.6; crab.ty=crab.y+(crab.y-s.y)*0.6;
+      }
+    }
+  }
+  // 章鱼碰撞
+  if(octoHitCd<=0&&dist(crab,octo)<52){
+    octoHitCd=2; timeLeft=Math.max(0,timeLeft-10);
+    SFX.octo(); boom(crab.x,crab.y,'#ce93d8',14);
+    addFloat(crab.x,crab.y-40,'-10s 🐙','#ce93d8');
+    if(timeLeft<=0){updHUD();end(false);}
+  }
+  // 粒子/飘字
+  for(var p=parts.length-1;p>=0;p--){var q=parts[p];q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=80*dt;q.life-=dt;if(q.life<=0)parts.splice(p,1);}
+  for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.y-=36*dt;fl.life-=dt;if(fl.life<=0)floats.splice(f,1);}
+  updHUD();
+  draw(ts);
+}
+function draw(ts){
+  ctx.clearRect(0,0,W,H);
+  // 沙滩质感
+  ctx.fillStyle='rgba(255,200,140,.12)';
+  for(var i=0;i<sand.length;i++){var g=sand[i];ctx.beginPath();ctx.arc(g.x,g.y,g.r,0,6.29);ctx.fill();}
+  // 海浪（顶部）
+  ctx.fillStyle='rgba(30,120,180,.35)';
+  var wl=40*Math.sin(ts/900);
+  ctx.beginPath(); ctx.moveTo(0,90+wl);
+  for(var x=0;x<=W;x+=20) ctx.lineTo(x,90+wl*Math.sin(x/60+ts/900));
+  ctx.lineTo(W,0); ctx.lineTo(0,0); ctx.fill();
+  ctx.font='20px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  // 贝壳
+  for(var s=0;s<shells.length;s++){ var sh=shells[s];
+    if(sh.taken){ continue; }
+    var isNext=sh.n===nextShell;
+    var pulse=isNext?1+0.12*Math.sin(ts/250):1;
+    var size=(22+sh.n*7)*pulse;
+    if(isNext){ ctx.strokeStyle='rgba(255,204,128,.9)'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(sh.x,sh.y,size+8,0,6.29); ctx.stroke(); }
+    ctx.font=size+'px serif'; ctx.fillText('🐚',sh.x,sh.y);
+    ctx.font='bold 15px sans-serif'; ctx.fillStyle=isNext?'#ffcc80':'rgba(255,230,200,.7)';
+    ctx.fillText(sh.n+'号',sh.x,sh.y+size*0.75);
+  }
+  // 章鱼
+  var ob=1+0.08*Math.sin(ts/200);
+  ctx.font=(44*ob)+'px serif'; ctx.fillText('🐙',octo.x,octo.y);
+  // 螃蟹（壳随进度变大）
+  var cs=40+(nextShell-1)*5;
+  ctx.font=cs+'px serif'; ctx.fillText('🦀',crab.x,crab.y);
+  ctx.font='bold 13px sans-serif'; ctx.fillStyle='#ffe9d6';
+  ctx.fillText((nextShell-1)+'/5',crab.x,crab.y-cs*0.6-8);
+  // 粒子
+  for(var p=0;p<parts.length;p++){var q=parts[p];ctx.globalAlpha=Math.max(0,q.life/q.max);
+    ctx.fillStyle=q.c;ctx.fillRect(q.x-q.s/2,q.y-q.s/2,q.s,q.s);}
+  ctx.globalAlpha=1;
+  // 飘字
+  ctx.font='bold 19px sans-serif';
+  for(var f=0;f<floats.length;f++){var fl=floats[f];ctx.globalAlpha=Math.min(1,fl.life/fl.max*2);
+    ctx.fillStyle=fl.c;ctx.fillText(fl.txt,fl.x,fl.y);}
+  ctx.globalAlpha=1;
+  ctx.font='15px sans-serif'; ctx.fillStyle='rgba(255,230,200,.55)';
+  ctx.fillText('点击/拖动移动寄居蟹',W/2,H-24);
+}
+requestAnimationFrame(function(ts){last=ts;requestAnimationFrame(loop);});
+updHUD();
+</script>
+</body>
+</html>
