@@ -152,7 +152,7 @@ Release 正文就是更新说明（会被转成纯文本，最多 500 字）。�
 
 - 密钥库文件：`~/workspace/game100/keystores/release.keystore`
   - 证书 SHA-256：`8445da1196c504b382178192500d39a84093a0a1b35e01f0a67b30021264cfb8`
-- 密码存放在 `~/.game100_release_pass`（文件内容即密码）。**禁止把密码打印到对话/日志，禁止写进仓库任何文件。**
+- 密码以 `android/release.properties` 和 `~/.gradle/gradle.properties` 里的为准（两处一致，实测可开钥匙）。`~/.game100_release_pass` 里是旧值、打不开钥匙，**不要用**。**禁止把密码打印到对话/日志，禁止写进仓库任何文件。**
 - `android/release.properties`（已被 .gitignore，必须保留、不要删）四键，`app/build.gradle` 的 `signingConfigs.release` 读它：
   `game100.release.storeFile` / `game100.release.storePassword` / `game100.release.keyAlias` / `game100.release.keyPassword`
 - 换签名 = 已装用户无法覆盖升级。任何情况下不要新生成密钥替换它。
@@ -181,3 +181,11 @@ JAVA_HOME=$HOME/jdk17 ~/gradle/gradle-8.7/bin/gradle assembleRelease --offline
 - 产物拷贝为 `~/workspace/game100/game100-v<版本>-release.apk`，作为聊天附件发给用户。
 - 远程下载链接（可选）：`/opt/hatch/bin/remote-storage upload-file --path <apk>`，链接 2 天有效；本机网络不稳时此步可能失败，以附件交付为准。
 - 源码改动推回仓库：用 GitHub `push_files`，一批最多 5 个游戏（10 个文件），**推完必须查提交记录核验真的落地**，不能只看工具返回成功。
+
+### A.9 合并 PR #18 后（SDK 36 / 三渠道）在本机打包的增补（2026-10-20 实测打通）
+
+- 构建入口：克隆 main 到持久目录（如 `~/workspace/game100/main-clone/repo`，别用 /tmp，VM 重启会清），`android/local.properties` 写 `sdk.dir=/home/hatch/android-sdk`，`android/release.properties` 从老工程复制。
+- Gradle 必须带 `GRADLE_USER_HOME=$HOME/.gradle`：JVM 的 user.home 是 /root，默认读不到 `$HOME/.gradle/gradle.properties` 里的代理配置，在线拉依赖会直接失败。用 `~/gradle/gradle-8.11.1/bin/gradle`（或仓库 `./gradlew`）。
+- 出口代理会做 TLS 拦截，CA 是 "Hatch Sandbox Egress CA"；JVM 默认不认。已把 CA 包做成信任库 `~/.gradle/egress-trust.p12`（密码 changeit），并在 `~/.gradle/gradle.properties` 里配了 `systemProp.javax.net.ssl.trustStore*` 三项。注意：代理根证书会轮换（同名不同钥匙），报 `PKIX ... signature check failed` 就是钥匙又换了——从实时证书链抓当前根证书（指纹核对）替换信任库里同名旧证即可，当前根证书备份在 `~/workspace/game100/sdk-dl/hatch-egress-ca.cer`。
+- SDK 组件：platforms 要有 android-36；build-tools 要同时有 35.0.0（AGP 8.9.1 默认）和 36.0.0。装法：从 dl.google.com 下 `platform-36_r02.zip`、`build-tools_r35_linux.zip`、`build-tools_r36_linux.zip` 手工解压（sdkmanager 走代理隧道不通）。
+- 命令：`gradle assembleDirectRelease -Pgame100.versionCode=<新版> -Pgame100.versionName=<x.y> --max-workers=2`，产物 `app/build/outputs/apk/direct/release/app-direct-release.apk`。2026-10-20 已按此打出 versionCode 24 / 4.7，aapt 验版 + apksigner 验签（指纹与 A.4 一致）通过。
