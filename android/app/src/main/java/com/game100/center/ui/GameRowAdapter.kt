@@ -1,6 +1,5 @@
 package com.game100.center.ui
 
-import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -43,21 +42,15 @@ class GameRowAdapter(
         val item = getItem(position)
         val ctx = h.itemView.context
         h.icon.text = item.icon
-        h.iconBg.background = GameAdapter.tileBackground(ctx, item.color)
-        // 小图标用较小圆角
-        (h.iconBg.background as? GradientDrawable)?.let {
-            val r = 14 * ctx.resources.displayMetrics.density
-            it.cornerRadii = floatArrayOf(r, r, r, r, r, r, r, r)
-        }
+        h.iconBg.background = GameAdapter.tileBackground(ctx, item.color, sizeDp = 68f, radiusDp = 20f)
         h.name.text = item.name
-        val subText = buildString {
-            append(item.category)
-            when {
-                item.hasUpdate -> append("  ·  可更新")
-                item.isNew -> append("  ·  新上架")
-                item.isPremium -> append("  ·  精选")
-                item.installed -> append("  ·  离线可玩")
-            }
+        // 网格卡片较窄：只显示一个最重要的状态
+        val subText = when {
+            item.hasUpdate -> "v${item.installedVersion} → v${item.remote?.version ?: item.installedVersion}"
+            item.isNew -> "✨ 新上架"
+            item.isPremium -> "🔥 精选"
+            item.installed -> "已下载 · 离线可玩"
+            else -> item.category
         }
         h.sub.text = subText
 
@@ -77,16 +70,20 @@ class GameRowAdapter(
             item.canDownload -> ctx.getString(R.string.download)
             else -> "开玩"
         }
-        h.action.text = actionText
+        h.action.text = when {
+            item.hasUpdate -> "⬆ $actionText"
+            item.canDownload -> "⬇ $actionText"
+            else -> "▶ $actionText"
+        }
         h.action.setBackgroundResource(when {
             item.hasUpdate -> R.drawable.pill_update
-            item.canDownload -> R.drawable.pill_secondary
+            item.canDownload -> R.drawable.pill_download
             else -> R.drawable.pill_action
         })
         h.action.setTextColor(ctx.getColor(when {
-            item.hasUpdate -> R.color.accent
-            item.canDownload -> R.color.brand
-            else -> android.R.color.white
+            item.hasUpdate -> R.color.pink_ink
+            item.canDownload -> R.color.cyan_ink
+            else -> R.color.coin_ink
         }))
         h.action.contentDescription = "${item.name}，$actionText"
         h.action.setOnClickListener { onAction(item) }

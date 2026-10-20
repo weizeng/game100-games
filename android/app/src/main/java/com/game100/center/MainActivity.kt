@@ -99,7 +99,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         val recycler = findViewById<RecyclerView>(R.id.recycler)
-        recycler.layoutManager = LinearLayoutManager(this)
+        // 皮肤 B：3 列糖果卡片网格（窄屏 <340dp 退回 2 列）
+        val spans = if (resources.configuration.screenWidthDp < 340) 2 else 3
+        recycler.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, spans)
         adapter = GameRowAdapter(
             onClick = { onGameClick(it) },
             onAction = { onGameAction(it) },
@@ -113,7 +115,8 @@ class MainActivity : AppCompatActivity() {
         featRecycler.adapter = featAdapter
 
         swipe = findViewById(R.id.swipe)
-        swipe.setColorSchemeResources(R.color.brand, R.color.accent)
+        swipe.setColorSchemeResources(R.color.pink, R.color.coin, R.color.cyan)
+        swipe.setProgressBackgroundColorSchemeResource(R.color.bg_secondary)
         swipe.setOnRefreshListener { refreshRemote(silent = false) }
 
         buildCategoryChips()
@@ -164,12 +167,12 @@ class MainActivity : AppCompatActivity() {
         chipViews.clear()
         for (cat in categories) {
             val tv = TextView(this).apply {
-                text = cat
-                textSize = 13f
+                text = (chipEmoji[cat]?.let { "$it " } ?: "") + cat
+                textSize = 13.5f
                 minHeight = dp(44)
                 gravity = Gravity.CENTER
                 isFocusable = true
-                setPadding(dp(16), dp(10), dp(16), dp(10))
+                setPadding(dp(15), dp(9), dp(15), dp(13))
                 setOnClickListener { selectCategory(cat) }
             }
             UiMotion.press(tv)
@@ -184,12 +187,30 @@ class MainActivity : AppCompatActivity() {
         refreshChips()
     }
 
-    private fun chipBg(selected: Boolean): GradientDrawable {
-        return GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(14).toFloat()
-            setColor(getColor(if (selected) R.color.stage else R.color.bg_card))
-            if (!selected) setStroke(dp(1), getColor(R.color.divider))
+    private val chipEmoji = mapOf("精品" to "🔥", "新上架" to "✨", "科学实验" to "🔬", "街机动作" to "🕹️",
+        "益智解谜" to "🧩", "休闲趣味" to "🎈", "经典重温" to "👾")
+
+    /** 分类胶囊（皮肤 B）：选中 = 金币立体按钮，未选 = 玻璃胶囊。 */
+    private fun chipBg(selected: Boolean): android.graphics.drawable.Drawable {
+        val r = dp(22).toFloat()
+        return if (selected) {
+            val ledge = GradientDrawable().apply { setColor(getColor(R.color.coin_edge)); cornerRadius = r }
+            val face = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(
+                getColor(R.color.coin_hi), getColor(R.color.coin), getColor(R.color.coin_lo))).apply {
+                cornerRadius = r; setStroke(dp(1), getColor(R.color.coin_line))
+            }
+            android.graphics.drawable.LayerDrawable(arrayOf(ledge, face)).apply {
+                setLayerInset(0, 0, dp(3), 0, 0); setLayerInset(1, 0, 0, 0, dp(4))
+            }
+        } else {
+            val ledge = GradientDrawable().apply { setColor(getColor(R.color.ledge)); cornerRadius = r }
+            val face = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(
+                getColor(R.color.glass_top), getColor(R.color.glass_bottom))).apply {
+                cornerRadius = r; setStroke(dp(1), getColor(R.color.glass_line))
+            }
+            android.graphics.drawable.LayerDrawable(arrayOf(ledge, face)).apply {
+                setLayerInset(0, 0, dp(3), 0, 0); setLayerInset(1, 0, 0, 0, dp(3))
+            }
         }
     }
 
@@ -200,7 +221,7 @@ class MainActivity : AppCompatActivity() {
                 ColorStateList.valueOf(getColor(R.color.ripple)), chipBg(sel), null
             )
             chipViews[i].isSelected = sel
-            chipViews[i].setTextColor(getColor(if (sel) android.R.color.white else R.color.text_secondary))
+            chipViews[i].setTextColor(getColor(if (sel) R.color.coin_ink else R.color.text_primary))
             chipViews[i].setTypeface(null, if (sel) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         }
     }
