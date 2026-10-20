@@ -432,21 +432,32 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("InflateParams")
     private fun downloadGame(item: GameItem) {
         val remote = item.remote ?: return
+        val zip = File(repo.downloadDir, "${item.id}.zip")
+        if (GameDownloader.isDownloading(zip.absolutePath)) {
+            toast("${item.name} 正在下载中")
+            return
+        }
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_download, null)
         val progressBar = dialogView.findViewById<ProgressBar>(R.id.dl_progress)
         val progressText = dialogView.findViewById<TextView>(R.id.dl_text)
+        val statusText = dialogView.findViewById<TextView>(R.id.dl_status)
+        val cancelled = java.util.concurrent.atomic.AtomicBoolean(false)
         val dialog = AlertDialog.Builder(this)
             .setTitle("${getString(R.string.downloading)} ${item.name}")
             .setView(dialogView)
             .setCancelable(false)
+            .setNegativeButton(R.string.cancel) { _, _ -> cancelled.set(true) }
             .create()
         dialog.show()
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val tmp = File(repo.downloadDir, "${item.id}.zip.tmp")
                 val totalSize = remote.size
-                GameDownloader.download(remote.url, tmp) { p ->
+                GameDownloader.download(
+                    remote.url, zip, expectedSize = totalSize,
+                    cancelled = { cancelled.get() },
+                    onStatus = { msg -> launch(Dispatchers.Main) { statusText.text = msg } },
+                ) { p ->
                     launch(Dispatchers.Main) {
                         progressBar.progress = p
                         // 显示 MB 进度：1.2MB / 3.5MB (34%)
@@ -459,17 +470,28 @@ class MainActivity : AppCompatActivity() {
                         progressText.text = text
                     }
                 }
-                // 解压安装
-                val dest = File(repo.gamesDir, item.id)
-                if (dest.exists()) dest.deleteRecursively()
-                tmp.inputStream().use { ins -> ZipUtils.unzip(ins, dest) }
-                tmp.delete()
-                // 校验
-                if (!File(dest, "index.html").exists()) {
-                    throw IllegalStateException("游戏包损坏：缺少 index.html")
+                // 先解压到临时目录并校验，成功后再替换旧版本（失败不会弄坏已安装的游戏）
+                val staging = File(repo.downloadDir, "${item.id}.staging")
+                staging.deleteRecursively()
+                zip.inputStream().use { ins -> ZipUtils.unzip(ins, staging) }
+                if (!File(staging, "index.html").exists()) {
+                    staging.deleteRecursively()
+                    throw GameDownloader.DownloadException("游戏包损坏：缺少 index.html，请重试", null)
                 }
+                val dest = File(repo.gamesDir, item.id)
+                val old = File(repo.downloadDir, "${item.id}.old")
+                old.deleteRecursively()
+                repo.gamesDir.mkdirs()
+                if (dest.exists() && !dest.renameTo(old)) dest.deleteRecursively()
+                if (!staging.renameTo(dest)) {
+                    staging.copyRecursively(dest, overwrite = true)
+                    staging.deleteRecursively()
+                }
+                old.deleteRecursively()
+                zip.delete()
                 val items = repo.buildGameList(listOf(remote))
                 withContext(Dispatchers.Main) {
+                    if (isFinishing || isDestroyed) return@withContext
                     dialog.dismiss()
                     adapter.submit(items)
                     toast(getString(R.string.download_done))
@@ -477,8 +499,20 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
+                    if (isFinishing || isDestroyed) return@withContext
                     dialog.dismiss()
-                    toast(getString(R.string.download_failed, e.message ?: "未知错误"))
+                    if (e is GameDownloader.CancelledException) {
+                        toast("已取消下载")
+                        return@withContext
+                    }
+                    val msg = (e as? GameDownloader.DownloadException)?.userMessage
+                        ?: getString(R.string.download_failed, e.message ?: "未知错误")
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("${item.name} 下载失败")
+                        .setMessage(msg)
+                        .setPositiveButton("重试") { _, _ -> downloadGame(item) }
+                        .setNegativeButton(R.string.cancel, null)
+                        .show()
                 }
             }
         }

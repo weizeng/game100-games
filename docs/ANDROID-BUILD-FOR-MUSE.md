@@ -7,17 +7,22 @@
 
 | 渠道 | 用途 | 自升级（下载安装新 APK） | 在线游戏库（CDN 下载新游戏） | 权限 | 内置游戏 |
 |---|---|---|---|---|---|
-| `play` | Google Play、TapTap | ❌ 去掉（“检查更新”改为跳转商店） | ✅ | INTERNET、ACCESS_NETWORK_STATE、VIBRATE | `src/main/assets/bundled` 里已提交的那些 |
+| `play` | Google Play、TapTap | ❌ 去掉（“检查更新”改为跳转商店） | ✅ | INTERNET、ACCESS_NETWORK_STATE、VIBRATE | 构建时把仓库 `games/` 下**全部**游戏打进包里 |
 | `cn` | 华为 / 小米 / OPPO / vivo 等国内商店 | ❌ | ❌ 完全离线 | 仅 VIBRATE（**没有联网权限**） | 构建时把仓库 `games/` 下**全部**游戏打进包里 |
-| `direct` | 官网 / GitHub 直装（原来的行为） | ✅ | ✅ | 另加 REQUEST_INSTALL_PACKAGES + FileProvider | 同 play |
+| `direct` | 官网 / GitHub 直装（原来的行为） | ✅ | ✅ | 另加 REQUEST_INSTALL_PACKAGES + FileProvider | 同上，全部游戏 |
 
 代码层面：
 - `BuildConfig.SELF_UPDATE`、`BuildConfig.ONLINE_CATALOG`、`BuildConfig.STORE_CHANNEL` 区分渠道。
 - 自升级代码只在 `src/direct/`（`net/AppUpdater.kt`、`res/xml/file_paths.xml`、Manifest 里的权限和 FileProvider）。
   `play` 和 `cn` 编译 `src/noSelfUpdate/` 里的同名空实现，所以这两个包里**根本没有**下载安装 APK 的代码。
 - `cn` 的 Manifest（`src/cn/AndroidManifest.xml`）用 `tools:node="remove"` 去掉 INTERNET / ACCESS_NETWORK_STATE。
-- `cn` 的内置游戏由 Gradle 任务 `zipAllGamesForCn` 生成到 `app/build/generated/cnBundledGames/`，不会改动仓库里的文件。
-  所以 **打 cn 包必须在完整仓库里执行**（需要 `../games` 目录），找不到任何游戏会直接报错。
+- **内置游戏（所有渠道，自 v4.10 起）**：Gradle 任务 `zipBundledGames` 在构建时把仓库 `games/<id>/` 全部打成
+  `assets/bundled/<id>.zip`（输出到 `app/build/generated/bundledGames/`，挂在 `main` 的 assets 上），不会改动仓库文件。
+  - 以前 play/direct 用的是提交在仓库里的 `src/main/assets/bundled`（停在 10-17 的 206 款旧版），已删除，所以**内置游戏永远等于当前 `games/`**，不会再过期。
+  - App 启动时 `GameRepository.ensureBundledGames()` 在 App 版本号变化后读每个 zip 里 `meta.json` 的 `version`，**只有比手机上已安装的版本新才覆盖**；
+    CDN 的 `manifest.json` 版本和 `games/*/meta.json` 一致，所以升级后不会把全部游戏再下载一遍。
+  - 因此**必须在完整仓库里构建**（需要 `../games` 目录），找不到任何游戏会直接报错。
+  - `./gradlew testPlayReleaseUnitTest` 会按 App 的读取方式检查内置包：数量、版本号与 meta.json 一致、能解压出与仓库相同的 index.html。
 
 ## 2. 打包命令
 
@@ -48,11 +53,21 @@ cd android
 
 没配签名时文件名会带 `-unsigned`，需要自己签名（见第 4 节）。调试包：`./gradlew assemblePlayDebug`（包名带 `.debug` 后缀，可与正式版共存）。
 
+### 小游戏下载（自 v4.10 起）
+
+`net/GameDownloader.kt` + `net/Mirrors.kt`：
+- 连接超时 15 秒、读取超时 30 秒（按“多久没收到数据”计时，慢网只要还在传就不会超时）。
+- 线路：`cdn.jsdelivr.net` → `fastly.jsdelivr.net` → `gcore.jsdelivr.net` → `testingcf.jsdelivr.net` → `raw.githubusercontent.com`，上次成功的线路下次优先；最多 3 轮，轮间等 1 秒 / 3 秒，总时长约 3 分钟封顶。manifest.json 也走同样的线路。
+- 同一线路断点续传；先写 `.part` 临时文件，校验（manifest 的 size + zip 结构与 CRC + 含 index.html/meta.json）通过后再改名；解压到临时目录成功后才替换旧游戏。
+- 最多同时下载 2 个，其余排队；下载框可取消；失败时弹出原因 + “重试”按钮。
+- 单元测试 `GameDownloaderTest` 用本地服务器模拟：慢速、卡死、断流、坏包、503、续传、全部失败、取消、并发上限。
+
 ## 3. versionCode 规则
 
 - **所有渠道共用同一个 versionCode / versionName**，一次发版只 +1 一次。
+- versionName 只是显示用的字符串（如 4.10），App 自升级和各商店都只比较 versionCode，所以 4.10 排在 4.9 之后没有问题。
 - 每次发版 versionCode 必须**严格大于**上一次（Google Play 和各商店都会拒绝相同或更小的值；`publish-stores.yml` 会自动校验）。
-- 当前默认值：versionCode **26**、versionName **4.9**（写在 `android/app/build.gradle` 里）。23/4.6、24/4.7 已被 Muse 本地出包占用（见附录 A.6、A.9），下一次发版用 27。
+- 当前默认值：versionCode **27**、versionName **4.10**（写在 `android/app/build.gradle` 里）。23/4.6、24/4.7 已被 Muse 本地出包占用（见附录 A.6、A.9），下一次发版用 28。
 - 传入方式（优先级从高到低）：`-Pgame100.versionCode=23` / 环境变量 `GAME100_VERSIONCODE=23`；versionName 同理（`game100.versionName` / `GAME100_VERSIONNAME`）。
 - 也可以直接改 `build.gradle` 里的默认值并提交，这样仓库记录的就是最新版本。
 

@@ -160,7 +160,7 @@ object AppUpdater {
         val dir = ctx.externalCacheDir ?: ctx.cacheDir
         val out = File(dir, "update.apk")
         if (out.exists()) out.delete()
-        GameDownloader.download(url, out, onProgress)
+        GameDownloader.download(url, out, isGameZip = false, onProgress = onProgress)
         return out
     }
 

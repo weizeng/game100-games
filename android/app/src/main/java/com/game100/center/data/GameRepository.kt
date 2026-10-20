@@ -78,18 +78,7 @@ class GameRepository(private val context: Context) {
 
     private fun getBundledVersion(zipName: String): Int {
         return try {
-            context.assets.open("bundled/$zipName").use { ins ->
-                java.util.zip.ZipInputStream(ins).use { zis ->
-                    var entry = zis.nextEntry
-                    while (entry != null) {
-                        if (entry.name == "meta.json") {
-                            return JSONObject(zis.bufferedReader().readText()).optInt("version", 0)
-                        }
-                        entry = zis.nextEntry
-                    }
-                }
-            }
-            0
+            context.assets.open("bundled/$zipName").use { ins -> ZipUtils.readMetaVersion(ins) }
         } catch (e: Exception) { 0 }
     }
 

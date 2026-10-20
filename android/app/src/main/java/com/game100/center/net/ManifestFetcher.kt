@@ -9,40 +9,30 @@ import java.net.URL
 object ManifestFetcher {
     @Throws(Exception::class)
     fun fetch(url: String): List<RemoteGame> {
-        // 多地址容灾：cdn.jsdelivr.net → fastly.jsdelivr.net → raw.githubusercontent.com
-        val urls = buildFallbackUrls(url)
+        // 多线路容灾（见 Mirrors），最多 2 轮，轮间等 1 秒
+        val urls = Mirrors.candidates(url)
         var lastError: Exception? = null
-        for (u in urls) {
-            try {
-                return fetchSingle(u)
-            } catch (e: Exception) {
-                lastError = e
+        for (round in 0 until 2) {
+            if (round > 0) Thread.sleep(1_000)
+            for (u in urls) {
+                try {
+                    val list = fetchSingle(u)
+                    Mirrors.markGood(u)
+                    return list
+                } catch (e: Exception) {
+                    lastError = e
+                }
             }
         }
         throw lastError ?: IOException("游戏源连接失败")
     }
 
-    private fun buildFallbackUrls(url: String): List<String> {
-        val list = mutableListOf(url)
-        val marker = "cdn.jsdelivr.net/gh/"
-        if (url.contains(marker)) {
-            val after = url.substringAfter(marker)
-            list.add("https://fastly.jsdelivr.net/gh/$after")
-            val atIdx = after.indexOf("@")
-            if (atIdx > 0) {
-                val repo = after.substring(0, atIdx)
-                val branchPath = after.substring(atIdx + 1)
-                list.add("https://raw.githubusercontent.com/$repo/$branchPath")
-            }
-        }
-        return list.distinct()
-    }
-
     @Throws(Exception::class)
     private fun fetchSingle(url: String): List<RemoteGame> {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15000
-            readTimeout = 15000
+            connectTimeout = GameDownloader.connectTimeoutMs
+            readTimeout = GameDownloader.readTimeoutMs
+            useCaches = false
             setRequestProperty("User-Agent", "Game100/1.0")
             instanceFollowRedirects = true
         }

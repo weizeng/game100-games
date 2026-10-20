@@ -28,4 +28,19 @@ object ZipUtils {
             }
         }
     }
+
+    /** 读取 zip 里根目录 meta.json 的 version（内置游戏版本比对用）；没有则返回 0 */
+    fun readMetaVersion(input: InputStream): Int {
+        ZipInputStream(input.buffered()).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                if (entry.name == "meta.json") {
+                    val text = zis.readBytes().toString(Charsets.UTF_8)
+                    return org.json.JSONObject(text).optInt("version", 0)
+                }
+                entry = zis.nextEntry
+            }
+        }
+        return 0
+    }
 }

@@ -29,16 +29,6 @@ jobs:
           base64 -d android-release.keystore.b64 > /tmp/release.keystore
           echo "keystore 已还原"
 
-      - name: 打包内置游戏资源
-        run: |
-          mkdir -p android/app/src/main/assets/bundled
-          for d in games/*/; do
-            id="$(basename "$d")"
-            [ -f "$d/index.html" ] && [ -f "$d/meta.json" ] || continue
-            (cd "$d" && zip -qr "../../android/app/src/main/assets/bundled/$id.zip" index.html meta.json)
-          done
-          ls android/app/src/main/assets/bundled | wc -l
-
       - name: 编译 direct 渠道 release APK
         env:
           GAME100_RELEASE_STOREFILE: /tmp/release.keystore
@@ -81,7 +71,7 @@ jobs:
           git config user.name "game100-bot"
           git config user.email "game100-bot@users.noreply.github.com"
           git pull --rebase origin main || true
-          git add releases app.json android/app/src/main/assets/bundled
+          git add releases app.json
           if git diff --cached --quiet; then echo "无变化"; exit 0; fi
           git commit -m "发布 App v${VN} [skip ci]"
           git push

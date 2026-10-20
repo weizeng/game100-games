@@ -11,8 +11,8 @@ plugins {
 def readProp = { String name ->
     project.findProperty(name)?.toString() ?: System.getenv(name.toUpperCase().replace('.', '_'))
 }
-def appVersionCode = (readProp("game100.versionCode") ?: "26").toInteger()
-def appVersionName = readProp("game100.versionName") ?: "4.9"
+def appVersionCode = (readProp("game100.versionCode") ?: "27").toInteger()
+def appVersionName = readProp("game100.versionName") ?: "4.10"
 
 // 签名：只从 release.properties（不入库）/ -P 参数 / 环境变量读取，绝不写死在仓库里。
 // 缺少任一项时 release 包不签名（可由 muse 或 apksigner/jarsigner 事后签名），不会让同步失败。
@@ -22,6 +22,8 @@ if (releasePropFile.exists()) { releasePropFile.withInputStream { releaseProps.l
 def signProp = { String name -> releaseProps.getProperty(name) ?: readProp(name) }
 def hasReleaseSigning = ["game100.release.storeFile", "game100.release.storePassword",
                          "game100.release.keyAlias", "game100.release.keyPassword"].every { signProp(it) }
+
+def bundledGamesDirPath = "${project.layout.buildDirectory.get().asFile}/generated/bundledGames/bundled"
 
 android {
     namespace = "com.game100.center"
@@ -77,8 +79,9 @@ android {
         // play 与 cn 共用"无自更新"实现；direct 用 src/direct 下的完整自升级实现
         play.java.srcDirs += "src/noSelfUpdate/java"
         cn.java.srcDirs += "src/noSelfUpdate/java"
-        // cn：构建时生成的全部游戏 zip（见下方 zipAllGamesForCn 任务）
-        cn.assets.srcDirs += "${layout.buildDirectory.get().asFile}/generated/cnBundledGames"
+        // 所有渠道：内置游戏在构建时由 ../games 现打（见下方 zipBundledGames 任务），
+        // 不再提交 src/main/assets/bundled，避免内置游戏过期
+        main.assets.srcDirs += "${layout.buildDirectory.get().asFile}/generated/bundledGames"
     }
 
     buildTypes {
@@ -95,6 +98,13 @@ android {
     }
     buildFeatures {
         buildConfig = true
+    }
+    testOptions {
+        unitTests.all {
+            // 让单元测试能找到构建时生成的内置游戏和仓库 games/
+            systemProperty "game100.bundledDir", bundledGamesDirPath
+            systemProperty "game100.gamesDir", rootProject.file("../games").absolutePath
+        }
     }
     lint {
         checkReleaseBuilds = false
@@ -113,17 +123,20 @@ if (!hasReleaseSigning) {
 }
 
 // ---------------------------------------------------------------------------
-// cn 渠道：把仓库 games/<id>/ 全部打成 assets/bundled/<id>.zip（与 publish.yml 的 zip 结构一致：
-// 根目录直接是 index.html / meta.json 等文件），保证完全离线可玩。
+// 内置游戏（所有渠道）：构建时把仓库 games/<id>/ 全部打成 assets/bundled/<id>.zip
+// （与 publish.yml 的 zip 结构一致：根目录直接是 index.html / meta.json 等文件）。
+// App 启动时 GameRepository.ensureBundledGames() 读取 zip 内 meta.json 的 version，
+// 比已安装版本新才解压，因此内置版本永远等于 games/*/meta.json，不会过期。
+// cn 渠道因此完全离线可玩；play/direct 首次安装也能离线玩全部游戏。
 // ---------------------------------------------------------------------------
 def gamesSrcDir = rootProject.file("../games")
-def cnBundledOut = layout.buildDirectory.dir("generated/cnBundledGames/bundled")
-def zipAllGamesForCn = tasks.register("zipAllGamesForCn") {
-    description = "把 ../games 下所有游戏打包为 cn 渠道内置 assets"
+def bundledOut = layout.buildDirectory.dir("generated/bundledGames/bundled")
+def zipBundledGames = tasks.register("zipBundledGames") {
+    description = "把 ../games 下所有游戏打包为内置 assets（所有渠道）"
     inputs.dir(gamesSrcDir).optional()
-    outputs.dir(cnBundledOut)
+    outputs.dir(bundledOut)
     doLast {
-        def out = cnBundledOut.get().asFile
+        def out = bundledOut.get().asFile
         project.delete(out)
         out.mkdirs()
         int n = 0
@@ -132,11 +145,13 @@ def zipAllGamesForCn = tasks.register("zipAllGamesForCn") {
             if (!new File(g, "index.html").exists() || !new File(g, "meta.json").exists()) return
             new File(out, "${g.name}.zip").withOutputStream { os ->
                 def zos = new java.util.zip.ZipOutputStream(os)
-                g.eachFileRecurse(groovy.io.FileType.FILES) { File f ->
-                    if (f.name.startsWith(".")) return
+                // 固定顺序 + 固定时间戳，构建可复现
+                def files = []
+                g.eachFileRecurse(groovy.io.FileType.FILES) { File f -> if (!f.name.startsWith(".")) files << f }
+                files.sort { g.toPath().relativize(it.toPath()).toString() }.each { File f ->
                     def rel = g.toPath().relativize(f.toPath()).toString().replace('\\', '/')
                     def e = new java.util.zip.ZipEntry(rel)
-                    e.setTime(0L) // 可复现构建
+                    e.setTime(0L)
                     zos.putNextEntry(e)
                     f.withInputStream { zos << it }
                     zos.closeEntry()
@@ -145,14 +160,14 @@ def zipAllGamesForCn = tasks.register("zipAllGamesForCn") {
             }
             n++
         }
-        if (n == 0) throw new GradleException("cn 渠道没有找到任何游戏（期望目录：${gamesSrcDir}）")
-        logger.lifecycle("[game100] cn 渠道内置游戏：${n} 款")
+        if (n == 0) throw new GradleException("没有找到任何游戏（期望目录：${gamesSrcDir}）。请在完整仓库里构建。")
+        logger.lifecycle("[game100] 内置游戏：${n} 款")
     }
 }
 tasks.configureEach { t ->
-    if (t.name ==~ /(merge|generate|package|lintAnalyze|lintVitalAnalyze|lintReport|lint)Cn.*Assets.*/ ||
-        t.name ==~ /mergeCn.*Assets/ || t.name ==~ /generateCn.*Assets/) {
-        t.dependsOn(zipAllGamesForCn)
+    if (t.name != "zipBundledGames" &&
+        (t.name ==~ /(merge|generate|package)\w*Assets/ || t.name ==~ /lint\w*/ || t.name ==~ /test\w*UnitTest/)) {
+        t.dependsOn(zipBundledGames)
     }
 }
 
@@ -162,4 +177,8 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // JVM 单元测试（下载重试/线路切换、内置游戏包读取）；org.json 替代 Android 桩实现
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }
