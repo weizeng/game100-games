@@ -14,6 +14,12 @@
 代码层面：
 - `BuildConfig.SELF_UPDATE`、`BuildConfig.ONLINE_CATALOG`、`BuildConfig.STORE_CHANNEL` 区分渠道。
 - 自升级代码只在 `src/direct/`（`net/AppUpdater.kt`、`res/xml/file_paths.xml`、Manifest 里的权限和 FileProvider）。
+  - 更新包下载到内部缓存 `cacheDir/updates/update.apk`，由 `file_paths.xml` 的 `cache-path name="app_updates"` 覆盖。
+    **file_paths.xml 里每个 name 必须唯一**：v4.11 及以前两条都叫 `update`，后一条覆盖前一条，导致
+    “Failed to find configured root that contains /storage/…”，自升级从未成功过（v4.12 修复）。
+    `./gradlew testDirectDebugUnitTest` 里的 `FileProviderPathsTest`（静态检查）和 `AppUpdaterFileProviderTest`（Robolectric 实测 getUriForFile）会拦住这类问题。
+  - 下载或安装失败时弹框提供“重试”和“用浏览器下载”（打开 app.json 的 apkUrl）。
+  - app.json 同时向 jsDelivr 4 个节点 + raw.githubusercontent 请求，取 versionCode 最大的（jsDelivr 的 @main 常缓存旧版本）。
   `play` 和 `cn` 编译 `src/noSelfUpdate/` 里的同名空实现，所以这两个包里**根本没有**下载安装 APK 的代码。
 - `cn` 的 Manifest（`src/cn/AndroidManifest.xml`）用 `tools:node="remove"` 去掉 INTERNET / ACCESS_NETWORK_STATE。
 - **内置游戏（所有渠道，自 v4.10 起）**：Gradle 任务 `zipBundledGames` 在构建时把仓库 `games/<id>/` 全部打成
@@ -67,7 +73,7 @@ cd android
 - **所有渠道共用同一个 versionCode / versionName**，一次发版只 +1 一次。
 - versionName 只是显示用的字符串（如 4.10），App 自升级和各商店都只比较 versionCode，所以 4.10 排在 4.9 之后没有问题。
 - 每次发版 versionCode 必须**严格大于**上一次（Google Play 和各商店都会拒绝相同或更小的值；`publish-stores.yml` 会自动校验）。
-- 当前默认值：versionCode **28**、versionName **4.11**（写在 `android/app/build.gradle` 里）。23/4.6、24/4.7 已被 Muse 本地出包占用（见附录 A.6、A.9），下一次发版用 29。
+- 当前默认值：versionCode **29**、versionName **4.12**（写在 `android/app/build.gradle` 里）。23/4.6、24/4.7 已被 Muse 本地出包占用（见附录 A.6、A.9），下一次发版用 30。
 - 传入方式（优先级从高到低）：`-Pgame100.versionCode=23` / 环境变量 `GAME100_VERSIONCODE=23`；versionName 同理（`game100.versionName` / `GAME100_VERSIONNAME`）。
 - 也可以直接改 `build.gradle` 里的默认值并提交，这样仓库记录的就是最新版本。
 

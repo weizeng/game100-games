@@ -11,8 +11,8 @@ plugins {
 def readProp = { String name ->
     project.findProperty(name)?.toString() ?: System.getenv(name.toUpperCase().replace('.', '_'))
 }
-def appVersionCode = (readProp("game100.versionCode") ?: "28").toInteger()
-def appVersionName = readProp("game100.versionName") ?: "4.11"
+def appVersionCode = (readProp("game100.versionCode") ?: "29").toInteger()
+def appVersionName = readProp("game100.versionName") ?: "4.12"
 
 // 签名：只从 release.properties（不入库）/ -P 参数 / 环境变量读取，绝不写死在仓库里。
 // 缺少任一项时 release 包不签名（可由 muse 或 apksigner/jarsigner 事后签名），不会让同步失败。
@@ -100,6 +100,8 @@ android {
         buildConfig = true
     }
     testOptions {
+        // Robolectric 测试（direct 渠道 FileProvider）需要合并后的 Manifest 和资源
+        unitTests.includeAndroidResources = true
         unitTests.all {
             // 让单元测试能找到构建时生成的内置游戏和仓库 games/
             systemProperty "game100.bundledDir", bundledGamesDirPath
@@ -181,4 +183,7 @@ dependencies {
     // JVM 单元测试（下载重试/线路切换、内置游戏包读取）；org.json 替代 Android 桩实现
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    // direct 渠道：用 Robolectric 真实跑 FileProvider.getUriForFile，确认更新包路径已在 file_paths.xml 里声明
+    testDirectImplementation("org.robolectric:robolectric:4.14.1")
+    testDirectImplementation("androidx.test:core:1.6.1")
 }

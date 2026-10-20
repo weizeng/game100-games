@@ -1,6 +1,7 @@
 package com.game100.center.net
 
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -19,16 +20,21 @@ import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ExecutorCompletionService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * App 自升级：拉取云端 app.json，比对 versionCode，
  * 有新版则下载 APK 并调起系统安装器。
  */
 object AppUpdater {
-    // 主 + 备用：某个 CDN 节点抽风（403/超时）时自动换条路
+    // 多条线路同时请求，取版本号最大的（见 fetchInfo）
     private val APP_INFO_URLS = listOf(
         "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main/app.json",
         "https://fastly.jsdelivr.net/gh/weizeng/game100-games@main/app.json",
+        "https://gcore.jsdelivr.net/gh/weizeng/game100-games@main/app.json",
+        "https://testingcf.jsdelivr.net/gh/weizeng/game100-games@main/app.json",
         "https://raw.githubusercontent.com/weizeng/game100-games/main/app.json"
     )
     private const val PREFS = "game100"
@@ -54,24 +60,55 @@ object AppUpdater {
             .putLong(KEY_LAST_CHECK, System.currentTimeMillis()).apply()
     }
 
+    /** 全部线路的总等待上限 */
+    private const val FETCH_BUDGET_MS = 15_000L
+
+    /**
+     * 同时向所有线路请求 app.json，取 versionCode 最大的那份。
+     * jsDelivr 的 @main 别名经常缓存旧提交（发版后几小时内 cdn 节点仍返回旧版本），
+     * 以前“第一个成功就用”会让用户一直看不到新版本。
+     * 一旦拿到比当前版本新的结果就立即返回；否则等全部线路结束（最多 15 秒）。
+     */
     @Throws(Exception::class)
     fun fetchInfo(): AppInfo? {
-        var lastErr: Exception? = null
-        for (url in APP_INFO_URLS) {
-            try {
-                return fetchFrom(url)
-            } catch (e: Exception) {
-                lastErr = e
-            }
+        val pool = Executors.newFixedThreadPool(APP_INFO_URLS.size) { r ->
+            Thread(r, "app-info").apply { isDaemon = true }
         }
-        throw lastErr ?: IOException("版本服务不可用")
+        try {
+            val cs = ExecutorCompletionService<AppInfo?>(pool)
+            APP_INFO_URLS.forEach { url -> cs.submit { fetchFrom(url) } }
+            val deadline = System.currentTimeMillis() + FETCH_BUDGET_MS
+            var best: AppInfo? = null
+            var lastErr: Exception? = null
+            repeat(APP_INFO_URLS.size) {
+                val left = deadline - System.currentTimeMillis()
+                if (left <= 0) return@repeat
+                val f = cs.poll(left, TimeUnit.MILLISECONDS) ?: return@repeat
+                try {
+                    val info = f.get()
+                    if (info != null) {
+                        best = pickNewer(best, info)
+                        if (hasUpdate(info)) return best
+                    }
+                } catch (e: Exception) {
+                    lastErr = (e.cause as? Exception) ?: e
+                }
+            }
+            return best ?: throw (lastErr ?: IOException("版本服务不可用"))
+        } finally {
+            pool.shutdownNow()
+        }
     }
+
+    internal fun pickNewer(a: AppInfo?, b: AppInfo): AppInfo =
+        if (a == null || b.versionCode > a.versionCode) b else a
 
     @Throws(Exception::class)
     private fun fetchFrom(url: String): AppInfo? {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15000
-            readTimeout = 15000
+            connectTimeout = 10000
+            readTimeout = 10000
+            useCaches = false
             setRequestProperty("User-Agent", "Game100/${BuildConfig.VERSION_NAME}")
             instanceFollowRedirects = true
         }
@@ -138,36 +175,75 @@ object AppUpdater {
             .setCancelable(false)
             .show()
         activity.lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val apk = downloadApk(activity, info.apkUrl) { p ->
+            val apk = try {
+                downloadApk(activity, info.apkUrl) { p ->
                     launch(Dispatchers.Main) { bar.progress = p }
-                }
-                withContext(Dispatchers.Main) {
-                    dialog.dismiss()
-                    installApk(activity, apk)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     dialog.dismiss()
-                    Toast.makeText(activity, "更新包下载失败：${e.message}", Toast.LENGTH_SHORT).show()
+                    showFailure(activity, info, "更新包下载失败：${e.message ?: "网络错误"}")
+                }
+                return@launch
+            }
+            withContext(Dispatchers.Main) {
+                dialog.dismiss()
+                try {
+                    installApk(activity, apk)
+                } catch (e: Exception) {
+                    showFailure(activity, info, "无法打开安装程序：${e.message ?: e.javaClass.simpleName}")
                 }
             }
         }
     }
 
+    /** 下载或安装失败：给出“重试”和“用浏览器下载”两条路，不让用户卡死在 App 里 */
+    private fun showFailure(activity: AppCompatActivity, info: AppInfo, reason: String) {
+        if (activity.isFinishing || activity.isDestroyed) return
+        AlertDialog.Builder(activity)
+            .setTitle("更新没有完成")
+            .setMessage("$reason\n\n可以重试，或用浏览器下载安装包后手动安装（不会丢失游戏和进度）。")
+            .setPositiveButton("用浏览器下载") { _, _ -> openInBrowser(activity, info.apkUrl) }
+            .setNeutralButton("重试") { _, _ -> downloadAndInstall(activity, info) }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    fun openInBrowser(ctx: Context, url: String) {
+        try {
+            ctx.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(ctx, "没有找到浏览器，请手动打开：$url", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** 更新包目录：内部缓存 cacheDir/updates/，对应 res/xml/file_paths.xml 的 cache-path "updates/" */
+    const val UPDATE_DIR = "updates"
+    const val APK_NAME = "update.apk"
+
+    fun updateDir(ctx: Context): File = File(ctx.cacheDir, UPDATE_DIR)
+
+    fun authority(ctx: Context): String = "${ctx.packageName}.fileprovider"
+
     @Throws(Exception::class)
     fun downloadApk(ctx: Context, url: String, onProgress: (Int) -> Unit): File {
-        val dir = ctx.externalCacheDir ?: ctx.cacheDir
-        val out = File(dir, "update.apk")
+        val dir = updateDir(ctx).apply { mkdirs() }
+        val out = File(dir, APK_NAME)
         if (out.exists()) out.delete()
+        // 旧版本下载在外部缓存里的包，顺手清掉
+        ctx.externalCacheDir?.let { File(it, APK_NAME).delete() }
         GameDownloader.download(url, out, isGameZip = false, onProgress = onProgress)
         return out
     }
 
+    /** 拿到给安装器用的 content:// 地址；路径没在 file_paths.xml 里声明时会抛 IllegalArgumentException */
+    fun contentUriFor(ctx: Context, apk: File): Uri =
+        FileProvider.getUriForFile(ctx, authority(ctx), apk)
+
     fun installApk(ctx: Context, apk: File) {
-        val uri: Uri = FileProvider.getUriForFile(
-            ctx, "${ctx.packageName}.fileprovider", apk
-        )
+        val uri: Uri = contentUriFor(ctx, apk)
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
