@@ -24,6 +24,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.game100.center.data.GameRepository
 import com.game100.center.model.GameItem
 import com.game100.center.model.RemoteGame
+import com.game100.center.model.DEFAULT_STUDIO
 import com.game100.center.net.AppUpdater
 import com.game100.center.net.GameDownloader
 import com.game100.center.ui.FeaturedAdapter
@@ -61,6 +62,12 @@ class MainActivity : AppCompatActivity() {
         repo = GameRepository(this)
         selectedCat = savedInstanceState?.getString("selectedCat") ?: "全部"
         searchQuery = savedInstanceState?.getString("searchQuery") ?: ""
+
+        // 从详情页点出品方跳过来：直接按出品方搜索
+        intent.getStringExtra("search_query")?.let { q ->
+            intent.removeExtra("search_query")
+            searchQuery = q
+        }
 
         // 从详情页返回的下载请求
         intent.getStringExtra("download_game_id")?.let { gid ->
@@ -220,7 +227,8 @@ class MainActivity : AppCompatActivity() {
             filtered = filtered.filter {
                 it.name.contains(q, ignoreCase = true) ||
                 it.desc.contains(q, ignoreCase = true) ||
-                it.id.contains(q, ignoreCase = true)
+                it.id.contains(q, ignoreCase = true) ||
+                (it.remote?.displayStudio() ?: DEFAULT_STUDIO).contains(q, ignoreCase = true)
             }
         }
         adapter.submit(filtered)

@@ -113,7 +113,8 @@ class GameRepository(private val context: Context) {
                         icon = meta.optString("icon", "🎮"),
                         color = meta.optString("color", "#607D8B"),
                         category = meta.optString("category", "经典重温"),
-                        premium = meta.optBoolean("premium", false)
+                        premium = meta.optBoolean("premium", false),
+                        studio = meta.optString("studio", "")
                     )
                 )
             } catch (e: Exception) {

@@ -48,6 +48,19 @@ class GameDetailActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.detail_desc).text =
             game.desc.ifBlank { "暂无简介" }
 
+        // 出品方：点击按该出品方筛选
+        val studio = game.displayStudio()
+        findViewById<TextView>(R.id.detail_studio).apply {
+            text = "出品方 · $studio"
+            setOnClickListener {
+                val intent = Intent(this@GameDetailActivity, MainActivity::class.java).apply {
+                    putExtra("search_query", studio)
+                    flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                startActivity(intent)
+            }
+        }
+
         // 最高分
         val best = userData.getBestScore(gameId)
         if (best > 0) {
