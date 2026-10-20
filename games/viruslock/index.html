@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>病毒隔离</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#070b16;background-image:radial-gradient(circle at 50% 0%,#101a36 0%,#070b16 70%);color:#e8f4ff;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden}
+#app{max-width:430px;margin:0 auto;padding:10px 12px 20px;min-height:100vh;display:flex;flex-direction:column}
+#topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 2px}
+#title{font-size:20px;font-weight:800;color:#fff;text-shadow:0 0 12px #448aff}
+#scorebox{display:flex;gap:10px;font-size:13px;color:#9fb3d9;white-space:nowrap}
+#topbtns{display:flex;gap:8px}
+.tbtn{min-width:44px;min-height:44px;font-size:20px;border-radius:12px;border:1px solid #27407a;background:#0d1526;color:#fff;cursor:pointer}
+.tbtn:active{transform:scale(.92)}
+#infobar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;color:#cfe0ff;padding:8px 2px}
+#lvl{font-weight:700;color:#66a3ff}
+#roundinfo{color:#e8f4ff}
+#srcinfo{color:#ff8a9a}
+#hintbtn{margin-left:auto;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid #8a6d00;background:#2a2305;color:#ffee58;font-size:14px;font-weight:700;cursor:pointer}
+#hintbtn:active{transform:scale(.95)}
+#boardwrap{position:relative;margin:6px auto;width:100%;max-width:368px}
+#board{display:grid;grid-template-columns:repeat(7,minmax(44px,1fr));gap:6px}
+.cell{min-width:44px;min-height:44px;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:22px;border-radius:10px;background:#111a2e;border:1px solid #22304d;cursor:pointer;user-select:none;-webkit-user-select:none;transition:transform .25s ease,background-color .3s ease,box-shadow .3s ease,border-color .3s ease}
+.cell:active{transform:scale(.94)}
+.cell.inf{background:#3d0f1a;border-color:#ff2d55;animation:infpulse 1.1s ease-in-out infinite}
+@keyframes infpulse{0%,100%{box-shadow:0 0 6px #ff2d55,inset 0 0 6px rgba(255,45,85,.5)}50%{box-shadow:0 0 16px #ff1744,inset 0 0 12px rgba(255,45,85,.8)}}
+.cell.blk{background:#063033;border-color:#00e5ff;box-shadow:0 0 10px rgba(0,229,255,.7),inset 0 0 8px rgba(0,229,255,.35)}
+.cell.core{background:#0c2158;border-color:#448aff;animation:coreglow 2.2s ease-in-out infinite}
+@keyframes coreglow{0%,100%{box-shadow:0 0 12px #448aff,inset 0 0 8px rgba(68,138,255,.5)}50%{box-shadow:0 0 24px #66a3ff,inset 0 0 14px rgba(102,163,255,.8)}}
+.cell.pop{animation:pop .28s ease}
+@keyframes pop{0%{transform:scale(.3)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+.cell.hint{outline:3px solid #ffee58;outline-offset:-3px}
+.pt{position:absolute;width:8px;height:8px;margin:-4px;border-radius:50%;background:#ff5252;box-shadow:0 0 10px #ff1744;pointer-events:none;z-index:5;animation:pfly .6s ease-out forwards}
+@keyframes pfly{to{transform:translate(var(--dx),var(--dy)) scale(.15);opacity:0}}
+#flash{position:absolute;inset:0;background:rgba(255,30,60,.45);opacity:0;pointer-events:none;border-radius:12px}
+#flash.go{animation:flashgo .7s ease}
+@keyframes flashgo{0%{opacity:0}20%{opacity:1}100%{opacity:0}}
+#tipmsg{min-height:22px;font-size:13px;color:#ffee58;text-align:center;padding-top:6px}
+.ov{position:fixed;inset:0;background:rgba(4,8,18,.9);display:flex;align-items:center;justify-content:center;z-index:20;padding:20px}
+.ov.hidden{display:none}
+.panel{background:#0d1526;border:1px solid #27407a;border-radius:16px;padding:24px;max-width:350px;width:100%;text-align:center;box-shadow:0 0 30px rgba(68,138,255,.25);max-height:92vh;overflow-y:auto}
+.panel h1{font-size:28px;margin-bottom:12px;color:#fff;text-shadow:0 0 14px #448aff}
+.panel h2{font-size:22px;margin-bottom:10px;color:#fff}
+.panel p{font-size:14px;line-height:1.75;color:#b9c8e4;margin-bottom:8px;text-align:left}
+.panel button{display:block;width:100%;min-height:48px;margin-top:10px;font-size:17px;border:none;border-radius:12px;background:linear-gradient(135deg,#1e5eff,#00c6ff);color:#fff;font-weight:700;cursor:pointer}
+.panel button:active{transform:scale(.97)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="title">🦠病毒隔离</div>
+    <div id="scorebox"><span id="score">得分 0</span><span id="hiscore">最高 0</span></div>
+    <div id="topbtns">
+      <button id="mutebtn" class="tbtn">🔊</button>
+      <button id="pausebtn" class="tbtn">⏸</button>
+    </div>
+  </div>
+  <div id="infobar">
+    <span id="lvl">第1关</span>
+    <span id="roundinfo">第 1 / 6 回合</span>
+    <span id="srcinfo">🦠×1</span>
+    <button id="hintbtn">💡提示(3)</button>
+  </div>
+  <div id="boardwrap">
+    <div id="board"></div>
+    <div id="flash"></div>
+  </div>
+  <div id="tipmsg"></div>
+  <div id="ovstart" class="ov">
+    <div class="panel">
+      <h1>病毒隔离</h1>
+      <p>🦠 病毒从角落出现，💠 中央核心是你要保卫的目标。<br><br>每回合分两步：<br>① 你点击 1 个空格，建起 🧱 霓虹隔离墙；<br>② 病毒向上下左右相邻格蔓延一格（隔离墙可阻挡）。<br><br>🏆 过关条件（任一）：坚持 N 回合不让病毒碰到核心（N = 5 + 关卡号）；或提前把所有病毒完全围住。<br>💀 病毒蔓延到核心则失败。<br><br>共 8 关：1-3 关 1 个病毒源，4-6 关 2 个，7-8 关 3 个。<br>计分：每存活 1 回合 +10 分，过关 +100 分，提前围歼 +50 分。<br>💡 提示每关限用 3 次。</p>
+      <button id="startBtn">开始游戏</button>
+    </div>
+  </div>
+  <div id="ovpause" class="ov hidden">
+    <div class="panel">
+      <h2>⏸ 已暂停</h2>
+      <p>病毒已被冻结，继续战斗吧。</p>
+      <button id="resumebtn">继续</button>
+    </div>
+  </div>
+  <div id="ovclear" class="ov hidden">
+    <div class="panel">
+      <h2>✅ 过关！</h2>
+      <p id="clearmsg"></p>
+      <p id="clearhi"></p>
+      <button id="nextbtn">下一关</button>
+      <button id="clearagain">重来（回第1关）</button>
+    </div>
+  </div>
+  <div id="ovfail" class="ov hidden">
+    <div class="panel">
+      <h2>💀 核心被攻陷</h2>
+      <p id="failmsg"></p>
+      <p id="failhi"></p>
+      <button id="failagain">重来（回第1关）</button>
+    </div>
+  </div>
+  <div id="ovwin" class="ov hidden">
+    <div class="panel">
+      <h2>🏆 全部通关！</h2>
+      <p id="winmsg"></p>
+      <p id="winhi"></p>
+      <button id="winagain">重来（回第1关）</button>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ===== 纯逻辑层：不依赖 DOM，可在 node 里冒烟测试 ===== */
+var SIZE = 7, CX = 3, CY = 3;
+
+function newGrid() {
+  var g = [], r, c;
+  for (r = 0; r < SIZE; r++) {
+    g.push([]);
+    for (c = 0; c < SIZE; c++) g[r].push(0);
+  }
+  return g;
+}
+function cornerList() {
+  return [[0, 0], [0, SIZE - 1], [SIZE - 1, 0], [SIZE - 1, SIZE - 1]];
+}
+function shuffleArr(a) {
+  var i, j, t;
+  for (i = a.length - 1; i > 0; i--) {
+    j = Math.floor(Math.random() * (i + 1));
+    t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+/* level: 1-8；cornerPick 可选，固定角落序号(0-3)，供测试用 */
+function makeState(level, cornerPick) {
+  var n = level <= 3 ? 1 : (level <= 6 ? 2 : 3);
+  var cs = cornerList(), picks = [], i;
+  if (cornerPick) {
+    for (i = 0; i < cornerPick.length; i++) picks.push(cornerList()[cornerPick[i]]);
+    n = picks.length;
+  } else {
+    shuffleArr(cs);
+    picks = cs.slice(0, n);
+  }
+  var g = newGrid();
+  g[CX][CY] = 3;
+  for (i = 0; i < picks.length; i++) g[picks[i][0]][picks[i][1]] = 2;
+  return { level: level, need: 5 + level, sources: n, grid: g, survived: 0, tips: 3, over: false, won: false };
+}
+function inBounds(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
+function adjCells(r, c) {
+  var d = [[1, 0], [-1, 0], [0, 1], [0, -1]], out = [], i, nr, nc;
+  for (i = 0; i < 4; i++) {
+    nr = r + d[i][0]; nc = c + d[i][1];
+    if (inBounds(nr, nc)) out.push([nr, nc]);
+  }
+  return out;
+}
+function infectedCells(st) {
+  var out = [], r, c;
+  for (r = 0; r < SIZE; r++)
+    for (c = 0; c < SIZE; c++)
+      if (st.grid[r][c] === 2) out.push([r, c]);
+  return out;
+}
+function countInf(st) { return infectedCells(st).length; }
+function doBlock(st, r, c) {
+  if (!inBounds(r, c) || st.grid[r][c] !== 0) return false;
+  st.grid[r][c] = 1;
+  return true;
+}
+/* 病毒蔓延一轮：所有已感染格的正交相邻空格被感染，封锁格阻挡 */
+function spreadOnce(st) {
+  var cells = infectedCells(st), seen = {}, targets = [], i, j, nb, nr, nc, k, v;
+  for (i = 0; i < cells.length; i++) {
+    nb = adjCells(cells[i][0], cells[i][1]);
+    for (j = 0; j < nb.length; j++) {
+      nr = nb[j][0]; nc = nb[j][1]; v = st.grid[nr][nc]; k = nr + ',' + nc;
+      if ((v === 0 || v === 3) && !seen[k]) { seen[k] = 1; targets.push([nr, nc]); }
+    }
+  }
+  var added = [], hitCore = false;
+  for (i = 0; i < targets.length; i++) {
+    nr = targets[i][0]; nc = targets[i][1];
+    if (st.grid[nr][nc] === 3) hitCore = true;
+    else { st.grid[nr][nc] = 2; added.push([nr, nc]); }
+  }
+  return { added: added, hitCore: hitCore };
+}
+/* 围歼判定：每个已感染格都没有未被封锁的空格邻居 */
+function contained(st) {
+  var cells = infectedCells(st), i, j, nb;
+  for (i = 0; i < cells.length; i++) {
+    nb = adjCells(cells[i][0], cells[i][1]);
+    for (j = 0; j < nb.length; j++)
+      if (st.grid[nb[j][0]][nb[j][1]] === 0) return false;
+  }
+  return true;
+}
+/* 从核心 BFS，只走空格；返回距离表，不可达为 -1 */
+function bfsDist(st) {
+  var dist = [], r, c, q = [[CX, CY]], i, nb, cur, nr, nc;
+  for (r = 0; r < SIZE; r++) { dist.push([]); for (c = 0; c < SIZE; c++) dist[r].push(-1); }
+  dist[CX][CY] = 0;
+  while (q.length > 0) {
+    cur = q.shift(); nb = adjCells(cur[0], cur[1]);
+    for (i = 0; i < nb.length; i++) {
+      nr = nb[i][0]; nc = nb[i][1];
+      if (dist[nr][nc] < 0 && st.grid[nr][nc] === 0) {
+        dist[nr][nc] = dist[cur[0]][cur[1]] + 1;
+        q.push([nr, nc]);
+      }
+    }
+  }
+  return dist;
+}
+/* 提示：在已感染格的相邻空格里选到核心距离最小者 */
+function hintCell(st) {
+  var dist = bfsDist(st), cells = infectedCells(st), i, j, nb, d, best = null, bd = 1e9;
+  for (i = 0; i < cells.length; i++) {
+    nb = adjCells(cells[i][0], cells[i][1]);
+    for (j = 0; j < nb.length; j++) {
+      if (st.grid[nb[j][0]][nb[j][1]] !== 0) continue;
+      d = dist[nb[j][0]][nb[j][1]];
+      if (d < 0) d = 1e9;
+      if (d < bd) { bd = d; best = [nb[j][0], nb[j][1]]; }
+    }
+  }
+  return best;
+}
+
+/* ===== 表现层：浏览器 ===== */
+var S = null, score = 0, hi = 0, muted = false, cellEls = [];
+
+function $(id) { return document.getElementById(id); }
+function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function loadLS(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+
+/* WebAudio 合成音效：封锁 / 蔓延 / 胜利 / 失败 / 提示 / 拒绝 */
+var AC = null;
+function ac() {
+  if (typeof window === 'undefined') return null;
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } }
+  if (AC && AC.state === 'suspended') { try { AC.resume(); } catch (e) {} }
+  return AC;
+}
+function tone(f0, f1, dur, type, vol, delay) {
+  var a = ac(); if (!a) return;
+  var t = a.currentTime + (delay || 0);
+  var o = a.createOscillator(), g = a.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(Math.max(f0, 1), t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function sfx(name) {
+  if (muted) return;
+  if (name === 'block') tone(420, 680, 0.12, 'square', 0.12, 0);
+  else if (name === 'spread') tone(240, 70, 0.3, 'sawtooth', 0.14, 0);
+  else if (name === 'win') { tone(523, 523, 0.12, 'sine', 0.18, 0); tone(659, 659, 0.12, 'sine', 0.18, 0.12); tone(784, 784, 0.3, 'sine', 0.18, 0.24); }
+  else if (name === 'lose') { tone(170, 45, 0.6, 'square', 0.16, 0); tone(90, 40, 0.6, 'sawtooth', 0.1, 0.05); }
+  else if (name === 'hint') { tone(880, 1320, 0.14, 'sine', 0.14, 0); tone(1320, 1760, 0.14, 'sine', 0.1, 0.12); }
+  else if (name === 'deny') tone(200, 150, 0.08, 'square', 0.08, 0);
+}
+
+/* 触屏优先：pointerdown 为主，click 兜底，400ms 防重复 */
+function onTap(el, fn) {
+  var last = 0;
+  el.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    var t = Date.now();
+    if (t - last < 400) return;
+    last = t; fn(e);
+  });
+  el.addEventListener('click', function (e) {
+    var t = Date.now();
+    if (t - last < 400) return;
+    last = t; fn(e);
+  });
+}
+
+function show(id) { $(id).classList.remove('hidden'); }
+function hide(id) { $(id).classList.add('hidden'); }
+function hideAll() { ['ovstart', 'ovpause', 'ovclear', 'ovfail', 'ovwin'].forEach(hide); }
+function overlayOpen() {
+  return ['ovstart', 'ovpause', 'ovclear', 'ovfail', 'ovwin'].some(function (id) {
+    return !$(id).classList.contains('hidden');
+  });
+}
+
+function buildBoard() {
+  var b = $('board'), r, c;
+  b.innerHTML = '';
+  cellEls = [];
+  for (r = 0; r < SIZE; r++) {
+    cellEls.push([]);
+    for (c = 0; c < SIZE; c++) {
+      (function (rr, cc) {
+        var d = document.createElement('div');
+        d.className = 'cell';
+        d.setAttribute('role', 'button');
+        d.tabIndex = 0;
+        onTap(d, function () { onCell(rr, cc); });
+        b.appendChild(d);
+        cellEls[rr].push(d);
+      })(r, c);
+    }
+  }
+}
+function render(popR, popC) {
+  var r, c, d, v;
+  for (r = 0; r < SIZE; r++) for (c = 0; c < SIZE; c++) {
+    d = cellEls[r][c]; v = S.grid[r][c];
+    d.classList.remove('inf', 'blk', 'core', 'pop');
+    if (v === 2) { d.classList.add('inf'); d.textContent = '🦠'; }
+    else if (v === 1) { d.classList.add('blk'); d.textContent = '🧱'; }
+    else if (v === 3) { d.classList.add('core'); d.textContent = '💠'; }
+    else d.textContent = '';
+    if (r === popR && c === popC) d.classList.add('pop');
+  }
+}
+function updateInfo() {
+  $('lvl').textContent = '第' + S.level + '关';
+  $('roundinfo').textContent = '第 ' + (S.survived + 1) + ' / ' + S.need + ' 回合';
+  $('srcinfo').textContent = '🦠×' + S.sources;
+  $('hintbtn').textContent = '💡提示(' + S.tips + ')';
+  $('score').textContent = '得分 ' + score;
+  $('hiscore').textContent = '最高 ' + hi;
+}
+function saveHi() {
+  if (score > hi) { hi = score; store('g100_viruslock_hs', String(hi)); }
+  updateInfo();
+}
+/* 蔓延时在新感染格生成红色粒子 */
+function spawnParticles(cells) {
+  var wrap = $('boardwrap'), i, k;
+  for (i = 0; i < cells.length; i++) {
+    (function (cell) {
+      var d = cellEls[cell[0]][cell[1]];
+      for (k = 0; k < 4; k++) {
+        (function () {
+          var p = document.createElement('span');
+          p.className = 'pt';
+          p.style.left = (d.offsetLeft + d.offsetWidth / 2) + 'px';
+          p.style.top = (d.offsetTop + d.offsetHeight / 2) + 'px';
+          p.style.setProperty('--dx', (Math.random() * 60 - 30).toFixed(0) + 'px');
+          p.style.setProperty('--dy', (Math.random() * 60 - 30).toFixed(0) + 'px');
+          wrap.appendChild(p);
+          setTimeout(function () { p.remove(); }, 650);
+        })();
+      }
+    })(cells[i]);
+  }
+}
+
+function onCell(r, c) {
+  if (!S || S.over || overlayOpen()) return;
+  if (!doBlock(S, r, c)) { sfx('deny'); return; }
+  sfx('block'); buzz(20);
+  render(r, c);
+  updateInfo();
+  if (contained(S)) { levelWin(true); return; }
+  setTimeout(doSpread, 260);
+}
+function doSpread() {
+  if (!S || S.over) return;
+  var res = spreadOnce(S);
+  sfx('spread');
+  render();
+  spawnParticles(res.added);
+  if (res.hitCore) { levelFail(); return; }
+  if (contained(S)) { levelWin(true); return; }
+  S.survived++;
+  score += 10;
+  if (S.survived >= S.need) { levelWin(false); return; }
+  updateInfo();
+}
+function levelWin(early) {
+  S.over = true; S.won = true;
+  score += 100;
+  if (early) score += 50;
+  sfx('win');
+  saveHi();
+  if (S.level >= 8) {
+    $('winmsg').textContent = '8 关全部通关！总分 ' + score + ' 分。';
+    $('winhi').textContent = '最高分 ' + hi;
+    show('ovwin');
+  } else {
+    $('clearmsg').textContent = '第' + S.level + '关' + (early ? '：提前围歼病毒 +50！' : '：坚守 ' + S.need + ' 回合成功！') + '总分 ' + score + ' 分。';
+    $('clearhi').textContent = '最高分 ' + hi;
+    show('ovclear');
+  }
+}
+function levelFail() {
+  S.over = true;
+  sfx('lose');
+  saveHi();
+  var f = $('flash');
+  f.classList.remove('go');
+  void f.offsetWidth;
+  f.classList.add('go');
+  buzz(300);
+  $('failmsg').textContent = '病毒蔓延到了核心 💠，第' + S.level + '关失败。当前总分 ' + score + ' 分。';
+  $('failhi').textContent = '最高分 ' + hi;
+  show('ovfail');
+}
+function onHint() {
+  if (!S || S.over || overlayOpen()) return;
+  if (S.tips <= 0) { $('tipmsg').textContent = '本关提示已用完'; return; }
+  var h = hintCell(S);
+  if (!h) { $('tipmsg').textContent = '暂无可提示的格子'; return; }
+  S.tips--;
+  sfx('hint');
+  var d = cellEls[h[0]][h[1]];
+  d.classList.add('hint');
+  setTimeout(function () { d.classList.remove('hint'); }, 2000);
+  $('tipmsg').textContent = '建议封锁高亮格（距核心最近的前线）';
+  updateInfo();
+}
+function startLevel(lv) {
+  S = makeState(lv);
+  buildBoard();
+  render();
+  updateInfo();
+  $('tipmsg').textContent = '';
+}
+function init() {
+  muted = loadLS('g100_mute') === '1';
+  hi = parseInt(loadLS('g100_viruslock_hs') || '0', 10) || 0;
+  $('mutebtn').textContent = muted ? '🔇' : '🔊';
+  buildBoard();
+  S = makeState(1);
+  render();
+  updateInfo();
+  onTap($('startBtn'), function () { score = 0; hide('ovstart'); startLevel(1); });
+  onTap($('pausebtn'), function () { if (S && !S.over && !overlayOpen()) show('ovpause'); });
+  onTap($('resumebtn'), function () { hide('ovpause'); });
+  onTap($('nextbtn'), function () { hide('ovclear'); startLevel(S.level + 1); });
+  onTap($('failagain'), function () { hideAll(); score = 0; startLevel(1); });
+  onTap($('clearagain'), function () { hideAll(); score = 0; startLevel(1); });
+  onTap($('winagain'), function () { hideAll(); score = 0; startLevel(1); });
+  onTap($('hintbtn'), onHint);
+  onTap($('mutebtn'), function () {
+    muted = !muted;
+    store('g100_mute', muted ? '1' : '0');
+    $('mutebtn').textContent = muted ? '🔇' : '🔊';
+  });
+}
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+}
+</script>
+</body>
+</html>
