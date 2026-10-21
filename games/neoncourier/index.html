@@ -1,29 +1,32 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>霓虹速递</title>
+<link rel="icon" href="data:,">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{width:100%;height:100%;overflow:hidden;background:#0a0612;font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff3e8;touch-action:none;user-select:none}
-#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
-#cv{display:block;background:#0d0a18;border-radius:8px;box-shadow:0 0 40px #ff6d0066}
-.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;z-index:5;pointer-events:none}
-.hud .info{font-size:15px;font-weight:700;text-shadow:0 0 8px #ff6d00}
-.hud .btns{pointer-events:auto;display:flex;gap:10px}
-.cbtn{width:44px;height:44px;border-radius:50%;border:2px solid #ff6d00;background:#ff6d0022;color:#ff6d00;font-size:20px;display:flex;align-items:center;justify-content:center}
-.ctl{position:fixed;bottom:16px;z-index:5;display:flex;gap:16px;align-items:center}
-#lctl{left:16px}#rctl{right:16px}
-.pbtn{width:68px;height:68px;border-radius:50%;border:2px solid #ff6d00;background:#ff6d0022;color:#ffd9bd;font-size:22px;font-weight:900;display:flex;align-items:center;justify-content:center;touch-action:none}
-.pbtn:active{background:#ff6d0055}
-#gas{width:84px;height:84px;border-color:#00e676;color:#c8ffe4}
-.overlay{position:fixed;inset:0;background:rgba(12,6,20,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;text-align:center;padding:24px}
-.overlay h1{font-size:32px;color:#ff6d00;text-shadow:0 0 18px #ff6d00;margin-bottom:12px}
-.overlay p{font-size:15px;line-height:1.8;color:#ffd9bd;max-width:430px;margin-bottom:6px}
-.bigbtn{margin-top:14px;min-width:180px;min-height:52px;font-size:19px;font-weight:800;color:#1a0b00;background:linear-gradient(180deg,#ffb066,#ff6d00);border:none;border-radius:12px;cursor:pointer;box-shadow:0 0 24px #ff6d0088}
-.bigbtn:active{transform:scale(.96)}
+html,body{height:100%;overflow:hidden}
+body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;height:100%;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap!important}
+.topbar .stat{display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13px}
+.topbar .tools{display:flex;gap:6px}
+.topbar .tools .iconbtn{min-width:44px;min-height:44px;padding:0 6px}
+.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+#cv{touch-action:none;display:block}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none!important}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:100%}
+.lvgrid .lvl{min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:17px;padding:4px!important;line-height:1.1}
+.lvgrid .lvl small{font-size:10px;letter-spacing:-1px;margin-top:2px}
+.rowbtns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%}
+#tutStep{font-size:12px;opacity:.7}
+#toast{position:fixed;left:50%;top:16%;transform:translate(-50%,-10px);background:rgba(10,8,30,.88);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;z-index:999;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;font-size:15px;box-shadow:0 0 18px rgba(255,61,154,.5);white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
 .hidden{display:none!important}
+
+.pad{width:100%;display:grid;grid-template-columns:1fr 1.3fr 1fr 1fr;gap:6px}.pad button{min-height:54px;font-size:20px!important;padding:0!important;touch-action:none}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}.shop button{min-height:48px;font-size:12px!important;padding:3px!important;line-height:1.2}
 </style>
 <!-- GAME UI BEGIN -->
 <style>
@@ -408,175 +411,133 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <!-- GAME UI END -->
 </head>
 <body>
-<div id="wrap"><canvas id="cv" width="600" height="900"></canvas></div>
-<div class="hud">
-  <div class="info">⏱<span id="time">90</span> 💰<span id="money">0</span> 📦<span id="orders">0</span>/<span id="togo">0</span></div>
-  <div class="btns"><div class="cbtn" id="muteBtn">🔊</div><div class="cbtn" id="pauseBtn">⏸</div></div>
+<div class="wrap">
+  <div class="topbar">
+    <span class="stat"><span>🏙<b id="lvT">1</b></span><span>📦<b id="ordT">0</b></span><span>⏱<b id="timeT">0</b></span><span>🚀<b id="nitroT">1</b></span></span>
+    <span class="tools"><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+  </div>
+  <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
+  <div class="pad"><button class="ghost" id="bL" aria-label="左转">◀</button><button id="bG" class="btn" aria-label="油门">⛽ 油门</button><button class="ghost" id="bN" aria-label="氮气">🚀</button><button class="ghost" id="bR" aria-label="右转">▶</button></div>
 </div>
-<div class="ctl" id="lctl"><div class="pbtn" id="btnL">◀</div><div class="pbtn" id="btnR">▶</div></div>
-<div class="ctl" id="rctl"><div class="pbtn" id="gas">▲</div></div>
-<div class="overlay" id="startOv">
-  <h1>🛵 霓虹速递</h1>
-  <p>霓虹都市外卖车手！<br>◀ ▶ 转向，按住 ▲ 油门加速<br>先到 📦 取货点取货，再到 🏠 送货点<br>限时 <b>90 秒</b>，送单赚钱，连续送单有连单奖励<br>⚠️ 巡逻警车🚔游荡街区，被撞扣 5 秒！<br>送得越多赚得越多</p>
-  <button class="bigbtn" id="startBtn">开 工</button>
-</div>
-<div class="overlay hidden" id="pauseOv">
-  <h1>⏸ 已暂停</h1>
-  <button class="bigbtn" id="resumeBtn">继 续</button>
-  <button class="bigbtn" id="restartBtn1" style="background:linear-gradient(180deg,#9db8ff,#5f7cff)">重 来</button>
-</div>
-<div class="overlay hidden" id="endOv">
-  <h1 id="endTitle">🛵 打烊！</h1>
-  <p id="endText"></p><p id="hsText"></p>
-  <button class="bigbtn" id="restartBtn2">再跑一单</button>
-</div>
+<div class="overlay" id="startScr"><h1>🛵 霓虹速递</h1><p>在霓虹城里取件送件、和时间赛跑！<br>15 个城区：车流、易碎件、加急单、巡警，<br>还有 3 场警长追捕首领战。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始接单</button></div>
+<div class="overlay hidden" id="lvlScr"><h2>选择城区</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn">🔊</button></div></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择城区</button><button class="iconbtn muteBtn">🔊</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">送达</h2><div class="score" id="finalScore">★★★</div><p id="overText" style="text-align:center"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一城区</button><button class="btn ghost" id="againBtn">再来一次</button><button class="btn ghost" id="menu2Btn">选择城区</button></div></div>
 <script>
 'use strict';
-const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
-const W=600,H=900,HSK='g100_neoncourier_hs',MKEY='g100_mute';
-let muted=localStorage.getItem(MKEY)==='1';
+// ---- 公共小工具（内联，离线） ----
 const $=id=>document.getElementById(id);
-function fit(){const s=Math.min(innerWidth/W,innerHeight/H)*0.98;cv.style.width=W*s+'px';cv.style.height=H*s+'px';}
-addEventListener('resize',fit);fit();
-let AC=null;
-function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
-function beep(f0,f1,dur,type,vol){if(muted)return;const a=ac();if(!a)return;const o=a.createOscillator(),g=a.createGain();o.type=type||'square';o.frequency.setValueAtTime(f0,a.currentTime);if(f1)o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),a.currentTime+dur);g.gain.setValueAtTime(vol||0.12,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+dur);}
-const SFX={
- pickup(){beep(500,900,0.12,'square',0.12);},
- deliver(){[660,880,1174].forEach((f,i)=>setTimeout(()=>beep(f,f,0.14,'triangle',0.13),i*90));if(navigator.vibrate)navigator.vibrate(40);},
- crash(){beep(300,60,0.35,'sawtooth',0.18);if(navigator.vibrate)navigator.vibrate([80,40,80]);},
- siren(){beep(700,1400,0.5,'sawtooth',0.07);},
- click(){beep(700,900,0.06,'square',0.08);},
- over(){beep(500,90,0.8,'sawtooth',0.15);}
-};
-$('muteBtn').textContent=muted?'🔇':'🔊';
-$('muteBtn').onclick=()=>{muted=!muted;localStorage.setItem(MKEY,muted?'1':'0');$('muteBtn').textContent=muted?'🔇':'🔊';if(!muted)SFX.click();};
-const keys={l:false,r:false,gas:false};
-function bind(el,k){el.addEventListener('touchstart',e=>{e.preventDefault();keys[k]=true;},{passive:false});el.addEventListener('touchend',e=>{e.preventDefault();keys[k]=false;},{passive:false});el.addEventListener('touchcancel',()=>keys[k]=false);el.addEventListener('mousedown',()=>keys[k]=true);el.addEventListener('mouseup',()=>keys[k]=false);el.addEventListener('mouseleave',()=>keys[k]=false);}
-bind($('btnL'),'l');bind($('btnR'),'r');bind($('gas'),'gas');
-/* 城市：街区建筑 */
-const blocks=[];
-for(let r=0;r<3;r++)for(let c=0;c<2;c++){
- const x=40+c*290,y=120+r*250,w=210,h=170;
- if(Math.random()<0.99)blocks.push({x,y,w,h,hue:['#e040fb','#18ffff','#00e676','#ffea00'][(r*2+c)%4]});
-}
-/* 玩家 */
-let G=null;
-function rndPt(){for(let t=0;t<60;t++){const x=40+Math.random()*(W-80),y=110+Math.random()*(H-180);
- let ok=true;for(const b of blocks)if(x>b.x-24&&x<b.x+b.w+24&&y>b.y-24&&y<b.y+b.h+24)ok=false;
- if(ok)return{x,y};}return{x:300,y:800};}
-function newOrder(){const p=rndPt(),d=rndPt();G.pickup=p;G.deliver=d;G.has=false;G.streak=0;}
-function newGame(){
- G={over:false,paused:false,time:90,money:0,orders:0,togo:5,
-   px:300,py:830,ang:-Math.PI/2,spd:0,parts:[],floats:[],
-   police:[],has:false,streak:0,sirenT:0};
- for(let i=0;i<3;i++){const p=rndPt();G.police.push({x:p.x,y:p.y,ang:Math.random()*6.28,t:0,cool:0});}
- newOrder();
-}
-function rectHit(x,y,r){for(const b of blocks){const cx=Math.max(b.x,Math.min(x,b.x+b.w)),cy=Math.max(b.y,Math.min(y,b.y+b.h));
- if((x-cx)*(x-cx)+(y-cy)*(y-cy)<r*r)return b;}return null;}
-function update(){
- if(!G||G.over||G.paused)return;
- if(keys.l)G.ang-=0.055*(1+G.spd*0.12);
- if(keys.r)G.ang+=0.055*(1+G.spd*0.12);
- if(keys.gas)G.spd=Math.min(6.4,G.spd+0.22);else G.spd*=0.965;
- const nx=G.px+Math.cos(G.ang)*G.spd,ny=G.py+Math.sin(G.ang)*G.spd;
- if(!rectHit(nx,ny,13)){G.px=nx;G.py=ny;}else{G.spd*=-0.35;if(Math.abs(G.spd)>2.5){SFX.crash();}}
- G.px=Math.max(14,Math.min(W-14,G.px));G.py=Math.max(96,Math.min(H-14,G.py));
- // 取货/送货
- const tgt=G.has?G.deliver:G.pickup;
- const d=Math.hypot(G.px-tgt.x,G.py-tgt.y);
- if(d<34){if(!G.has){G.has=true;SFX.pickup();floatTxt(tgt.x,tgt.y-24,'取货!','#ffd54a');burst(tgt.x,tgt.y,'#ffd54a',12);}
-  else{const earn=30+G.streak*15;G.money+=earn;G.orders++;G.streak++;G.togo--;
-   SFX.deliver();floatTxt(tgt.x,tgt.y-24,'+$'+earn,'#00e676');burst(tgt.x,tgt.y,'#00e676',16);
-   if(G.togo<=0){endGame();return;}newOrder();G.has=false;}}
- // 警察
- for(const p of G.police){
-  p.t-=1/60;
-  if(p.t<=0){p.t=2+Math.random()*3;const a=Math.atan2(G.py-p.y,G.px-p.x)+(Math.random()-0.5)*1.4;p.ang=a;}
-  const ps=2.1+G.orders*0.25;
-  const px2=p.x+Math.cos(p.ang)*ps,py2=p.y+Math.sin(p.ang)*ps;
-  if(!rectHit(px2,py2,12)){p.x=px2;p.y=py2;}else p.ang+=0.7;
-  p.x=Math.max(14,Math.min(W-14,p.x));p.y=Math.max(96,Math.min(H-14,p.y));
-  if(p.cool>0)p.cool-=1/60;
-  if(Math.hypot(p.x-G.px,p.y-G.py)<30&&p.cool<=0){p.cool=3;G.time=Math.max(1,G.time-5);G.streak=0;SFX.crash();floatTxt(G.px,G.py-28,'-5s','#ff5252');burst(G.px,G.py,'#ff5252',14);}
- }
- const nearP=Math.min(...G.police.map(p=>Math.hypot(p.x-G.px,p.y-G.py)));
- if(nearP<160){G.sirenT-=1/60;if(G.sirenT<=0){G.sirenT=2.2;SFX.siren();}}
- G.time-=1/60;
- if(G.time<=0){G.time=0;endGame();return;}
- for(const pt of G.parts){pt.x+=pt.vx;pt.y+=pt.vy;pt.life--;}
- G.parts=G.parts.filter(p=>p.life>0);
- for(const f of G.floats){f.y-=1;f.life--;}
- G.floats=G.floats.filter(f=>f.life>0);
- $('time').textContent=Math.ceil(G.time);$('money').textContent=G.money;$('orders').textContent=G.orders;$('togo').textContent=G.orders+G.togo;
-}
-function burst(x,y,c,n){for(let i=0;i<n;i++)G.parts.push({x,y,vx:(Math.random()-0.5)*7,vy:(Math.random()-0.5)*7,life:30+Math.random()*20,c});}
-function floatTxt(x,y,txt,c){G.floats.push({x,y,txt,c,life:70});}
-function endGame(){G.over=true;SFX.over();
- const hs=Math.max(G.money,+(localStorage.getItem(HSK)||0));localStorage.setItem(HSK,hs);
- $('endText').innerHTML='完成 <b style="color:#00e676">'+G.orders+'</b> 单，赚到 <b style="color:#ffd54a">$'+G.money+'</b>';
- $('hsText').innerHTML='🏅 最高收入 <b style="color:#ff6d00">$'+hs+'</b>';
- setTimeout(()=>$('endOv').classList.remove('hidden'),400);}
-function drawCar(x,y,ang,color,icon){
- ctx.save();ctx.translate(x,y);ctx.rotate(ang);
- ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=14;
- roundR(-16,-10,32,20,8);ctx.fill();ctx.shadowBlur=0;
- ctx.fillStyle='#0d0a18';roundR(-6,-7,12,14,4);ctx.fill();
- ctx.font='16px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
- ctx.save();ctx.rotate(-ang);ctx.fillText(icon,0,1);ctx.restore();
- ctx.restore();}
-function roundR(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
-function draw(){
- ctx.fillStyle='#0d0a18';ctx.fillRect(0,0,W,H);
- // 霓虹夜空
- const gr=ctx.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#160a2e');gr.addColorStop(1,'#0d0a18');ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
- // 道路网格
- ctx.strokeStyle='#2b2350';ctx.lineWidth=3;
- for(let x=20;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,90);ctx.lineTo(x,H);ctx.stroke();}
- for(let y=110;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
- // 建筑
- for(const b of blocks){
-  ctx.fillStyle='#141024';roundR(b.x,b.y,b.w,b.h,8);ctx.fill();
-  ctx.strokeStyle=b.hue;ctx.lineWidth=2;ctx.shadowColor=b.hue;ctx.shadowBlur=10;roundR(b.x,b.y,b.w,b.h,8);ctx.stroke();ctx.shadowBlur=0;
-  ctx.fillStyle=b.hue+'44';
-  for(let wy=b.y+14;wy<b.y+b.h-10;wy+=26)for(let wx=b.x+12;wx<b.x+b.w-10;wx+=30)ctx.fillRect(wx,wy,14,12);
- }
- if(!G)return;
- // 目标
- const tgt=G.has?G.deliver:G.pickup;
- const pulse=1+Math.sin(Date.now()*0.008)*0.15;
- ctx.save();ctx.translate(tgt.x,tgt.y);ctx.scale(pulse,pulse);
- ctx.strokeStyle=G.has?'#00e676':'#ffd54a';ctx.lineWidth=3;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=16;
- ctx.beginPath();ctx.arc(0,0,26,0,7);ctx.stroke();ctx.shadowBlur=0;
- ctx.font='28px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(G.has?'🏠':'📦',0,1);
- ctx.restore();
- // 方向箭头
- const aa=Math.atan2(tgt.y-G.py,tgt.x-G.px);
- ctx.save();ctx.translate(G.px,G.py);ctx.rotate(aa);
- ctx.fillStyle=(G.has?'#00e676':'#ffd54a')+'cc';
- ctx.beginPath();ctx.moveTo(44,0);ctx.lineTo(30,-8);ctx.lineTo(30,8);ctx.closePath();ctx.fill();ctx.restore();
- // 警察
- for(const p of G.police)drawCar(p.x,p.y,p.ang,'#3b6cff','🚔');
- // 玩家
- drawCar(G.px,G.py,G.ang,'#ff6d00','🛵');
- if(G.has){ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText('📦',G.px,G.py-30);}
- // 粒子/飘字
- for(const pt of G.parts){ctx.globalAlpha=Math.min(1,pt.life/30);ctx.fillStyle=pt.c;ctx.fillRect(pt.x-2,pt.y-2,5,5);}ctx.globalAlpha=1;
- ctx.font='bold 20px sans-serif';ctx.textAlign='center';
- for(const f of G.floats){ctx.globalAlpha=Math.min(1,f.life/40);ctx.fillStyle=f.c;ctx.shadowColor=f.c;ctx.shadowBlur=8;ctx.fillText(f.txt,f.x,f.y);ctx.shadowBlur=0;}ctx.globalAlpha=1;
- // 速度线
- if(G.spd>4){ctx.strokeStyle='#ff6d0055';ctx.lineWidth=2;
-  for(let i=0;i<3;i++){const bx=G.px-Math.cos(G.ang)*(20+i*8),by=G.py-Math.sin(G.ang)*(20+i*8);
-   ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx-Math.cos(G.ang)*14,by-Math.sin(G.ang)*14);ctx.stroke();}}
-}
-function loop(){update();draw();requestAnimationFrame(loop);}
-$('startBtn').onclick=()=>{ac();SFX.click();$('startOv').classList.add('hidden');newGame();loop();};
-$('pauseBtn').onclick=()=>{if(!G||G.over)return;G.paused=true;$('pauseOv').classList.remove('hidden');SFX.click();};
-$('resumeBtn').onclick=()=>{G.paused=false;$('pauseOv').classList.add('hidden');SFX.click();};
-$('restartBtn1').onclick=()=>{$('pauseOv').classList.add('hidden');newGame();SFX.click();};
-$('restartBtn2').onclick=()=>{$('endOv').classList.add('hidden');newGame();SFX.click();};
-draw();
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
+const GID='neoncourier';
+const Store={get(k,d){try{const v=UI.storageGet(GID+'-'+k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{UI.storageSet(GID+'-'+k,JSON.stringify(v));}catch(e){}}};
+let muted=UI.storageGet(GID+'-mute')==='1',AC=null;
+function audio(){if(muted)return null;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}catch(e){return null;}}
+function tone(f,d,type,vol,f2,delay){const a=audio();if(!a)return;try{const t=a.currentTime+(delay||0),o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(Math.max(20,f2),t+d);g.gain.setValueAtTime(vol||.12,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(a.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+function noise(d,vol,hp){const a=audio();if(!a)return;try{const n=Math.floor(a.sampleRate*d),b=a.createBuffer(1,n,a.sampleRate),ch=b.getChannelData(0);for(let i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),g=a.createGain(),fl=a.createBiquadFilter();fl.type='lowpass';fl.frequency.value=hp||1800;s.buffer=b;g.gain.value=vol||.15;s.connect(fl).connect(g).connect(a.destination);s.start();}catch(e){}}
+function setMute(m){muted=m;UI.storageSet(GID+'-mute',m?'1':'0');document.querySelectorAll('.muteBtn').forEach(b=>b.textContent=m?'🔇':'🔊');}
+document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('.muteBtn').forEach(b=>{b.textContent=muted?'🔇':'🔊';b.addEventListener('click',()=>setMute(!muted));});});
+function show(id,on){const e=$(id);if(e)e.classList.toggle('hidden',!on);}
+function toast(t,ms){let e=$('toast');if(!e){e=document.createElement('div');e.id='toast';document.body.appendChild(e);}e.textContent=t;e.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>e.classList.remove('on'),ms||1600);}
+function fitCanvas(cv,box,W,H){const r=box.getBoundingClientRect();const s=Math.max(.1,Math.min(r.width/W,r.height/H));cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
+function posOf(e,cv,W,H){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches.length)?e.touches[0]:(e.changedTouches&&e.changedTouches.length)?e.changedTouches[0]:e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
+function rr(c,x,y,w,h,r){c.beginPath();if(c.roundRect)c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h);}
+function txt(c,s,x,y,size,color,align,weight,base){c.font=(weight||800)+' '+size+'px "HarmonyOS Sans SC","MiSans","Noto Sans SC","PingFang SC",system-ui,sans-serif';c.fillStyle=color||'#fff';c.textAlign=align||'center';c.textBaseline=base||'middle';c.fillText(s,x,y);}
+function otxt(c,s,x,y,size,color,align,weight){c.lineWidth=Math.max(2,size/5);c.strokeStyle='rgba(0,0,0,.7)';c.lineJoin='round';c.font=(weight||900)+' '+size+'px "HarmonyOS Sans SC","MiSans","Noto Sans SC","PingFang SC",system-ui,sans-serif';c.textAlign=align||'center';c.textBaseline='middle';c.strokeText(s,x,y);c.fillStyle=color||'#fff';c.fillText(s,x,y);}
+function mkRng(seed){let s=seed>>>0||1;return()=>{s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function starStr(n,max){max=max||3;return '★'.repeat(n)+'☆'.repeat(Math.max(0,max-n));}
+function clamp(v,a,b){return v<a?a:v>b?b:v;}
+// 新手引导：pages=[[标题,说明],...]，看完后回调
+function tutorial(pages,done){let i=0;const ov=$('tutScr');function render(){$('tutH').textContent=pages[i][0];$('tutP').innerHTML=pages[i][1];$('tutStep').textContent=(i+1)+' / '+pages.length;$('tutNext').textContent=i<pages.length-1?'下一步':'开始挑战';}
+  $('tutNext').onclick=()=>{tone(700,.06,'triangle');if(i<pages.length-1){i++;render();}else{show('tutScr',false);done&&done();}};
+  $('tutSkip').onclick=()=>{show('tutScr',false);done&&done();};render();show('tutScr',true);}
+// 兼容旧版最高分键 g100_<id>_hs
+function legacyBest(v){const k='g100_'+GID+'_hs';let o=0;try{o=parseInt(UI.storageGet(k)||'0',10)||0;if(v!=null&&v>o){UI.storageSet(k,String(Math.round(v)));o=Math.round(v);}}catch(e){}return o;}
+
+const W=360,H=600,ST=38,CW=(W-4*ST)/3,CH=(H-5*ST)/4;const cv=$('cv'),ctx=cv.getContext('2d');if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+const fit=()=>fitCanvas(cv,$('box'),W,H);addEventListener('resize',fit);
+const NAMES=['新手街','霓虹市场','高架桥下','雨夜港口','👮 警长追捕·一','樱花大道','机械区','地下环路','赛博中心','👮 警长追捕·二','天际线','废墟工厂','金融区','不夜城','👮 警长追捕·终'];
+const LV=NAMES.map((n,i)=>({n,boss:(i+1)%5===0,need:4+Math.floor(i*.36),time:Math.round(70+i*2.2),traffic:Math.min(9,1+Math.floor(i*.6)),police:i<2?0:Math.min(3,Math.floor((i-1)/3)),fragile:i>=3?.3:0,express:i>=1?.3:0,seed:101+i*37}));
+LV.forEach(l=>{if(l.boss){l.need=Math.max(4,l.need-1);l.time+=10;l.police=Math.max(0,l.police-1);}});
+const UPS=[{k:'eng',n:'⚙️ 引擎',d:'极速 +12%',c:60,max:3},{k:'grip',n:'🛞 轮胎',d:'转向更灵活',c:45,max:3},{k:'nitro',n:'🚀 氮气瓶',d:'每局氮气 +1',c:70,max:2},{k:'time',n:'⏱ 导航',d:'时间 +5 秒',c:50,max:3}];
+let save=Store.get('save',{stars:[],cash:0,up:{eng:0,grip:0,nitro:0,time:0},tut:0});
+let state='menu',li=0,L=null,blocks=[],car,traffic=[],police=[],boss=null,order=null,time=0,done=0,nitro=0,nitroT=0,cash=0,catches=0,sparks=[],floats=[],keys={l:0,r:0,g:0},touch=null,t=0,FAST=false,cool=0,broke=0,grid=null;
+function mkMap(seed){const r=mkRng(seed);blocks=[];for(let row=0;row<4;row++)for(let c=0;c<3;c++){const x=ST+c*(CW+ST),y=ST+row*(CH+ST);blocks.push({x,y,w:CW,h:CH,hue:['#ff4d8d','#4fc3f7','#2ee6a0','#ffc531','#b65cff'][(row*3+c+seed)%5],win:Math.floor(r()*4)});}
+ const rm=Math.floor(r()*2);for(let k=0;k<rm;k++)blocks.splice(Math.floor(r()*blocks.length),1);
+ if(r()<.6){const b=blocks[Math.floor(r()*blocks.length)];const nb=blocks.find(q=>q!==b&&q.y===b.y&&Math.abs(q.x-(b.x+CW+ST))<1);if(nb){b.w+=ST+CW;blocks.splice(blocks.indexOf(nb),1);}}
+ // 寻路网格
+ const G=12,gw=Math.ceil(W/G),gh=Math.ceil(H/G);grid={G,gw,gh,free:new Uint8Array(gw*gh)};for(let y=0;y<gh;y++)for(let x=0;x<gw;x++)grid.free[y*gw+x]=hit(x*G+G/2,y*G+G/2,10)?0:1;}
+function hit(x,y,r){if(x<r||y<r||x>W-r||y>H-r)return true;for(const b of blocks){const cx=clamp(x,b.x,b.x+b.w),cy=clamp(y,b.y,b.y+b.h);if((x-cx)**2+(y-cy)**2<r*r)return true;}return false;}
+function path(sx,sy,tx,ty){const {G,gw,gh,free}=grid;const s=Math.floor(sy/G)*gw+Math.floor(sx/G),e=Math.floor(ty/G)*gw+Math.floor(tx/G);const prev=new Int32Array(gw*gh).fill(-1);const q=[s];prev[s]=s;
+ for(let h=0;h<q.length;h++){const c=q[h];if(c===e)break;const cx=c%gw,cy=(c/gw)|0;for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=cx+dx,ny=cy+dy;if(nx<0||ny<0||nx>=gw||ny>=gh)continue;const n=ny*gw+nx;if(prev[n]>=0||!free[n]&&n!==e)continue;prev[n]=c;q.push(n);}}
+ if(prev[e]<0)return null;const out=[];for(let c=e;c!==s;c=prev[c])out.push({x:(c%gw)*G+G/2,y:((c/gw)|0)*G+G/2});return out.reverse();}
+const rnd=(a,b)=>a+Math.random()*(b-a);
+function streetPt(){for(let k=0;k<80;k++){const vert=Math.random()<.5;const x=vert?ST/2+Math.floor(Math.random()*4)*(CW+ST):rnd(20,W-20),y=vert?rnd(20,H-20):ST/2+Math.floor(Math.random()*5)*(CH+ST);if(!hit(x,y,14)&&Math.hypot(x-car.x,y-car.y)>150)return{x,y};}return{x:ST/2,y:H/2};}
+function newOrder(){const p=streetPt(),d=streetPt();const r=Math.random();order={p,d,has:false,fragile:r<L.fragile,express:r>=L.fragile&&r<L.fragile+L.express,et:0};}
+function startLevel(i){li=i;L=LV[i];mkMap(L.seed);car={x:ST/2,y:H-ST/2,a:-Math.PI/2,v:0};time=L.time+save.up.time*5;done=0;nitro=1+save.up.nitro;nitroT=0;cash=0;catches=0;cool=0;broke=0;t=0;keys={l:0,r:0,g:0};touch=null;sparks=[];floats=[];
+ traffic=[];for(let k=0;k<L.traffic;k++){const vert=k%2===0;const lane=vert?Math.floor(Math.random()*4):Math.floor(Math.random()*5);traffic.push(vert?{x:ST/2+lane*(CW+ST)+(Math.random()<.5?-7:7),y:rnd(0,H),vx:0,vy:(Math.random()<.5?-1:1)*rnd(50,80)}:{x:rnd(0,W),y:ST/2+lane*(CH+ST)+(Math.random()<.5?-7:7),vx:(Math.random()<.5?-1:1)*rnd(50,80),vy:0});}
+ police=[];for(let k=0;k<L.police;k++){police.push({x:W-ST/2,y:ST/2+k*(CH+ST),v:95+li*3,p:null,pt:0,chief:false});}
+ boss=L.boss?{x:W-ST/2,y:ST/2,v:118+li*3,p:null,pt:0,chief:true}:null;if(boss)police.push(boss);
+ newOrder();state='play';['lvlScr','overScr','pauseOv','startScr'].forEach(k=>show(k,false));fit();hud();if(!FAST)toast(L.boss?'👮 警长在追你！被抓 3 次就失败':'城区 '+(i+1)+'：'+L.need+' 单 · '+time+' 秒',1800);}
+function hud(){$('lvT').textContent=li+1;$('ordT').textContent=done+'/'+L.need;$('timeT').textContent=Math.ceil(Math.max(0,time));$('nitroT').textContent=nitro;}
+function float(x,y,s,c){floats.push({x,y,s,c,l:1});}
+function useNitro(){if(state!=='play'||nitro<=0||nitroT>0)return;nitro--;nitroT=1.6;tone(200,.5,'sawtooth',.05,900);hud();}
+function breakFragile(){if(order&&order.fragile&&order.has){broke++;float(car.x,car.y-20,'💔 易碎件摔坏了','#ff4d6e');toast('💔 易碎件摔坏，重新接单');newOrder();}}
+function tick(dt){if(state!=='play')return;t+=dt;time-=dt;if(cool>0)cool-=dt;if(nitroT>0)nitroT-=dt;
+ const grip=1+save.up.grip*.18,max=(165+save.up.eng*20)*(nitroT>0?1.55:1);let steer=keys.r-keys.l,gas=keys.g||nitroT>0;
+ if(touch){const ta=Math.atan2(touch.y-car.y,touch.x-car.x);let da=((ta-car.a+Math.PI*3)%(Math.PI*2))-Math.PI;steer=clamp(da*3,-1,1);gas=1;}
+ car.a+=steer*2.9*grip*dt*(.4+Math.min(1,Math.abs(car.v)/100)*.6);
+ if(gas)car.v=Math.min(max,car.v+340*dt);else car.v*=Math.pow(.25,dt);if(car.v>max)car.v=max;
+ const nx=car.x+Math.cos(car.a)*car.v*dt,ny=car.y+Math.sin(car.a)*car.v*dt;
+ if(!hit(nx,ny,11)){car.x=nx;car.y=ny;}else{if(!hit(nx,car.y,11))car.x=nx;else if(!hit(car.x,ny,11))car.y=ny;else{if(Math.abs(car.v)>110){noise(.12,.1,800);breakFragile();}car.v*=-.3;}if(Math.abs(car.v)>120){car.v*=.6;}}
+ for(const c of traffic){c.x+=c.vx*dt;c.y+=c.vy*dt;if(c.x<-20)c.x=W+20;if(c.x>W+20)c.x=-20;if(c.y<-20)c.y=H+20;if(c.y>H+20)c.y=-20;
+  if(cool<=0&&Math.abs(c.x-car.x)<(c.vx?20:13)&&Math.abs(c.y-car.y)<(c.vy?20:13)){cool=1;car.v=-60;time-=2;noise(.18,.14,500);float(car.x,car.y-20,'-2s 追尾','#ff4d6e');if(FX)FX.burst(sparks,car.x,car.y,'#ffc531',12);breakFragile();}}
+ for(const p of police){p.pt-=dt;if(p.pt<=0||!p.p||!p.p.length){p.p=path(p.x,p.y,car.x,car.y)||[];p.pt=.6;}const w=p.p[0];if(w){const dx=w.x-p.x,dy=w.y-p.y,dd=Math.hypot(dx,dy);const sp=p.v*(p.stun>0?.2:1)*dt;if(dd<sp+1)p.p.shift();else{p.x+=dx/dd*sp;p.y+=dy/dd*sp;}}if(p.stun>0)p.stun-=dt;
+  if(Math.hypot(p.x-car.x,p.y-car.y)<20&&cool<=0&&!(p.stun>0)){cool=1.5;p.stun=2.5;time-=p.chief?3:5;tone(900,.3,'sawtooth',.05,500);float(car.x,car.y-20,p.chief?'👮 被警长抓到！':'-5s 罚单','#ff4d6e');breakFragile();if(p.chief){catches++;if(catches>=3){end(false);return;}}}}
+ if(order){if(order.express&&order.has)order.et+=dt;const tg=order.has?order.d:order.p;if(Math.hypot(car.x-tg.x,car.y-tg.y)<22){if(!order.has){order.has=true;tone(500,.12,'square',.05,900);float(tg.x,tg.y-20,order.fragile?'📦 易碎！慢点开':order.express?'⚡ 加急 12 秒':'取件！','#ffe066');}
+  else{let earn=20;if(order.express&&order.et<=12){earn+=15;time+=4;float(tg.x,tg.y-34,'⚡ 准时 +4s','#2ee6a0');}if(order.fragile)earn+=15;cash+=earn;done++;tone(660,.1,'triangle');tone(990,.2,'triangle',.08,0,.1);if(FX)FX.burst(sparks,tg.x,tg.y,'#2ee6a0',16);float(tg.x,tg.y-20,'+$'+earn,'#2ee6a0');hud();if(done>=L.need){end(true);return;}newOrder();}}}
+ for(const f of floats){f.y-=30*dt;f.l-=dt*.8;}floats=floats.filter(f=>f.l>0);
+ if(time<=0){time=0;hud();end(false);return;}if(Math.floor(t*4)!==Math.floor((t-dt)*4))hud();}
+function end(ok){if(state!=='play')return;state='over';const tl=Math.ceil(time);let st=0;
+ if(ok){st=1+(tl>=L.time*.2?1:0)+(tl>=L.time*.35?1:0);if(st>(save.stars[li]||0))save.stars[li]=st;cash+=tl;tone(523,.12,'triangle');tone(784,.3,'triangle',.1,0,.15);}else tone(220,.5,'sawtooth',.08,70);
+ save.cash+=cash;legacyBest(cash);Store.set('save',save);
+ const go=()=>{$('overH').textContent=ok?(L.boss?'👮 甩掉了警长！':'🏁 全部送达'):(catches>=3?'🚔 被警长逮捕':'⌛ 超时了');$('finalScore').textContent=ok?starStr(st):done+' / '+L.need+' 单';
+  $('overText').textContent=(ok?'剩余 '+tl+' 秒（35% 以上三星）':'提示：按住画面可直接朝手指方向开车')+' · 收入 $'+cash;$('nextBtn').classList.toggle('hidden',!ok||li>=LV.length-1);show('overScr',true);};FAST?go():setTimeout(go,600);}
+// 输入
+function hold(id,k){const e=$(id);e.addEventListener('pointerdown',ev=>{ev.preventDefault();audio();keys[k]=1;});for(const n of ['pointerup','pointerleave','pointercancel'])e.addEventListener(n,()=>keys[k]=0);}
+hold('bL','l');hold('bR','r');hold('bG','g');$('bN').onclick=useNitro;
+cv.addEventListener('pointerdown',e=>{e.preventDefault();audio();touch=posOf(e,cv,W,H);});cv.addEventListener('pointermove',e=>{if(touch)touch=posOf(e,cv,W,H);});addEventListener('pointerup',()=>touch=null);
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')keys.l=1;if(e.key==='ArrowRight')keys.r=1;if(e.key==='ArrowUp')keys.g=1;if(e.key===' ')useNitro();});addEventListener('keyup',e=>{if(e.key==='ArrowLeft')keys.l=0;if(e.key==='ArrowRight')keys.r=0;if(e.key==='ArrowUp')keys.g=0;});
+// 绘制
+function carArt(x,y,a,col,icon){ctx.save();ctx.translate(x,y);ctx.rotate(a);if(FX)FX.shadow(ctx,2,4,15,8);if(FX)FX.tile(ctx,-14,-9,28,18,col,6);else{ctx.fillStyle=col;ctx.fillRect(-14,-9,28,18);}ctx.fillStyle='rgba(255,255,255,.7)';ctx.fillRect(4,-6,5,12);ctx.restore();if(icon)txt(ctx,icon,x,y,12);}
+function draw(){if(FX)FX.stage(ctx,W,H,'#2a2d4a','#14152a');else{ctx.fillStyle='#1a1b30';ctx.fillRect(0,0,W,H);}if(!L){txt(ctx,'🛵',W/2,H/2,80);return;}
+ ctx.strokeStyle='rgba(255,255,255,.18)';ctx.setLineDash([8,10]);ctx.lineWidth=2;for(let c=0;c<4;c++){const x=ST/2+c*(CW+ST);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}for(let r=0;r<5;r++){const y=ST/2+r*(CH+ST);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}ctx.setLineDash([]);
+ for(const b of blocks){if(FX)FX.tile(ctx,b.x,b.y,b.w,b.h,b.hue,12);else{ctx.fillStyle=b.hue;ctx.fillRect(b.x,b.y,b.w,b.h);}ctx.fillStyle='rgba(255,255,255,.25)';for(let yy=b.y+14;yy<b.y+b.h-14;yy+=18)for(let xx=b.x+12;xx<b.x+b.w-12;xx+=16)if((xx*7+yy*3+b.win)%5<3)ctx.fillRect(xx,yy,7,9);}
+ if(order){const tg=order.has?order.d:order.p,pulse=1+.15*Math.sin(t*6);if(FX)FX.glow(ctx,order.has?'#2ee6a0':'#ffe066',20);ctx.strokeStyle=order.has?'#2ee6a0':'#ffe066';ctx.lineWidth=4;ctx.beginPath();ctx.arc(tg.x,tg.y,18*pulse,0,7);ctx.stroke();if(FX)FX.noGlow(ctx);txt(ctx,order.has?'🏠':(order.fragile?'🥚':order.express?'⚡':'📦'),tg.x,tg.y,18);
+  const a=Math.atan2(tg.y-car.y,tg.x-car.x);ctx.fillStyle='rgba(255,255,255,.85)';ctx.save();ctx.translate(car.x+Math.cos(a)*30,car.y+Math.sin(a)*30);ctx.rotate(a);ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(-5,-6);ctx.lineTo(-5,6);ctx.fill();ctx.restore();}
+ for(const c of traffic)carArt(c.x,c.y,Math.atan2(c.vy,c.vx),'#8e9ab8');
+ for(const p of police){carArt(p.x,p.y,p.p&&p.p[0]?Math.atan2(p.p[0].y-p.y,p.p[0].x-p.x):0,p.chief?'#222':'#e8ecff',p.chief?'👮':'');ctx.fillStyle=Math.sin(t*12)>0?'#ff3d6e':'#4fc3f7';ctx.beginPath();ctx.arc(p.x,p.y-12,3.5,0,7);ctx.fill();if(p.stun>0)txt(ctx,'💫',p.x,p.y-22,12);}
+ if(nitroT>0&&FX)FX.glow(ctx,'#4fc3f7',22);carArt(car.x,car.y,car.a,order&&order.has?'#2ee6a0':'#ff4d8d');if(FX)FX.noGlow(ctx);if(cool>0&&Math.sin(t*30)>0){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(car.x,car.y,18,0,7);ctx.stroke();}
+ if(FX)FX.drawBurst(ctx,sparks);for(const f of floats){ctx.globalAlpha=clamp(f.l,0,1);otxt(ctx,f.s,f.x,f.y,13,f.c);}ctx.globalAlpha=1;
+ if(order&&order.express&&order.has){otxt(ctx,'⚡ 加急 '+Math.max(0,12-order.et).toFixed(1)+'s',W/2,16,14,order.et<=12?'#ffe066':'#ff8a8a');}
+ if(boss)otxt(ctx,'👮 被抓 '+catches+'/3',W-60,16,13,'#fff');
+ if(li===0&&t<5&&state==='play')otxt(ctx,'按住屏幕：朝手指方向开车',W/2,H-60,14,'#ffe066');}
+// 菜单
+function openLevels(){state='menu';['overScr','pauseOv'].forEach(i=>show(i,false));const g=$('lvgrid');g.innerHTML='';$('lvlInfo').textContent='★'+save.stars.reduce((a,b)=>a+(b||0),0)+' / 45 · 💵$'+save.cash+' · 最佳单局 $'+legacyBest();
+ LV.forEach((s,i)=>{const b=document.createElement('button');b.className='lvl';const open=i===0||(save.stars[i-1]||0)>0||(save.stars[i]||0)>0;b.disabled=!open;b.innerHTML=(open?(s.boss?'👮':i+1):'🔒')+'<small>'+(open?starStr(save.stars[i]||0):'')+'</small>';b.onclick=()=>{tone(660,.08,'triangle');startLevel(i);};g.appendChild(b);});
+ const sh=$('shop');sh.innerHTML='';for(const u of UPS){const lv=save.up[u.k],cost=u.c*(lv+1);const b=document.createElement('button');b.className='ghost';b.disabled=lv>=u.max||save.cash<cost;b.innerHTML=u.n+' '+lv+'<br><small>'+(lv>=u.max?'已满级':u.d+' $'+cost)+'</small>';b.onclick=()=>{save.cash-=cost;save.up[u.k]++;Store.set('save',save);tone(880,.1,'triangle');openLevels();};sh.appendChild(b);}
+ show('lvlScr',true);}
+function showTut(done){tutorial([['🛵 驾驶','按住画面，摩托会朝手指方向开；也可以用 ◀ ⛽ ▶ 按钮。🚀 氮气短时加速。'],['📦 送件','先到 📦 取件点，再跟着白色箭头送到 🏠。'],['⚠ 特殊订单','🥚 易碎件撞墙或追尾就摔坏；⚡ 加急单 12 秒内送达 +4 秒。'],['🚔 警察','巡警会抓你罚时；首领关的 👮 警长更快，被抓 3 次失败。赚钱在城区页升级装备。']],done);}
+$('howBtn').onclick=()=>{show('lvlScr',false);showTut(openLevels);};
+$('startBtn').onclick=()=>{audio();show('startScr',false);if(!save.tut){showTut(()=>{save.tut=1;Store.set('save',save);startLevel(0);});}else openLevels();};
+$('bestLine').textContent='最佳单局 $'+legacyBest();
+function pause(){if(state==='play'){state='pause';keys={l:0,r:0,g:0};touch=null;show('pauseOv',true);}}
+$('pauseBtn').onclick=pause;$('resumeBtn').onclick=()=>{show('pauseOv',false);state='play';last=performance.now();};$('restartBtn').onclick=()=>startLevel(li);$('menuBtn').onclick=openLevels;
+$('nextBtn').onclick=()=>startLevel(li+1);$('againBtn').onclick=()=>startLevel(li);$('menu2Btn').onclick=openLevels;
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+let last=performance.now();function frame(tm){const dt=Math.min(.04,(tm-last)/1000);last=tm;tick(dt);draw();requestAnimationFrame(frame);}
+fit();requestAnimationFrame(frame);
+window.__nc={LV,startLevel,tick,path,setFast:v=>FAST=v,setTouch:p=>touch=p,useNitro,get s(){return{state,li,done,time,catches,car,order,broke}}};
 </script>
-</body>
-</html>
+</body></html>
