@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>节拍刃</title>
+<link rel="icon" href="data:,">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;height:100%;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap!important}
+.topbar .stat{display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13px}
+.topbar .tools{display:flex;gap:6px}
+.topbar .tools .iconbtn{min-width:44px;min-height:44px;padding:0 6px}
+.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+#cv{touch-action:none;display:block}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:100%}
+.lvgrid .lvl{min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:17px;padding:4px!important;line-height:1.1}
+.lvgrid .lvl small{font-size:10px;letter-spacing:-1px;margin-top:2px}
+.rowbtns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%}
+#tutStep{font-size:12px;opacity:.7}
+#toast{position:fixed;left:50%;top:16%;transform:translate(-50%,-10px);background:rgba(10,8,30,.88);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;z-index:999;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;font-size:15px;box-shadow:0 0 18px rgba(255,61,154,.5);white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+
+.opts{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:13px;font-weight:800}
+.opts button{min-height:40px!important;min-width:44px;padding:0 10px!important}
+</style>
+<!-- GAME UI BEGIN -->
+<style>
+:root{--page:#172638;--surface:#22374c;--soft:#2e4760;--ink:#f0f6fc;--muted:#b1c6d9;--accent:#f0bc74;--on-accent:#342717;--line:#45637c;--stage:#142438;--page:#0b0620;--surface:#211040;--soft:#33234f;--ink:#fff3fb;--muted:#d4b6dd;--accent:#ff3d9a;--on-accent:#0b0620;--line:#ff3d9a;--b-bg1:#3a0d5e;--b-bg2:#0b0620;--b-btn:#ff3d9a;--b-btn-hi:#ff81bd;--b-edge:#a3124f;--b-glow:#00e5ff;--b-glow-rgb:0,229,255;--b-pedge-rgb:255,61,154;--b-btn-ink:#510927;--b-btn-tsh:0 1px 0 rgba(255,255,255,.45);--b-coin-ink:#510927;--b-coin-tsh:none;--b-key-ink:#00e5ff;--b-title:#ffffff}
+/* Shared presentation only; mechanics and state remain inside each standalone game. */
+html.game-ui{background:var(--page);color:var(--ink);color-scheme:light;font-family:"Bahnschrift","Microsoft YaHei UI","PingFang SC",sans-serif}
+html.game-ui:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]){color-scheme:dark}
+.game-ui body{background:var(--page);color:var(--ink);font-family:inherit;overscroll-behavior:none}
+.game-ui body>.wrap{padding:20px 16px max(20px,env(safe-area-inset-bottom));gap:14px;max-width:500px}
+.game-ui #app{background:var(--page);color:var(--ink)}
+.game-ui :is(.topbar,#topbar){gap:8px;flex-wrap:wrap;min-height:58px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:10px 12px;box-shadow:0 3px 0 var(--soft);font-size:13px}
+.game-ui :is(.title,.tb-title,.tb-title,#topbar .t,.topbar .t){color:var(--ink);font-size:16px;font-weight:750;letter-spacing:0}
+.game-ui :is(.topbar,.hud,#hud,#topbar) :is(b,.v){color:var(--accent);font-variant-numeric:tabular-nums}
+.game-ui :is(.stat,.topbar .s,.topbar .stat,.scorebar,.stats,.tip,.hint,.hintline,.hsline,.best,.hiscore){color:var(--muted);line-height:1.7}
+.game-ui :is(.hint,.hintline,.tip){font-size:12px;max-width:40em;text-wrap:pretty}
+.game-ui .scorebar{padding:6px 10px;gap:8px;flex-wrap:wrap}
+.game-ui :is(.iconbtn,.iconBtn,.icobtn,.ibtn,.tbtn,.hbtn,.ib,.iconBtn,.pause){min-width:44px;min-height:44px;flex-shrink:0;border-radius:12px;background:var(--soft);color:var(--ink);border:1px solid var(--line);box-shadow:none;font-size:17px}
+.game-ui button{font-family:inherit;cursor:pointer;touch-action:manipulation}
+.game-ui button:focus-visible,.game-ui [tabindex]:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.game-ui :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn){background:var(--accent);color:var(--on-accent);border:1px solid transparent;border-radius:13px;min-height:50px;padding:13px 28px;font-size:16px;font-weight:750;letter-spacing:0;box-shadow:0 4px 0 var(--line);text-shadow:none;max-width:100%}
+.game-ui :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn):active{box-shadow:none;transform:translateY(2px)}
+.game-ui :is(.ghost,.ghostbtn,.btn2,.abtn,.toolbtn){background:var(--soft);color:var(--ink);border:1px solid var(--line);box-shadow:none;border-radius:12px;min-height:44px}
+.game-ui :is(.rowbtns,.btnrow,.ctlrow){gap:10px;flex-wrap:wrap;justify-content:center}
+.game-ui :is(.pill,.hudbox,.hud .p){background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:none;font-variant-numeric:tabular-nums}
+.game-ui :is(.dbtn,.cbtn,.gbtn,.holdbtn,.firebtn,.bombbtn,.jumpbtn,.pumpbtn,.nbtn){border-radius:12px;box-shadow:0 3px 0 var(--line);min-height:44px}
+.game-ui :is(.overlay,.ov,#ov,#overlay,#pauseOv,.screen):has(>.ui-panel){padding:20px;overflow-y:auto;overscroll-behavior:contain}
+.game-ui :is(.overlay,.ov,#ov,#overlay,#pauseOv):has(>.ui-panel){background:var(--page);backdrop-filter:none;justify-content:safe center;align-items:center}
+.game-ui .ui-panel{width:min(100%,380px);max-height:100%;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:18px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:24px;padding:30px 24px;box-shadow:0 8px 0 var(--soft),0 20px 48px #15253618;text-align:center;margin:auto}
+.game-ui .ui-panel :is(.card,.panel,.pausecard,.ovcard){display:contents}
+.game-ui .ui-panel :is(h1,h2,.gamename,.gametitle){font-size:30px;line-height:1.25;font-weight:800;color:var(--ink);background:none;-webkit-text-fill-color:currentColor;text-shadow:none;letter-spacing:-.6px;margin:0}
+.game-ui .ui-panel :is(p,.howto,.sub,.rule){font-size:14px;line-height:1.85;color:var(--muted);background:none;border:0;box-shadow:none;padding:0;margin:0;max-width:32em;text-align:left;white-space:normal}
+.game-ui .ui-panel :is(.bigemoji,.bigemoji,.ic,.big):not(.bigscore){animation:none;filter:none;text-shadow:none}
+.game-ui .ui-emblem{width:90px;height:90px;display:grid;place-items:center;border:1px solid var(--line);border-radius:28px;background:var(--soft);font-size:48px;line-height:1;flex-shrink:0;position:relative}
+.game-ui[data-theme="wood"] .ui-emblem{border-radius:50%;box-shadow:inset 0 0 0 5px var(--surface),inset 0 0 0 6px var(--line)}
+.game-ui[data-theme="wood"] .ui-panel h1{font-family:"STKaiti","KaiTi","Microsoft YaHei",serif;letter-spacing:2px}
+.game-ui[data-theme="ice"] .ui-emblem{border-radius:26px 8px 26px 8px}
+.game-ui[data-theme="space"] .ui-emblem{background:radial-gradient(circle at center,var(--soft) 42%,transparent 43%),var(--surface);border-radius:50%;outline:1px solid var(--line);outline-offset:7px;margin:7px}
+.game-ui[data-theme="kitchen"] .ui-emblem{border-radius:22px;border-bottom:5px solid var(--line)}
+.game-ui .ui-panel :is(.score,.bigscore,.bigScore,.scorebig){color:var(--accent);font-size:48px;font-weight:800;font-variant-numeric:tabular-nums}
+.game-ui .ui-panel :is(.best,.hsline,.hiscore,.endstats,.endstats b){color:var(--muted);font-size:13px;line-height:1.8}
+.game-ui .ui-mode{display:grid;grid-template-columns:1fr 1fr;gap:5px;background:var(--soft);padding:5px;border:1px solid var(--line);border-radius:14px;width:100%}
+.game-ui .ui-mode button{min-height:44px;border:0;border-radius:9px;background:transparent;color:var(--muted);font-size:14px;font-weight:700;box-shadow:none}
+.game-ui .ui-mode button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 2px 5px #1525361a}
+.game-ui .ui-panel .ui-mode-note{font-size:12px;line-height:1.6;text-align:center;color:var(--muted)}
+.game-ui .ui-mode-status{display:block;padding:5px 10px;color:var(--accent);font-size:11px;font-weight:700;line-height:1.5;text-align:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);margin:4px auto;max-width:100%;pointer-events:none}
+.game-ui body>.wrap>canvas:not(#fx){background-color:var(--stage);box-shadow:0 0 0 1px var(--line),0 6px 0 var(--soft);border-radius:18px;flex-shrink:0}
+.game-ui .screen>canvas.game{box-shadow:0 0 0 1px var(--line),0 6px 0 var(--soft)}
+.game-ui #hud{gap:6px;background:var(--surface);color:var(--ink)}
+.game-ui #hud :is(.left,.t,.s,.grp,.pill){color:var(--ink)}
+.game-ui #hud .pill{background:var(--surface);border-color:var(--line)}
+.game-ui body canvas:is(#cv,#game,#board){background-color:var(--stage)}
+.game-ui :is(button.dbtn,button.cbtn){background:var(--soft);color:var(--ink);border:1px solid var(--line)}
+.game-ui :is(button.lvl,button.lvlbtn){background:var(--soft);color:var(--ink);border:1px solid var(--line);border-radius:12px;min-height:54px}
+.game-ui :is(button.lvl,button.lvlbtn) :is(.nc,.sz,small){color:var(--muted)}
+.game-ui .ui-panel button.lvl{margin:0;min-width:44px;box-shadow:none;padding:8px}
+.game-ui #hud :is(.left,.right,.hudl,.hbtns){gap:5px;flex-wrap:wrap}
+.game-ui #hud :is(.left,.hudl){min-width:0;flex-shrink:1}
+.game-ui #hud :is(.pill,.left){font-size:12px}
+.game-ui button:disabled{cursor:default;opacity:.45;box-shadow:none}
+.game-ui .ui-panel .ui-assist-note{color:var(--accent);font-weight:700}
+@media(min-width:700px){.game-ui body>.wrap{padding-top:32px}.game-ui .ui-panel{padding:36px 30px}}
+@media(max-width:360px){.game-ui body>.wrap{padding:10px;gap:10px}.game-ui .ui-panel{padding:22px 18px;gap:13px}.game-ui .ui-panel h1{font-size:26px}.game-ui .ui-emblem{width:70px;height:70px;font-size:38px}.game-ui :is(.topbar,#topbar){gap:5px;padding:8px}.game-ui :is(.iconbtn,.icobtn,.ibtn,.tbtn,.ib){min-width:40px;min-height:44px}}
+@media(max-height:650px){.game-ui .ui-panel{padding:18px;gap:12px}.game-ui .ui-emblem{width:60px;height:60px;font-size:32px}.game-ui .ui-panel h1{font-size:25px}.game-ui .ui-panel :is(p,.howto,.sub,.rule){font-size:13px}}
+@media(prefers-reduced-motion:reduce){.game-ui *, .game-ui *::before,.game-ui *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+/* 2026-10-20 热修：开局/结算遮罩铺满整屏，主按钮固定在面板底部，避免被画布尺寸裁切（#10） */
+.game-ui :is(.overlay,.ov,#ov,#overlay,#pauseOv):has(>.ui-panel){position:fixed;inset:0;z-index:1000;border-radius:0;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom))}
+.game-ui .ui-panel{touch-action:pan-y}
+.game-ui .ui-panel :is(#startBtn,#btnStart,.startbtn,#bStart,#restartBtn,#btnRestart,#againBtn,#btnAgain,#retryBtn,#btnRetry,#playBtn,#btnPlay){position:sticky;bottom:0;z-index:3;flex-shrink:0}
+.game-ui .ui-panel :not(.card,.panel,.pausecard,.ovcard,.ui-mode):has(>:is(#startBtn,#btnStart,.startbtn,#bStart,#restartBtn,#btnRestart,#againBtn,#btnAgain,#retryBtn,#btnRetry,#playBtn,#btnPlay)){position:sticky;bottom:0;z-index:3;flex-shrink:0;background:var(--surface);box-shadow:0 -10px 10px -6px var(--surface)}
+
+
+/* ===== Direction B · 霓虹糖果 Pop Arcade ===== saturated gradients, chunky bevels with a hard bottom edge, sticker panels, neon on dark themes */
+html.game-ui[data-skin="b"]{--fb:"HarmonyOS Sans SC","MiSans","OPPOSans","vivo Sans","Noto Sans SC","Noto Sans CJK SC","PingFang SC","Microsoft YaHei UI",system-ui,sans-serif;--bounce:cubic-bezier(.34,1.56,.64,1);--bg:radial-gradient(circle at 12% 18%,rgba(255,255,255,.28) 0 38px,transparent 40px),radial-gradient(circle at 88% 30%,rgba(255,255,255,.16) 0 64px,transparent 66px),radial-gradient(circle at 20% 82%,rgba(255,255,255,.14) 0 52px,transparent 54px),radial-gradient(rgba(255,255,255,.16) 1.5px,transparent 2.2px) 0 0/22px 22px,linear-gradient(165deg,var(--b-bg1),var(--b-bg2));font-family:var(--fb)}
+html.game-ui[data-skin="b"],html.game-ui[data-skin="b"] body,html.game-ui[data-skin="b"] #app,html.game-ui[data-skin="b"] :is(.overlay,.ov,#ov,#overlay,#pauseOv):has(>.ui-panel){background:var(--bg);background-color:var(--b-bg2)}
+html.game-ui[data-skin="b"] body{min-height:100vh;font-family:var(--fb)}
+html.game-ui[data-skin="b"] :is(.hint,.hintline,.tip){color:rgba(255,255,255,.94);text-shadow:0 1px 2px rgba(0,0,0,.35)}
+/* Sticker panel: white rim + hard coloured bottom edge + drop */
+html.game-ui[data-skin="b"] .ui-panel{background:linear-gradient(180deg,var(--surface),var(--soft));border:4px solid #fff;border-radius:32px;box-shadow:0 9px 0 var(--line),0 9px 0 4px rgba(0,0,0,.08),0 26px 40px rgba(0,0,0,.28);animation:uiB-in .5s var(--bounce) both}
+html.game-ui[data-skin="b"] .ui-panel :is(h1,h2,.gamename,.gametitle){font-size:34px;font-weight:900;color:var(--b-title);letter-spacing:0;text-shadow:0 3px 0 var(--line),0 6px 10px rgba(0,0,0,.15)}
+html.game-ui[data-skin="b"] .ui-emblem{width:100px;height:100px;border:4px solid #fff;border-radius:50%;background:radial-gradient(circle at 32% 26%,#fff 0 12%,var(--b-glow) 13%,var(--line) 70%,var(--b-edge) 100%);box-shadow:0 7px 0 var(--b-edge),0 16px 24px rgba(0,0,0,.25);font-size:54px;animation:uiB-wobble 2.6s ease-in-out infinite}
+html.game-ui[data-skin="b"] .ui-emblem::before,html.game-ui[data-skin="b"] .ui-emblem::after{content:"✦";position:absolute;color:#fff;font-size:20px;text-shadow:0 0 8px var(--b-glow);animation:uiB-twinkle 1.8s ease-in-out infinite}
+html.game-ui[data-skin="b"] .ui-emblem::before{top:-10px;right:-14px}
+html.game-ui[data-skin="b"] .ui-emblem::after{bottom:4px;left:-18px;font-size:14px;animation-delay:.9s}
+html.game-ui[data-skin="b"] .ui-panel :is(.score,.bigscore,.bigScore,.scorebig,#finalScore){font-size:56px;font-weight:900;color:var(--b-btn);-webkit-text-fill-color:currentColor;text-shadow:0 4px 0 var(--b-edge),0 0 2px var(--b-edge),0 10px 16px rgba(0,0,0,.25)}
+html.game-ui[data-skin="b"] .ui-panel :is(h1,.gamename)~h2{font-size:19px;text-shadow:0 2px 0 var(--line)}
+/* Chunky bevelled button: highlight lip, darker bottom slab, presses down onto the slab */
+html.game-ui[data-skin="b"] :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost){position:relative}
+html.game-ui[data-skin="b"] :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost):not(#\#){overflow:hidden;border:0;border-radius:20px;font-weight:900;color:var(--b-btn-ink);background:linear-gradient(180deg,var(--b-btn-hi),var(--b-btn) 52%);text-shadow:var(--b-btn-tsh);box-shadow:inset 0 3px 0 rgba(255,255,255,.55),inset 0 -5px 0 rgba(0,0,0,.14),0 6px 0 var(--b-edge),0 12px 18px rgba(0,0,0,.25);transition:transform .08s,box-shadow .08s}
+html.game-ui[data-skin="b"] :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost):not(#\#)::before{content:"";position:absolute;left:12px;top:6px;width:22px;height:9px;border-radius:9px;background:rgba(255,255,255,.75);transform:rotate(-12deg);pointer-events:none}
+html.game-ui[data-skin="b"] :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost):not(#\#):active{transform:translateY(5px);box-shadow:inset 0 3px 0 rgba(255,255,255,.4),inset 0 -2px 0 rgba(0,0,0,.14),0 1px 0 var(--b-edge),0 4px 8px rgba(0,0,0,.2)}
+html.game-ui[data-skin="b"] .ui-panel :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost):not(#\#){min-height:56px;padding:14px 34px;font-size:19px;letter-spacing:1px}
+/* Secondary keys: white candy keys with a coloured slab */
+html.game-ui[data-skin="b"] :is(.ghost,.ghostbtn,.btn2,.abtn,.toolbtn,.iconbtn,.iconBtn,.icobtn,.ibtn,.tbtn,.hbtn,.ib,.pause,.dbtn,.cbtn,.nbtn,.lvl,.lvlbtn){border:0;border-radius:16px;background:linear-gradient(180deg,#fff,var(--soft));color:var(--b-key-ink);font-weight:900;box-shadow:inset 0 -3px 0 rgba(0,0,0,.06),0 5px 0 var(--line),0 8px 12px rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s}
+html.game-ui[data-skin="b"] :is(.ghost,.ghostbtn,.btn2,.abtn,.toolbtn,.iconbtn,.iconBtn,.icobtn,.ibtn,.tbtn,.hbtn,.ib,.pause,.dbtn,.cbtn,.nbtn,.lvl,.lvlbtn):active{transform:translateY(4px);box-shadow:0 1px 0 var(--line),0 2px 4px rgba(0,0,0,.15)}
+html.game-ui[data-skin="b"] :is(.dbtn,.lvl,.lvlbtn):is(.on,.sel,[aria-pressed="true"]){background:linear-gradient(180deg,var(--b-btn-hi),var(--b-btn));color:var(--b-btn-ink);text-shadow:var(--b-coin-tsh);box-shadow:0 5px 0 var(--b-edge),0 8px 12px rgba(0,0,0,.18)}
+html.game-ui[data-skin="b"] .ui-mode{background:rgba(0,0,0,.08);border:0;border-radius:18px;padding:5px;box-shadow:inset 0 3px 0 rgba(0,0,0,.08)}
+html.game-ui[data-skin="b"] .ui-mode button{border-radius:14px;font-weight:900}
+html.game-ui[data-skin="b"] .ui-mode button[aria-pressed="true"]{background:#fff;color:var(--b-key-ink);box-shadow:0 4px 0 var(--line)}
+/* HUD: candy capsule bar, numbers in coin badges */
+/* HUD keeps a 1px border (same box size as base.css → no layout shift); the thick rim is an inset shadow */
+html.game-ui[data-skin="b"] :is(.topbar,#topbar,:is(.wrap,#app,body)>.hud,.stats,#panel){background:linear-gradient(180deg,#fff,var(--soft));border:1px solid #fff;border-radius:22px;box-shadow:inset 0 0 0 2px #fff,0 6px 0 var(--line),0 12px 18px rgba(0,0,0,.2);font-weight:800}
+html.game-ui[data-skin="b"] #hud{background:linear-gradient(180deg,rgba(255,255,255,.95),var(--soft));box-shadow:0 5px 0 var(--line),0 10px 16px rgba(0,0,0,.2)}
+html.game-ui[data-skin="b"] :is(.topbar,.hud,#hud,#topbar) :is(#score,.score,[id*="score" i]){display:inline-block;min-width:1.6em;text-align:center;padding:0 9px;line-height:inherit;vertical-align:baseline;border-radius:999px;color:var(--b-coin-ink);background:linear-gradient(180deg,var(--b-btn-hi),var(--b-btn));box-shadow:inset 0 -2px 0 rgba(0,0,0,.15),0 2px 0 var(--b-edge);text-shadow:var(--b-coin-tsh);font-weight:900}
+html.game-ui[data-skin="b"] :is(.pill,.hudbox,.hud .p){background:#fff;border:0;border-radius:999px;box-shadow:0 4px 0 var(--line);color:var(--ink);font-weight:800;padding:5px 12px}
+html.game-ui[data-skin="b"] .ui-pop{animation:uiB-pop .45s var(--bounce)}
+/* Stage: thick white frame with slab + drop */
+html.game-ui[data-skin="b"] body canvas:is(#cv,#game,#board):not(#fx),html.game-ui[data-skin="b"] body>.wrap>canvas:not(#fx),html.game-ui[data-skin="b"] .stage{border-radius:24px;outline:5px solid #fff;outline-offset:0;box-shadow:0 10px 0 5px var(--line),0 24px 36px rgba(0,0,0,.32)}
+html.game-ui[data-skin="b"] .stage canvas{box-shadow:none;outline:0}
+/* Neon variant for dark themes (space / arcade / lab) */
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]){--bg:radial-gradient(circle at 15% 12%,rgba(var(--b-glow-rgb),.35) 0,transparent 32%),radial-gradient(circle at 90% 88%,rgba(var(--b-pedge-rgb),.35) 0,transparent 36%),linear-gradient(transparent 0 calc(100% - 1px),rgba(var(--b-glow-rgb),.12) 0) 0 0/100% 32px,linear-gradient(90deg,transparent 0 calc(100% - 1px),rgba(var(--b-glow-rgb),.12) 0) 0 0/32px 100%,linear-gradient(165deg,var(--b-bg1),var(--b-bg2))}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) :is(.ui-panel,.topbar,#topbar,:is(.wrap,#app,body)>.hud,#hud,.stats,#panel){background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 40%),var(--surface);border:1px solid var(--line);box-shadow:inset 0 0 0 1px var(--line),0 0 0 1px rgba(0,0,0,.4),0 0 22px rgba(var(--b-pedge-rgb),.55),inset 0 0 18px rgba(var(--b-pedge-rgb),.18)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) .ui-panel :is(h1,h2,.gamename,.gametitle){color:#fff;text-shadow:0 0 6px var(--b-glow),0 0 18px var(--b-glow),0 3px 0 var(--b-edge)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) .ui-emblem{border-color:var(--b-glow);background:radial-gradient(circle at 50% 40%,rgba(var(--b-glow-rgb),.35),var(--surface) 70%);box-shadow:0 0 0 4px rgba(var(--b-glow-rgb),.18),0 0 30px rgba(var(--b-glow-rgb),.7),inset 0 0 20px rgba(var(--b-glow-rgb),.5)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) :is(.ghost,.ghostbtn,.btn2,.abtn,.toolbtn,.iconbtn,.iconBtn,.icobtn,.ibtn,.tbtn,.hbtn,.ib,.pause,.dbtn,.cbtn,.nbtn,.lvl,.lvlbtn){background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.02)),var(--surface);color:var(--b-key-ink);border:1px solid var(--line);box-shadow:0 4px 0 #000,0 0 12px rgba(var(--b-pedge-rgb),.45)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost):not(#\#){box-shadow:inset 0 3px 0 rgba(255,255,255,.5),inset 0 -5px 0 rgba(0,0,0,.18),0 6px 0 var(--b-edge),0 0 26px rgba(var(--b-pedge-rgb),.7)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) .ui-mode button[aria-pressed="true"]{background:var(--b-btn);color:var(--b-btn-ink);box-shadow:0 0 14px rgba(var(--b-pedge-rgb),.8)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) :is(.pill,.hudbox,.hud .p){background:rgba(0,0,0,.35);color:var(--ink);box-shadow:0 0 0 2px var(--line),0 0 12px rgba(var(--b-pedge-rgb),.5)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) :is(body canvas:is(#cv,#game,#board):not(#fx),body>.wrap>canvas:not(#fx),.stage){outline:2px solid var(--line);box-shadow:0 0 0 6px rgba(var(--b-pedge-rgb),.15),0 0 30px rgba(var(--b-pedge-rgb),.6),0 20px 30px rgba(0,0,0,.5)}
+@keyframes uiB-in{0%{opacity:0;transform:scale(.6) translateY(30px)}60%{opacity:1}}
+@keyframes uiB-wobble{0%,100%{transform:rotate(-4deg) translateY(0)}50%{transform:rotate(4deg) translateY(-6px)}}
+@keyframes uiB-twinkle{50%{opacity:.25;transform:scale(.6) rotate(45deg)}}
+@keyframes uiB-pop{40%{transform:scale(1.45) rotate(-6deg)}}
+/* ---- per-game surfaces ---- */
+html[data-skin="b"][data-game="game2048"] #board{background:linear-gradient(180deg,#fff,var(--soft));border:4px solid #fff;border-radius:28px;padding:12px;gap:10px;box-shadow:0 9px 0 var(--line),0 22px 32px rgba(0,0,0,.25)}
+html[data-skin="b"][data-game="game2048"] .tile{border-radius:16px;font-weight:900;background-image:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0) 50%)!important;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18),inset 0 3px 0 rgba(255,255,255,.5),0 4px 0 rgba(0,0,0,.12);color:#fff!important;text-shadow:0 2px 0 rgba(0,0,0,.25)}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="0"]{background:rgba(0,0,0,.07)!important;box-shadow:inset 0 4px 0 rgba(0,0,0,.08)}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="2"]{background-color:#ffd166!important;color:#6b3d00!important;text-shadow:0 1px 0 rgba(255,255,255,.5)}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="4"]{background-color:#ffa94d!important;color:#5c2a00!important;text-shadow:0 1px 0 rgba(255,255,255,.45)}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="8"]{background-color:#d9365e!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="16"]{background-color:#c23aa8!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="32"]{background-color:#8a4ff0!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="64"]{background-color:#4763e6!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="128"]{background-color:#0b84b8!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="256"]{background-color:#0e8a68!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="512"]{background-color:#3f8a12!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="1024"]{background-color:#c45f00!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="2048"]{background-color:#d61d4f!important;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18),0 0 24px #ff3d6e}
+html[data-skin="b"][data-game="sudoku"] #board{border:4px solid #fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 0 var(--line),0 18px 28px rgba(0,0,0,.25)}
+html[data-skin="b"][data-game="sudoku"] .cell.sel{background:#ffe680!important;box-shadow:inset 0 0 0 3px var(--b-btn)}
+html[data-skin="b"][data-game="sudoku"] .nbtn{min-height:52px;font-size:21px}
+html[data-skin="b"][data-game="tetris"] #cv{border-color:#3a1d7a;background:linear-gradient(180deg,#2a1260,#0a0420)}
+html[data-skin="b"][data-game="tetris"] .tbtn{font-size:22px}
+html[data-skin="b"][data-game="billiards"] .powerbar{height:14px;border-radius:999px;background:rgba(0,0,0,.45);box-shadow:0 0 0 2px var(--line)}
+html[data-skin="b"][data-game="billiards"] .powerbar i{border-radius:999px;box-shadow:0 0 12px #ff3d9a}
+html[data-skin="b"][data-game="pendulum"] #panel{margin:0 10px 10px;border-radius:24px}
+html[data-skin="b"][data-game="pendulum"] input[type=range]{accent-color:var(--b-btn)}
+/* In-flow start/result screens (science labs etc.) become full-screen sheets like overlays, so the taller sticker panel never pushes the page into scrolling */
+html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-index:1000;margin:0;background:var(--bg);background-color:var(--b-bg2)}
+/* Short screens (360x640 class): tighter HUD so stages fit without page scroll */
+@media(max-height:700px){html.game-ui[data-skin="b"] :is(.topbar,#topbar){min-height:0;padding-top:6px;padding-bottom:6px}html.game-ui[data-skin="b"] body>.wrap{gap:8px}}
+
+</style>
+<script>
+// Installed before the original game script; embedded so downloaded ZIPs remain offline capable.
+(function () {
+  'use strict';
+  var config = {"id":"beatblade","name":"节拍刃","theme":"arcade","icon":"🎵","challenge":null,"skin":"b"};
+  var mode = 'classic';
+  try { mode = sessionStorage.getItem('game100-mode-' + config.id) || mode; } catch (_) {}
+  var expert = mode === 'expert';
+  var used = { hint: 0, undo: 0 };
+  var limits = { hint: 1, undo: 3 };
+  function storageKey(key) { return expert && !/sound|mute/i.test(key) ? 'expert:' + key : key; }
+  window.GameUI = {
+    expert: expert,
+    pick: function (classic, advanced) { return expert ? advanced : classic; },
+    storageGet: function (key) { return localStorage.getItem(storageKey(key)); },
+    storageSet: function (key, value) { localStorage.setItem(storageKey(key), value); },
+    storageRemove: function (key) { localStorage.removeItem(storageKey(key)); }
+  };
+  var root = document.documentElement;
+  root.classList.add('game-ui');
+  root.dataset.theme = config.theme;
+  root.dataset.game = config.id;
+  root.dataset.mode = mode;
+  if (config.skin) root.dataset.skin = config.skin;
+  var gesture = new WeakMap();
+  function labelButtons(scope) {
+    scope.querySelectorAll('button').forEach(function (button) {
+      if (button.getAttribute('aria-label')) return;
+      var id = button.id.toLowerCase(), text = button.textContent.trim();
+      var name = /mute|sound|snd/.test(id) ? '切换音效' : /pause/.test(id) ? '暂停游戏' : /hint/.test(id) && !/close|ok/.test(id) ? '查看提示' : '';
+      if (!name && /^[⏸🔊🔇💡Ⅱ]+$/u.test(text)) name = { '⏸': '暂停游戏', '🔊': '切换音效', '🔇': '切换音效', '💡': '查看提示' }[text];
+      if (name) button.setAttribute('aria-label', name);
+    });
+  }
+  function decorate(container) {
+    if (container.querySelector(':scope > .ui-panel') || !container.querySelector('h1,h2,.gamename')) return;
+    // A .screen that holds the playfield (canvas, or its own top bar/HUD) is the game itself, not a menu panel.
+    if (container.matches('.screen') && container.querySelector('canvas:not(#fx),.topbar,#topbar,#hud')) return;
+    var panel = document.createElement('div');
+    panel.className = 'ui-panel';
+    while (container.firstChild) panel.appendChild(container.firstChild);
+    container.appendChild(panel);
+    var heading = panel.querySelector('h1,h2,.gamename');
+    var start = /start|menu|ready/i.test(container.id) || !!panel.querySelector('#startBtn,#btnStart,.startbtn');
+    if (start) {
+      var headings = panel.querySelectorAll('h1,h2,.gamename');
+      if (headings.length > 1 && !/[A-Za-z0-9\u4e00-\u9fff]/.test(heading.textContent)) { heading.remove(); heading = headings[1]; }
+      var oldIcon = panel.querySelector('.bigemoji,.ic');
+      if (oldIcon) oldIcon.remove();
+      var emblem = document.createElement('div');
+      emblem.className = 'ui-emblem'; emblem.textContent = config.icon; emblem.setAttribute('aria-hidden', 'true');
+      panel.insertBefore(emblem, panel.firstChild);
+      heading.textContent = config.name;
+      if (!config.challenge) { labelButtons(panel); return; }
+      var switcher = document.createElement('div'); switcher.className = 'ui-mode'; switcher.setAttribute('role', 'group'); switcher.setAttribute('aria-label', '选择玩法模式');
+      [['classic','经典模式'],['expert','进阶挑战']].forEach(function (item) {
+        var b = document.createElement('button'); b.type = 'button'; b.textContent = item[1]; b.dataset.mode = item[0]; b.setAttribute('aria-pressed', String(mode === item[0]));
+        b.addEventListener('click', function () {
+          if (mode === item[0]) return;
+          try { sessionStorage.setItem('game100-mode-' + config.id, item[0]); location.reload(); }
+          catch (_) { b.textContent = '浏览器未允许保存模式'; }
+        });
+        switcher.appendChild(b);
+      });
+      var primary = panel.querySelector('#startBtn,#btnStart,.startbtn,button');
+      var anchor = primary;
+      while (anchor && anchor.parentNode !== panel && !anchor.parentNode.matches('.card,.panel,.pausecard,.ovcard')) anchor = anchor.parentNode;
+      var target = anchor ? anchor.parentNode : panel;
+      target.insertBefore(switcher, anchor || null);
+      var note = document.createElement('p'); note.className = 'ui-mode-note';
+      note.textContent = expert ? config.challenge + '。进阶纪录单独保存。' : '按原规则轻松开局，也可切换进阶挑战。';
+      target.insertBefore(note, anchor || null);
+    }
+    labelButtons(panel);
+  }
+  function notify(text) {
+    var el = document.getElementById('ui-assist-toast');
+    if (!el) { el = document.createElement('div'); el.id = 'ui-assist-toast'; el.className = 'ui-mode-status'; el.setAttribute('role', 'status'); el.style.cssText = 'position:fixed;bottom:18px;left:16px;right:16px;z-index:200;padding:14px'; document.body.appendChild(el); }
+    el.textContent = text; el.hidden = false;
+    clearTimeout(notify.timer); notify.timer = setTimeout(function () { el.hidden = true; }, 2000);
+  }
+  function assistEvent(event) {
+    if (!expert) return;
+    var b = event.target.closest('button'); if (!b || b.closest('.ui-mode')) return;
+    var kind = /^(hintBtn|hintTopBtn|btnHint)$/i.test(b.id) ? 'hint' : /^(undoBtn|undoTopBtn|btnUndo)$/i.test(b.id) || /悔一步|撤销/.test(b.textContent) ? 'undo' : '';
+    if (!kind) return;
+    var prev = gesture.get(b), blocked;
+    if (event.type === 'click' && prev && performance.now() - prev.at < 1000) blocked = prev.blocked;
+    else { blocked = used[kind] >= limits[kind]; if (!blocked) used[kind]++; gesture.set(b, { at: performance.now(), blocked: blocked }); }
+    if (blocked) { event.preventDefault(); event.stopImmediatePropagation(); notify(kind === 'hint' ? '本次挑战的 1 次提示已用完' : '本次挑战的 3 次撤销已用完'); }
+  }
+  document.addEventListener('pointerdown', assistEvent, true);
+  document.addEventListener('click', assistEvent, true);
+  document.addEventListener('click', function (event) {
+    var b = event.target.closest('button');
+    if (b && /^(startBtn|btnStart|restartBtn|againBtn|retryBtn|btnAgain|btnRestart|playAgain)$/i.test(b.id)) used = { hint: 0, undo: 0 };
+  }, true);
+  document.addEventListener('DOMContentLoaded', function () {
+    var selector = '.overlay,.ov,#ov,#overlay,#pauseOv,.screen';
+    document.querySelectorAll(selector).forEach(function (container) {
+      decorate(container);
+      // Only dynamic overlay children are observed; animated scores never trigger this work.
+      new MutationObserver(function () { decorate(container); }).observe(container, { childList: true });
+    });
+    labelButtons(document);
+    if (config.skin) watchScores();
+  });
+  // Score pop: only discrete jumps animate. Counters that tick every frame (distance, timers)
+  // change faster than the 300ms gate and therefore never trigger, so there is no per-frame cost.
+  function watchScores() {
+    document.querySelectorAll('#score,.topbar b,#hud b,.hud .score,.pill b,.hudbox b').forEach(function (el) {
+      var last = 0;
+      new MutationObserver(function () {
+        var now = performance.now(), quiet = now - last > 300; last = now;
+        if (!quiet) return;
+        el.classList.remove('ui-pop'); void el.offsetWidth; el.classList.add('ui-pop');
+      }).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+  }
+}());
+
+// GameUI.fx: tiny canvas depth helpers (bevelled tiles, glossy orbs, contact shadows).
+// Shapes are pre-rendered into cached sprites so a frame costs one drawImage per piece,
+// which keeps low-end Android WebView at 60fps. Games call them only when GameUI.fx.on.
+(function () {
+  var root = document.documentElement, skin = root.dataset.skin || '';
+  var cache = {}, size = 0;
+  function rgb(h) { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join(''); return [0, 2, 4].map(function (i) { return parseInt(h.slice(i, i + 2), 16); }); }
+  function shade(h, t) { // t>0 lightens towards white, t<0 darkens towards black
+    if (h.charAt(0) !== '#') return h;
+    var c = rgb(h), e = t > 0 ? 255 : 0, a = Math.abs(t);
+    return 'rgb(' + c.map(function (v) { return Math.round(v + (e - v) * a); }).join(',') + ')';
+  }
+  function rgba(h, a) { var c = rgb(h); return 'rgba(' + c.join(',') + ',' + a + ')'; }
+  function scaleOf(ctx) { var m = ctx.getTransform ? ctx.getTransform() : null; return m ? Math.max(1, Math.abs(m.a)) : 1; }
+  function sprite(key, w, h, pad, s, paint) {
+    key += '|' + s; var c = cache[key];
+    if (!c) {
+      if (size > 400) { cache = {}; size = 0; }
+      c = document.createElement('canvas');
+      c.width = Math.ceil((w + pad * 2) * s); c.height = Math.ceil((h + pad * 2) * s);
+      var g = c.getContext('2d'); g.scale(s, s); g.translate(pad, pad); paint(g);
+      cache[key] = c; size++;
+    }
+    return c;
+  }
+  function rr(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); }
+  function tileArt(g, w, h, color, r) {
+    if (skin === 'b') { // candy bevel: dark rim, light top-left facet, glossy face
+      rr(g, 0, 2, w, h, r); g.fillStyle = 'rgba(0,0,0,.35)'; g.fill();
+      rr(g, 0, 0, w, h, r); g.fillStyle = shade(color, -.42); g.fill();
+      var bev = g.createLinearGradient(0, 0, w, h); bev.addColorStop(0, shade(color, .55)); bev.addColorStop(.5, color); bev.addColorStop(1, shade(color, -.3));
+      rr(g, 1, 1, w - 2, h - 2, r * .9); g.fillStyle = bev; g.fill();
+      var i = Math.max(2, w * .14), face = g.createLinearGradient(0, i, 0, h - i);
+      face.addColorStop(0, shade(color, .22)); face.addColorStop(1, shade(color, -.08));
+      rr(g, i, i, w - i * 2, h - i * 2, r * .6); g.fillStyle = face; g.fill();
+      g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.ellipse(w * .3, h * .27, w * .13, h * .07, -.5, 0, 7); g.fill();
+    } else { // soft 3D: drop shadow, vertical light falloff, top gloss band
+      g.shadowColor = 'rgba(0,0,0,.32)'; g.shadowBlur = Math.max(2, w * .18); g.shadowOffsetY = Math.max(1, h * .08);
+      var body = g.createLinearGradient(0, 0, 0, h); body.addColorStop(0, shade(color, .28)); body.addColorStop(.55, color); body.addColorStop(1, shade(color, -.22));
+      rr(g, 0, 0, w, h, r); g.fillStyle = body; g.fill(); g.shadowColor = 'transparent';
+      var gloss = g.createLinearGradient(0, 0, 0, h * .5); gloss.addColorStop(0, 'rgba(255,255,255,.45)'); gloss.addColorStop(1, 'rgba(255,255,255,0)');
+      rr(g, w * .08, h * .06, w * .84, h * .42, r * .7); g.fillStyle = gloss; g.fill();
+      rr(g, .5, .5, w - 1, h - 1, r); g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 1; g.stroke();
+    }
+  }
+  function orbArt(g, r, color, pad) {
+    var cx = r, cy = r;
+    g.fillStyle = 'rgba(0,0,0,' + (skin === 'b' ? .34 : .26) + ')'; g.beginPath(); g.ellipse(cx + r * .12, cy + r * .78, r * .82, r * .32, 0, 0, 7); g.fill();
+    var body = g.createRadialGradient(cx - r * .38, cy - r * .42, r * .08, cx, cy, r);
+    body.addColorStop(0, shade(color, .75)); body.addColorStop(.28, shade(color, .18)); body.addColorStop(.75, color); body.addColorStop(1, shade(color, -.45));
+    g.fillStyle = body; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+    if (skin === 'b') { // rim light + crisp specular for the candy look
+      g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = Math.max(1, r * .1); g.beginPath(); g.arc(cx, cy, r * .82, .35 * Math.PI, .75 * Math.PI); g.stroke();
+      g.strokeStyle = shade(color, -.55); g.lineWidth = Math.max(1, r * .08); g.beginPath(); g.arc(cx, cy, r - g.lineWidth / 2, 0, 7); g.stroke();
+    }
+    g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(cx - r * .35, cy - r * .42, r * .22, r * .14, -.6, 0, 7); g.fill();
+  }
+  var fx = {
+    on: !!skin, skin: skin, shade: shade, rgba: rgba,
+    tile: function (ctx, x, y, w, h, color, r) {
+      r = r == null ? Math.min(w, h) * (skin === 'b' ? .24 : .2) : r;
+      var pad = Math.ceil(w * .25) + 2, s = scaleOf(ctx);
+      ctx.drawImage(sprite('t' + color + w + 'x' + h + 'r' + r, w, h, pad, s, function (g) { tileArt(g, w, h, color, r); }), x - pad, y - pad, w + pad * 2, h + pad * 2);
+    },
+    orb: function (ctx, x, y, r, color) {
+      var pad = Math.ceil(r * .5) + 2, s = scaleOf(ctx);
+      ctx.drawImage(sprite('o' + color + r, r * 2, r * 2, pad, s, function (g) { orbArt(g, r, color, pad); }), x - r - pad, y - r - pad, r * 2 + pad * 2, r * 2 + pad * 2);
+    },
+    // Soft elliptical contact shadow under any sprite (emoji, characters, pieces).
+    shadow: function (ctx, x, y, rx, ry, a) {
+      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,' + (a == null ? .28 : a) + ')'; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill(); ctx.restore();
+    },
+    // Lit stage background: vertical gradient plus a vignette. Cached per size/colours.
+    stage: function (ctx, w, h, top, bottom) {
+      var s = scaleOf(ctx);
+      ctx.drawImage(sprite('s' + w + 'x' + h + top + bottom, w, h, 0, s, function (g) {
+        var lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, top); lg.addColorStop(1, bottom); g.fillStyle = lg; g.fillRect(0, 0, w, h);
+        var v = g.createRadialGradient(w / 2, h * .35, Math.min(w, h) * .2, w / 2, h / 2, Math.max(w, h) * .75);
+        v.addColorStop(0, 'rgba(255,255,255,' + (skin === 'b' ? .10 : .07) + ')'); v.addColorStop(1, 'rgba(0,0,0,.35)'); g.fillStyle = v; g.fillRect(0, 0, w, h);
+      }), 0, 0, w, h);
+    },
+    // Glow is shadowBlur: cheap for a handful of shapes, never use it on every tile.
+    glow: function (ctx, color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; },
+    noGlow: function (ctx) { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; },
+    // Crisp rendering on high-DPI phones without changing game coordinates.
+    // Only safe where input code converts with getBoundingClientRect + logical W/H, not cv.width.
+    hidpi: function (cv, ctx, w, h) {
+      var d = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+      cv.width = Math.round(w * d); cv.height = Math.round(h * d); // intrinsic ratio stays w:h, so CSS sizing is unchanged
+      ctx.setTransform(d, 0, 0, d, 0, 0); return d;
+    },
+    // Lightweight particle bursts (pooled array, no allocations per frame beyond the burst).
+    burst: function (list, x, y, color, n) {
+      for (var i = 0; i < (n || 12); i++) { var a = Math.random() * 6.283, v = 1 + Math.random() * 2.6; list.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1, life: 1, c: color, r: 1.5 + Math.random() * 2.5 }); }
+    },
+    drawBurst: function (ctx, list) {
+      for (var i = list.length - 1; i >= 0; i--) {
+        var p = list[i]; p.x += p.vx; p.y += p.vy; p.vy += .12; p.life -= .035;
+        if (p.life <= 0) { list.splice(i, 1); continue; }
+        ctx.globalAlpha = p.life; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (skin === 'b' ? 1.2 : 1), 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  };
+  window.GameUI.fx = fx;
+}());
+
+</script>
+<!-- GAME UI END -->
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span class="stat"><span>🎵<b id="lvT">1</b></span><span>分<b id="score">0</b></span><span id="comboT">连击 0</span></span>
+    <span class="tools"><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+  </div>
+  <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
+</div>
+<div class="overlay" id="startScr"><h1>节拍刃</h1><p>音符落到判定线时点击对应轨道！<br>长按 🟦 长条、躲开 💣 炸弹，每次命中都会奏响旋律。<br>12 首合成乐曲，第 4/8/12 首是首领战。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始演奏</button></div>
+<div class="overlay hidden" id="lvlScr"><h2>选择乐曲</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div>
+ <div class="opts"><span>流速</span><button class="ghost" id="spdM">－</button><b id="spdT">3</b><button class="ghost" id="spdP">＋</button><span>延迟</span><button class="ghost" id="ofsM">－</button><b id="ofsT">0ms</b><button class="ghost" id="ofsP">＋</button></div>
+ <div class="rowbtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn">🔊</button></div></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选曲</button><button class="iconbtn muteBtn">🔊</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">演奏完成</h2><div class="score" id="finalScore">S</div><p id="overText" style="text-align:center"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一首</button><button class="btn ghost" id="againBtn">再来一次</button><button class="btn ghost" id="menu2Btn">选曲</button></div></div>
+<script>
+'use strict';
+// ---- 公共小工具（内联，离线） ----
+const $=id=>document.getElementById(id);
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
+const GID='beatblade';
+const Store={get(k,d){try{const v=UI.storageGet(GID+'-'+k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{UI.storageSet(GID+'-'+k,JSON.stringify(v));}catch(e){}}};
+let muted=UI.storageGet(GID+'-mute')==='1',AC=null;
+function audio(){if(muted)return null;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}catch(e){return null;}}
+function tone(f,d,type,vol,f2,delay){const a=audio();if(!a)return;try{const t=a.currentTime+(delay||0),o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(Math.max(20,f2),t+d);g.gain.setValueAtTime(vol||.12,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(a.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+function noise(d,vol,hp){const a=audio();if(!a)return;try{const n=Math.floor(a.sampleRate*d),b=a.createBuffer(1,n,a.sampleRate),ch=b.getChannelData(0);for(let i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),g=a.createGain(),fl=a.createBiquadFilter();fl.type='lowpass';fl.frequency.value=hp||1800;s.buffer=b;g.gain.value=vol||.15;s.connect(fl).connect(g).connect(a.destination);s.start();}catch(e){}}
+function setMute(m){muted=m;UI.storageSet(GID+'-mute',m?'1':'0');document.querySelectorAll('.muteBtn').forEach(b=>b.textContent=m?'🔇':'🔊');}
+document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('.muteBtn').forEach(b=>{b.textContent=muted?'🔇':'🔊';b.addEventListener('click',()=>setMute(!muted));});});
+function show(id,on){const e=$(id);if(e)e.classList.toggle('hidden',!on);}
+function toast(t,ms){let e=$('toast');if(!e){e=document.createElement('div');e.id='toast';document.body.appendChild(e);}e.textContent=t;e.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>e.classList.remove('on'),ms||1600);}
+function fitCanvas(cv,box,W,H){const r=box.getBoundingClientRect();const s=Math.max(.1,Math.min(r.width/W,r.height/H));cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
+function posOf(e,cv,W,H){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches.length)?e.touches[0]:(e.changedTouches&&e.changedTouches.length)?e.changedTouches[0]:e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
+function rr(c,x,y,w,h,r){c.beginPath();if(c.roundRect)c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h);}
+function txt(c,s,x,y,size,color,align,weight,base){c.font=(weight||800)+' '+size+'px "HarmonyOS Sans SC","MiSans","Noto Sans SC","PingFang SC",system-ui,sans-serif';c.fillStyle=color||'#fff';c.textAlign=align||'center';c.textBaseline=base||'middle';c.fillText(s,x,y);}
+function otxt(c,s,x,y,size,color,align,weight){c.lineWidth=Math.max(2,size/5);c.strokeStyle='rgba(0,0,0,.7)';c.lineJoin='round';c.font=(weight||900)+' '+size+'px "HarmonyOS Sans SC","MiSans","Noto Sans SC","PingFang SC",system-ui,sans-serif';c.textAlign=align||'center';c.textBaseline='middle';c.strokeText(s,x,y);c.fillStyle=color||'#fff';c.fillText(s,x,y);}
+function mkRng(seed){let s=seed>>>0||1;return()=>{s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function starStr(n,max){max=max||3;return '★'.repeat(n)+'☆'.repeat(Math.max(0,max-n));}
+function clamp(v,a,b){return v<a?a:v>b?b:v;}
+// 新手引导：pages=[[标题,说明],...]，看完后回调
+function tutorial(pages,done){let i=0;const ov=$('tutScr');function render(){$('tutH').textContent=pages[i][0];$('tutP').innerHTML=pages[i][1];$('tutStep').textContent=(i+1)+' / '+pages.length;$('tutNext').textContent=i<pages.length-1?'下一步':'开始挑战';}
+  $('tutNext').onclick=()=>{tone(700,.06,'triangle');if(i<pages.length-1){i++;render();}else{show('tutScr',false);done&&done();}};
+  $('tutSkip').onclick=()=>{show('tutScr',false);done&&done();};render();show('tutScr',true);}
+
+const W=360,H=600,LN=4,LX=20,LW=80,HY=520;
+const cv=$('cv'),ctx=cv.getContext('2d');if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+const fit=()=>fitCanvas(cv,$('box'),W,H);addEventListener('resize',fit);
+const LC=['#ff4d8d','#ffc531','#2ee6a0','#4fc3f7'];
+// 乐曲参数：bpm、小节数、密度、长按比例、双押比例、炸弹比例、调式根音、首领
+const SONGS=[
+ {n:'晨光序曲',bpm:92,bars:24,d:.9,hold:.08,dbl:0,bomb:0,root:60,prog:[0,5,3,4]},
+ {n:'霓虹街角',bpm:104,bars:26,d:1.1,hold:.12,dbl:.03,bomb:0,root:62,prog:[0,4,5,3]},
+ {n:'疾风回廊',bpm:116,bars:28,d:1.3,hold:.12,dbl:.06,bomb:0,root:57,prog:[0,3,4,0]},
+ {n:'👑 鼓魔之心',bpm:120,bars:32,d:1.45,hold:.1,dbl:.08,bomb:.07,root:55,prog:[0,6,5,4],boss:{n:'鼓魔',a:'👹',hp:1}},
+ {n:'星屑舞步',bpm:126,bars:30,d:1.5,hold:.14,dbl:.1,bomb:.03,root:64,prog:[0,5,1,4]},
+ {n:'赛博心跳',bpm:132,bars:32,d:1.6,hold:.12,dbl:.12,bomb:.04,root:59,prog:[0,3,5,4]},
+ {n:'月下刀光',bpm:138,bars:32,d:1.7,hold:.16,dbl:.12,bomb:.05,root:61,prog:[0,4,3,5]},
+ {n:'👑 幻影协奏',bpm:140,bars:36,d:1.8,hold:.12,dbl:.14,bomb:.05,root:58,prog:[0,5,6,4],boss:{n:'幻影',a:'👻',hp:1,hidden:1}},
+ {n:'雷光疾走',bpm:148,bars:34,d:1.9,hold:.12,dbl:.15,bomb:.06,root:63,prog:[0,6,3,4]},
+ {n:'深海脉冲',bpm:152,bars:36,d:2,hold:.18,dbl:.16,bomb:.06,root:56,prog:[0,3,6,4]},
+ {n:'极光终章',bpm:160,bars:36,d:2.15,hold:.14,dbl:.18,bomb:.07,root:60,prog:[0,4,5,6]},
+ {n:'👑 雷神审判',bpm:168,bars:40,d:2.3,hold:.14,dbl:.2,bomb:.09,root:57,prog:[0,6,5,3],boss:{n:'雷神',a:'⚡',hp:1,speed:1}}];
+const SCALE=[0,2,3,5,7,8,10];// 自然小调
+const PERF=.045,GREAT=.09,GOOD=.13;
+let save=Store.get('save',{best:[],stars:[],spd:3,ofs:0,tut:0});
+let state='menu',si=0,S=null,notes=[],T=0,t0=0,pausedAt=0,hp=100,combo=0,maxC=0,score=0,judge={p:0,g:0,o:0,m:0},fx=[],sparks=[],flash=[0,0,0,0],held={},lastJ=null,boss=null,dur=0,sched=0,FAST=false;
+// ---------- 谱面生成 ----------
+const PAT=[[0,2],[0,1,2,3],[0,1.5,2],[0,.5,1,2,3],[0,1,1.5,2,3],[0,.5,1,1.5,2,2.5,3,3.5],[0,.75,1.5,2,3],[0,1,2,2.5,3,3.5],[0,.5,1.5,2,2.5,3.5],[0,.25,.5,1,2,2.25,2.5,3]];
+function chart(s,seed){const rnd=mkRng(seed);const spb=60/s.bpm,out=[];let lane=1;const lead=2;// 前奏两小节
+ for(let b=0;b<s.bars;b++){const dens=s.d*(b<2?.6:b>s.bars-3?.8:1)*(s.boss&&b>=s.bars*.6?1.15:1);
+  const maxP=Math.min(PAT.length-1,Math.floor(dens*3.6));const pat=PAT[Math.min(maxP,Math.floor((dens>1.5?.35+.65*rnd():rnd())*(maxP+1)))];
+  for(const bt of pat){const t=(lead*4+b*4+bt)*spb;const step=rnd()<.5?1:-1;lane=(lane+step+(rnd()<.3?step:0)+8)%4;
+   const r=rnd();if(r<s.bomb&&b>2){out.push({t,l:lane,k:'bomb'});continue;}
+   if(r<s.bomb+s.hold&&bt%1===0){const len=spb*(1+Math.floor(rnd()*2));out.push({t,l:lane,k:'hold',e:t+len,deg:b%4});continue;}
+   out.push({t,l:lane,k:'tap',deg:b%4});
+   if(rnd()<s.dbl){let l2=(lane+1+Math.floor(rnd()*3))%4;out.push({t,l:l2,k:'tap',deg:b%4});}}}
+ // 去掉同轨重叠（长按期间）
+ out.sort((a,b)=>a.t-b.t);const busy=[-1,-1,-1,-1];const res=[];for(const n of out){if(n.t<busy[n.l]+.12)continue;res.push(n);busy[n.l]=n.k==='hold'?n.e:n.t;}
+ res.forEach((n,i)=>{n.i=i;n.done=0;n.hold=0;});return res;}
+// ---------- 音乐 ----------
+const mf=m=>440*Math.pow(2,(m-69)/12);
+function chordRoot(s,bar){return s.root+SCALE[s.prog[bar%4]%7];}
+function kick(t){const a=AC;if(!a||muted)return;const o=a.createOscillator(),g=a.createGain();o.frequency.setValueAtTime(140,t);o.frequency.exponentialRampToValueAtTime(40,t+.15);g.gain.setValueAtTime(.35,t);g.gain.exponentialRampToValueAtTime(.001,t+.18);o.connect(g).connect(a.destination);o.start(t);o.stop(t+.2);}
+let NB=null;function nbuf(){if(NB||!AC)return NB;const n=AC.sampleRate*.25|0;NB=AC.createBuffer(1,n,AC.sampleRate);const c=NB.getChannelData(0);for(let i=0;i<n;i++)c[i]=Math.random()*2-1;return NB;}
+function hat(t,v,len,hp){const a=AC;if(!a||muted)return;const s=a.createBufferSource(),g=a.createGain(),f=a.createBiquadFilter();s.buffer=nbuf();f.type='highpass';f.frequency.value=hp||7000;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+len);s.connect(f).connect(g).connect(a.destination);s.start(t);s.stop(t+len+.02);}
+function syn(t,f,len,type,v){const a=AC;if(!a||muted)return;const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(v,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+len);o.connect(g).connect(a.destination);o.start(t);o.stop(t+len+.03);}
+function schedMusic(){if(!AC||muted||state!=='play')return;const spb=60/S.bpm,ahead=T+.25;const total=(S.bars+2+1)*4;
+ while(sched<total&&sched*spb/2<ahead){const k=sched,t=k*spb/2,at=t0+t;const beat=k/2,bar=Math.floor(beat/4)-2,ib=beat%4;
+  if(at>AC.currentTime-.01){if(k%2===0){if(ib===0||ib===2||(S.d>1.6&&ib===3.5))kick(at);if(ib===1||ib===3)hat(at,.18,.12,1800);}
+   hat(at,k%2?.05:.08,.04);
+   if(k%2===0&&bar>=0&&bar<S.bars){const r=chordRoot(S,bar);syn(at,mf(r-24),spb*.9,'triangle',.12);if(ib===0){for(const d of [0,3,7])syn(at,mf(r+d),spb*3.8,'sine',.025);}}}
+  sched++;}}
+function keysound(n){if(!AC||muted)return;const bar=Math.max(0,Math.floor(n.t/(60/S.bpm)/4)-2);const r=chordRoot(S,bar);const deg=[0,2,4,7][n.l];const m=r+12+SCALE[(SCALE.indexOf(0)+deg)%7]+(deg>=7?12:0);syn(AC.currentTime,mf(r+12+[0,3,7,12][n.l]),n.k==='hold'?(n.e-n.t):.25,'square',.05);}
+// ---------- 流程 ----------
+function clock(){return AC&&!muted?AC.currentTime-t0:(performance.now()/1000-t0);}
+function startSong(i){si=i;S=SONGS[i];notes=chart(S,1000+i*77);dur=notes.length?notes[notes.length-1].t+(notes[notes.length-1].e?notes[notes.length-1].e-notes[notes.length-1].t:0)+2:10;
+ hp=100;combo=0;maxC=0;score=0;judge={p:0,g:0,o:0,m:0};fx=[];held={};lastJ=null;boss=S.boss?{...S.boss,hp:1}:null;
+ audio();t0=(AC&&!muted?AC.currentTime:performance.now()/1000)+1.2;sched=0;T=-1.2;state='play';['lvlScr','overScr','pauseOv','startScr'].forEach(k=>show(k,false));fit();hud();toast((boss?'首领战 · ':'')+S.n+' · '+S.bpm+' BPM',1600);}
+function hud(){$('lvT').textContent=si+1;$('score').textContent=Math.round(score);$('comboT').textContent='连击 '+combo;}
+const speed=()=>(260+save.spd*80)*(boss&&boss.speed&&T>dur*.5?1.25:1);
+function noteY(t){return HY-(t-T)*speed();}
+function addJ(kind,l){lastJ={k:kind,t:.5,l};}
+function hitNote(n,dt){const a=Math.abs(dt);let k,pts;if(a<=PERF){k='p';pts=300;}else if(a<=GREAT){k='g';pts=200;}else{k='o';pts=100;}
+ judge[k]++;combo++;maxC=Math.max(maxC,combo);score+=pts*(1+Math.min(.5,combo/200));hp=Math.min(100,hp+(k==='p'?1:.5));addJ(k,n.l);flash[n.l]=1;keysound(n);
+ if(FX)FX.burst(sparks,LX+n.l*LW+LW/2,HY,LC[n.l],k==='p'?14:8);if(boss)boss.hp=Math.max(0,boss.hp-(k==='p'?1.25:1)/notesTotal());hud();}
+function notesTotal(){return notes.filter(n=>n.k!=='bomb').length;}
+function missNote(n){judge.m++;combo=0;hp-=boss?9:7;addJ('m',n.l);if(!FAST){noise(.08,.06,500);}if(hp<=0)endSong(false);hud();}
+function press(l){if(state!=='play')return;const now=clock()-save.ofs/1000;flash[l]=.6;let best=null,bd=1;
+ for(const n of notes){if(n.done||n.l!==l)continue;const d=n.t-now;if(d>GOOD)break;if(Math.abs(d)<=GOOD&&Math.abs(d)<bd){bd=Math.abs(d);best=n;}}
+ if(!best)return;if(best.k==='bomb'){best.done=1;hp-=15;combo=0;addJ('b',l);noise(.25,.15,900);if(FX)FX.burst(sparks,LX+l*LW+LW/2,HY,'#ff3d3d',24);if(hp<=0)endSong(false);hud();return;}
+ best.done=1;hitNote(best,best.t-now);if(best.k==='hold'){best.hold=1;held[l]=best;}}
+function release(l){const n=held[l];if(!n)return;delete held[l];const now=clock()-save.ofs/1000;if(n.hold===1){if(now<n.e-GOOD){n.hold=-1;missNote(n);}else{n.hold=2;judge.p++;score+=150;combo++;hud();}}}
+function update(){if(state!=='play')return;T=clock();schedMusic();const now=T-save.ofs/1000;
+ for(const n of notes){if(n.t>now+.5)break;if(!n.done&&now-n.t>GOOD){n.done=1;if(n.k!=='bomb')missNote(n);if(state!=='play')return;}
+  if(n.k==='hold'&&n.hold===1&&now>=n.e){n.hold=2;delete held[n.l];judge.p++;score+=150;combo++;if(FX)FX.burst(sparks,LX+n.l*LW+LW/2,HY,'#fff',10);hud();}}
+ if(T>dur)endSong(true);}
+function grade(acc){return acc>=.95?'S':acc>=.88?'A':acc>=.78?'B':'C';}
+function endSong(clear){if(state!=='play')return;state='over';const tot=judge.p+judge.g+judge.o+judge.m||1;const acc=(judge.p+judge.g*.7+judge.o*.4)/tot;const gr=clear?grade(acc):'F';
+ const st=clear?(gr==='S'?3:gr==='A'?2:1):0;if(clear){if(st>(save.stars[si]||0))save.stars[si]=st;if(score>(save.best[si]||0))save.best[si]=Math.round(score);Store.set('save',save);}
+ if(clear){tone(523,.12,'triangle');tone(784,.3,'triangle',.1,0,.15);}else tone(220,.4,'sawtooth',.08,80);
+ const go=()=>{$('overH').textContent=clear?(boss?'👑 击败'+boss.n+'！':'🎵 演奏完成'):'💔 演奏中断';$('finalScore').textContent=clear?gr+' · '+starStr(st):'F';
+  $('overText').innerHTML='得分 '+Math.round(score)+' · 准确率 '+(acc*100).toFixed(1)+'%<br>完美 '+judge.p+' · 很好 '+judge.g+' · 不错 '+judge.o+' · 失误 '+judge.m+' · 最大连击 '+maxC+(clear?'':'<br>生命耗尽。试试调低流速或在选曲页调节延迟。');
+  $('nextBtn').classList.toggle('hidden',!clear||si>=SONGS.length-1);show('overScr',true);};FAST?go():setTimeout(go,500);}
+// ---------- 输入 ----------
+const ptrLane={};
+function laneOf(e){const q=posOf(e,cv,W,H);return clamp(Math.floor((q.x-LX)/LW),0,3);}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();const l=laneOf(e);ptrLane[e.pointerId]=l;press(l);});
+const up=e=>{const l=ptrLane[e.pointerId];if(l!=null){delete ptrLane[e.pointerId];release(l);}};
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+const KEYS={d:0,f:1,j:2,k:3};addEventListener('keydown',e=>{const l=KEYS[e.key];if(l!=null&&!e.repeat)press(l);});addEventListener('keyup',e=>{const l=KEYS[e.key];if(l!=null)release(l);});
+// ---------- 绘制 ----------
+function draw(dt){const now=performance.now();if(FX)FX.stage(ctx,W,H,'#1d1047','#070316');else{ctx.fillStyle='#120a30';ctx.fillRect(0,0,W,H);}
+ const pulse=S&&state==='play'?Math.max(0,1-((T*S.bpm/60)%1)*3):0;
+ for(let l=0;l<LN;l++){const x=LX+l*LW;ctx.fillStyle='rgba(255,255,255,'+(.04+flash[l]*.12)+')';ctx.fillRect(x+2,0,LW-4,H);flash[l]=Math.max(0,flash[l]-dt*4);}
+ ctx.strokeStyle='rgba(255,255,255,'+(.5+pulse*.5)+')';ctx.lineWidth=3+pulse*3;ctx.beginPath();ctx.moveTo(LX,HY);ctx.lineTo(LX+LW*4,HY);ctx.stroke();
+ for(let l=0;l<LN;l++){const x=LX+l*LW+LW/2;ctx.strokeStyle=LC[l];ctx.lineWidth=3;ctx.globalAlpha=.5+flash[l]*.5;ctx.beginPath();ctx.arc(x,HY,24,0,7);ctx.stroke();ctx.globalAlpha=1;txt(ctx,'DFJK'[l],x,HY+44,11,'rgba(255,255,255,.35)');}
+ if(state==='play'||state==='pause'||state==='over'){const hid=boss&&boss.hidden&&T>dur*.3&&T<dur*.85;
+  for(const n of notes){if(n.done&&!(n.k==='hold'&&n.hold===1))continue;const y=noteY(n.t);if(y<-60)break;if(y>H+40&&n.k!=='hold')continue;const x=LX+n.l*LW+LW/2;
+   let al=1;if(hid){al=clamp((y-120)/140,0,1);}
+   ctx.globalAlpha=al;
+   if(n.k==='hold'){const y2=noteY(n.e),yh=n.hold===1?HY:y;ctx.fillStyle=LC[n.l];ctx.globalAlpha=al*.45;rr(ctx,x-14,y2,28,Math.max(0,yh-y2),12);ctx.fill();ctx.globalAlpha=al;}
+   if(n.k==='bomb'){if(FX)FX.orb(ctx,x,y,17,'#333');txt(ctx,'💣',x,y,24);}
+   else if(!(n.k==='hold'&&n.hold===1)){if(FX)FX.tile(ctx,x-32,y-11,64,22,LC[n.l],11);else{ctx.fillStyle=LC[n.l];rr(ctx,x-32,y-11,64,22,11);ctx.fill();}ctx.fillStyle='rgba(255,255,255,.7)';rr(ctx,x-22,y-6,44,4,2);ctx.fill();}
+   ctx.globalAlpha=1;}
+  if(hid){const g=ctx.createLinearGradient(0,60,0,280);g.addColorStop(0,'rgba(7,3,22,1)');g.addColorStop(1,'rgba(7,3,22,0)');ctx.fillStyle=g;ctx.fillRect(0,40,W,240);}}
+ if(FX)FX.drawBurst(ctx,sparks);
+ // 顶部信息
+ if(S&&state!=='menu'){ctx.fillStyle='rgba(0,0,0,.35)';rr(ctx,10,8,W-20,30,15);ctx.fill();ctx.fillStyle=hp>30?'#2ee6a0':'#ff3d6e';rr(ctx,14,12,(W-28)*Math.max(0,hp)/100,10,5);ctx.fill();
+  ctx.fillStyle='#b9a8ff';rr(ctx,14,25,(W-28)*clamp(T/dur,0,1),8,4);ctx.fill();
+  if(boss){txt(ctx,boss.a,W-36,70,36);ctx.fillStyle='rgba(0,0,0,.35)';rr(ctx,150,58,150,10,5);ctx.fill();ctx.fillStyle='#ff9f43';rr(ctx,150,58,150*boss.hp,10,5);ctx.fill();txt(ctx,boss.n+(boss.hidden?' · 隐身':'')+(boss.speed?' · 后半加速':''),225,78,10,'#ffd7a8');}
+  if(combo>=5)otxt(ctx,combo+' 连击',W/2,200,30,'#fff');
+  if(lastJ&&lastJ.t>0){const m={p:['完美','#ffe066'],g:['很好','#7fe3ff'],o:['不错','#b9a8ff'],m:['失误','#ff6b6b'],b:['炸弹！','#ff3d3d']}[lastJ.k];ctx.globalAlpha=Math.min(1,lastJ.t*3);otxt(ctx,m[0],W/2,250-(.5-lastJ.t)*30,24,m[1]);ctx.globalAlpha=1;lastJ.t-=dt;}
+  if(T<0&&state==='play')otxt(ctx,Math.ceil(-T)+'',W/2,300,60,'#fff');
+  if(si===0&&T<6&&state==='play')otxt(ctx,'音符碰到圆环时点击该轨道',W/2,340,14,'#ffe066');}}
+// ---------- 菜单 ----------
+function openMenu(){state='menu';['overScr','pauseOv'].forEach(i=>show(i,false));const g=$('lvgrid');g.innerHTML='';$('lvlInfo').textContent='★'+save.stars.reduce((a,b)=>a+(b||0),0)+' / 36 · A 级两星，S 级三星';
+ SONGS.forEach((s,i)=>{const b=document.createElement('button');b.className='lvl';const open=i===0||(save.stars[i-1]||0)>0||(save.stars[i]||0)>0;b.disabled=!open;b.innerHTML=(open?(s.boss?'👑':i+1):'🔒')+'<small>'+(open?starStr(save.stars[i]||0):'')+'</small>';b.title=s.n;b.onclick=()=>startSong(i);g.appendChild(b);});
+ $('spdT').textContent=save.spd;$('ofsT').textContent=save.ofs+'ms';show('lvlScr',true);}
+$('spdM').onclick=()=>{save.spd=Math.max(1,save.spd-1);Store.set('save',save);$('spdT').textContent=save.spd;};$('spdP').onclick=()=>{save.spd=Math.min(6,save.spd+1);Store.set('save',save);$('spdT').textContent=save.spd;};
+$('ofsM').onclick=()=>{save.ofs-=10;Store.set('save',save);$('ofsT').textContent=save.ofs+'ms';};$('ofsP').onclick=()=>{save.ofs+=10;Store.set('save',save);$('ofsT').textContent=save.ofs+'ms';};
+function showTut(done){tutorial([['🎵 跟着节拍','音符从上往下落，落到底部圆环时<b>点击该轨道</b>（整条竖向区域都能点）。越准分越高：完美/很好/不错。'],['🟦 长按与双押','带尾巴的音符要<b>按住直到尾巴结束</b>；同时落下的两个音符要两指一起按。'],['💣 小心炸弹','炸弹音符千万别点！失误和炸弹会扣生命，生命归零演奏中断。'],['👑 首领乐曲','第 4/8/12 首是首领战：鼓魔布满炸弹、幻影让音符隐身、雷神后半段加速。准确率 A 得两星、S 得三星。']],done);}
+$('howBtn').onclick=()=>{show('lvlScr',false);showTut(openMenu);};
+$('startBtn').onclick=()=>{audio();show('startScr',false);if(!save.tut){showTut(()=>{save.tut=1;Store.set('save',save);startSong(0);});}else openMenu();};
+$('bestLine').textContent=save.stars.length?'已获得 ★'+save.stars.reduce((a,b)=>a+(b||0),0):'';
+function pause(){if(state!=='play')return;state='pause';pausedAt=clock();if(AC&&AC.state==='running'&&!muted)AC.suspend();show('pauseOv',true);}
+function resume(){show('pauseOv',false);const go=()=>{t0=(AC&&!muted?AC.currentTime:performance.now()/1000)-pausedAt+1;T=pausedAt-1;state='play';};if(AC&&!muted)AC.resume().then(go);else go();}
+$('pauseBtn').onclick=pause;$('resumeBtn').onclick=resume;$('restartBtn').onclick=()=>{if(AC&&!muted)AC.resume();startSong(si);};$('menuBtn').onclick=()=>{if(AC&&!muted)AC.resume();openMenu();};
+$('nextBtn').onclick=()=>startSong(si+1);$('againBtn').onclick=()=>startSong(si);$('menu2Btn').onclick=openMenu;
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+let last=performance.now();function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;update();draw(dt);requestAnimationFrame(frame);}
+fit();requestAnimationFrame(frame);
+// 测试钩子：sim 用“人类模型”快速模拟整首曲子
+window.__bb={SONGS,chart,startSong,get s(){return{state,si,hp,combo,score:Math.round(score),judge:{...judge},T}},press,release,notes:()=>notes,
+ sim(i,skill){const s=SONGS[i];const ns=chart(s,1000+i*77);let h=100,j={p:0,g:0,o:0,m:0},r=mkRng(7+i);
+  const gauss=()=>{let u=0;for(let k=0;k<6;k++)u+=r();return(u-3)/1.2;};
+  for(let a=0;a<ns.length;a++){const n=ns[a];let dens=0;for(let b=Math.max(0,a-6);b<Math.min(ns.length,a+6);b++)if(Math.abs(ns[b].t-n.t)<1)dens++;
+   const sim=ns.some(m=>m!==n&&Math.abs(m.t-n.t)<.01);const hid=s.boss&&s.boss.hidden?1.15:1;const sp=s.boss&&s.boss.speed&&n.t>ns[ns.length-1].t*.5?1.12:1;
+   const sigma=(.022+.0075*dens+(sim?.012:0))*hid*sp/skill;
+   if(n.k==='bomb'){if(r()<.03/skill){h-=15;}continue;}
+   const reactMiss=r()<Math.max(0,(dens-4)*.012*hid*sp/skill);const d=Math.abs(gauss()*sigma);
+   if(reactMiss||d>GOOD){j.m++;h-=s.boss?9:7;}else{const k=d<=PERF?'p':d<=GREAT?'g':'o';j[k]++;h=Math.min(100,h+(k==='p'?1:.5));}
+   if(n.k==='hold'&&r()<.04/skill){j.m++;h-=7;}
+   if(h<=0)return{fail:1,at:(a/ns.length).toFixed(2),j};}
+  const tot=j.p+j.g+j.o+j.m;const acc=(j.p+j.g*.7+j.o*.4)/tot;return{clear:1,acc:+acc.toFixed(3),grade:grade(acc),notes:ns.length,j};}};
+</script>
+</body></html>

@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>弹珠工坊</title>
+<link rel="icon" href="data:,">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;height:100%;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap!important}
+.topbar .stat{display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13px}
+.topbar .tools{display:flex;gap:6px}
+.topbar .tools .iconbtn{min-width:44px;min-height:44px;padding:0 6px}
+.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+#cv{touch-action:none;display:block}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
+.overlay.hidden{display:none}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:100%}
+.lvgrid .lvl{min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:17px;padding:4px!important;line-height:1.1}
+.lvgrid .lvl small{font-size:10px;letter-spacing:-1px;margin-top:2px}
+.rowbtns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%}
+#tutStep{font-size:12px;opacity:.7}
+#toast{position:fixed;left:50%;top:16%;transform:translate(-50%,-10px);background:rgba(10,8,30,.88);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;z-index:999;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;font-size:15px;box-shadow:0 0 18px rgba(255,61,154,.5);white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+
+.tray{width:100%;display:flex;gap:6px}
+.tray .pc{flex:1;min-height:56px;padding:2px!important;font-size:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.tray .pc small{font-size:11px;font-weight:900;margin-top:2px}
+.tray .pc.on{outline:3px solid #fff;outline-offset:-3px}
+.tray #runBtn{flex:1.4;font-size:18px;min-height:56px}
+.hint2{font-size:12px;color:#fff;font-weight:700;text-align:center;min-height:16px;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+</style>
+<!-- GAME UI BEGIN -->
+<style>
+:root{--page:#eee1c7;--surface:#fff7e7;--soft:#e5d1ab;--ink:#302d23;--muted:#70654d;--accent:#3f5b43;--on-accent:#ffffff;--line:#bea77a;--stage:#654e31;--page:#f0803c;--surface:#fff7e6;--soft:#fce3c0;--ink:#4a2a12;--muted:#7f5b3a;--accent:#246f39;--on-accent:#ffffff;--line:#f1a54f;--b-bg1:#ffcf6b;--b-bg2:#f0803c;--b-btn:#3fc163;--b-btn-hi:#82d79a;--b-edge:#22863d;--b-glow:#ffe08a;--b-glow-rgb:255,224,138;--b-pedge-rgb:241,165,79;--b-btn-ink:#124620;--b-btn-tsh:0 1px 0 rgba(255,255,255,.45);--b-coin-ink:#124620;--b-coin-tsh:none;--b-key-ink:#246f39;--b-title:#1d7234}
+/* Shared presentation only; mechanics and state remain inside each standalone game. */
+html.game-ui{background:var(--page);color:var(--ink);color-scheme:light;font-family:"Bahnschrift","Microsoft YaHei UI","PingFang SC",sans-serif}
+html.game-ui:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]){color-scheme:dark}
+.game-ui body{background:var(--page);color:var(--ink);font-family:inherit;overscroll-behavior:none}
+.game-ui body>.wrap{padding:20px 16px max(20px,env(safe-area-inset-bottom));gap:14px;max-width:500px}
+.game-ui #app{background:var(--page);color:var(--ink)}
+.game-ui :is(.topbar,#topbar){gap:8px;flex-wrap:wrap;min-height:58px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:10px 12px;box-shadow:0 3px 0 var(--soft);font-size:13px}
+.game-ui :is(.title,.tb-title,.tb-title,#topbar .t,.topbar .t){color:var(--ink);font-size:16px;font-weight:750;letter-spacing:0}
+.game-ui :is(.topbar,.hud,#hud,#topbar) :is(b,.v){color:var(--accent);font-variant-numeric:tabular-nums}
+.game-ui :is(.stat,.topbar .s,.topbar .stat,.scorebar,.stats,.tip,.hint,.hintline,.hsline,.best,.hiscore){color:var(--muted);line-height:1.7}
+.game-ui :is(.hint,.hintline,.tip){font-size:12px;max-width:40em;text-wrap:pretty}
+.game-ui .scorebar{padding:6px 10px;gap:8px;flex-wrap:wrap}
+.game-ui :is(.iconbtn,.iconBtn,.icobtn,.ibtn,.tbtn,.hbtn,.ib,.iconBtn,.pause){min-width:44px;min-height:44px;flex-shrink:0;border-radius:12px;background:var(--soft);color:var(--ink);border:1px solid var(--line);box-shadow:none;font-size:17px}
+.game-ui button{font-family:inherit;cursor:pointer;touch-action:manipulation}
+.game-ui button:focus-visible,.game-ui [tabindex]:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.game-ui :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn){background:var(--accent);color:var(--on-accent);border:1px solid transparent;border-radius:13px;min-height:50px;padding:13px 28px;font-size:16px;font-weight:750;letter-spacing:0;box-shadow:0 4px 0 var(--line);text-shadow:none;max-width:100%}
+.game-ui :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn):active{box-shadow:none;transform:translateY(2px)}
+.game-ui :is(.ghost,.ghostbtn,.btn2,.abtn,.toolbtn){background:var(--soft);color:var(--ink);border:1px solid var(--line);box-shadow:none;border-radius:12px;min-height:44px}
+.game-ui :is(.rowbtns,.btnrow,.ctlrow){gap:10px;flex-wrap:wrap;justify-content:center}
+.game-ui :is(.pill,.hudbox,.hud .p){background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:none;font-variant-numeric:tabular-nums}
+.game-ui :is(.dbtn,.cbtn,.gbtn,.holdbtn,.firebtn,.bombbtn,.jumpbtn,.pumpbtn,.nbtn){border-radius:12px;box-shadow:0 3px 0 var(--line);min-height:44px}
+.game-ui :is(.overlay,.ov,#ov,#overlay,#pauseOv,.screen):has(>.ui-panel){padding:20px;overflow-y:auto;overscroll-behavior:contain}
+.game-ui :is(.overlay,.ov,#ov,#overlay,#pauseOv):has(>.ui-panel){background:var(--page);backdrop-filter:none;justify-content:safe center;align-items:center}
+.game-ui .ui-panel{width:min(100%,380px);max-height:100%;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:18px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:24px;padding:30px 24px;box-shadow:0 8px 0 var(--soft),0 20px 48px #15253618;text-align:center;margin:auto}
+.game-ui .ui-panel :is(.card,.panel,.pausecard,.ovcard){display:contents}
+.game-ui .ui-panel :is(h1,h2,.gamename,.gametitle){font-size:30px;line-height:1.25;font-weight:800;color:var(--ink);background:none;-webkit-text-fill-color:currentColor;text-shadow:none;letter-spacing:-.6px;margin:0}
+.game-ui .ui-panel :is(p,.howto,.sub,.rule){font-size:14px;line-height:1.85;color:var(--muted);background:none;border:0;box-shadow:none;padding:0;margin:0;max-width:32em;text-align:left;white-space:normal}
+.game-ui .ui-panel :is(.bigemoji,.bigemoji,.ic,.big):not(.bigscore){animation:none;filter:none;text-shadow:none}
+.game-ui .ui-emblem{width:90px;height:90px;display:grid;place-items:center;border:1px solid var(--line);border-radius:28px;background:var(--soft);font-size:48px;line-height:1;flex-shrink:0;position:relative}
+.game-ui[data-theme="wood"] .ui-emblem{border-radius:50%;box-shadow:inset 0 0 0 5px var(--surface),inset 0 0 0 6px var(--line)}
+.game-ui[data-theme="wood"] .ui-panel h1{font-family:"STKaiti","KaiTi","Microsoft YaHei",serif;letter-spacing:2px}
+.game-ui[data-theme="ice"] .ui-emblem{border-radius:26px 8px 26px 8px}
+.game-ui[data-theme="space"] .ui-emblem{background:radial-gradient(circle at center,var(--soft) 42%,transparent 43%),var(--surface);border-radius:50%;outline:1px solid var(--line);outline-offset:7px;margin:7px}
+.game-ui[data-theme="kitchen"] .ui-emblem{border-radius:22px;border-bottom:5px solid var(--line)}
+.game-ui .ui-panel :is(.score,.bigscore,.bigScore,.scorebig){color:var(--accent);font-size:48px;font-weight:800;font-variant-numeric:tabular-nums}
+.game-ui .ui-panel :is(.best,.hsline,.hiscore,.endstats,.endstats b){color:var(--muted);font-size:13px;line-height:1.8}
+.game-ui .ui-mode{display:grid;grid-template-columns:1fr 1fr;gap:5px;background:var(--soft);padding:5px;border:1px solid var(--line);border-radius:14px;width:100%}
+.game-ui .ui-mode button{min-height:44px;border:0;border-radius:9px;background:transparent;color:var(--muted);font-size:14px;font-weight:700;box-shadow:none}
+.game-ui .ui-mode button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 2px 5px #1525361a}
+.game-ui .ui-panel .ui-mode-note{font-size:12px;line-height:1.6;text-align:center;color:var(--muted)}
+.game-ui .ui-mode-status{display:block;padding:5px 10px;color:var(--accent);font-size:11px;font-weight:700;line-height:1.5;text-align:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);margin:4px auto;max-width:100%;pointer-events:none}
+.game-ui body>.wrap>canvas:not(#fx){background-color:var(--stage);box-shadow:0 0 0 1px var(--line),0 6px 0 var(--soft);border-radius:18px;flex-shrink:0}
+.game-ui .screen>canvas.game{box-shadow:0 0 0 1px var(--line),0 6px 0 var(--soft)}
+.game-ui #hud{gap:6px;background:var(--surface);color:var(--ink)}
+.game-ui #hud :is(.left,.t,.s,.grp,.pill){color:var(--ink)}
+.game-ui #hud .pill{background:var(--surface);border-color:var(--line)}
+.game-ui body canvas:is(#cv,#game,#board){background-color:var(--stage)}
+.game-ui :is(button.dbtn,button.cbtn){background:var(--soft);color:var(--ink);border:1px solid var(--line)}
+.game-ui :is(button.lvl,button.lvlbtn){background:var(--soft);color:var(--ink);border:1px solid var(--line);border-radius:12px;min-height:54px}
+.game-ui :is(button.lvl,button.lvlbtn) :is(.nc,.sz,small){color:var(--muted)}
+.game-ui .ui-panel button.lvl{margin:0;min-width:44px;box-shadow:none;padding:8px}
+.game-ui #hud :is(.left,.right,.hudl,.hbtns){gap:5px;flex-wrap:wrap}
+.game-ui #hud :is(.left,.hudl){min-width:0;flex-shrink:1}
+.game-ui #hud :is(.pill,.left){font-size:12px}
+.game-ui button:disabled{cursor:default;opacity:.45;box-shadow:none}
+.game-ui .ui-panel .ui-assist-note{color:var(--accent);font-weight:700}
+@media(min-width:700px){.game-ui body>.wrap{padding-top:32px}.game-ui .ui-panel{padding:36px 30px}}
+@media(max-width:360px){.game-ui body>.wrap{padding:10px;gap:10px}.game-ui .ui-panel{padding:22px 18px;gap:13px}.game-ui .ui-panel h1{font-size:26px}.game-ui .ui-emblem{width:70px;height:70px;font-size:38px}.game-ui :is(.topbar,#topbar){gap:5px;padding:8px}.game-ui :is(.iconbtn,.icobtn,.ibtn,.tbtn,.ib){min-width:40px;min-height:44px}}
+@media(max-height:650px){.game-ui .ui-panel{padding:18px;gap:12px}.game-ui .ui-emblem{width:60px;height:60px;font-size:32px}.game-ui .ui-panel h1{font-size:25px}.game-ui .ui-panel :is(p,.howto,.sub,.rule){font-size:13px}}
+@media(prefers-reduced-motion:reduce){.game-ui *, .game-ui *::before,.game-ui *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+/* 2026-10-20 热修：开局/结算遮罩铺满整屏，主按钮固定在面板底部，避免被画布尺寸裁切（#10） */
+.game-ui :is(.overlay,.ov,#ov,#overlay,#pauseOv):has(>.ui-panel){position:fixed;inset:0;z-index:1000;border-radius:0;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom))}
+.game-ui .ui-panel{touch-action:pan-y}
+.game-ui .ui-panel :is(#startBtn,#btnStart,.startbtn,#bStart,#restartBtn,#btnRestart,#againBtn,#btnAgain,#retryBtn,#btnRetry,#playBtn,#btnPlay){position:sticky;bottom:0;z-index:3;flex-shrink:0}
+.game-ui .ui-panel :not(.card,.panel,.pausecard,.ovcard,.ui-mode):has(>:is(#startBtn,#btnStart,.startbtn,#bStart,#restartBtn,#btnRestart,#againBtn,#btnAgain,#retryBtn,#btnRetry,#playBtn,#btnPlay)){position:sticky;bottom:0;z-index:3;flex-shrink:0;background:var(--surface);box-shadow:0 -10px 10px -6px var(--surface)}
+
+
+/* ===== Direction B · 霓虹糖果 Pop Arcade ===== saturated gradients, chunky bevels with a hard bottom edge, sticker panels, neon on dark themes */
+html.game-ui[data-skin="b"]{--fb:"HarmonyOS Sans SC","MiSans","OPPOSans","vivo Sans","Noto Sans SC","Noto Sans CJK SC","PingFang SC","Microsoft YaHei UI",system-ui,sans-serif;--bounce:cubic-bezier(.34,1.56,.64,1);--bg:radial-gradient(circle at 12% 18%,rgba(255,255,255,.28) 0 38px,transparent 40px),radial-gradient(circle at 88% 30%,rgba(255,255,255,.16) 0 64px,transparent 66px),radial-gradient(circle at 20% 82%,rgba(255,255,255,.14) 0 52px,transparent 54px),radial-gradient(rgba(255,255,255,.16) 1.5px,transparent 2.2px) 0 0/22px 22px,linear-gradient(165deg,var(--b-bg1),var(--b-bg2));font-family:var(--fb)}
+html.game-ui[data-skin="b"],html.game-ui[data-skin="b"] body,html.game-ui[data-skin="b"] #app,html.game-ui[data-skin="b"] :is(.overlay,.ov,#ov,#overlay,#pauseOv):has(>.ui-panel){background:var(--bg);background-color:var(--b-bg2)}
+html.game-ui[data-skin="b"] body{min-height:100vh;font-family:var(--fb)}
+html.game-ui[data-skin="b"] :is(.hint,.hintline,.tip){color:rgba(255,255,255,.94);text-shadow:0 1px 2px rgba(0,0,0,.35)}
+/* Sticker panel: white rim + hard coloured bottom edge + drop */
+html.game-ui[data-skin="b"] .ui-panel{background:linear-gradient(180deg,var(--surface),var(--soft));border:4px solid #fff;border-radius:32px;box-shadow:0 9px 0 var(--line),0 9px 0 4px rgba(0,0,0,.08),0 26px 40px rgba(0,0,0,.28);animation:uiB-in .5s var(--bounce) both}
+html.game-ui[data-skin="b"] .ui-panel :is(h1,h2,.gamename,.gametitle){font-size:34px;font-weight:900;color:var(--b-title);letter-spacing:0;text-shadow:0 3px 0 var(--line),0 6px 10px rgba(0,0,0,.15)}
+html.game-ui[data-skin="b"] .ui-emblem{width:100px;height:100px;border:4px solid #fff;border-radius:50%;background:radial-gradient(circle at 32% 26%,#fff 0 12%,var(--b-glow) 13%,var(--line) 70%,var(--b-edge) 100%);box-shadow:0 7px 0 var(--b-edge),0 16px 24px rgba(0,0,0,.25);font-size:54px;animation:uiB-wobble 2.6s ease-in-out infinite}
+html.game-ui[data-skin="b"] .ui-emblem::before,html.game-ui[data-skin="b"] .ui-emblem::after{content:"✦";position:absolute;color:#fff;font-size:20px;text-shadow:0 0 8px var(--b-glow);animation:uiB-twinkle 1.8s ease-in-out infinite}
+html.game-ui[data-skin="b"] .ui-emblem::before{top:-10px;right:-14px}
+html.game-ui[data-skin="b"] .ui-emblem::after{bottom:4px;left:-18px;font-size:14px;animation-delay:.9s}
+html.game-ui[data-skin="b"] .ui-panel :is(.score,.bigscore,.bigScore,.scorebig,#finalScore){font-size:56px;font-weight:900;color:var(--b-btn);-webkit-text-fill-color:currentColor;text-shadow:0 4px 0 var(--b-edge),0 0 2px var(--b-edge),0 10px 16px rgba(0,0,0,.25)}
+html.game-ui[data-skin="b"] .ui-panel :is(h1,.gamename)~h2{font-size:19px;text-shadow:0 2px 0 var(--line)}
+/* Chunky bevelled button: highlight lip, darker bottom slab, presses down onto the slab */
+html.game-ui[data-skin="b"] :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost){position:relative}
+html.game-ui[data-skin="b"] :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost):not(#\#){overflow:hidden;border:0;border-radius:20px;font-weight:900;color:var(--b-btn-ink);background:linear-gradient(180deg,var(--b-btn-hi),var(--b-btn) 52%);text-shadow:var(--b-btn-tsh);box-shadow:inset 0 3px 0 rgba(255,255,255,.55),inset 0 -5px 0 rgba(0,0,0,.14),0 6px 0 var(--b-edge),0 12px 18px rgba(0,0,0,.25);transition:transform .08s,box-shadow .08s}
+html.game-ui[data-skin="b"] :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost):not(#\#)::before{content:"";position:absolute;left:12px;top:6px;width:22px;height:9px;border-radius:9px;background:rgba(255,255,255,.75);transform:rotate(-12deg);pointer-events:none}
+html.game-ui[data-skin="b"] :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost):not(#\#):active{transform:translateY(5px);box-shadow:inset 0 3px 0 rgba(255,255,255,.4),inset 0 -2px 0 rgba(0,0,0,.14),0 1px 0 var(--b-edge),0 4px 8px rgba(0,0,0,.2)}
+html.game-ui[data-skin="b"] .ui-panel :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost):not(#\#){min-height:56px;padding:14px 34px;font-size:19px;letter-spacing:1px}
+/* Secondary keys: white candy keys with a coloured slab */
+html.game-ui[data-skin="b"] :is(.ghost,.ghostbtn,.btn2,.abtn,.toolbtn,.iconbtn,.iconBtn,.icobtn,.ibtn,.tbtn,.hbtn,.ib,.pause,.dbtn,.cbtn,.nbtn,.lvl,.lvlbtn){border:0;border-radius:16px;background:linear-gradient(180deg,#fff,var(--soft));color:var(--b-key-ink);font-weight:900;box-shadow:inset 0 -3px 0 rgba(0,0,0,.06),0 5px 0 var(--line),0 8px 12px rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s}
+html.game-ui[data-skin="b"] :is(.ghost,.ghostbtn,.btn2,.abtn,.toolbtn,.iconbtn,.iconBtn,.icobtn,.ibtn,.tbtn,.hbtn,.ib,.pause,.dbtn,.cbtn,.nbtn,.lvl,.lvlbtn):active{transform:translateY(4px);box-shadow:0 1px 0 var(--line),0 2px 4px rgba(0,0,0,.15)}
+html.game-ui[data-skin="b"] :is(.dbtn,.lvl,.lvlbtn):is(.on,.sel,[aria-pressed="true"]){background:linear-gradient(180deg,var(--b-btn-hi),var(--b-btn));color:var(--b-btn-ink);text-shadow:var(--b-coin-tsh);box-shadow:0 5px 0 var(--b-edge),0 8px 12px rgba(0,0,0,.18)}
+html.game-ui[data-skin="b"] .ui-mode{background:rgba(0,0,0,.08);border:0;border-radius:18px;padding:5px;box-shadow:inset 0 3px 0 rgba(0,0,0,.08)}
+html.game-ui[data-skin="b"] .ui-mode button{border-radius:14px;font-weight:900}
+html.game-ui[data-skin="b"] .ui-mode button[aria-pressed="true"]{background:#fff;color:var(--b-key-ink);box-shadow:0 4px 0 var(--line)}
+/* HUD: candy capsule bar, numbers in coin badges */
+/* HUD keeps a 1px border (same box size as base.css → no layout shift); the thick rim is an inset shadow */
+html.game-ui[data-skin="b"] :is(.topbar,#topbar,:is(.wrap,#app,body)>.hud,.stats,#panel){background:linear-gradient(180deg,#fff,var(--soft));border:1px solid #fff;border-radius:22px;box-shadow:inset 0 0 0 2px #fff,0 6px 0 var(--line),0 12px 18px rgba(0,0,0,.2);font-weight:800}
+html.game-ui[data-skin="b"] #hud{background:linear-gradient(180deg,rgba(255,255,255,.95),var(--soft));box-shadow:0 5px 0 var(--line),0 10px 16px rgba(0,0,0,.2)}
+html.game-ui[data-skin="b"] :is(.topbar,.hud,#hud,#topbar) :is(#score,.score,[id*="score" i]){display:inline-block;min-width:1.6em;text-align:center;padding:0 9px;line-height:inherit;vertical-align:baseline;border-radius:999px;color:var(--b-coin-ink);background:linear-gradient(180deg,var(--b-btn-hi),var(--b-btn));box-shadow:inset 0 -2px 0 rgba(0,0,0,.15),0 2px 0 var(--b-edge);text-shadow:var(--b-coin-tsh);font-weight:900}
+html.game-ui[data-skin="b"] :is(.pill,.hudbox,.hud .p){background:#fff;border:0;border-radius:999px;box-shadow:0 4px 0 var(--line);color:var(--ink);font-weight:800;padding:5px 12px}
+html.game-ui[data-skin="b"] .ui-pop{animation:uiB-pop .45s var(--bounce)}
+/* Stage: thick white frame with slab + drop */
+html.game-ui[data-skin="b"] body canvas:is(#cv,#game,#board):not(#fx),html.game-ui[data-skin="b"] body>.wrap>canvas:not(#fx),html.game-ui[data-skin="b"] .stage{border-radius:24px;outline:5px solid #fff;outline-offset:0;box-shadow:0 10px 0 5px var(--line),0 24px 36px rgba(0,0,0,.32)}
+html.game-ui[data-skin="b"] .stage canvas{box-shadow:none;outline:0}
+/* Neon variant for dark themes (space / arcade / lab) */
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]){--bg:radial-gradient(circle at 15% 12%,rgba(var(--b-glow-rgb),.35) 0,transparent 32%),radial-gradient(circle at 90% 88%,rgba(var(--b-pedge-rgb),.35) 0,transparent 36%),linear-gradient(transparent 0 calc(100% - 1px),rgba(var(--b-glow-rgb),.12) 0) 0 0/100% 32px,linear-gradient(90deg,transparent 0 calc(100% - 1px),rgba(var(--b-glow-rgb),.12) 0) 0 0/32px 100%,linear-gradient(165deg,var(--b-bg1),var(--b-bg2))}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) :is(.ui-panel,.topbar,#topbar,:is(.wrap,#app,body)>.hud,#hud,.stats,#panel){background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 40%),var(--surface);border:1px solid var(--line);box-shadow:inset 0 0 0 1px var(--line),0 0 0 1px rgba(0,0,0,.4),0 0 22px rgba(var(--b-pedge-rgb),.55),inset 0 0 18px rgba(var(--b-pedge-rgb),.18)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) .ui-panel :is(h1,h2,.gamename,.gametitle){color:#fff;text-shadow:0 0 6px var(--b-glow),0 0 18px var(--b-glow),0 3px 0 var(--b-edge)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) .ui-emblem{border-color:var(--b-glow);background:radial-gradient(circle at 50% 40%,rgba(var(--b-glow-rgb),.35),var(--surface) 70%);box-shadow:0 0 0 4px rgba(var(--b-glow-rgb),.18),0 0 30px rgba(var(--b-glow-rgb),.7),inset 0 0 20px rgba(var(--b-glow-rgb),.5)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) :is(.ghost,.ghostbtn,.btn2,.abtn,.toolbtn,.iconbtn,.iconBtn,.icobtn,.ibtn,.tbtn,.hbtn,.ib,.pause,.dbtn,.cbtn,.nbtn,.lvl,.lvlbtn){background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.02)),var(--surface);color:var(--b-key-ink);border:1px solid var(--line);box-shadow:0 4px 0 #000,0 0 12px rgba(var(--b-pedge-rgb),.45)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) :is(button.btn,button.bigbtn,button.bigBtn,button.bb,button.startbtn,button.actBtn):not(.ghost):not(#\#){box-shadow:inset 0 3px 0 rgba(255,255,255,.5),inset 0 -5px 0 rgba(0,0,0,.18),0 6px 0 var(--b-edge),0 0 26px rgba(var(--b-pedge-rgb),.7)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) .ui-mode button[aria-pressed="true"]{background:var(--b-btn);color:var(--b-btn-ink);box-shadow:0 0 14px rgba(var(--b-pedge-rgb),.8)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) :is(.pill,.hudbox,.hud .p){background:rgba(0,0,0,.35);color:var(--ink);box-shadow:0 0 0 2px var(--line),0 0 12px rgba(var(--b-pedge-rgb),.5)}
+html.game-ui[data-skin="b"]:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[data-theme="ocean"],[data-theme="magic"]) :is(body canvas:is(#cv,#game,#board):not(#fx),body>.wrap>canvas:not(#fx),.stage){outline:2px solid var(--line);box-shadow:0 0 0 6px rgba(var(--b-pedge-rgb),.15),0 0 30px rgba(var(--b-pedge-rgb),.6),0 20px 30px rgba(0,0,0,.5)}
+@keyframes uiB-in{0%{opacity:0;transform:scale(.6) translateY(30px)}60%{opacity:1}}
+@keyframes uiB-wobble{0%,100%{transform:rotate(-4deg) translateY(0)}50%{transform:rotate(4deg) translateY(-6px)}}
+@keyframes uiB-twinkle{50%{opacity:.25;transform:scale(.6) rotate(45deg)}}
+@keyframes uiB-pop{40%{transform:scale(1.45) rotate(-6deg)}}
+/* ---- per-game surfaces ---- */
+html[data-skin="b"][data-game="game2048"] #board{background:linear-gradient(180deg,#fff,var(--soft));border:4px solid #fff;border-radius:28px;padding:12px;gap:10px;box-shadow:0 9px 0 var(--line),0 22px 32px rgba(0,0,0,.25)}
+html[data-skin="b"][data-game="game2048"] .tile{border-radius:16px;font-weight:900;background-image:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0) 50%)!important;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18),inset 0 3px 0 rgba(255,255,255,.5),0 4px 0 rgba(0,0,0,.12);color:#fff!important;text-shadow:0 2px 0 rgba(0,0,0,.25)}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="0"]{background:rgba(0,0,0,.07)!important;box-shadow:inset 0 4px 0 rgba(0,0,0,.08)}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="2"]{background-color:#ffd166!important;color:#6b3d00!important;text-shadow:0 1px 0 rgba(255,255,255,.5)}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="4"]{background-color:#ffa94d!important;color:#5c2a00!important;text-shadow:0 1px 0 rgba(255,255,255,.45)}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="8"]{background-color:#d9365e!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="16"]{background-color:#c23aa8!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="32"]{background-color:#8a4ff0!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="64"]{background-color:#4763e6!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="128"]{background-color:#0b84b8!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="256"]{background-color:#0e8a68!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="512"]{background-color:#3f8a12!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="1024"]{background-color:#c45f00!important}
+html[data-skin="b"][data-game="game2048"] .tile[data-v="2048"]{background-color:#d61d4f!important;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18),0 0 24px #ff3d6e}
+html[data-skin="b"][data-game="sudoku"] #board{border:4px solid #fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 0 var(--line),0 18px 28px rgba(0,0,0,.25)}
+html[data-skin="b"][data-game="sudoku"] .cell.sel{background:#ffe680!important;box-shadow:inset 0 0 0 3px var(--b-btn)}
+html[data-skin="b"][data-game="sudoku"] .nbtn{min-height:52px;font-size:21px}
+html[data-skin="b"][data-game="tetris"] #cv{border-color:#3a1d7a;background:linear-gradient(180deg,#2a1260,#0a0420)}
+html[data-skin="b"][data-game="tetris"] .tbtn{font-size:22px}
+html[data-skin="b"][data-game="billiards"] .powerbar{height:14px;border-radius:999px;background:rgba(0,0,0,.45);box-shadow:0 0 0 2px var(--line)}
+html[data-skin="b"][data-game="billiards"] .powerbar i{border-radius:999px;box-shadow:0 0 12px #ff3d9a}
+html[data-skin="b"][data-game="pendulum"] #panel{margin:0 10px 10px;border-radius:24px}
+html[data-skin="b"][data-game="pendulum"] input[type=range]{accent-color:var(--b-btn)}
+/* In-flow start/result screens (science labs etc.) become full-screen sheets like overlays, so the taller sticker panel never pushes the page into scrolling */
+html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-index:1000;margin:0;background:var(--bg);background-color:var(--b-bg2)}
+/* Short screens (360x640 class): tighter HUD so stages fit without page scroll */
+@media(max-height:700px){html.game-ui[data-skin="b"] :is(.topbar,#topbar){min-height:0;padding-top:6px;padding-bottom:6px}html.game-ui[data-skin="b"] body>.wrap{gap:8px}}
+
+</style>
+<script>
+// Installed before the original game script; embedded so downloaded ZIPs remain offline capable.
+(function () {
+  'use strict';
+  var config = {"id":"marblerun","name":"弹珠工坊","theme":"wood","icon":"🔮","challenge":null,"skin":"b"};
+  var mode = 'classic';
+  try { mode = sessionStorage.getItem('game100-mode-' + config.id) || mode; } catch (_) {}
+  var expert = mode === 'expert';
+  var used = { hint: 0, undo: 0 };
+  var limits = { hint: 1, undo: 3 };
+  function storageKey(key) { return expert && !/sound|mute/i.test(key) ? 'expert:' + key : key; }
+  window.GameUI = {
+    expert: expert,
+    pick: function (classic, advanced) { return expert ? advanced : classic; },
+    storageGet: function (key) { return localStorage.getItem(storageKey(key)); },
+    storageSet: function (key, value) { localStorage.setItem(storageKey(key), value); },
+    storageRemove: function (key) { localStorage.removeItem(storageKey(key)); }
+  };
+  var root = document.documentElement;
+  root.classList.add('game-ui');
+  root.dataset.theme = config.theme;
+  root.dataset.game = config.id;
+  root.dataset.mode = mode;
+  if (config.skin) root.dataset.skin = config.skin;
+  var gesture = new WeakMap();
+  function labelButtons(scope) {
+    scope.querySelectorAll('button').forEach(function (button) {
+      if (button.getAttribute('aria-label')) return;
+      var id = button.id.toLowerCase(), text = button.textContent.trim();
+      var name = /mute|sound|snd/.test(id) ? '切换音效' : /pause/.test(id) ? '暂停游戏' : /hint/.test(id) && !/close|ok/.test(id) ? '查看提示' : '';
+      if (!name && /^[⏸🔊🔇💡Ⅱ]+$/u.test(text)) name = { '⏸': '暂停游戏', '🔊': '切换音效', '🔇': '切换音效', '💡': '查看提示' }[text];
+      if (name) button.setAttribute('aria-label', name);
+    });
+  }
+  function decorate(container) {
+    if (container.querySelector(':scope > .ui-panel') || !container.querySelector('h1,h2,.gamename')) return;
+    // A .screen that holds the playfield (canvas, or its own top bar/HUD) is the game itself, not a menu panel.
+    if (container.matches('.screen') && container.querySelector('canvas:not(#fx),.topbar,#topbar,#hud')) return;
+    var panel = document.createElement('div');
+    panel.className = 'ui-panel';
+    while (container.firstChild) panel.appendChild(container.firstChild);
+    container.appendChild(panel);
+    var heading = panel.querySelector('h1,h2,.gamename');
+    var start = /start|menu|ready/i.test(container.id) || !!panel.querySelector('#startBtn,#btnStart,.startbtn');
+    if (start) {
+      var headings = panel.querySelectorAll('h1,h2,.gamename');
+      if (headings.length > 1 && !/[A-Za-z0-9\u4e00-\u9fff]/.test(heading.textContent)) { heading.remove(); heading = headings[1]; }
+      var oldIcon = panel.querySelector('.bigemoji,.ic');
+      if (oldIcon) oldIcon.remove();
+      var emblem = document.createElement('div');
+      emblem.className = 'ui-emblem'; emblem.textContent = config.icon; emblem.setAttribute('aria-hidden', 'true');
+      panel.insertBefore(emblem, panel.firstChild);
+      heading.textContent = config.name;
+      if (!config.challenge) { labelButtons(panel); return; }
+      var switcher = document.createElement('div'); switcher.className = 'ui-mode'; switcher.setAttribute('role', 'group'); switcher.setAttribute('aria-label', '选择玩法模式');
+      [['classic','经典模式'],['expert','进阶挑战']].forEach(function (item) {
+        var b = document.createElement('button'); b.type = 'button'; b.textContent = item[1]; b.dataset.mode = item[0]; b.setAttribute('aria-pressed', String(mode === item[0]));
+        b.addEventListener('click', function () {
+          if (mode === item[0]) return;
+          try { sessionStorage.setItem('game100-mode-' + config.id, item[0]); location.reload(); }
+          catch (_) { b.textContent = '浏览器未允许保存模式'; }
+        });
+        switcher.appendChild(b);
+      });
+      var primary = panel.querySelector('#startBtn,#btnStart,.startbtn,button');
+      var anchor = primary;
+      while (anchor && anchor.parentNode !== panel && !anchor.parentNode.matches('.card,.panel,.pausecard,.ovcard')) anchor = anchor.parentNode;
+      var target = anchor ? anchor.parentNode : panel;
+      target.insertBefore(switcher, anchor || null);
+      var note = document.createElement('p'); note.className = 'ui-mode-note';
+      note.textContent = expert ? config.challenge + '。进阶纪录单独保存。' : '按原规则轻松开局，也可切换进阶挑战。';
+      target.insertBefore(note, anchor || null);
+    }
+    labelButtons(panel);
+  }
+  function notify(text) {
+    var el = document.getElementById('ui-assist-toast');
+    if (!el) { el = document.createElement('div'); el.id = 'ui-assist-toast'; el.className = 'ui-mode-status'; el.setAttribute('role', 'status'); el.style.cssText = 'position:fixed;bottom:18px;left:16px;right:16px;z-index:200;padding:14px'; document.body.appendChild(el); }
+    el.textContent = text; el.hidden = false;
+    clearTimeout(notify.timer); notify.timer = setTimeout(function () { el.hidden = true; }, 2000);
+  }
+  function assistEvent(event) {
+    if (!expert) return;
+    var b = event.target.closest('button'); if (!b || b.closest('.ui-mode')) return;
+    var kind = /^(hintBtn|hintTopBtn|btnHint)$/i.test(b.id) ? 'hint' : /^(undoBtn|undoTopBtn|btnUndo)$/i.test(b.id) || /悔一步|撤销/.test(b.textContent) ? 'undo' : '';
+    if (!kind) return;
+    var prev = gesture.get(b), blocked;
+    if (event.type === 'click' && prev && performance.now() - prev.at < 1000) blocked = prev.blocked;
+    else { blocked = used[kind] >= limits[kind]; if (!blocked) used[kind]++; gesture.set(b, { at: performance.now(), blocked: blocked }); }
+    if (blocked) { event.preventDefault(); event.stopImmediatePropagation(); notify(kind === 'hint' ? '本次挑战的 1 次提示已用完' : '本次挑战的 3 次撤销已用完'); }
+  }
+  document.addEventListener('pointerdown', assistEvent, true);
+  document.addEventListener('click', assistEvent, true);
+  document.addEventListener('click', function (event) {
+    var b = event.target.closest('button');
+    if (b && /^(startBtn|btnStart|restartBtn|againBtn|retryBtn|btnAgain|btnRestart|playAgain)$/i.test(b.id)) used = { hint: 0, undo: 0 };
+  }, true);
+  document.addEventListener('DOMContentLoaded', function () {
+    var selector = '.overlay,.ov,#ov,#overlay,#pauseOv,.screen';
+    document.querySelectorAll(selector).forEach(function (container) {
+      decorate(container);
+      // Only dynamic overlay children are observed; animated scores never trigger this work.
+      new MutationObserver(function () { decorate(container); }).observe(container, { childList: true });
+    });
+    labelButtons(document);
+    if (config.skin) watchScores();
+  });
+  // Score pop: only discrete jumps animate. Counters that tick every frame (distance, timers)
+  // change faster than the 300ms gate and therefore never trigger, so there is no per-frame cost.
+  function watchScores() {
+    document.querySelectorAll('#score,.topbar b,#hud b,.hud .score,.pill b,.hudbox b').forEach(function (el) {
+      var last = 0;
+      new MutationObserver(function () {
+        var now = performance.now(), quiet = now - last > 300; last = now;
+        if (!quiet) return;
+        el.classList.remove('ui-pop'); void el.offsetWidth; el.classList.add('ui-pop');
+      }).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+  }
+}());
+
+// GameUI.fx: tiny canvas depth helpers (bevelled tiles, glossy orbs, contact shadows).
+// Shapes are pre-rendered into cached sprites so a frame costs one drawImage per piece,
+// which keeps low-end Android WebView at 60fps. Games call them only when GameUI.fx.on.
+(function () {
+  var root = document.documentElement, skin = root.dataset.skin || '';
+  var cache = {}, size = 0;
+  function rgb(h) { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join(''); return [0, 2, 4].map(function (i) { return parseInt(h.slice(i, i + 2), 16); }); }
+  function shade(h, t) { // t>0 lightens towards white, t<0 darkens towards black
+    if (h.charAt(0) !== '#') return h;
+    var c = rgb(h), e = t > 0 ? 255 : 0, a = Math.abs(t);
+    return 'rgb(' + c.map(function (v) { return Math.round(v + (e - v) * a); }).join(',') + ')';
+  }
+  function rgba(h, a) { var c = rgb(h); return 'rgba(' + c.join(',') + ',' + a + ')'; }
+  function scaleOf(ctx) { var m = ctx.getTransform ? ctx.getTransform() : null; return m ? Math.max(1, Math.abs(m.a)) : 1; }
+  function sprite(key, w, h, pad, s, paint) {
+    key += '|' + s; var c = cache[key];
+    if (!c) {
+      if (size > 400) { cache = {}; size = 0; }
+      c = document.createElement('canvas');
+      c.width = Math.ceil((w + pad * 2) * s); c.height = Math.ceil((h + pad * 2) * s);
+      var g = c.getContext('2d'); g.scale(s, s); g.translate(pad, pad); paint(g);
+      cache[key] = c; size++;
+    }
+    return c;
+  }
+  function rr(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); }
+  function tileArt(g, w, h, color, r) {
+    if (skin === 'b') { // candy bevel: dark rim, light top-left facet, glossy face
+      rr(g, 0, 2, w, h, r); g.fillStyle = 'rgba(0,0,0,.35)'; g.fill();
+      rr(g, 0, 0, w, h, r); g.fillStyle = shade(color, -.42); g.fill();
+      var bev = g.createLinearGradient(0, 0, w, h); bev.addColorStop(0, shade(color, .55)); bev.addColorStop(.5, color); bev.addColorStop(1, shade(color, -.3));
+      rr(g, 1, 1, w - 2, h - 2, r * .9); g.fillStyle = bev; g.fill();
+      var i = Math.max(2, w * .14), face = g.createLinearGradient(0, i, 0, h - i);
+      face.addColorStop(0, shade(color, .22)); face.addColorStop(1, shade(color, -.08));
+      rr(g, i, i, w - i * 2, h - i * 2, r * .6); g.fillStyle = face; g.fill();
+      g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.ellipse(w * .3, h * .27, w * .13, h * .07, -.5, 0, 7); g.fill();
+    } else { // soft 3D: drop shadow, vertical light falloff, top gloss band
+      g.shadowColor = 'rgba(0,0,0,.32)'; g.shadowBlur = Math.max(2, w * .18); g.shadowOffsetY = Math.max(1, h * .08);
+      var body = g.createLinearGradient(0, 0, 0, h); body.addColorStop(0, shade(color, .28)); body.addColorStop(.55, color); body.addColorStop(1, shade(color, -.22));
+      rr(g, 0, 0, w, h, r); g.fillStyle = body; g.fill(); g.shadowColor = 'transparent';
+      var gloss = g.createLinearGradient(0, 0, 0, h * .5); gloss.addColorStop(0, 'rgba(255,255,255,.45)'); gloss.addColorStop(1, 'rgba(255,255,255,0)');
+      rr(g, w * .08, h * .06, w * .84, h * .42, r * .7); g.fillStyle = gloss; g.fill();
+      rr(g, .5, .5, w - 1, h - 1, r); g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 1; g.stroke();
+    }
+  }
+  function orbArt(g, r, color, pad) {
+    var cx = r, cy = r;
+    g.fillStyle = 'rgba(0,0,0,' + (skin === 'b' ? .34 : .26) + ')'; g.beginPath(); g.ellipse(cx + r * .12, cy + r * .78, r * .82, r * .32, 0, 0, 7); g.fill();
+    var body = g.createRadialGradient(cx - r * .38, cy - r * .42, r * .08, cx, cy, r);
+    body.addColorStop(0, shade(color, .75)); body.addColorStop(.28, shade(color, .18)); body.addColorStop(.75, color); body.addColorStop(1, shade(color, -.45));
+    g.fillStyle = body; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+    if (skin === 'b') { // rim light + crisp specular for the candy look
+      g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = Math.max(1, r * .1); g.beginPath(); g.arc(cx, cy, r * .82, .35 * Math.PI, .75 * Math.PI); g.stroke();
+      g.strokeStyle = shade(color, -.55); g.lineWidth = Math.max(1, r * .08); g.beginPath(); g.arc(cx, cy, r - g.lineWidth / 2, 0, 7); g.stroke();
+    }
+    g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(cx - r * .35, cy - r * .42, r * .22, r * .14, -.6, 0, 7); g.fill();
+  }
+  var fx = {
+    on: !!skin, skin: skin, shade: shade, rgba: rgba,
+    tile: function (ctx, x, y, w, h, color, r) {
+      r = r == null ? Math.min(w, h) * (skin === 'b' ? .24 : .2) : r;
+      var pad = Math.ceil(w * .25) + 2, s = scaleOf(ctx);
+      ctx.drawImage(sprite('t' + color + w + 'x' + h + 'r' + r, w, h, pad, s, function (g) { tileArt(g, w, h, color, r); }), x - pad, y - pad, w + pad * 2, h + pad * 2);
+    },
+    orb: function (ctx, x, y, r, color) {
+      var pad = Math.ceil(r * .5) + 2, s = scaleOf(ctx);
+      ctx.drawImage(sprite('o' + color + r, r * 2, r * 2, pad, s, function (g) { orbArt(g, r, color, pad); }), x - r - pad, y - r - pad, r * 2 + pad * 2, r * 2 + pad * 2);
+    },
+    // Soft elliptical contact shadow under any sprite (emoji, characters, pieces).
+    shadow: function (ctx, x, y, rx, ry, a) {
+      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,' + (a == null ? .28 : a) + ')'; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill(); ctx.restore();
+    },
+    // Lit stage background: vertical gradient plus a vignette. Cached per size/colours.
+    stage: function (ctx, w, h, top, bottom) {
+      var s = scaleOf(ctx);
+      ctx.drawImage(sprite('s' + w + 'x' + h + top + bottom, w, h, 0, s, function (g) {
+        var lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, top); lg.addColorStop(1, bottom); g.fillStyle = lg; g.fillRect(0, 0, w, h);
+        var v = g.createRadialGradient(w / 2, h * .35, Math.min(w, h) * .2, w / 2, h / 2, Math.max(w, h) * .75);
+        v.addColorStop(0, 'rgba(255,255,255,' + (skin === 'b' ? .10 : .07) + ')'); v.addColorStop(1, 'rgba(0,0,0,.35)'); g.fillStyle = v; g.fillRect(0, 0, w, h);
+      }), 0, 0, w, h);
+    },
+    // Glow is shadowBlur: cheap for a handful of shapes, never use it on every tile.
+    glow: function (ctx, color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; },
+    noGlow: function (ctx) { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; },
+    // Crisp rendering on high-DPI phones without changing game coordinates.
+    // Only safe where input code converts with getBoundingClientRect + logical W/H, not cv.width.
+    hidpi: function (cv, ctx, w, h) {
+      var d = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+      cv.width = Math.round(w * d); cv.height = Math.round(h * d); // intrinsic ratio stays w:h, so CSS sizing is unchanged
+      ctx.setTransform(d, 0, 0, d, 0, 0); return d;
+    },
+    // Lightweight particle bursts (pooled array, no allocations per frame beyond the burst).
+    burst: function (list, x, y, color, n) {
+      for (var i = 0; i < (n || 12); i++) { var a = Math.random() * 6.283, v = 1 + Math.random() * 2.6; list.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1, life: 1, c: color, r: 1.5 + Math.random() * 2.5 }); }
+    },
+    drawBurst: function (ctx, list) {
+      for (var i = list.length - 1; i >= 0; i--) {
+        var p = list[i]; p.x += p.vx; p.y += p.vy; p.vy += .12; p.life -= .035;
+        if (p.life <= 0) { list.splice(i, 1); continue; }
+        ctx.globalAlpha = p.life; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (skin === 'b' ? 1.2 : 1), 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  };
+  window.GameUI.fx = fx;
+}());
+
+</script>
+<!-- GAME UI END -->
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <span class="stat"><span>🧩<b id="lvT">1</b></span><span>⭐<b id="score">0</b></span><span id="tryT">尝试 0</span></span>
+    <span class="tools"><button class="iconbtn" id="hintBtn" aria-label="查看提示">💡</button><button class="iconbtn" id="resetBtn" aria-label="清空零件">🧹</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+  </div>
+  <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
+  <div class="hint2" id="hintT">选择零件 → 点击画面放置 · 再点零件可旋转 · 拖动可移动</div>
+  <div class="tray" id="tray"></div>
+</div>
+<div class="overlay" id="startScr"><h1>弹珠工坊</h1><p>摆放木板、弹簧、弹力球和风扇，让弹珠滚进 🏆 奖杯！<br>沿途收集 ⭐，小心尖刺；传送门会把弹珠送到另一端。<br>24 个机关关卡，每关最高三星。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn">🔊</button></div></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="menuBtn">选关</button><button class="iconbtn muteBtn">🔊</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">过关！</h2><div class="score" id="finalScore">★★★</div><p id="overText" style="text-align:center"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再玩一次</button><button class="btn ghost" id="menu2Btn">选关</button></div></div>
+<script>
+'use strict';
+// ---- 公共小工具（内联，离线） ----
+const $=id=>document.getElementById(id);
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
+const GID='marblerun';
+const Store={get(k,d){try{const v=UI.storageGet(GID+'-'+k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{UI.storageSet(GID+'-'+k,JSON.stringify(v));}catch(e){}}};
+let muted=UI.storageGet(GID+'-mute')==='1',AC=null;
+function audio(){if(muted)return null;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}catch(e){return null;}}
+function tone(f,d,type,vol,f2,delay){const a=audio();if(!a)return;try{const t=a.currentTime+(delay||0),o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(Math.max(20,f2),t+d);g.gain.setValueAtTime(vol||.12,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(a.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+function noise(d,vol,hp){const a=audio();if(!a)return;try{const n=Math.floor(a.sampleRate*d),b=a.createBuffer(1,n,a.sampleRate),ch=b.getChannelData(0);for(let i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),g=a.createGain(),fl=a.createBiquadFilter();fl.type='lowpass';fl.frequency.value=hp||1800;s.buffer=b;g.gain.value=vol||.15;s.connect(fl).connect(g).connect(a.destination);s.start();}catch(e){}}
+function setMute(m){muted=m;UI.storageSet(GID+'-mute',m?'1':'0');document.querySelectorAll('.muteBtn').forEach(b=>b.textContent=m?'🔇':'🔊');}
+document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('.muteBtn').forEach(b=>{b.textContent=muted?'🔇':'🔊';b.addEventListener('click',()=>setMute(!muted));});});
+function show(id,on){const e=$(id);if(e)e.classList.toggle('hidden',!on);}
+function toast(t,ms){let e=$('toast');if(!e){e=document.createElement('div');e.id='toast';document.body.appendChild(e);}e.textContent=t;e.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>e.classList.remove('on'),ms||1600);}
+function fitCanvas(cv,box,W,H){const r=box.getBoundingClientRect();const s=Math.max(.1,Math.min(r.width/W,r.height/H));cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
+function posOf(e,cv,W,H){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches.length)?e.touches[0]:(e.changedTouches&&e.changedTouches.length)?e.changedTouches[0]:e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
+function rr(c,x,y,w,h,r){c.beginPath();if(c.roundRect)c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h);}
+function txt(c,s,x,y,size,color,align,weight,base){c.font=(weight||800)+' '+size+'px "HarmonyOS Sans SC","MiSans","Noto Sans SC","PingFang SC",system-ui,sans-serif';c.fillStyle=color||'#fff';c.textAlign=align||'center';c.textBaseline=base||'middle';c.fillText(s,x,y);}
+function otxt(c,s,x,y,size,color,align,weight){c.lineWidth=Math.max(2,size/5);c.strokeStyle='rgba(0,0,0,.7)';c.lineJoin='round';c.font=(weight||900)+' '+size+'px "HarmonyOS Sans SC","MiSans","Noto Sans SC","PingFang SC",system-ui,sans-serif';c.textAlign=align||'center';c.textBaseline='middle';c.strokeText(s,x,y);c.fillStyle=color||'#fff';c.fillText(s,x,y);}
+function mkRng(seed){let s=seed>>>0||1;return()=>{s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function starStr(n,max){max=max||3;return '★'.repeat(n)+'☆'.repeat(Math.max(0,max-n));}
+function clamp(v,a,b){return v<a?a:v>b?b:v;}
+// 新手引导：pages=[[标题,说明],...]，看完后回调
+function tutorial(pages,done){let i=0;const ov=$('tutScr');function render(){$('tutH').textContent=pages[i][0];$('tutP').innerHTML=pages[i][1];$('tutStep').textContent=(i+1)+' / '+pages.length;$('tutNext').textContent=i<pages.length-1?'下一步':'开始挑战';}
+  $('tutNext').onclick=()=>{tone(700,.06,'triangle');if(i<pages.length-1){i++;render();}else{show('tutScr',false);done&&done();}};
+  $('tutSkip').onclick=()=>{show('tutScr',false);done&&done();};render();show('tutScr',true);}
+
+const W=360,H=540;const cv=$('cv'),ctx=cv.getContext('2d');
+if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+const fit=()=>fitCanvas(cv,$('box'),W,H);addEventListener('resize',fit);
+const BR=9,G=640,PL=72,SPL=56;
+const PIECES={plank:{n:'木板',a:'🪵',c:'#d9a066'},spring:{n:'弹簧',a:'🟩',c:'#2ee6a0'},bumper:{n:'弹力球',a:'🔴',c:'#ff3d6e'},fan:{n:'风扇',a:'🌬️',c:'#7fe3ff'}};
+// 关卡：s 出生点[x,y,vx]，g 奖杯中心，w 墙，p 钉子[x,y,r]，k 尖刺线段，st 星星，pt 传送门[x1,y1,x2,y2]，inv 可用零件，sol 参考解
+const FLOOR=[0,536,360,536];
+const LEVELS=[
+{n:'初次滑落',tip:'放一块木板，把弹珠引向奖杯',s:[80,40],g:[290,500],w:[],st:[[150,330],[215,420]],inv:{plank:1}},
+{n:'折返',s:[60,40],g:[60,500],w:[[0,180,200,240]],st:[[230,300],[150,420]],inv:{plank:2}},
+{n:'弹起来',tip:'🟩 弹簧能把弹珠高高弹起',s:[60,40],g:[290,250],w:[[250,270,340,270],[0,520,360,520],[0,300,0,520],[360,300,360,520]],st:[[150,330],[240,180]],inv:{spring:1,plank:1}},
+{n:'钉子雨',s:[180,40],g:[300,500],w:[],p:[[150,150,7],[210,150,7],[120,220,7],[180,220,7],[240,220,7],[150,290,7],[210,290,7],[120,360,7],[180,360,7],[240,360,7]],st:[[300,300],[60,430]],inv:{plank:2}},
+{n:'微风',tip:'🌬️ 风扇会持续吹动弹珠，点它可以转向',s:[50,40],g:[60,500],w:[[0,150,120,190]],k:[[100,535,360,535]],st:[[200,200],[290,380]],inv:{fan:1,plank:1}},
+{n:'尖刺走廊',s:[40,40],g:[320,500],w:[[0,120,220,170]],k:[[0,535,270,535],[140,300,260,300]],st:[[260,220],[300,380],[200,450]],inv:{plank:2}},
+{n:'传送门',tip:'弹珠进入一个传送门会从另一个出来',s:[60,40],g:[300,500],w:[[0,260,360,260]],pt:[[220,238,120,320]],st:[[160,230],[300,420]],inv:{plank:2}},
+{n:'弹力球阵',s:[180,40],g:[60,250],w:[[20,270,110,270],[0,0,0,540],[360,0,360,540]],k:[[0,535,360,535]],st:[[100,160],[260,300]],inv:{bumper:2,plank:1}},
+{n:'高台',s:[40,40],g:[320,140],w:[[280,160,360,160],[0,520,360,520]],k:[[150,519,250,519]],st:[[100,400],[300,320],[200,120]],inv:{spring:2,plank:2}},
+{n:'之字形',s:[300,40],g:[60,500],w:[[360,130,100,170],[0,250,260,290],[360,370,150,410]],k:[[90,535,360,535]],st:[[40,200],[320,330],[60,440]],inv:{plank:3}},
+{n:'逆风',s:[320,40],g:[40,250],w:[[0,270,90,270],[0,520,360,520],[360,0,360,540]],st:[[200,450],[120,200]],inv:{fan:2,plank:1}},
+{n:'钉阵迷宫',s:[180,40],g:[180,500],w:[[0,460,150,500],[360,460,210,500]],p:[[90,130,8],[180,130,8],[270,130,8],[135,200,8],[225,200,8],[90,270,8],[180,270,8],[270,270,8],[135,340,8],[225,340,8]],k:[[100,400,260,400]],st:[[40,300],[320,300],[180,450]],inv:{plank:2,bumper:1}},
+{n:'双门',s:[60,40],g:[40,500],w:[[0,260,360,260]],pt:[[310,238,60,320]],k:[[100,535,360,535]],st:[[200,200],[150,380],[60,450]],inv:{plank:3}},
+{n:'蹦床接力',s:[40,40],g:[320,120],w:[[270,140,360,140],[0,520,360,520],[0,0,0,540]],k:[[0,519,360,519]],st:[[120,300],[240,250],[180,100]],inv:{spring:2,plank:1}},
+{n:'风洞',s:[40,40],g:[320,500],w:[[0,100,100,140],[130,250,360,250]],k:[[0,535,280,535],[130,251,240,251]],st:[[200,200],[300,300],[100,400]],inv:{fan:2,plank:2}},
+{n:'针尖舞',s:[60,40],g:[180,280],w:[[140,300,220,300],[0,520,360,520]],k:[[0,519,140,519],[220,519,360,519],[140,200,140,301],[220,200,220,301]],st:[[60,200],[300,200],[180,450]],inv:{spring:1,bumper:2,plank:2}},
+{n:'回旋',s:[300,40],g:[300,500],w:[[360,100,200,140],[0,0,0,540],[200,140,200,460],[360,0,360,540]],k:[[200,535,360,535]],st:[[100,150],[40,400],[260,300]],inv:{plank:3,spring:1}},
+{n:'传送蹦床',s:[60,40],g:[300,100],w:[[260,120,360,120],[0,520,200,520]],pt:[[160,480,320,360]],k:[[200,535,360,535]],st:[[60,300],[280,250],[200,80]],inv:{spring:2,plank:2}},
+{n:'风车阵',s:[180,40],g:[40,500],w:[[90,200,270,200],[0,0,0,540],[360,0,360,540]],p:[[80,330,8],[150,330,8],[220,330,8],[290,330,8]],k:[[100,535,360,535]],st:[[320,150],[300,420],[120,450]],inv:{fan:2,plank:2,bumper:1}},
+{n:'窄门',s:[40,40],g:[320,500],w:[[0,160,160,160],[220,160,360,160],[0,330,140,330],[200,330,360,330]],k:[[0,159,110,159],[270,159,360,159],[0,329,90,329],[250,329,360,329]],st:[[190,120],[170,290],[300,430]],inv:{plank:3,fan:1}},
+{n:'天梯',s:[40,40],g:[320,110],w:[[0,520,120,520],[280,130,360,130],[0,0,0,540],[360,0,360,540]],k:[[120,535,360,535]],st:[[150,380],[250,250],[200,100]],inv:{spring:3,plank:2,fan:1}},
+{n:'弹幕',s:[180,40],g:[180,500],w:[[120,500,0,420],[240,500,360,420]],p:[[100,140,6],[260,140,6],[180,200,6],[60,260,6],[300,260,6],[140,320,6],[220,320,6],[100,390,6],[260,390,6]],k:[[150,260,210,260],[0,180,40,180],[320,180,360,180]],st:[[40,330],[320,330],[180,140]],inv:{bumper:2,plank:3,fan:1}},
+{n:'门中门',s:[40,40],g:[320,500],w:[[0,150,360,172],[0,320,300,320],[0,0,0,540],[360,0,360,540]],pt:[[325,152,40,280]],k:[[0,535,280,535],[80,319,300,319]],st:[[180,120],[200,250],[180,450]],inv:{plank:3,spring:1,fan:1}},
+{n:'终极工坊',s:[40,40],g:[320,80],w:[[280,100,360,100],[0,200,200,240],[0,520,360,520],[0,0,0,540],[360,0,360,540]],p:[[260,260,8],[300,330,8],[220,380,8]],k:[[0,519,360,519],[200,239,280,239]],st:[[60,300],[180,460],[300,180]],inv:{spring:2,plank:3,bumper:1,fan:1}}
+];
+
+// SOLS（由求解器生成的参考解与星星位置）
+const SOLS=[{"sol":[["plank",71,312,4]],"st":null},{"sol":[["plank",250,280,6],["plank",158,417,0]],"st":null},{"sol":[["spring",46,469,5],["plank",249,155,1]],"st":null},{"sol":[["plank",165,50,2]],"st":[[197,64],[310,453]]},{"sol":[["fan",198,261,11]],"st":[[71,149],[103,280]]},{"sol":[["plank",196,189,3]],"st":[[64,116],[184,142],[280,259]]},{"sol":[["plank",125,368,4],["plank",45,159,2]],"st":null},{"sol":[["plank",350,156,3],["bumper",173,436,1]],"st":null},{"sol":[["spring",35,465,1],["spring",264,265,3],["plank",114,410,5],["plank",266,375,5]],"st":[[40,178],[153,238],[293,108]]},{"sol":[["plank",342,315,7],["plank",15,210,4]],"st":null},{"sol":[["fan",315,281,10],["plank",288,282,7],["fan",249,419,15]],"st":[[320,130],[56,209]]},{"sol":[["plank",189,76,1],["plank",266,470,2],["bumper",119,259,0]],"st":[[233,81],[300,206],[227,426]]},{"sol":[["plank",72,119,1],["plank",135,392,7],["plank",216,100,1]],"st":null},{"sol":[["spring",67,268,6],["spring",259,329,1],["plank",145,388,2]],"st":[[52,231],[248,117],[156,120]]},{"sol":[["fan",64,391,14],["plank",163,182,4],["fan",165,392,12],["plank",67,413,0]],"st":[[99,127],[96,302],[229,360]]},{"sol":[["bumper",59,345,0],["plank",328,384,0],["plank",327,368,7],["spring",297,181,1],["bumper",30,466,5]],"st":[[60,107],[69,223],[187,177]]},{"sol":[["plank",30,466,4],["spring",213,512,6],["plank",136,495,0],["plank",89,60,7]],"st":[[250,115],[85,449],[276,288]]},{"sol":[["spring",314,370,7],["plank",58,253,3],["plank",185,168,4],["spring",23,388,2]],"st":[[60,130],[309,338],[305,52]]},{"sol":[["fan",175,71,15],["bumper",280,529,0],["plank",135,279,4],["plank",138,455,1]],"st":null},{"sol":[["plank",212,279,0],["plank",63,71,2],["plank",281,474,1],["fan",294,231,12]],"st":[[173,138],[165,258],[284,435]]},{"sol":[["spring",42,196,5],["spring",121,247,2],["fan",310,228,4],["spring",205,339,0],["plank",311,222,7],["plank",48,320,6]],"st":[[24,153],[212,276],[203,97]]},{"sol":[["plank",135,132,0],["bumper",242,358,4],["plank",322,461,6],["bumper",216,371,3],["plank",114,167,4],["fan",37,226,0]],"st":[[180,107],[292,287],[210,454]]},{"sol":[["plank",47,50,2],["plank",32,271,3],["plank",116,146,3],["spring",246,173,7],["fan",86,170,11]],"st":[[153,116],[261,152],[288,295]]},{"sol":[["fan",204,245,11],["plank",48,134,1],["spring",330,222,6],["plank",222,274,4],["bumper",68,149,2],["plank",84,400,6],["spring",35,346,3]],"st":[[194,128],[34,105],[262,153]]}];
+SOLS.forEach((s,i)=>{if(!s)return;LEVELS[i].sol=s.sol;if(s.st)LEVELS[i].st=s.st;});
+
+let save=Store.get('save',{stars:[],tut:0});
+let state='menu',L=null,li=0,placed=[],sel=null,drag=null,ball=null,got=[],tries=0,trail=[],sparks=[],result=null,simT=0,hintN=0;
+function openLevels(){state='menu';['overScr','pauseOv'].forEach(i=>show(i,false));const g=$('lvgrid');g.innerHTML='';const tot=save.stars.reduce((a,b)=>a+(b||0),0);$('lvlInfo').textContent='已获得 ★'+tot+' / '+LEVELS.length*3;
+ LEVELS.forEach((lv,i)=>{const b=document.createElement('button');b.className='lvl';const open=i===0||(save.stars[i-1]||0)>0||(save.stars[i]||0)>0;b.disabled=!open;b.innerHTML=(open?i+1:'🔒')+'<small>'+(open?starStr(save.stars[i]||0):'')+'</small>';b.onclick=()=>{tone(660,.08,'triangle');startLevel(i);};g.appendChild(b);});show('lvlScr',true);}
+function startLevel(i){li=i;L=LEVELS[i];placed=[];sel=null;ball=null;tries=0;hintN=0;result=null;state='edit';['lvlScr','overScr','pauseOv','startScr'].forEach(k=>show(k,false));fit();renderTray();hud();if(L.tip)toast(L.tip,2600);}
+function invLeft(k){return(L.inv[k]||0)-placed.filter(p=>p.k===k).length;}
+function renderTray(){const t=$('tray');t.innerHTML='';for(const k in PIECES){if(!L.inv[k])continue;const b=document.createElement('button');b.className='pc ghost'+(sel===k?' on':'');b.innerHTML=PIECES[k].a+'<small>×'+invLeft(k)+'</small>';b.setAttribute('aria-label',PIECES[k].n);b.onclick=()=>{if(state!=='edit')return;sel=sel===k?null:k;tone(600,.05,'triangle');renderTray();};t.appendChild(b);}
+ const r=document.createElement('button');r.className='btn';r.id='runBtn';r.textContent=state==='run'?'⏹ 停止':'▶ 发射';r.onclick=()=>{state==='run'?stopRun():run();};t.appendChild(r);}
+function hud(){$('lvT').textContent=li+1;$('score').textContent=save.stars.reduce((a,b)=>a+(b||0),0);$('tryT').textContent='尝试 '+tries;}
+// ---------- 物理 ----------
+function segs(){const out=[];for(const w of L.w)out.push({a:w,r:3,e:.35,f:.9992});
+ for(const p of placed){if(p.k==='plank'||p.k==='spring'){const len=p.k==='plank'?PL:SPL,c=Math.cos(p.ang),s=Math.sin(p.ang);out.push({a:[p.x-c*len/2,p.y-s*len/2,p.x+c*len/2,p.y+s*len/2],r:4,e:p.k==='spring'?1.05:.3,spring:p.k==='spring',f:.9995,pc:p});}}
+ // 奖杯
+ const [gx,gy]=L.g;out.push({a:[gx-22,gy-18,gx-18,gy+12],r:3,e:.2,f:.98},{a:[gx+22,gy-18,gx+18,gy+12],r:3,e:.2,f:.98},{a:[gx-18,gy+12,gx+18,gy+12],r:3,e:.1,f:.9});
+ return out;}
+function circles(){const out=[];for(const p of L.p||[])out.push({x:p[0],y:p[1],r:p[2],e:.5});for(const p of placed)if(p.k==='bumper')out.push({x:p.x,y:p.y,r:14,e:1.25,bump:1,pc:p});return out;}
+function simInit(){const s=L.s;return{x:s[0],y:s[1],vx:s[2]||0,vy:0,dead:0,win:0,t:0,inCup:0,portCd:0};}
+function stepBall(b,dt,S,Cs,fans,ev){b.vy+=G*dt;
+ for(const f of fans){const c=Math.cos(f.ang),s=Math.sin(f.ang);const dx=b.x-f.x,dy=b.y-f.y;const al=dx*c+dy*s,pp=Math.abs(-dx*s+dy*c);if(al>0&&al<150&&pp<26){const k=1100*(1-al/180);b.vx+=c*k*dt;b.vy+=s*k*dt;}}
+ b.x+=b.vx*dt;b.y+=b.vy*dt;
+ for(const sg of S){const [x1,y1,x2,y2]=sg.a;const dx=x2-x1,dy=y2-y1,l2=dx*dx+dy*dy||1;let t=((b.x-x1)*dx+(b.y-y1)*dy)/l2;t=t<0?0:t>1?1:t;const px=x1+dx*t,py=y1+dy*t;let nx=b.x-px,ny=b.y-py;const d=Math.hypot(nx,ny);const m=BR+sg.r;
+  if(d<m&&d>0){nx/=d;ny/=d;b.x=px+nx*m;b.y=py+ny*m;const vn=b.vx*nx+b.vy*ny;if(vn<0){const tx=-ny,ty=nx;const vt=(b.vx*tx+b.vy*ty)*sg.f;let nvn=-vn*sg.e;if(sg.spring)nvn=Math.max(nvn,430);b.vx=tx*vt+nx*nvn;b.vy=ty*vt+ny*nvn;if(ev&&-vn>120)ev(sg.spring?'spring':'hit',-vn);}}}
+ for(const c of Cs){const dx=b.x-c.x,dy=b.y-c.y,d=Math.hypot(dx,dy),m=BR+c.r;if(d<m&&d>0){const nx=dx/d,ny=dy/d;b.x=c.x+nx*m;b.y=c.y+ny*m;const vn=b.vx*nx+b.vy*ny;if(vn<0){b.vx-=(1+c.e)*vn*nx;b.vy-=(1+c.e)*vn*ny;if(c.bump){const sp=Math.hypot(b.vx,b.vy);if(sp<380){b.vx=b.vx/sp*380;b.vy=b.vy/sp*380;}}if(ev)ev(c.bump?'bump':'peg',-vn);}}}
+ for(const k of L.k||[]){const [x1,y1,x2,y2]=k;const dx=x2-x1,dy=y2-y1,l2=dx*dx+dy*dy||1;let t=((b.x-x1)*dx+(b.y-y1)*dy)/l2;t=t<0?0:t>1?1:t;if(Math.hypot(b.x-(x1+dx*t),b.y-(y1+dy*t))<BR+4){b.dead='spike';}}
+ if(L.pt&&b.portCd<=0){const [ax,ay,bx,by]=Array.isArray(L.pt[0])?L.pt[0]:L.pt;if(Math.hypot(b.x-ax,b.y-ay)<20){b.x=bx;b.y=by;b.portCd=.5;if(ev)ev('port');}else if(Math.hypot(b.x-bx,b.y-by)<20){b.x=ax;b.y=ay;b.portCd=.5;if(ev)ev('port');}}
+ b.portCd-=dt;
+ const sp=Math.hypot(b.vx,b.vy);if(sp>900){b.vx*=900/sp;b.vy*=900/sp;}
+ const [gx,gy]=L.g;if(Math.abs(b.x-gx)<18&&b.y>gy-14&&b.y<gy+12){b.inCup+=dt;if(b.inCup>.25)b.win=1;}else b.inCup=0;
+ if(b.x<-30||b.x>W+30||b.y>H+30)b.dead='out';b.t+=dt;if(b.t>14)b.dead='time';}
+function simulate(pl,rec){const keep=placed;placed=pl;const S=segs(),Cs=circles(),fans=pl.filter(p=>p.k==='fan');const b=simInit();const got=new Set();let md=1e9;
+ for(let i=0;i<14*240&&!b.dead&&!b.win;i++){stepBall(b,1/240,S,Cs,fans);md=Math.min(md,Math.hypot(b.x-L.g[0],b.y-L.g[1]));if(rec&&i%6===0)rec.push([Math.round(b.x),Math.round(b.y)]);(L.st||[]).forEach((s,j)=>{if(Math.hypot(b.x-s[0],b.y-s[1])<BR+10)got.add(j);});}placed=keep;return{win:b.win,stars:got.size,dead:b.dead,t:b.t,md};}
+// ---------- 运行 ----------
+let runS=null;
+function run(){if(state!=='edit')return;state='run';sel=null;tries++;hud();ball=simInit();got=[];trail=[];runS={S:segs(),Cs:circles(),fans:placed.filter(p=>p.k==='fan')};renderTray();tone(520,.1,'triangle',.08,780);}
+function stopRun(){state='edit';ball=null;renderTray();}
+function ev(k,v){if(k==='spring')tone(300,.12,'sine',.08,700);else if(k==='bump')tone(700,.06,'square',.06,1100);else if(k==='port')tone(1300,.15,'sine',.06,400);else tone(200+Math.min(v,600)*.6,.03,'triangle',Math.min(.08,v/4000));}
+function runStep(dt){const n=Math.round(dt*240);for(let i=0;i<n;i++){stepBall(ball,1/240,runS.S,runS.Cs,runS.fans,ev);(L.st||[]).forEach((s,j)=>{if(!got.includes(j)&&Math.hypot(ball.x-s[0],ball.y-s[1])<BR+10){got.push(j);tone(990+got.length*200,.1,'triangle',.08);if(FX)FX.burst(sparks,s[0],s[1],'#ffe066',14);}});if(ball.dead||ball.win)break;}
+ trail.push([ball.x,ball.y]);if(trail.length>40)trail.shift();
+ if(ball.win){state='done';const st=1+got.length>3?3:Math.max(1,got.length);const stars=Math.min(3,got.length===(L.st||[]).length?3:got.length>=1?2:1);win(stars);}
+ else if(ball.dead){if(ball.dead==='spike'&&FX)FX.burst(sparks,ball.x,ball.y,'#ff3d6e',20);noise(.2,.12,1200);toast(ball.dead==='spike'?'弹珠被尖刺扎破了！':ball.dead==='time'?'弹珠卡住了':'弹珠掉出去了');state='edit';ball=null;renderTray();}}
+function win(stars){if(stars>(save.stars[li]||0)){save.stars[li]=stars;Store.set('save',save);}hud();if(FX)FX.burst(sparks,L.g[0],L.g[1],'#ffcf33',40);
+ tone(523,.12,'triangle');tone(659,.12,'triangle',.1,0,.12);tone(784,.25,'triangle',.1,0,.24);
+ setTimeout(()=>{$('overH').textContent='🏆 第 '+(li+1)+' 关完成！';$('finalScore').textContent=starStr(stars);$('overText').textContent='收集星星 '+got.length+' / '+(L.st||[]).length+' · 尝试 '+tries+' 次'+(stars<3?' · 收集全部星星可得三星':'');$('nextBtn').classList.toggle('hidden',li>=LEVELS.length-1);show('overScr',true);},FAST?0:700);}
+// ---------- 输入 ----------
+function pieceAt(x,y){for(let i=placed.length-1;i>=0;i--){const p=placed[i];if(Math.hypot(p.x-x,p.y-y)<(p.k==='plank'?30:22))return p;}return null;}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();if(state!=='edit')return;const q=posOf(e,cv,W,H);const p=pieceAt(q.x,q.y);
+ if(p){drag={p,ox:p.x-q.x,oy:p.y-q.y,sx:q.x,sy:q.y,moved:false};cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);return;}
+ if(sel&&invLeft(sel)>0){placed.push({k:sel,x:Math.round(q.x),y:Math.round(q.y),ang:sel==='fan'?-Math.PI/2:0});tone(500,.05,'square',.06,800);if(invLeft(sel)<=0)sel=null;renderTray();}
+ else if(!sel)toast('先在下方选择一个零件');});
+cv.addEventListener('pointermove',e=>{if(!drag)return;const q=posOf(e,cv,W,H);if(Math.hypot(q.x-drag.sx,q.y-drag.sy)>6)drag.moved=true;if(drag.moved){drag.p.x=Math.round(clamp(q.x+drag.ox,8,W-8));drag.p.y=Math.round(clamp(q.y+drag.oy,8,H-8));}});
+cv.addEventListener('pointerup',e=>{if(!drag)return;const d=drag;drag=null;if(!d.moved){if(d.p.k==='bumper'){placed.splice(placed.indexOf(d.p),1);toast('已收回弹力球');renderTray();}else{d.p.ang+=Math.PI/8;tone(700,.04,'triangle',.05);}}
+ else{const q=posOf(e,cv,W,H);if(q.y>H-12){placed.splice(placed.indexOf(d.p),1);renderTray();toast('已收回零件');}}});
+cv.addEventListener('pointercancel',()=>{drag=null;});
+// ---------- 绘制 ----------
+let bgC=null,bgKey=-1;
+function drawStatic(g){if(FX)FX.stage(g,W,H,'#ffd9a8','#ff9e7a');else{g.fillStyle='#ffc796';g.fillRect(0,0,W,H);}
+ g.strokeStyle='rgba(255,255,255,.25)';g.lineWidth=1;for(let x=0;x<W;x+=30){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=30){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+ for(const w of L.w){g.lineCap='round';g.strokeStyle='rgba(0,0,0,.25)';g.lineWidth=10;g.beginPath();g.moveTo(w[0],w[1]+3);g.lineTo(w[2],w[3]+3);g.stroke();g.strokeStyle='#5b3a8a';g.lineWidth=8;g.beginPath();g.moveTo(w[0],w[1]);g.lineTo(w[2],w[3]);g.stroke();g.strokeStyle='#9b7ad8';g.lineWidth=3;g.beginPath();g.moveTo(w[0],w[1]-1.5);g.lineTo(w[2],w[3]-1.5);g.stroke();}
+ for(const p of L.p||[]){if(FX)FX.orb(g,p[0],p[1],p[2],'#8a6fd1');else{g.fillStyle='#8a6fd1';g.beginPath();g.arc(p[0],p[1],p[2],0,7);g.fill();}}
+ for(const k of L.k||[]){const [x1,y1,x2,y2]=k;const len=Math.hypot(x2-x1,y2-y1),n=Math.max(2,Math.round(len/10));const nx=-(y2-y1)/len,ny=(x2-x1)/len;g.fillStyle='#c0392b';for(let i=0;i<n;i++){const t0=i/n,t1=(i+1)/n,tm=(t0+t1)/2;g.beginPath();g.moveTo(x1+(x2-x1)*t0,y1+(y2-y1)*t0);g.lineTo(x1+(x2-x1)*tm-nx*9,y1+(y2-y1)*tm-ny*9);g.lineTo(x1+(x2-x1)*tm+nx*9,y1+(y2-y1)*tm+ny*9);g.closePath();g.fill();g.beginPath();g.moveTo(x1+(x2-x1)*t0,y1+(y2-y1)*t0);g.lineTo(x1+(x2-x1)*t1,y1+(y2-y1)*t1);g.lineTo(x1+(x2-x1)*tm+nx*9,y1+(y2-y1)*tm+ny*9);g.fill();}}
+ const [gx,gy]=L.g;g.fillStyle='#ffcf33';g.strokeStyle='#a86a00';g.lineWidth=3;g.beginPath();g.moveTo(gx-24,gy-18);g.lineTo(gx-18,gy+14);g.lineTo(gx+18,gy+14);g.lineTo(gx+24,gy-18);g.stroke();
+ g.fillStyle='rgba(255,207,51,.35)';g.fillRect(gx-18,gy-14,36,27);txt(g,'🏆',gx,gy+26,14);
+ const s=L.s;g.fillStyle='#3d2a6b';rr(g,s[0]-16,s[1]-24,32,16,6);g.fill();txt(g,'▼',s[0],s[1]-16,10,'#ffe066');}
+function draw(dt){if(!L){if(FX)FX.stage(ctx,W,H,'#ffd9a8','#ff9e7a');else{ctx.fillStyle='#ffc796';ctx.fillRect(0,0,W,H);}txt(ctx,'🔮',W/2,H/2,80);return;}
+ if(bgKey!==li||!bgC){const d=FX?Math.max(1,Math.min(2.5,devicePixelRatio||1)):1;bgC=document.createElement('canvas');bgC.width=W*d;bgC.height=H*d;const g=bgC.getContext('2d');g.scale(d,d);drawStatic(g);bgKey=li;}
+ ctx.drawImage(bgC,0,0,W,H);
+ if(L.pt){const [ax,ay,bx,by]=Array.isArray(L.pt[0])?L.pt[0]:L.pt;const r=12+Math.sin(performance.now()/200)*2;for(const [x,y,c] of [[ax,ay,'#4fc3f7'],[bx,by,'#ff6bd6']]){if(FX)FX.glow(ctx,c,16);ctx.strokeStyle=c;ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(x,y,r,r*1.2,0,0,7);ctx.stroke();if(FX)FX.noGlow(ctx);}}
+ (L.st||[]).forEach((s,j)=>{if(got.includes(j)&&state!=='edit')return;const bob=Math.sin(performance.now()/300+j)*2;txt(ctx,'⭐',s[0],s[1]+bob,20);});
+ for(const p of placed){const D=PIECES[p.k];ctx.save();ctx.translate(p.x,p.y);
+  if(p.k==='plank'||p.k==='spring'){ctx.rotate(p.ang);const len=p.k==='plank'?PL:SPL;if(FX)FX.tile(ctx,-len/2,-5,len,10,p.k==='plank'?'#c98b4f':'#22c98a',4);else{ctx.fillStyle=D.c;ctx.fillRect(-len/2,-5,len,10);}if(p.k==='spring'){ctx.strokeStyle='#0b5d3f';ctx.lineWidth=1.5;for(let i=-20;i<=20;i+=8){ctx.beginPath();ctx.moveTo(i,-3);ctx.lineTo(i+4,3);ctx.stroke();}}}
+  else if(p.k==='bumper'){if(FX)FX.orb(ctx,0,0,14,'#ff3d6e');else{ctx.fillStyle=D.c;ctx.beginPath();ctx.arc(0,0,14,0,7);ctx.fill();}}
+  else if(p.k==='fan'){ctx.rotate(p.ang);ctx.fillStyle='rgba(127,227,255,.18)';ctx.beginPath();ctx.moveTo(8,-22);ctx.lineTo(150,-28);ctx.lineTo(150,28);ctx.lineTo(8,22);ctx.fill();
+   const ph=performance.now()/90;ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=2;for(let i=0;i<4;i++){const d=((ph*8+i*36)%140)+12;ctx.beginPath();ctx.moveTo(d,-10);ctx.lineTo(d+10,-10);ctx.moveTo(d+5,8);ctx.lineTo(d+15,8);ctx.stroke();}
+   if(FX)FX.tile(ctx,-12,-14,20,28,'#4a90c2',6);else{ctx.fillStyle='#4a90c2';ctx.fillRect(-12,-14,20,28);}}
+  ctx.restore();}
+ if(state==='edit'&&!ball){const s=L.s;ctx.globalAlpha=.6;if(FX)FX.orb(ctx,s[0],s[1],BR,'#e8eefc');ctx.globalAlpha=1;}
+ if(ball){ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=3;ctx.beginPath();trail.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.stroke();if(FX){FX.shadow(ctx,ball.x+3,ball.y+BR,BR*.8,3);FX.orb(ctx,ball.x,ball.y,BR,'#e8eefc');}else{ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(ball.x,ball.y,BR,0,7);ctx.fill();}}
+ if(hintShow){for(const p of hintShow){ctx.save();ctx.globalAlpha=.45+.2*Math.sin(performance.now()/200);ctx.translate(p.x,p.y);ctx.strokeStyle='#fff';ctx.setLineDash([4,4]);ctx.lineWidth=2;if(p.k==='bumper'){ctx.beginPath();ctx.arc(0,0,14,0,7);ctx.stroke();}else{ctx.rotate(p.ang);const len=p.k==='plank'?PL:p.k==='spring'?SPL:28;ctx.strokeRect(-len/2,-5,len,10);}ctx.restore();}ctx.setLineDash([]);ctx.globalAlpha=1;}
+ if(FX)FX.drawBurst(ctx,sparks);
+ if(state==='edit'&&li===0&&!placed.length)otxt(ctx,'① 选下方 🪵 木板  ② 点击这里放置',W/2,250,13,'#fff');}
+let hintShow=null;
+$('hintBtn').onclick=()=>{if(!L||!L.sol)return;hintN=Math.min(L.sol.length,hintN+1);hintShow=L.sol.slice(0,hintN).map(([k,x,y,a])=>({k,x,y,ang:a*Math.PI/8}));toast('💡 虚线位置是参考摆法（'+hintN+'/'+L.sol.length+'）');};
+$('resetBtn').onclick=()=>{if(state!=='edit')return;placed=[];hintShow=null;renderTray();tone(300,.08,'triangle');};
+function pause(){if(state==='edit'||state==='run'){pstate=state;state='pause';show('pauseOv',true);}}let pstate='edit';
+$('pauseBtn').onclick=pause;$('resumeBtn').onclick=()=>{show('pauseOv',false);state=pstate;last=performance.now();};$('menuBtn').onclick=()=>{show('pauseOv',false);openLevels();};
+$('nextBtn').onclick=()=>{hintShow=null;startLevel(li+1);};$('againBtn').onclick=()=>{show('overScr',false);state='edit';ball=null;renderTray();};$('menu2Btn').onclick=openLevels;
+function showTut(done){tutorial([
+ ['🎯 目标','点 ▶ 发射，弹珠从 ▼ 处落下。让它最终停进 🏆 奖杯就过关；碰到 ⭐ 会收集，全部收集得三星。'],
+ ['🧩 摆零件','先点下方的零件，再点画面放置。<b>点一下已放好的零件</b>可旋转 22.5°，<b>拖动</b>可移动，拖到最底部收回。'],
+ ['🔧 零件特性','🪵 木板：普通斜面；🟩 弹簧：强力弹起；🔴 弹力球：加速反弹；🌬️ 风扇：持续吹动弹珠（点击旋转方向）。'],
+ ['⚠ 机关','尖刺会扎破弹珠；两个传送门之间可以瞬移。卡关了就点 💡 看参考摆法，🧹 清空重来。']],done);}
+$('howBtn').onclick=()=>{show('lvlScr',false);showTut(openLevels);};
+$('startBtn').onclick=()=>{audio();show('startScr',false);if(!save.tut){showTut(()=>{save.tut=1;Store.set('save',save);startLevel(0);});}else openLevels();};
+$('bestLine').textContent=save.stars.length?'已获得 ★'+save.stars.reduce((a,b)=>a+(b||0),0):'';
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+let last=performance.now(),FAST=false;
+function frame(t){const dt=Math.min(.04,(t-last)/1000);last=t;if(state==='run'&&ball)runStep(dt);draw(dt);requestAnimationFrame(frame);}
+fit();requestAnimationFrame(frame);
+window.__mr={LEVELS,simulate,startLevel,setL:i=>{L=LEVELS[i];li=i;},get s(){return{state,li,placed:placed.length,tries}},place:(k,x,y,a)=>placed.push({k,x,y,ang:a*Math.PI/8}),run,setFast:v=>FAST=v};
+</script>
+</body></html>
