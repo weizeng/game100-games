@@ -11,8 +11,8 @@ const groups = {
   // 2026-10-20 皮肤 B 上线时补登记的 80 款（全部为深色画面）
   lab: 'acidbase buoyancy cellstruct chemreact circuit collision combustion crystal densitylab digestion ecobottle electrolysis electromagnet expansion eyevision foodchain freefall friction fruitbattery heartpump heattransfer incline indicator lens lever lungcap magnet metalreact microscopelab mitosis ohm pendulum periodic photosynthesis phtest pressurelab prism projectile pulley punnett reflection refraction resonance rocketlab seriesparallel skeleton solubility spring staticlab wavelab',
   ocean: 'ascent inkspray jellyzap lighthouse pearlcatch seacannon seahorse shellswap sonar tideseek',
-  magic: 'alchemy broomrace dragonegg dungeonkey hexduel levitate potion shadowmatch spelldraw wandshop',
-  arcade: 'bubbletea bumpercar colormix cubhop domino parachute pottery shellgame spintop trapeze airhockey archery billiards bomber bomberman breakout cannon catapult cityskyline columns copter darts deepdive donkeykong firework laser ninja pacman piano pinball plumpile pong racing rhythm slingshot solitaire swordlane swordparry tank tetris towerdef tugwar volcano',
+  magic: 'alchemy broomrace dragonegg dungeonkey hexduel levitate potion shadowmatch spelldraw wandshop fatespire abysscrawl',
+  arcade: 'bubbletea bumpercar colormix cubhop domino parachute pottery shellgame spintop trapeze airhockey archery billiards bomber bomberman breakout cannon catapult cityskyline columns copter darts deepdive donkeykong firework laser ninja pacman piano pinball plumpile pong racing rhythm slingshot solitaire swordlane swordparry tank tetris towerdef tugwar volcano neontd mergelegion',
 };
 const palettes = {
   wood: ['#eee1c7','#fff7e7','#e5d1ab','#302d23','#70654d','#3f5b43','#ffffff','#bea77a','#654e31'],
