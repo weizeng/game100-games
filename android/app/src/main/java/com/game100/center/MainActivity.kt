@@ -62,6 +62,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // 滚动容器自己不要拿焦点：它一旦是焦点，列表里新出现的卡片会被系统自动塞进焦点（键盘/手柄模式），
+        // 换筛选时卡片被回收，NestedScrollView 重新布局就会崩（parameter must be a descendant of this view）。
+        findViewById<View>(R.id.home_scroll).isFocusable = false
         repo = GameRepository(this)
         selectedCat = savedInstanceState?.getString("selectedCat") ?: "全部"
         searchQuery = savedInstanceState?.getString("searchQuery") ?: ""
@@ -234,13 +237,7 @@ class MainActivity : AppCompatActivity() {
             val tv = TextView(this).apply {
                 isFocusable = true
                 StudioUi.styleFilterChip(this, studio, count, selected = studio == selectedStudio)
-                setOnClickListener {
-                    if (selectedStudio == studio) return@setOnClickListener
-                    selectedStudio = studio
-                    buildStudioChips()
-                    applyFilter()
-                    UiMotion.enter(findViewById(R.id.recycler))
-                }
+                setOnClickListener { selectStudio(studio) }
             }
             UiMotion.press(tv)
             row.addView(tv, LinearLayout.LayoutParams(
@@ -249,6 +246,18 @@ class MainActivity : AppCompatActivity() {
         }
         // 只有一个出品方时没必要显示筛选栏
         findViewById<View>(R.id.studio_scroll).visibility = if (entries.size > 2) View.VISIBLE else View.GONE
+    }
+
+    /**
+     * 选择出品方。注意：不能在 TextView(...).apply { } 里直接写 findViewById ——
+     * 那里的 this 是胶囊自己，会在胶囊内部找 R.id.recycler 得到 null（v4.13 点出品方胶囊闪退的原因）。
+     */
+    private fun selectStudio(studio: String?) {
+        if (selectedStudio == studio) return
+        selectedStudio = studio
+        buildStudioChips()
+        applyFilter()
+        findViewById<View?>(R.id.recycler)?.let { UiMotion.enter(it) }
     }
 
     private fun refreshChips() {
@@ -273,7 +282,36 @@ class MainActivity : AppCompatActivity() {
         UiMotion.enter(findViewById(R.id.empty_state))
     }
 
+    /** 筛选出错时（不应发生）不闪退：显示空状态，提示用户点“查看全部游戏” */
     private fun applyFilter() {
+        try {
+            releaseListFocus()
+            applyFilterUnsafe()
+        } catch (e: Exception) {
+            android.util.Log.e("Game100", "筛选失败，已显示空状态", e)
+            runCatching {
+                adapter.submit(emptyList())
+                findViewById<View>(R.id.recycler).visibility = View.GONE
+                findViewById<View>(R.id.empty_state).visibility = View.VISIBLE
+                findViewById<TextView>(R.id.tv_empty).text = "列表暂时出了点问题\n点“查看全部游戏”再试一次。"
+                findViewById<View>(R.id.btn_reset_filters).visibility = View.VISIBLE
+            }
+        }
+    }
+
+    /**
+     * 列表即将整体换内容：如果焦点在某张游戏卡片上（键盘/手柄/无障碍导航时会这样），先把焦点移走。
+     * 否则卡片被回收后 NestedScrollView 重新布局时会拿着“已经不在列表里的焦点卡片”去算位置，
+     * 抛 “parameter must be a descendant of this view”。
+     */
+    private fun releaseListFocus() {
+        val rv = findViewById<View?>(R.id.recycler) ?: return
+        if (!rv.hasFocus()) return
+        val target = chipViews.getOrNull(categories.indexOf(selectedCat))
+        if (target == null || !target.requestFocus()) rv.findFocus()?.clearFocus()
+    }
+
+    private fun applyFilterUnsafe() {
         var filtered = when (selectedCat) {
             "全部" -> allItems
             "精品" -> allItems.filter { it.isPremium }
