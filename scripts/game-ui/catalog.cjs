@@ -1,18 +1,18 @@
 // Subject-led palettes. Every game is listed explicitly so new games cannot silently inherit a skin.
 const groups = {
   wood: 'bagua checkers connectfour gomoku hanoi klotski ludo peg reversi touhu xiangqi tangram marblerun',
-  paper: 'alienlang battleship bento dotsboxes flow lightsout mastermind math24 maze minesweeper nonogram onestroke pipes puzzle15 rotatemaze sokoban spotthediff sudoku takuzu unblock wordle wordsearch',
+  paper: 'alienlang battleship bento dotsboxes flow lightsout mastermind math24 maze minesweeper nonogram onestroke pipes puzzle15 rotatemaze sokoban spotthediff sudoku takuzu unblock wordle wordsearch blackjack',
   garden: 'bigfish dig digdug duckhunt farm fishing frogger golf lumber snake whackamole islelord',
-  candy: 'balloon bubble catch claw collapse colorlines cutrope doodle draw floodit fruitmerge game2048 jewel link memory pop simon slice slot sortcandy zuma',
+  candy: 'balloon bubble catch claw collapse colorlines cutrope doodle draw floodit fruitmerge game2048 jewel link memory pop simon slice slot sortcandy zuma neonmirror',
   ice: 'frost icebridge icecurl iceslide ski sleigh snowball snowbros snowflake snowman snowplow yeti',
   sky: 'ballroll bowling dino flappy hoop jump paperfly penalty pyramid shuttle stack waiter hexrealm',
-  space: 'asteroid aurora debrisweep docking invaders jetpack lunarlander missile mooncrawl moonphase orbit plane rocket shieldguard spacelevator starmail starswarm',
+  space: 'asteroid aurora debrisweep docking invaders jetpack lunarlander missile mooncrawl moonphase orbit plane rocket shieldguard spacelevator starmail starswarm neodrone',
   kitchen: 'grill hotpot noodle pizzacut riddle teahouse yahtzee',
   // 2026-10-20 皮肤 B 上线时补登记的 80 款（全部为深色画面）
-  lab: 'acidbase buoyancy cellstruct chemreact circuit collision combustion crystal densitylab digestion ecobottle electrolysis electromagnet expansion eyevision foodchain freefall friction fruitbattery heartpump heattransfer incline indicator lens lever lungcap magnet metalreact microscopelab mitosis ohm pendulum periodic photosynthesis phtest pressurelab prism projectile pulley punnett reflection refraction resonance rocketlab seriesparallel skeleton solubility spring staticlab wavelab',
-  ocean: 'ascent inkspray jellyzap lighthouse pearlcatch seacannon seahorse shellswap sonar tideseek',
-  magic: 'alchemy broomrace dragonegg dungeonkey hexduel levitate potion shadowmatch spelldraw wandshop fatespire abysscrawl gemhero',
-  arcade: 'bubbletea bumpercar colormix cubhop domino parachute pottery shellgame spintop trapeze airhockey archery billiards bomber bomberman breakout cannon catapult cityskyline columns copter darts deepdive donkeykong firework laser ninja pacman piano pinball plumpile pong racing rhythm slingshot solitaire swordlane swordparry tank tetris towerdef tugwar volcano neontd mergelegion beatblade',
+  lab: 'acidbase buoyancy cellstruct chemreact circuit collision combustion crystal densitylab digestion ecobottle electrolysis electromagnet expansion eyevision foodchain freefall friction fruitbattery heartpump heattransfer incline indicator lens lever lungcap magnet metalreact microscopelab mitosis ohm pendulum periodic photosynthesis phtest pressurelab prism projectile pulley punnett reflection refraction resonance rocketlab seriesparallel skeleton solubility spring staticlab wavelab neohack viruslock',
+  ocean: 'ascent inkspray jellyzap lighthouse pearlcatch seacannon seahorse shellswap sonar tideseek neonfish',
+  magic: 'alchemy broomrace dragonegg dungeonkey hexduel levitate potion shadowmatch spelldraw wandshop fatespire abysscrawl gemhero spinmatrix',
+  arcade: 'bubbletea bumpercar colormix cubhop domino parachute pottery shellgame spintop trapeze airhockey archery billiards bomber bomberman breakout cannon catapult cityskyline columns copter darts deepdive donkeykong firework laser ninja pacman piano pinball plumpile pong racing rhythm slingshot solitaire swordlane swordparry tank tetris towerdef tugwar volcano neontd mergelegion beatblade magrail neoncourier neonrunner',
 };
 const palettes = {
   wood: ['#eee1c7','#fff7e7','#e5d1ab','#302d23','#70654d','#3f5b43','#ffffff','#bea77a','#654e31'],
