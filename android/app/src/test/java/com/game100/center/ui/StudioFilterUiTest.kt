@@ -44,7 +44,15 @@ class StudioFilterUiTest {
     @Before
     fun setUp() {
         val gamesDir = File(System.getProperty("game100.gamesDir")!!)
-        manifest = JSONObject(File(gamesDir.parentFile, "manifest.json").readText())
+        // 仓库里的线上 manifest.json；打包用的拷贝里没有时，按 publish.yml 的方式从 games/*/meta.json 现拼一份
+        val mf = File(gamesDir.parentFile, "manifest.json")
+        manifest = if (mf.isFile) JSONObject(mf.readText()) else JSONObject().put("games", JSONArray().apply {
+            gamesDir.listFiles()!!.filter { File(it, "meta.json").isFile }.sortedBy { it.name }.forEach { d ->
+                put(JSONObject(File(d, "meta.json").readText()).apply {
+                    put("id", d.name); put("url", "http://127.0.0.1/none/${d.name}.zip"); put("size", 1000)
+                })
+            }
+        })
         val games = manifest.getJSONArray("games")
         // 前 8 款给出更新
         for (i in 0 until 8) games.getJSONObject(i).let { it.put("version", it.getInt("version") + 1) }
@@ -83,7 +91,7 @@ class StudioFilterUiTest {
     @After
     fun tearDown() {
         controller?.let { runCatching { it.pause().stop().destroy() } }
-        server.close()
+        if (::server.isInitialized) server.close()
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
