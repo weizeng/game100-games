@@ -73,7 +73,7 @@ cd android
 - **所有渠道共用同一个 versionCode / versionName**，一次发版只 +1 一次。
 - versionName 只是显示用的字符串（如 4.10），App 自升级和各商店都只比较 versionCode，所以 4.10 排在 4.9 之后没有问题。
 - 每次发版 versionCode 必须**严格大于**上一次（Google Play 和各商店都会拒绝相同或更小的值；`publish-stores.yml` 会自动校验）。
-- 当前默认值：versionCode **29**、versionName **4.12**（写在 `android/app/build.gradle` 里）。23/4.6、24/4.7 已被 Muse 本地出包占用（见附录 A.6、A.9），下一次发版用 30。
+- 当前默认值：versionCode **30**、versionName **4.13**（写在 `android/app/build.gradle` 里）。23/4.6、24/4.7 已被 Muse 本地出包占用（见附录 A.6、A.9），下一次发版用 31。
 - 传入方式（优先级从高到低）：`-Pgame100.versionCode=23` / 环境变量 `GAME100_VERSIONCODE=23`；versionName 同理（`game100.versionName` / `GAME100_VERSIONNAME`）。
 - 也可以直接改 `build.gradle` 里的默认值并提交，这样仓库记录的就是最新版本。
 

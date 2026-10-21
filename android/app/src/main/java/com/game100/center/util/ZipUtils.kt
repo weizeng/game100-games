@@ -30,6 +30,20 @@ object ZipUtils {
     }
 
     /** 读取 zip 里根目录 meta.json 的 version（内置游戏版本比对用）；没有则返回 0 */
+    /** 读取 zip 里的 meta.json（找不到返回 null） */
+    fun readMeta(input: InputStream): org.json.JSONObject? {
+        ZipInputStream(input.buffered()).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                if (entry.name == "meta.json") {
+                    return org.json.JSONObject(zis.readBytes().toString(Charsets.UTF_8))
+                }
+                entry = zis.nextEntry
+            }
+        }
+        return null
+    }
+
     fun readMetaVersion(input: InputStream): Int {
         ZipInputStream(input.buffered()).use { zis ->
             var entry = zis.nextEntry

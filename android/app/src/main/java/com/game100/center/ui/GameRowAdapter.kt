@@ -26,6 +26,7 @@ class GameRowAdapter(
         val sub: TextView = v.findViewById(R.id.row_sub)
         val rating: TextView = v.findViewById(R.id.row_rating)
         val action: TextView = v.findViewById(R.id.row_action)
+        val studio: TextView = v.findViewById(R.id.row_studio)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -44,6 +45,7 @@ class GameRowAdapter(
         h.icon.text = item.icon
         h.iconBg.background = GameAdapter.tileBackground(ctx, item.color, sizeDp = 68f, radiusDp = 20f)
         h.name.text = item.name
+        StudioUi.bindCardBadge(h.studio, item.studio)
         // 网格卡片较窄：只显示一个最重要的状态
         val subText = when {
             item.hasUpdate -> "v${item.installedVersion} → v${item.remote?.version ?: item.installedVersion}"

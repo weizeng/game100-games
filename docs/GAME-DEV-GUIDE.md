@@ -43,7 +43,8 @@ scripts/classics/ + build-classic-games.cjs ← 五款经典（connectfour color
   "id": "starcatch",
   "name": "接星星",
   "version": 1,
-  "category": "休闲趣味"
+  "category": "休闲趣味",
+  "studio": "Grok"
 }
 ```
 
@@ -56,6 +57,7 @@ scripts/classics/ + build-classic-games.cjs ← 五款经典（connectfour color
 | `desc` | 18–40 字：一句玩法 + 一句卖点 |
 | `category` | **只能是** `街机动作` / `科学实验` / `益智解谜` / `休闲趣味` / `经典重温` 之一 |
 | `version` | **正整数**。新游戏为 1；`index.html` 或 `meta.json` 只要有任何改动（包括 sync 带来的改动）就 +1。不 +1，App 不会更新 |
+| `studio` | **必填，出品方**。**Muse 做的游戏写 `"Muse"`，Grok 做的写 `"Grok"`**（大小写照写）。以**最初创作者**为准：升级、换皮、修 bug 别人的游戏时**不要改** studio。App 首页卡片左上角显示出品方角标（Muse 紫色 ✦、Grok 橙色 ◆，其他出品方灰色 ●），首页有“出品方”筛选栏，详情页有出品方胶囊。`node scripts/check-game.cjs` 缺少或写错会报错。以后有新的出品方：先把名字加进 `scripts/check-game.cjs` 和 `scripts/new-game.cjs` 的 `STUDIOS`，App 会自动用中性样式显示。历史归属见 `docs/studio-audit-2026-10-21.md` |
 
 格式统一为 2 空格缩进、UTF-8、文件末尾换行。批量 +1 的写法：
 
@@ -70,7 +72,7 @@ done
 
 ```bash
 # 1) 脚手架：id、主题、名称、分类、图标
-node scripts/new-game.cjs starcatch candy "接星星" 休闲趣味 ⭐
+node scripts/new-game.cjs starcatch candy "接星星" 休闲趣味 ⭐ Grok   # 最后一个参数是出品方：Muse 写 Muse，Grok 写 Grok
 # 2) 修改 games/starcatch/index.html 里的玩法（模板已含开始/暂停/结算、计分、最佳纪录、音效、后台暂停）
 # 3) 注入共用界面
 node scripts/sync-game-ui.cjs --only=starcatch
@@ -241,6 +243,8 @@ if (FX) FX.burst(sparks, x, y, '#ffd34d', 14);            // sparks 是游戏自
 - [ ] 反馈：得分有音效 + 粒子或弹跳；失败有音效和画面反馈
 - [ ] 最佳纪录持久化；静音状态持久化
 - [ ] 科学实验额外要求：每轮有明确目标、实测数据、公式和知识点，结束有总结；数值要符合物理或化学常识
+
+> **每日新游戏 / 升级例行任务的约定（Muse 与 Grok 都照此执行）**：新游戏的 `meta.json` 必须带 `studio`——Muse 的例行任务写 `"Muse"`，Grok 的例行任务写 `"Grok"`；升级对方的游戏时保留原来的 `studio`。推送前 `check-game.cjs` 会检查这一项。
 
 ## 8. 推送前测试（照抄执行）
 

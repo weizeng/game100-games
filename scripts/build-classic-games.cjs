@@ -47,7 +47,7 @@ ui.init();
   for (const m of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)) new vm.Script(m[1], {filename:id});
   const dir = path.join(root,'games',id);
   // 发布已有经典游戏的改动时递增此版本号（2026-10-20 热修：共用界面遮罩修复 → 2；同日皮肤 B 霓虹糖果 → 3）
-  const meta = JSON.stringify({...g.meta, id, version:CLASSIC_VERSION, category:'经典重温'},null,2)+'\n';
+  const meta = JSON.stringify({...g.meta, id, version:CLASSIC_VERSION, category:'经典重温', studio:'Muse'},null,2)+'\n'; // 五款经典由 Muse 制作（见 docs/studio-audit-2026-10-21.md）
   if (check) {
     if (!fs.existsSync(path.join(dir,'index.html')) || fs.readFileSync(path.join(dir,'index.html'),'utf8').replace(/\r\n/g,'\n') !== html || fs.readFileSync(path.join(dir,'meta.json'),'utf8').replace(/\r\n/g,'\n') !== meta) throw new Error(`Regenerate ${id}: node scripts/build-classic-games.cjs`);
   } else {

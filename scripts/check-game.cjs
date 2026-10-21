@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '..');
 const ids = (process.argv[2] || '').split(',').filter(Boolean);
 if (!ids.length) { console.error('用法：node scripts/check-game.cjs <id>[,<id>]'); process.exit(2); }
 const server = http.createServer((q, r) => { const f = path.resolve(root, '.' + decodeURIComponent(q.url.split('?')[0])); if (!f.startsWith(root + path.sep) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { r.writeHead(404).end(); return; } r.setHeader('Content-Type', 'text/html; charset=utf-8'); r.end(fs.readFileSync(f)); });
+const STUDIOS = ['Muse', 'Grok'];
 const SEL = '#startBtn,#btnStart,.startbtn,#bStart,#playBtn,#btnPlay';
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
@@ -18,6 +19,8 @@ const SEL = '#startBtn,#btnStart,.startbtn,#bStart,#playBtn,#btnPlay';
     if (!['街机动作', '科学实验', '益智解谜', '休闲趣味', '经典重温'].includes(meta.category)) problems.push('meta.category 非法');
     if (!Number.isInteger(meta.version) || meta.version < 1) problems.push('meta.version 必须是正整数');
     if (meta.id !== id) problems.push('meta.id 与目录名不一致');
+    // 出品方必填：Muse 做的写 "Muse"，Grok 做的写 "Grok"（新增出品方时把名字加进 STUDIOS）
+    if (!STUDIOS.includes(meta.studio)) problems.push(`meta.studio 必填，且只能是 ${STUDIOS.join(' / ')}（当前：${JSON.stringify(meta.studio)}）`);
     const html = fs.readFileSync(path.join(root, 'games', id, 'index.html'), 'utf8');
     if (!html.includes('<!-- GAME UI BEGIN -->')) problems.push('未注入共用界面：先 node scripts/sync-game-ui.cjs --only=' + id);
     if (/(src|href)=["']https?:\/\//.test(html)) problems.push('有外链资源（需离线可用）');

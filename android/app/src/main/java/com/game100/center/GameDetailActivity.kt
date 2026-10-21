@@ -50,14 +50,14 @@ class GameDetailActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.detail_desc).text =
             game.desc.ifBlank { "暂无简介" }
 
-        // 出品方：点击按该出品方筛选
+        // 出品方：彩色胶囊（Muse 紫 / Grok 橙 / 其他中性），点击回首页只看该出品方
         val studio = game.displayStudio()
         findViewById<TextView>(R.id.detail_studio).apply {
-            text = "出品方 · $studio ›"
+            com.game100.center.ui.StudioUi.bindDetailChip(this, studio)
             setOnClickListener {
                 val intent = Intent(this@GameDetailActivity, MainActivity::class.java).apply {
-                    putExtra("search_query", studio)
-                    flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    putExtra("studio_filter", studio)
+                    flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 }
                 startActivity(intent)
             }

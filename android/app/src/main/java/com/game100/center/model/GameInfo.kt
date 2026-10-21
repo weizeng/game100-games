@@ -1,6 +1,6 @@
 package com.game100.center.model
 
-/** 出品方署名：老游戏 meta.json 缺 studio 字段时默认归属 */
+/** 出品方署名：meta.json 缺 studio 字段时的兜底（缺字段的老游戏都是 Muse 做的）。新游戏必须写 studio。 */
 const val DEFAULT_STUDIO = "Muse"
 
 /** 游戏源（manifest.json）里的一条记录 */
@@ -18,7 +18,7 @@ data class RemoteGame(
     val studio: String = ""
 ) {
     /** 展示用出品方：缺字段的老游戏默认归属 DEFAULT_STUDIO */
-    fun displayStudio(): String = studio.ifBlank { DEFAULT_STUDIO }
+    fun displayStudio(): String = Studio.resolve(studio, null)
 }
 
 /** 已安装到本地的游戏 */
@@ -33,7 +33,7 @@ data class InstalledGame(
     val premium: Boolean = false,
     val studio: String = ""
 ) {
-    fun displayStudio(): String = studio.ifBlank { DEFAULT_STUDIO }
+    fun displayStudio(): String = Studio.resolve(studio, null)
 }
 
 /** 大厅列表展示用（本地 + 远端合并） */
@@ -47,7 +47,9 @@ data class GameItem(
     val installedVersion: Int,
     val remote: RemoteGame?,
     val isNew: Boolean = false,
-    val isPremium: Boolean = false
+    val isPremium: Boolean = false,
+    /** 出品方（已规范化，见 [Studio.resolve]） */
+    val studio: String = DEFAULT_STUDIO
 ) {
     val installed: Boolean get() = installedVersion > 0
     val hasUpdate: Boolean get() = installed && remote != null && remote.version > installedVersion

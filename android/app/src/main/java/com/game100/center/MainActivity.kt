@@ -24,11 +24,12 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.game100.center.data.GameRepository
 import com.game100.center.model.GameItem
 import com.game100.center.model.RemoteGame
-import com.game100.center.model.DEFAULT_STUDIO
+import com.game100.center.model.Studio
 import com.game100.center.net.AppUpdater
 import com.game100.center.net.GameDownloader
 import com.game100.center.ui.FeaturedAdapter
 import com.game100.center.ui.GameRowAdapter
+import com.game100.center.ui.StudioUi
 import com.game100.center.ui.UiMotion
 import com.game100.center.util.ZipUtils
 import com.google.android.material.appbar.MaterialToolbar
@@ -55,6 +56,8 @@ class MainActivity : AppCompatActivity() {
     private var allItems: List<GameItem> = emptyList()
     private var lastRemote: List<RemoteGame> = emptyList()
     private val chipViews = mutableListOf<TextView>()
+    /** 出品方筛选：null = 全部 */
+    private var selectedStudio: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,8 +65,14 @@ class MainActivity : AppCompatActivity() {
         repo = GameRepository(this)
         selectedCat = savedInstanceState?.getString("selectedCat") ?: "全部"
         searchQuery = savedInstanceState?.getString("searchQuery") ?: ""
+        selectedStudio = savedInstanceState?.getString("selectedStudio")
+        // 从详情页点出品方跳过来：只看该出品方
+        intent.getStringExtra("studio_filter")?.let { s ->
+            intent.removeExtra("studio_filter")
+            selectedStudio = Studio.canonical(s).ifEmpty { null }
+        }
 
-        // 从详情页点出品方跳过来：直接按出品方搜索
+        // 兼容旧入口：按关键词搜索
         intent.getStringExtra("search_query")?.let { q ->
             intent.removeExtra("search_query")
             searchQuery = q
@@ -142,8 +151,10 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<View>(R.id.btn_reset_filters).setOnClickListener {
             selectedCat = "全部"
+            selectedStudio = null
             searchBar.text.clear()
             refreshChips()
+            buildStudioChips()
             applyFilter()
         }
         searchBar.addTextChangedListener(object : android.text.TextWatcher {
@@ -214,6 +225,32 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** 出品方筛选栏：全部 + 每个出品方（带数量），选中态用出品方自己的颜色 */
+    private fun buildStudioChips() {
+        val row = findViewById<LinearLayout>(R.id.studio_row)
+        while (row.childCount > 1) row.removeViewAt(1)  // 第 0 个是“出品方”标签
+        val entries: List<Pair<String?, Int>> = listOf<Pair<String?, Int>>(null to allItems.size) + Studio.counts(allItems)
+        for ((studio, count) in entries) {
+            val tv = TextView(this).apply {
+                isFocusable = true
+                StudioUi.styleFilterChip(this, studio, count, selected = studio == selectedStudio)
+                setOnClickListener {
+                    if (selectedStudio == studio) return@setOnClickListener
+                    selectedStudio = studio
+                    buildStudioChips()
+                    applyFilter()
+                    UiMotion.enter(findViewById(R.id.recycler))
+                }
+            }
+            UiMotion.press(tv)
+            row.addView(tv, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(8) })
+        }
+        // 只有一个出品方时没必要显示筛选栏
+        findViewById<View>(R.id.studio_scroll).visibility = if (entries.size > 2) View.VISIBLE else View.GONE
+    }
+
     private fun refreshChips() {
         for (i in categories.indices) {
             val sel = categories[i] == selectedCat
@@ -243,25 +280,27 @@ class MainActivity : AppCompatActivity() {
             "新上架" -> allItems.filter { it.isNew }
             else -> allItems.filter { it.category == selectedCat }
         }
+        filtered = Studio.filter(filtered, selectedStudio)
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.trim()
             filtered = filtered.filter {
                 it.name.contains(q, ignoreCase = true) ||
                 it.desc.contains(q, ignoreCase = true) ||
                 it.id.contains(q, ignoreCase = true) ||
-                (it.remote?.displayStudio() ?: DEFAULT_STUDIO).contains(q, ignoreCase = true)
+                it.studio.contains(q, ignoreCase = true)
             }
         }
         adapter.submit(filtered)
         findViewById<TextView>(R.id.tv_games_title).text = when {
             searchQuery.isNotBlank() -> "搜索结果"
+            selectedStudio != null && selectedCat == "全部" -> "$selectedStudio 出品"
             selectedCat == "全部" -> "全部游戏"
             else -> selectedCat
         }
         findViewById<TextView>(R.id.tv_result_count).text = getString(R.string.game_count, filtered.size)
         findViewById<View>(R.id.empty_state).visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
         findViewById<View>(R.id.recycler).visibility = if (filtered.isEmpty()) View.GONE else View.VISIBLE
-        val hasFilter = selectedCat != "全部" || searchQuery.isNotBlank()
+        val hasFilter = selectedCat != "全部" || searchQuery.isNotBlank() || selectedStudio != null
         findViewById<TextView>(R.id.tv_empty).text = if (hasFilter)
             "没有找到相关游戏\n换个关键词，或试试其他分类。"
         else "游戏库暂时为空\n下拉刷新，获取最新游戏。"
@@ -277,12 +316,15 @@ class MainActivity : AppCompatActivity() {
         else "物理 / 化学 / 生物"
         findViewById<TextView>(R.id.tv_subtitle).text =
             getString(R.string.subtitle_games, items.size)
+        // 当前筛选的出品方已不存在时回到全部
+        if (selectedStudio != null && Studio.counts(items).none { it.first == selectedStudio }) selectedStudio = null
+        buildStudioChips()
         applyFilter()
     }
 
     private fun refreshFeatured() {
         // Keep discovery out of the way while the user searches or browses a category.
-        val showFeatured = selectedCat == "全部" && searchQuery.isBlank()
+        val showFeatured = selectedCat == "全部" && searchQuery.isBlank() && selectedStudio == null
         val featGames = (allItems.filter { it.isPremium } + allItems.filter { it.isNew && !it.isPremium })
             .distinctBy { it.id }.take(8)
         findViewById<View>(R.id.science_banner).visibility = if (showFeatured) View.VISIBLE else View.GONE
@@ -328,10 +370,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** 详情页点“出品方”回到首页（CLEAR_TOP + SINGLE_TOP）：只看该出品方的全部游戏 */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val s = intent.getStringExtra("studio_filter") ?: return
+        selectedStudio = Studio.canonical(s).ifEmpty { null }
+        selectedCat = "全部"
+        searchQuery = ""
+        findViewById<android.widget.EditText>(R.id.search_bar).text.clear()
+        refreshChips()
+        buildStudioChips()
+        applyFilter()
+        findViewById<NestedScrollView>(R.id.home_scroll).post {
+            val title = findViewById<View>(R.id.tv_games_title)
+            findViewById<NestedScrollView>(R.id.home_scroll).smoothScrollTo(0, title.top + (title.parent as View).top)
+        }
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString("selectedCat", selectedCat)
         outState.putString("searchQuery", searchQuery)
+        outState.putString("selectedStudio", selectedStudio)
     }
 
     private fun loadLocal() {
@@ -432,7 +492,8 @@ class MainActivity : AppCompatActivity() {
                 val rg = item.remote ?: RemoteGame(
                     id = item.id, name = item.name, desc = item.desc,
                     version = item.installedVersion, icon = item.icon, color = item.color,
-                    category = item.category, url = "", size = 0, premium = item.isPremium
+                    category = item.category, url = "", size = 0, premium = item.isPremium,
+                    studio = item.studio
                 )
                 gameCache[id] = rg
             }

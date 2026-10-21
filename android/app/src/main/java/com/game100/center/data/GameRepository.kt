@@ -1,5 +1,7 @@
 package com.game100.center.data
 
+import com.game100.center.model.Studio
+
 import android.content.Context
 import com.game100.center.model.GameItem
 import com.game100.center.model.InstalledGame
@@ -48,7 +50,14 @@ class GameRepository(private val context: Context) {
             if (!name.endsWith(".zip")) continue
             val id = name.removeSuffix(".zip")
             // 只有内置版比已安装版新时才覆盖（不降级用户从远端更新的游戏）
-            if (getBundledVersion(name) > getInstalledVersion(id)) {
+            val bundledMeta = getBundledMeta(name)
+            val bundledVersion = bundledMeta?.optInt("version", 0) ?: 0
+            val installedVersion = getInstalledVersion(id)
+            if (bundledMeta != null && bundledVersion == installedVersion) {
+                // 版本相同：只同步出品方等署名信息，不重新解压（v4.13 起给老游戏补了 studio）
+                syncInstalledMeta(id, bundledMeta)
+            }
+            if (bundledVersion > installedVersion) {
                 val dest = File(gamesDir, id)
                 try {
                     if (dest.exists()) dest.deleteRecursively()
@@ -76,10 +85,20 @@ class GameRepository(private val context: Context) {
         } catch (e: Exception) { 0 }
     }
 
-    private fun getBundledVersion(zipName: String): Int {
+    private fun getBundledMeta(zipName: String): JSONObject? {
         return try {
-            context.assets.open("bundled/$zipName").use { ins -> ZipUtils.readMetaVersion(ins) }
-        } catch (e: Exception) { 0 }
+            context.assets.open("bundled/$zipName").use { ins -> ZipUtils.readMeta(ins) }
+        } catch (e: Exception) { null }
+    }
+
+    private fun syncInstalledMeta(id: String, bundledMeta: JSONObject) {
+        try {
+            val f = File(File(gamesDir, id), "meta.json")
+            if (!f.exists()) return
+            val local = JSONObject(f.readText())
+            if (Studio.syncStudio(local, bundledMeta)) f.writeText(local.toString(1))
+        } catch (_: Exception) {
+        }
     }
 
     fun loadInstalled(): List<InstalledGame> {
@@ -177,7 +196,8 @@ class GameRepository(private val context: Context) {
                     installedVersion = ins.version,
                     remote = rem,
                     isNew = isNewGame(id),
-                    isPremium = ins.premium || (rem?.premium == true)
+                    isPremium = ins.premium || (rem?.premium == true),
+                    studio = Studio.resolve(rem?.studio, ins.studio)
                 )
             )
         }
@@ -194,7 +214,8 @@ class GameRepository(private val context: Context) {
                         installedVersion = 0,
                         remote = r,
                         isNew = isNewGame(r.id),
-                        isPremium = r.premium
+                        isPremium = r.premium,
+                        studio = Studio.resolve(r.studio, null)
                     )
                 )
             }
