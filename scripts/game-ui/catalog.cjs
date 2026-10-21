@@ -2,7 +2,7 @@
 const groups = {
   wood: 'bagua checkers connectfour gomoku hanoi klotski ludo peg reversi touhu xiangqi tangram marblerun',
   paper: 'alienlang battleship bento dotsboxes flow lightsout mastermind math24 maze minesweeper nonogram onestroke pipes puzzle15 rotatemaze sokoban spotthediff sudoku takuzu unblock wordle wordsearch',
-  garden: 'bigfish dig digdug duckhunt farm fishing frogger golf lumber snake whackamole',
+  garden: 'bigfish dig digdug duckhunt farm fishing frogger golf lumber snake whackamole islelord',
   candy: 'balloon bubble catch claw collapse colorlines cutrope doodle draw floodit fruitmerge game2048 jewel link memory pop simon slice slot sortcandy zuma',
   ice: 'frost icebridge icecurl iceslide ski sleigh snowball snowbros snowflake snowman snowplow yeti',
   sky: 'ballroll bowling dino flappy hoop jump paperfly penalty pyramid shuttle stack waiter hexrealm',
