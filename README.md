@@ -19,3 +19,5 @@ Android 原生界面调整见 [改动说明](docs/app-ui-redesign.md)，可直�
 **做新游戏 / 改游戏前必读**：[游戏开发指南 docs/GAME-DEV-GUIDE.md](docs/GAME-DEV-GUIDE.md)，AI 工具的入口是 [AGENTS.md](AGENTS.md)。最小模板在 `scripts/templates/starter/`；新建用 `node scripts/new-game.cjs`，单款检查用 `node scripts/check-game.cjs <id>`。
 
 2026-10-20 全部 226 款统一换上皮肤 B「霓虹糖果 Pop Arcade」，补登记了 80 款（含 50 款科学实验），并升级了俄罗斯方块、贪吃蛇、桌球、水果合成、2048 的画面立体感，见 [皮肤 B 上线记录](docs/ui-skin-b-2026-10-20.md)。
+
+2026-10-21 每日新游戏第 3 批（10 款）：小丑牌局、棋王之路、斗地主擂台、花园保卫战、星域征服、背包乱斗、霓虹弓手、地铁迷城、暗影潜行、机甲防线，见 [玩法与验证记录](docs/new-games-2026-10-21.md)。
