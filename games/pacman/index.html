@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>吃豆人</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #sndBtn{min-width:44px;min-height:44px}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -707,6 +708,7 @@ function frame(){
 }
 // ============ 绘制 ============
 function draw(){
+  if(FX)return drawFx();
   ctx.clearRect(0,0,380,300);
   // 墙
   ctx.fillStyle='#1a237e';
@@ -768,6 +770,72 @@ function draw(){
   }
   ctx.globalAlpha=1;
   floaters=floaters.filter(f=>f.life>0);
+}
+// ============ ART T1-1：立体糖果渲染（GameUI.fx），下方 draw() 的平面画法保留为兜底 ============
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null,sparks=[];let mazeLayer=null;
+if(FX)FX.hidpi(cv,ctx,380,300);
+function fxMaze(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=380*d;c.height=300*d;
+  const g=c.getContext('2d');g.scale(d,d);
+  const bg=g.createRadialGradient(190,140,30,190,150,260);bg.addColorStop(0,'#1d0f45');bg.addColorStop(1,'#07041a');g.fillStyle=bg;g.fillRect(0,0,380,300);
+  const wall=(x,y)=>x>=0&&y>=0&&x<MW&&y<MH&&MAZE[y][x]==='#';
+  // 墙体：先画一层霓虹外发光，再画倒角糖果块（同色相连处合并）
+  g.save();g.shadowColor='#3d7bff';g.shadowBlur=10;g.fillStyle='#2a3cb8';
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++)if(wall(x,y))g.fillRect(x*TS+2,y*TS+2,TS-4,TS-4);
+  g.restore();
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){
+    if(!wall(x,y))continue;
+    const X=x*TS,Y=y*TS,l=wall(x-1,y)?0:2,r=wall(x+1,y)?0:2,t=wall(x,y-1)?0:2,b=wall(x,y+1)?0:2;
+    const lg=g.createLinearGradient(X,Y,X,Y+TS);lg.addColorStop(0,'#5f7bff');lg.addColorStop(1,'#2c33b0');
+    g.fillStyle=lg;g.fillRect(X+l,Y+t,TS-l-r,TS-t-b);
+    g.fillStyle='rgba(255,255,255,.28)';if(t)g.fillRect(X+l,Y+t,TS-l-r,2);
+    g.fillStyle='rgba(10,0,60,.35)';if(b)g.fillRect(X+l,Y+TS-b-2,TS-l-r,2);
+  }
+  g.strokeStyle='rgba(140,200,255,.5)';g.lineWidth=1;
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){if(!wall(x,y))continue;const X=x*TS,Y=y*TS;
+    g.beginPath();if(!wall(x,y-1)){g.moveTo(X+2,Y+2.5);g.lineTo(X+TS-2,Y+2.5);}if(!wall(x-1,y)){g.moveTo(X+2.5,Y+2);g.lineTo(X+2.5,Y+TS-2);}g.stroke();}
+  return c;
+}
+function fxGhost(g){
+  const x=g.px*TS+TS/2,y=g.py*TS+TS/2,fr=g.fright>0;
+  const col=fr?(S.fright<90&&((Date.now()/200)|0)%2?'#ffffff':'#4f5bd5'):g.color;
+  FX.shadow(ctx,x,y+9,7,2.2,.35);
+  const lg=ctx.createLinearGradient(x-9,y-11,x+9,y+8);lg.addColorStop(0,FX.shade(col,.45));lg.addColorStop(.55,col);lg.addColorStop(1,FX.shade(col,-.35));
+  ctx.fillStyle=lg;ctx.beginPath();ctx.arc(x,y-2,8.5,Math.PI,0);ctx.lineTo(x+8.5,y+7);
+  const wob=((Date.now()/120)|0)%2?1.5:0;
+  for(let i=0;i<3;i++)ctx.lineTo(x+8.5-(i+0.5)*17/3,y+4+wob),ctx.lineTo(x+8.5-(i+1)*17/3,y+7);
+  ctx.lineTo(x-8.5,y+7);ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.5)';ctx.beginPath();ctx.ellipse(x-3.5,y-7,3,1.6,-.5,0,7);ctx.fill();
+  const ex=DIRS[g.dir][0]*2,ey=DIRS[g.dir][1]*2;
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x-3+ex,y-3+ey,2.8,0,7);ctx.arc(x+3+ex,y-3+ey,2.8,0,7);ctx.fill();
+  ctx.fillStyle=fr?'#ff3355':'#1a1060';ctx.beginPath();ctx.arc(x-3+ex*1.6,y-3+ey*1.6,1.4,0,7);ctx.arc(x+3+ex*1.6,y-3+ey*1.6,1.4,0,7);ctx.fill();
+}
+function drawFx(){
+  if(!mazeLayer)mazeLayer=fxMaze();
+  ctx.drawImage(mazeLayer,0,0,380,300);
+  if(!S)return;
+  const pulse=((Date.now()/220)|0)%2;
+  ctx.fillStyle='#ffe28a';
+  for(const k in S.dots){
+    const [x,y]=k.split(',').map(Number);
+    if(S.dots[k]==='o'){FX.glow(ctx,'#ffd34d',pulse?14:6);FX.orb(ctx,x*TS+TS/2,y*TS+TS/2,pulse?6:5,'#ffd23f');FX.noGlow(ctx);}
+    else{ctx.beginPath();ctx.arc(x*TS+TS/2,y*TS+TS/2,2.6,0,7);ctx.fill();}
+  }
+  for(const g of S.ghosts)fxGhost(g);
+  const p=S.player,x=p.px*TS+TS/2,y=p.py*TS+TS/2;
+  mouth+=0.25;
+  const ma=0.25*Math.abs(Math.sin(mouth)),base={up:-Math.PI/2,down:Math.PI/2,left:Math.PI,right:0}[p.dir];
+  FX.shadow(ctx,x,y+9,8,2.4,.35);
+  const pg=ctx.createRadialGradient(x-3,y-4,1,x,y,10);pg.addColorStop(0,'#fffbd0');pg.addColorStop(.45,'#ffe11f');pg.addColorStop(1,'#e59a00');
+  FX.glow(ctx,'rgba(255,225,40,.75)',12);
+  ctx.fillStyle=pg;ctx.beginPath();ctx.moveTo(x,y);ctx.arc(x,y,9.5,base+ma,base+Math.PI*2-ma);ctx.closePath();ctx.fill();FX.noGlow(ctx);
+  if(S.fright>0&&pulse)FX.burst(sparks,x,y,'#8fb4ff',1);
+  for(const pt of particles){if(!pt.fx){pt.fx=1;FX.burst(sparks,pt.x,pt.y,pt.color,2);}pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=0.1;pt.life-=0.04;}
+  particles=particles.filter(pt=>pt.life>0);
+  FX.drawBurst(ctx,sparks);
+  ctx.font='900 14px sans-serif';ctx.textAlign='center';ctx.lineJoin='round';ctx.lineWidth=4;
+  for(const f of floaters){ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.strokeStyle='#2a0a4a';ctx.strokeText(f.txt,f.x,f.y);ctx.fillStyle='#ffe14d';ctx.fillText(f.txt,f.x,f.y);f.y-=0.7;f.life-=0.025;}
+  ctx.globalAlpha=1;floaters=floaters.filter(f=>f.life>0);
 }
 // ============ 输入 ============
 function setWant(d){if(S&&started&&!paused&&!over){S.player.want=d;sfx.click();}}

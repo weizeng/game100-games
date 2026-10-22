@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>笨鸟先飞</title>
 <style>
+/* ART T1-1: shrink the board on short screens so 360x640 needs no scrolling */
+html.game-ui .stage{max-width:min(380px,calc((100vh - 150px)*.66));max-width:min(380px,calc((100svh - 150px)*.66));margin-left:auto;margin-right:auto}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{background:#121212;color:#eee;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;touch-action:manipulation;overscroll-behavior:none}
@@ -539,6 +541,7 @@ function drawPipe(x,y,w,h){
   ctx.fillStyle='#66BB6A';ctx.fillRect(x+8,y,w-16,4);
 }
 function draw(){
+  if(FX)return drawFx();
   ctx.fillStyle='#0b0b0d';ctx.fillRect(0,0,W,H);
   ctx.fillStyle='rgba(255,255,255,.05)';
   var i;
@@ -581,6 +584,61 @@ function draw(){
   ctx.fillStyle='rgba(255,255,255,.92)';
   ctx.font='800 34px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
   ctx.fillText(String(score),W/2,54);
+}
+/* ART T1-1: candy-depth renderer (GameUI.fx); the flat draw() below stays as the no-FX fallback */
+var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null,sparks=[],lastScore=0,cityLayer=null,groundLayer=null,pipeGrad=null;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxLayer(w,h,paint){var c=document.createElement('canvas'),d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1));c.width=Math.ceil(w*d);c.height=Math.ceil(h*d);var g=c.getContext('2d');g.scale(d,d);paint(g);return c;}
+function fxPipe(x,y,h){
+  if(h<=0)return;
+  if(!pipeGrad){pipeGrad=ctx.createLinearGradient(0,0,PIPE_W,0);pipeGrad.addColorStop(0,'#1f8a3c');pipeGrad.addColorStop(.18,'#8af07a');pipeGrad.addColorStop(.42,'#4fd160');pipeGrad.addColorStop(1,'#167a33');}
+  ctx.save();ctx.translate(x,0);ctx.fillStyle=pipeGrad;ctx.fillRect(0,y,PIPE_W,h);
+  ctx.fillStyle='rgba(255,255,255,.35)';ctx.fillRect(10,y,5,h);ctx.fillStyle='rgba(0,40,10,.25)';ctx.fillRect(PIPE_W-6,y,6,h);ctx.restore();
+}
+function drawFx(){
+  var i;
+  FX.stage(ctx,W,H,'#5ec8ff','#c69cff');
+  ctx.fillStyle='rgba(255,255,255,.75)';
+  for(i=0;i<5;i++){var cx=((i*97+elapsed*12)%(W+80))-40,cy=80+i*36;ctx.beginPath();ctx.ellipse(cx,cy,24,11,0,0,7);ctx.ellipse(cx+20,cy-7,17,12,0,0,7);ctx.ellipse(cx+38,cy+1,15,9,0,0,7);ctx.fill();}
+  if(!cityLayer)cityLayer=fxLayer(W*2,150,function(g){
+    var k,x=0;g.fillStyle='rgba(120,90,220,.38)';
+    for(k=0;x<W*2;k++){var bw=26+(k*37%5)*8,bh=50+(k*53%7)*13;if(x+bw>W*2)bw=W*2-x;g.fillRect(x,150-bh,bw-3,bh);x+=bw;}
+    g.fillStyle='rgba(255,255,255,.35)';x=0;
+    for(k=0;x<W*2;k++){var w2=26+(k*37%5)*8,h2=50+(k*53%7)*13;for(var yy=150-h2+8;yy<142;yy+=12)for(var xx=x+5;xx<x+w2-9;xx+=9)if((xx*7+yy*3)%5<2)g.fillRect(xx,yy,4,5);x+=w2;}
+    g.fillStyle='#7bdc6a';g.beginPath();g.moveTo(0,150);for(x=0;x<=W*2;x+=8)g.lineTo(x,138-8*Math.sin(x/W*Math.PI*6)-4*Math.sin(x/W*Math.PI*14));g.lineTo(W*2,150);g.closePath();g.fill();
+  });
+  ctx.drawImage(cityLayer,-((elapsed*20)%W),H-GROUND_H-148,W*2,150);
+  var gap=pipeGap();
+  for(i=0;i<pipes.length;i++){
+    var p=pipes[i],gy=p.gapY,top=gy-gap/2,bot=gy+gap/2;
+    FX.shadow(ctx,p.x+PIPE_W/2+4,H-GROUND_H+4,PIPE_W/2+6,5,.22);
+    fxPipe(p.x,0,top-22);fxPipe(p.x,bot+22,H-GROUND_H-bot-22);
+    FX.tile(ctx,p.x-4,top-22,PIPE_W+8,22,'#43c45a',7);FX.tile(ctx,p.x-4,bot,PIPE_W+8,22,'#43c45a',7);
+  }
+  if(!groundLayer)groundLayer=fxLayer(W+36,GROUND_H,function(g){
+    var lg=g.createLinearGradient(0,0,0,GROUND_H);lg.addColorStop(0,'#ffe08a');lg.addColorStop(.25,'#ffc05a');lg.addColorStop(1,'#e07a3a');g.fillStyle=lg;g.fillRect(0,0,W+36,GROUND_H);
+    var tg=g.createLinearGradient(0,0,0,16);tg.addColorStop(0,'#9cf07c');tg.addColorStop(1,'#3fae4c');g.fillStyle=tg;g.fillRect(0,0,W+36,14);
+    g.fillStyle='rgba(255,255,255,.55)';g.fillRect(0,0,W+36,3);g.fillStyle='rgba(30,90,30,.35)';g.fillRect(0,14,W+36,3);
+    for(var k=0;k<(W+36)/36;k++){g.fillStyle='rgba(150,60,20,.18)';g.beginPath();g.moveTo(k*36,40);g.lineTo(k*36+18,40);g.lineTo(k*36+8,52);g.lineTo(k*36-10,52);g.closePath();g.fill();}
+  });
+  var off=(elapsed*pipeSpeed())%36;ctx.drawImage(groundLayer,-off,H-GROUND_H,W+36,GROUND_H);
+  if(state==='playing'&&score>lastScore)FX.burst(sparks,bird.x+20,bird.y,'#ffd34d',12);
+  lastScore=score;
+  FX.drawBurst(ctx,sparks);
+  var tilt=Math.max(-0.4,Math.min(0.7,bird.vy/900)),wav=Math.sin(elapsed*22)*4;
+  FX.shadow(ctx,bird.x,H-GROUND_H+5,Math.max(5,13-(H-GROUND_H-bird.y)*.02),3,.2);
+  FX.orb(ctx,bird.x,bird.y,13,'#ffc727');
+  ctx.save();ctx.translate(bird.x,bird.y);ctx.rotate(tilt);
+  ctx.fillStyle='#ff9f1a';ctx.strokeStyle='#c96a00';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.ellipse(-4,3,8,5+wav*0.4,-0.5,0,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(5,-4,4.8,0,7);ctx.fill();
+  ctx.fillStyle='#1a0d2e';ctx.beginPath();ctx.arc(6.4,-4,2.3,0,7);ctx.fill();
+  ctx.fillStyle='#ff5a5a';ctx.beginPath();ctx.moveTo(11,-1);ctx.lineTo(19,1.5);ctx.lineTo(11,4.5);ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(255,120,150,.6)';ctx.beginPath();ctx.arc(2,4,2.4,0,7);ctx.fill();
+  ctx.restore();
+  ctx.font='900 38px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.lineJoin='round';ctx.lineWidth=7;ctx.strokeStyle='#4a2a8a';ctx.strokeText(String(score),W/2,50);
+  ctx.fillStyle='#fff';ctx.fillText(String(score),W/2,50);
 }
 cv.addEventListener('touchstart',function(ev){ev.preventDefault();flap();},{passive:false});
 cv.addEventListener('touchmove',function(ev){ev.preventDefault();},{passive:false});

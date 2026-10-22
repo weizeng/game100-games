@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>乒乓对战</title>
 <style>
+/* ART T1-1: shrink the board on short screens so 360x640 needs no scrolling */
+html.game-ui .stage{max-width:min(380px,calc((100vh - 150px)*.66));max-width:min(380px,calc((100svh - 150px)*.66));margin-left:auto;margin-right:auto}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{background:#121212;color:#eee;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;touch-action:manipulation;overscroll-behavior:none}
@@ -498,6 +500,7 @@ function serveBall(dir){
   ball.vy=Math.cos(ang)*base*dir;
   err=(Math.random()*2-1)*Math.max(34-pScore*3,10);
   serveDir=dir;serveT=0.9;
+  ball._vx=ball.vx;ball._vy=ball.vy; // 修复：首球倒计时结束后读取 _vx/_vy，原来未赋值导致球速变 NaN、球消失
 }
 function bounce(paddle,up){
   var off=(ball.x-paddle.x)/(paddle.w/2);
@@ -553,6 +556,7 @@ function roundRect(x,y,w,h,r){
   ctx.closePath();ctx.fill();
 }
 function draw(){
+  if(FX)return drawFx();
   ctx.fillStyle='#0b0b0d';ctx.fillRect(0,0,W,H);
   ctx.strokeStyle='#2c2c30';ctx.lineWidth=3;ctx.setLineDash([14,12]);
   ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
@@ -570,6 +574,39 @@ function draw(){
     ctx.fillStyle='rgba(255,255,255,.85)';
     ctx.font='700 20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText('准备…',W/2,H/2-40);
+  }
+}
+/* ART T1-1: candy-depth renderer (GameUI.fx); the flat draw() below stays as the no-FX fallback */
+var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null,sparks=[],trail=[],court=null,lastVy=0;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxCourt(){
+  var d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;var g=c.getContext('2d');g.scale(d,d);
+  var bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#1a2f8f');bg.addColorStop(.5,'#3a1170');bg.addColorStop(1,'#5a0f5e');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  var v=g.createRadialGradient(W/2,H/2,40,W/2,H/2,H*.7);v.addColorStop(0,'rgba(255,255,255,.10)');v.addColorStop(1,'rgba(0,0,0,.45)');g.fillStyle=v;g.fillRect(0,0,W,H);
+  g.strokeStyle='rgba(255,255,255,.07)';g.lineWidth=1;for(var x=20;x<W;x+=40){g.beginPath();g.moveTo(x+.5,0);g.lineTo(x+.5,H);g.stroke();}
+  g.shadowColor='#00e5ff';g.shadowBlur=10;g.strokeStyle='rgba(122,245,255,.85)';g.lineWidth=2.5;
+  g.beginPath();if(g.roundRect)g.roundRect(12,12,W-24,H-24,14);else g.rect(12,12,W-24,H-24);g.stroke();
+  g.setLineDash([12,10]);g.beginPath();g.moveTo(12,H/2);g.lineTo(W-12,H/2);g.stroke();g.setLineDash([]);
+  g.beginPath();g.arc(W/2,H/2,46,0,7);g.stroke();g.shadowBlur=0;
+  g.fillStyle='rgba(0,229,255,.10)';g.fillRect(12,12,W-24,32);g.fillStyle='rgba(255,61,154,.12)';g.fillRect(12,H-44,W-24,32);
+  return c;
+}
+function drawFx(){
+  if(!court)court=fxCourt();
+  ctx.drawImage(court,0,0,W,H);
+  if(state==='playing'&&lastVy&&ball.vy&&(lastVy>0)!==(ball.vy>0))FX.burst(sparks,ball.x,ball.y,ball.vy<0?'#ff5cb0':'#5ff2ff',14);
+  lastVy=ball.vy;
+  FX.drawBurst(ctx,sparks);
+  FX.shadow(ctx,ai.x,ai.y+ai.h+6,ai.w/2,4,.35);FX.shadow(ctx,player.x,player.y+player.h+6,player.w/2,4,.35);
+  FX.glow(ctx,'#00e5ff',14);FX.tile(ctx,Math.round(ai.x-ai.w/2),ai.y,ai.w,ai.h+2,'#19d3f0',7);
+  FX.glow(ctx,'#ff3d9a',14);FX.tile(ctx,Math.round(player.x-player.w/2),player.y,player.w,player.h+2,'#ff4fa8',7);FX.noGlow(ctx);
+  if(serveT<=0&&state==='playing'){trail.push(ball.x,ball.y);if(trail.length>16)trail.splice(0,2);}else trail.length=0;
+  for(var i=0;i<trail.length;i+=2){var a=(i+2)/trail.length;ctx.fillStyle='rgba(255,240,140,'+(a*.35).toFixed(3)+')';ctx.beginPath();ctx.arc(trail[i],trail[i+1],ball.r*(.4+.6*a),0,7);ctx.fill();}
+  FX.shadow(ctx,ball.x+4,ball.y+8,ball.r*.9,ball.r*.4,.3);
+  FX.glow(ctx,'rgba(255,236,120,.9)',16);FX.orb(ctx,ball.x,ball.y,ball.r,'#ffe14d');FX.noGlow(ctx);
+  if(serveT>0&&state==='playing'){
+    ctx.font='900 22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';ctx.lineWidth=6;
+    ctx.strokeStyle='rgba(30,6,60,.9)';ctx.strokeText('准备…',W/2,H/2-40);ctx.fillStyle='#fff';ctx.fillText('准备…',W/2,H/2-40);
   }
 }
 function toX(ev){

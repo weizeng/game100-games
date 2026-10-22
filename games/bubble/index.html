@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>泡泡龙</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #soundBtn{min-width:44px;min-height:44px}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -477,7 +478,7 @@ window.addEventListener('mouseup',e=>{if(md){md=false;onUp(e);}});
 let md=false;
 
 function drawBubble(x,y,col,sc){sc=sc||1;ctx.save();ctx.translate(x,y);ctx.scale(sc,sc);const g=ctx.createRadialGradient(-4,-5,2,0,0,R);g.addColorStop(0,'#ffffff');g.addColorStop(0.25,col);g.addColorStop(1,col);ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,R,0,7);ctx.fill();ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.arc(-5,-6,4,0,7);ctx.fill();ctx.restore();}
-function draw(){ctx.clearRect(0,0,W,H);
+function draw(){if(FX)return drawFx();ctx.clearRect(0,0,W,H);
 ctx.fillStyle='rgba(255,82,82,.25)';ctx.fillRect(0,56,W,3);
 ctx.strokeStyle='rgba(255,82,82,.7)';ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(0,DEADY);ctx.lineTo(W,DEADY);ctx.stroke();ctx.setLineDash([]);
 ctx.fillStyle='#f44336';ctx.font='12px sans-serif';ctx.fillText('危险线',8,DEADY-6);
@@ -490,6 +491,42 @@ ctx.fillStyle='#888';ctx.font='11px sans-serif';ctx.fillText('下一个',SX+30,S
 for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/50);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
 ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/50);ctx.fillStyle='#ffd740';ctx.font='bold 20px sans-serif';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
 if(clearT>0){ctx.fillStyle='rgba(64,196,255,.9)';ctx.font='bold 26px sans-serif';ctx.textAlign='center';ctx.fillText('第 '+level+' 关!',W/2,H/2);ctx.textAlign='left';}
+}
+/* ART T1-1: candy-depth renderer (GameUI.fx); the flat draw() below stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let boardLayer=null;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxBoard(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#4a1f86');bg.addColorStop(.7,'#2a1158');bg.addColorStop(1,'#1a0a3a');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  const sp=g.createRadialGradient(W/2,180,20,W/2,240,360);sp.addColorStop(0,'rgba(255,170,230,.22)');sp.addColorStop(1,'rgba(0,0,0,.3)');g.fillStyle=sp;g.fillRect(0,0,W,H);
+  g.fillStyle='rgba(255,255,255,.06)';for(let y=10;y<H;y+=26)for(let x=(y/26|0)%2?13:0;x<W;x+=26){g.beginPath();g.arc(x,y,2.2,0,7);g.fill();}
+  const tp=g.createLinearGradient(0,0,0,58);tp.addColorStop(0,'#ff8ac6');tp.addColorStop(1,'#b0418a');g.fillStyle=tp;g.fillRect(0,0,W,56);
+  g.fillStyle='rgba(255,255,255,.45)';g.fillRect(0,0,W,3);g.fillStyle='rgba(60,0,40,.45)';g.fillRect(0,56,W,4);
+  g.fillStyle='rgba(255,255,255,.25)';for(let x=12;x<W;x+=28){g.beginPath();g.arc(x,30,5,0,7);g.fill();}
+  const fl=g.createLinearGradient(0,DEADY,0,H);fl.addColorStop(0,'rgba(255,82,120,.16)');fl.addColorStop(1,'rgba(255,82,120,0)');g.fillStyle=fl;g.fillRect(0,DEADY,W,H-DEADY);
+  g.shadowColor='#ff4d6d';g.shadowBlur=8;g.strokeStyle='rgba(255,110,140,.9)';g.lineWidth=2;g.setLineDash([8,6]);g.beginPath();g.moveTo(0,DEADY);g.lineTo(W,DEADY);g.stroke();g.setLineDash([]);g.shadowBlur=0;
+  g.fillStyle='#ff9db3';g.font='800 12px sans-serif';g.fillText('危险线',8,DEADY-6);
+  const bs=g.createRadialGradient(SX,SY+30,6,SX,SY+30,70);bs.addColorStop(0,'rgba(255,215,64,.35)');bs.addColorStop(1,'rgba(255,215,64,0)');g.fillStyle=bs;g.fillRect(SX-80,SY-40,160,100);
+  return c;
+}
+function drawFx(){
+  if(!boardLayer)boardLayer=fxBoard();
+  ctx.drawImage(boardLayer,0,0,W,H);
+  for(let r=0;r<grid.length;r++)for(let c=0;c<rowLen(r);c++){const v=grid[r][c];if(v==null)continue;FX.orb(ctx,cellX(r,c),cellY(r),R,COLORS[v]);}
+  if(shot){FX.glow(ctx,COLORS[shot.col],12);FX.orb(ctx,shot.x,shot.y,R,COLORS[shot.col]);FX.noGlow(ctx);}
+  if(state==='play'&&!shot&&!paused){ctx.strokeStyle='rgba(255,255,255,.7)';ctx.setLineDash([2,9]);ctx.lineCap='round';ctx.lineWidth=4;let x=SX,y=SY,a=aimA;for(let seg=0;seg<2;seg++){let nx=x+Math.cos(a)*600,ny=y+Math.sin(a)*600;if(nx<R){const t=(R-x)/Math.cos(a);nx=R;ny=y+Math.sin(a)*t;a=Math.PI-a;}else if(nx>W-R){const t=(W-R-x)/Math.cos(a);nx=W-R;ny=y+Math.sin(a)*t;a=Math.PI-a;}ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(nx,ny);ctx.stroke();x=nx;y=ny;if(ny<60)break;}ctx.setLineDash([]);ctx.lineWidth=1;ctx.lineCap='butt';}
+  FX.shadow(ctx,SX,SY+24,34,7,.35);
+  ctx.save();ctx.translate(SX,SY);ctx.rotate(aimA+Math.PI/2);
+  const bg=ctx.createLinearGradient(-12,0,12,0);bg.addColorStop(0,'#7b4bd6');bg.addColorStop(.4,'#c9a4ff');bg.addColorStop(1,'#4a248f');
+  ctx.fillStyle=bg;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(-11,-40,22,40,8);else ctx.rect(-11,-40,22,40);ctx.fill();
+  ctx.fillStyle='#ffd23f';ctx.fillRect(-11,-40,22,6);ctx.restore();
+  FX.tile(ctx,SX-30,SY+6,60,22,'#8d58ff',11);
+  FX.orb(ctx,SX,SY-6,R,COLORS[cur]);
+  FX.orb(ctx,SX+50,SY+12,9,COLORS[nxt]);
+  ctx.fillStyle='rgba(255,255,255,.8)';ctx.font='700 11px sans-serif';ctx.fillText('下一个',SX+32,SY+38);
+  for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/50);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,2.6,0,7);ctx.fill();}ctx.globalAlpha=1;
+  ctx.textAlign='center';ctx.lineJoin='round';ctx.lineWidth=5;for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/50);ctx.font='900 20px sans-serif';ctx.strokeStyle='#4a1050';ctx.strokeText(f.t,f.x,f.y);ctx.fillStyle='#ffe14d';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
+  if(clearT>0){ctx.font='900 28px sans-serif';ctx.textAlign='center';ctx.lineWidth=7;ctx.strokeStyle='#4a1050';ctx.strokeText('第 '+level+' 关!',W/2,H/2);ctx.fillStyle='#7af5ff';ctx.fillText('第 '+level+' 关!',W/2,H/2);ctx.textAlign='left';}
 }
 function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){if(shot)stepShot();if(clearT>0)clearT--;for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=0.12;p.life--;}parts=parts.filter(p=>p.life>0);for(const f of floats){f.y-=0.8;f.life--;}floats=floats.filter(f=>f.life>0);}draw();}
 $('startBtn').onclick=()=>{ac();startGame();};

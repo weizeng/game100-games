@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>祖玛</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #soundBtn{min-width:44px;min-height:44px}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:#050507;overflow:hidden;overscroll-behavior:none}
 body{display:flex;justify-content:center;align-items:center;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#fff;-webkit-user-select:none;user-select:none}
@@ -433,6 +434,7 @@ var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 cv.width=W;cv.height=H;
 var AC=null,soundOn=true;
 function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}return AC;}
+function noise(d,vol){if(!soundOn)return;try{var c=ac();if(!c)return;var n=Math.max(1,Math.floor(c.sampleRate*d)),b=c.createBuffer(1,n,c.sampleRate),a=b.getChannelData(0);for(var i=0;i<n;i++)a[i]=(Math.random()*2-1)*(1-i/n);var s=c.createBufferSource(),g=c.createGain();g.gain.value=vol||0.2;s.buffer=b;s.connect(g);g.connect(c.destination);s.start();}catch(e){}}
 function tone(f,d,type,vol,delay){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(vol||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
 function toGame(e){var r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
 var lastTouch=0;
@@ -552,6 +554,7 @@ function drawBall(x,y,c,r){
   ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,6.2832);ctx.fill();
 }
 function render(){
+  if(FX)return renderFx();
   var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0d140d');g.addColorStop(0.6,'#142114');g.addColorStop(1,'#0d120d');
   ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
   ctx.fillStyle='rgba(255,255,255,.4)';
@@ -576,6 +579,46 @@ function render(){
   drawBall(SX+72,SY+30,nextC,9);
   drawParts();drawFloats();
   if(state==='playing'&&elapsed<4){ctx.fillStyle='rgba(255,255,255,.5)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('点击发射彩球，3 个同色相连消除',W/2,H-24);}
+}
+/* ART T1-1: candy-depth renderer (GameUI.fx); the flat render() below stays as the no-FX fallback */
+var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null,trackLayer=null;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxTrack(){
+  var d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;var g=c.getContext('2d');g.scale(d,d);
+  var bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#3a1d7a');bg.addColorStop(.55,'#5b2a8f');bg.addColorStop(1,'#1d0b40');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  var sp=g.createRadialGradient(W/2,H*.42,40,W/2,H*.45,H*.65);sp.addColorStop(0,'rgba(255,160,220,.25)');sp.addColorStop(1,'rgba(0,0,0,.35)');g.fillStyle=sp;g.fillRect(0,0,W,H);
+  g.fillStyle='rgba(255,255,255,.07)';for(var y=12;y<H;y+=30)for(var x=(y/30|0)%2?15:0;x<W;x+=30){g.beginPath();g.arc(x,y,2.4,0,7);g.fill();}
+  function line(){g.beginPath();g.moveTo(PTS[0][0],PTS[0][1]);for(var i=1;i<PTS.length;i++)g.lineTo(PTS[i][0],PTS[i][1]);}
+  g.lineCap='round';g.lineJoin='round';
+  g.save();g.translate(0,6);line();g.strokeStyle='rgba(0,0,0,.4)';g.lineWidth=44;g.stroke();g.restore();
+  line();g.strokeStyle='#ffb3dc';g.lineWidth=42;g.stroke();
+  line();g.strokeStyle='#c25aa0';g.lineWidth=36;g.stroke();
+  line();g.strokeStyle='#5a1f6e';g.lineWidth=30;g.stroke();
+  g.save();g.translate(0,-2);line();g.strokeStyle='rgba(255,255,255,.12)';g.lineWidth=10;g.stroke();g.restore();
+  var hp=posAt(TOTALL);
+  var hg=g.createRadialGradient(hp.x,hp.y,6,hp.x,hp.y,40);hg.addColorStop(0,'#05010f');hg.addColorStop(.6,'#1a0530');hg.addColorStop(1,'rgba(255,61,154,0)');g.fillStyle=hg;g.beginPath();g.arc(hp.x,hp.y,40,0,7);g.fill();
+  g.strokeStyle='#ff3d9a';g.lineWidth=4;g.shadowColor='#ff3d9a';g.shadowBlur=14;g.beginPath();g.arc(hp.x,hp.y,26,0,7);g.stroke();g.shadowBlur=0;
+  g.font='26px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('💀',hp.x,hp.y+1);
+  var pad=g.createRadialGradient(SX,SY+6,10,SX,SY+6,64);pad.addColorStop(0,'rgba(122,245,160,.45)');pad.addColorStop(1,'rgba(122,245,160,0)');g.fillStyle=pad;g.beginPath();g.arc(SX,SY+6,64,0,7);g.fill();
+  return c;
+}
+function renderFx(){
+  if(!trackLayer)trackLayer=fxTrack();
+  ctx.drawImage(trackLayer,0,0,W,H);
+  var j;
+  for(j=chain.length-1;j>=0;j--){var d=frontDist-j*SP;if(d<0)continue;var bp=posAt(d);FX.orb(ctx,bp.x,bp.y,BR,COLORS[chain[j].c]);}
+  for(j=0;j<projs.length;j++){var pr=projs[j];FX.glow(ctx,COLORS[pr.c],12);FX.orb(ctx,pr.x,pr.y,BR,COLORS[pr.c]);FX.noGlow(ctx);}
+  FX.shadow(ctx,SX,SY+30,34,9,.4);
+  ctx.save();ctx.translate(SX,SY);ctx.rotate(aimAng+Math.PI/2);
+  ctx.font='54px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🐸',0,4);
+  ctx.restore();ctx.textBaseline='alphabetic';
+  FX.glow(ctx,COLORS[curC],14);FX.orb(ctx,SX+Math.cos(aimAng)*36,SY+Math.sin(aimAng)*36,BR,COLORS[curC]);FX.noGlow(ctx);
+  ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='700 13px sans-serif';ctx.textAlign='center';ctx.fillText('下一个',SX+72,SY+8);
+  FX.orb(ctx,SX+72,SY+30,9,COLORS[nextC]);
+  drawParts();
+  ctx.textAlign='center';ctx.font='900 20px sans-serif';ctx.lineJoin='round';ctx.lineWidth=5;
+  for(var i=0;i<floats.length;i++){var f=floats[i];ctx.globalAlpha=Math.max(0,1-f.t);ctx.strokeStyle='#3a0a4a';ctx.strokeText(f.txt,f.x,f.y);ctx.fillStyle='#ffe14d';ctx.fillText(f.txt,f.x,f.y);}ctx.globalAlpha=1;
+  if(state==='playing'&&elapsed<4){ctx.font='700 15px sans-serif';ctx.textAlign='center';ctx.lineWidth=4;ctx.strokeStyle='rgba(30,6,60,.8)';ctx.strokeText('点击发射彩球，3 个同色相连消除',W/2,H-24);ctx.fillStyle='#fff';ctx.fillText('点击发射彩球，3 个同色相连消除',W/2,H-24);}
 }
 var ov=document.getElementById('overlay');
 function showMenu(){state='menu';ov.style.display='flex';ov.innerHTML='<h1>🐸</h1><h1 style="font-size:30px">祖玛</h1><div class="sub">底部青蛙<b>点击任意方向发射彩球</b>，<br>彩球链沿轨道向洞口推进，<b>3 个以上同色相连消除</b>。<br>链条进洞则失败，消灭全部 34 颗获胜！</div><div class="best">🏆 最高分 '+getHS()+'</div><button class="btn" id="startBtn">开始游戏</button>';

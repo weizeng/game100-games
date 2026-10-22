@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>弹珠台</title>
 <style>
+/* ART T1-1: shrink the board on short screens so 360x640 needs no scrolling */
+html.game-ui #cv{max-width:min(400px,calc((100vh - 210px)*.72));max-width:min(400px,calc((100svh - 210px)*.72));margin-left:auto;margin-right:auto}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -428,8 +430,8 @@ const cv=$('cv'),ctx=cv.getContext('2d');
 const W=400,H=560,L=20,R=380,TOP=20;
 const BALL_R=10;
 
-const FL={px:150,py:512,len:78,rest:0.55,active:-0.55,ang:0.55};   // 左挡板
-const FR={px:250,py:512,len:78,rest:Math.PI-0.55,active:Math.PI+0.55,ang:Math.PI-0.55}; // 右挡板
+const FL={px:150,py:512,len:78,rest:1.1,active:-0.55,ang:1.1};   // 左挡板（静止角 1.1：两挡板尖端留出约 30px 漏球口，原 0.55 时两板交叉，球永远漏不掉）
+const FR={px:250,py:512,len:78,rest:Math.PI-1.1,active:Math.PI+0.55,ang:Math.PI-1.1}; // 右挡板
 const GUIDES=[{x1:L,y1:440,x2:150,y2:512},{x1:R,y1:440,x2:250,y2:512}]; // 两侧斜导板
 const KICKERS=[{x1:L,y1:280,x2:58,y2:318},{x1:R,y1:280,x2:342,y2:318}]; // 两侧弹射器
 const BUMPERS=[
@@ -528,6 +530,7 @@ function update(){
   }
 }
 function draw(){
+  if(FX)return drawFx();
   ctx.clearRect(0,0,W,H);
   // 台面边框
   ctx.strokeStyle='#E91E63';ctx.lineWidth=4;
@@ -564,6 +567,52 @@ function draw(){
   // 底部漏球区提示
   ctx.fillStyle='#333';ctx.font='13px sans-serif';ctx.textAlign='center';
   ctx.fillText('▼ 漏球区 ▼',200,H-8);
+}
+/* ART T1-1: candy-depth renderer (GameUI.fx); the flat draw() below stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null,sparks=[];let tableLayer=null;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxRail(g,x1,y1,x2,y2,w,c1,c2){g.lineCap='round';g.strokeStyle='rgba(0,0,0,.45)';g.lineWidth=w+4;g.beginPath();g.moveTo(x1+2,y1+3);g.lineTo(x2+2,y2+3);g.stroke();
+  g.strokeStyle=c2;g.lineWidth=w;g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();g.strokeStyle=c1;g.lineWidth=Math.max(1.5,w*.35);g.beginPath();g.moveTo(x1,y1-w*.18);g.lineTo(x2,y2-w*.18);g.stroke();}
+function fxTable(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#3a1170');bg.addColorStop(.6,'#22105a');bg.addColorStop(1,'#0b0522');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  const sp=g.createRadialGradient(200,190,20,200,220,300);sp.addColorStop(0,'rgba(255,140,220,.22)');sp.addColorStop(1,'rgba(0,0,0,.35)');g.fillStyle=sp;g.fillRect(0,0,W,H);
+  g.strokeStyle='rgba(255,255,255,.06)';g.lineWidth=1;for(let i=-H;i<W;i+=28){g.beginPath();g.moveTo(i,0);g.lineTo(i+H*.6,H);g.stroke();}
+  // 圆形目标的底座光圈
+  BUMPERS.forEach(b=>{const rg=g.createRadialGradient(b.x,b.y,b.r,b.x,b.y,b.r+18);rg.addColorStop(0,'rgba(255,61,154,.45)');rg.addColorStop(1,'rgba(255,61,154,0)');g.fillStyle=rg;g.beginPath();g.arc(b.x,b.y,b.r+18,0,7);g.fill();});
+  // 箭头灯
+  g.fillStyle='rgba(255,225,77,.35)';[[200,330],[200,352],[200,374]].forEach(p=>{g.beginPath();g.moveTo(p[0]-10,p[1]);g.lineTo(p[0],p[1]-9);g.lineTo(p[0]+10,p[1]);g.lineTo(p[0],p[1]-4);g.closePath();g.fill();});
+  // 台面边框（立体导轨）
+  fxRail(g,L,440,L,TOP,8,'#ffc2e0','#e91e63');fxRail(g,L,TOP,R,TOP,8,'#ffc2e0','#e91e63');fxRail(g,R,TOP,R,440,8,'#ffc2e0','#e91e63');
+  GUIDES.forEach(s=>fxRail(g,s.x1,s.y1,s.x2,s.y2,8,'#ffffff','#9aa3c7'));
+  g.fillStyle='rgba(255,255,255,.55)';g.font='800 13px sans-serif';g.textAlign='center';g.fillText('▼ 漏球区 ▼',200,H-8);
+  return c;
+}
+function drawFx(){
+  if(!tableLayer)tableLayer=fxTable();
+  ctx.drawImage(tableLayer,0,0,W,H);
+  FX.glow(ctx,'#00e5ff',12);ctx.lineCap='round';
+  KICKERS.forEach(s=>{ctx.strokeStyle='#7af5ff';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();});FX.noGlow(ctx);
+  KICKERS.forEach(s=>{ctx.strokeStyle='#ffffff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(s.x1,s.y1-1);ctx.lineTo(s.x2,s.y2-1);ctx.stroke();});
+  BUMPERS.forEach(b=>{
+    if(b.flash===9)FX.burst(sparks,b.x,b.y,'#ffd34d',12);
+    if(b.flash>0)FX.glow(ctx,'#ffe14d',22);
+    FX.orb(ctx,b.x,b.y,b.r,b.flash>0?'#ffd23f':'#ff3d9a');FX.noGlow(ctx);
+    ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(b.x,b.y,b.r-5,0,7);ctx.stroke();
+    ctx.font='900 14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';ctx.lineWidth=4;
+    ctx.strokeStyle=b.flash>0?'#7b4a00':'#5a0a30';ctx.strokeText('+100',b.x,b.y+1);ctx.fillStyle='#fff';ctx.fillText('+100',b.x,b.y+1);
+  });
+  ctx.textBaseline='alphabetic';
+  [[FL,leftDown],[FR,rightDown]].forEach(pair=>{
+    const f=pair[0],s=flipperSeg(f);ctx.lineCap='round';
+    ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=15;ctx.beginPath();ctx.moveTo(s.x1+2,s.y1+4);ctx.lineTo(s.x2+2,s.y2+4);ctx.stroke();
+    if(pair[1])FX.glow(ctx,'#ff3d9a',14);
+    ctx.strokeStyle=pair[1]?'#ff6fb5':'#e91e63';ctx.lineWidth=14;ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();FX.noGlow(ctx);
+    ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(s.x1,s.y1-3);ctx.lineTo(s.x1+(s.x2-s.x1)*.85,s.y1+(s.y2-s.y1)*.85-3);ctx.stroke();
+    FX.orb(ctx,s.x1,s.y1,7,'#ffe14d');
+  });
+  FX.drawBurst(ctx,sparks);
+  if(ball){FX.orb(ctx,ball.x,ball.y,BALL_R,'#dfe6ff');}
 }
 function loop(){
   if(state!=='play')return;

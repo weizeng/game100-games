@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>太空侵略者</title>
 <style>
+/* ART T1-1: shrink the board on short screens so 360x640 needs no scrolling */
+html.game-ui .stage{max-width:min(380px,calc((100vh - 205px)*.68));max-width:min(380px,calc((100svh - 205px)*.68));margin-left:auto;margin-right:auto}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{background:#121212;color:#eee;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;touch-action:manipulation;overscroll-behavior:none}
@@ -592,6 +594,7 @@ function drawFoe(x,y,w,h,row){
   ctx.fillRect(x+w/2-1,y-2,2,5);
 }
 function draw(){
+  if(FX)return drawFx();
   ctx.fillStyle='#0b0b0d';ctx.fillRect(0,0,W,H);
   ctx.strokeStyle='#222';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(0,player?player.y+16:H-30);ctx.lineTo(W,player?player.y+16:H-30);ctx.stroke();
@@ -614,6 +617,55 @@ function draw(){
       ctx.beginPath();ctx.arc(player.x,player.y+player.h/2,4,0,7);ctx.fill();
     }
   }
+}
+/* ART T1-1: candy-depth renderer (GameUI.fx); the flat draw() below stays as the no-FX fallback */
+var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null,sparks=[],starLayer=null,prevAlive=-1,prevLives=-1,FXC=['#ff8af0','#ff5ec4','#b26bff','#7c6bff','#4fb8ff','#2ee6d6','#ffd34d'];
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxStars(){
+  var d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*2*d;var g=c.getContext('2d');g.scale(d,d);
+  var s=7;function rnd(){s=(s*16807)%2147483647;return s/2147483647;}
+  for(var k=0;k<2;k++){var oy=k*H;
+    var n1=g.createRadialGradient(80,oy+150,10,80,oy+150,170);n1.addColorStop(0,'rgba(255,61,154,.20)');n1.addColorStop(1,'rgba(255,61,154,0)');g.fillStyle=n1;g.fillRect(0,oy,W,H);
+    var n2=g.createRadialGradient(290,oy+360,10,290,oy+360,190);n2.addColorStop(0,'rgba(0,200,255,.16)');n2.addColorStop(1,'rgba(0,200,255,0)');g.fillStyle=n2;g.fillRect(0,oy,W,H);}
+  for(var i=0;i<90;i++){var x=rnd()*W,y=rnd()*H,r=rnd()*1.3+.3;g.fillStyle='rgba(255,255,255,'+(.35+rnd()*.6).toFixed(2)+')';g.beginPath();g.arc(x,y,r,0,7);g.fill();g.beginPath();g.arc(x,y+H,r,0,7);g.fill();}
+  return c;
+}
+function fxFoe(x,y,w,h,row){
+  var c=FXC[row%FXC.length],wob=Math.sin(elapsed*8+x*0.1)*2;
+  FX.tile(ctx,Math.round(x+4),Math.round(y+h-6+wob*.4),6,6,c,2);
+  FX.tile(ctx,Math.round(x+w-10),Math.round(y+h-6-wob*.4),6,6,c,2);
+  FX.tile(ctx,Math.round(x+2),Math.round(y+6),w-4,h-10,c,6);
+  ctx.fillStyle=FX.shade(c,.4);ctx.fillRect(x+w/2-1,y-3,2,6);
+  FX.orb(ctx,x+w/2,y-3,2,'#ffffff');
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x+w/2-5,y+11,3.4,0,7);ctx.arc(x+w/2+5,y+11,3.4,0,7);ctx.fill();
+  ctx.fillStyle='#1a0d2e';ctx.beginPath();ctx.arc(x+w/2-5,y+11.6,1.7,0,7);ctx.arc(x+w/2+5,y+11.6,1.7,0,7);ctx.fill();
+}
+function drawFx(){
+  var i;
+  FX.stage(ctx,W,H,'#1c0f4a','#04040f');
+  if(!starLayer)starLayer=fxStars();
+  var sy=(elapsed*14)%H;ctx.drawImage(starLayer,0,sy-H,W,H*2);
+  if(player){var gl=ctx.createLinearGradient(0,player.y+16,0,H);gl.addColorStop(0,'rgba(0,229,255,.35)');gl.addColorStop(1,'rgba(0,229,255,0)');ctx.fillStyle=gl;ctx.fillRect(0,player.y+16,W,H-player.y-16);ctx.fillStyle='rgba(0,229,255,.8)';ctx.fillRect(0,player.y+16,W,1.5);}
+  var alive=0;
+  for(i=0;i<foes.length;i++){var f=foes[i];if(!f.alive){if(!f.fxDone&&state==='playing'){f.fxDone=1;FX.burst(sparks,fx+f.ox+f.w/2,fy+f.oy+f.h/2,FXC[f.row%FXC.length],14);}continue;}alive++;fxFoe(fx+f.ox,fy+f.oy,f.w,f.h,f.row);}
+  prevAlive=alive;
+  FX.glow(ctx,'#ffd34d',10);ctx.fillStyle='#ffe58a';
+  for(i=0;i<bullets.length;i++){var b=bullets[i];ctx.beginPath();if(ctx.roundRect)ctx.roundRect(b.x-2.5,b.y-11,5,14,3);else ctx.rect(b.x-2.5,b.y-11,5,14);ctx.fill();}
+  FX.noGlow(ctx);
+  for(i=0;i<ebullets.length;i++){var eb=ebullets[i];FX.orb(ctx,eb.x,eb.y,4,'#ff4d6d');}
+  if(player){
+    if(prevLives>=0&&lives<prevLives)FX.burst(sparks,player.x,player.y,'#ff4d6d',22);
+    prevLives=lives;
+    var blink=player.inv>0&&Math.floor(elapsed*12)%2===0;
+    if(!blink){
+      FX.shadow(ctx,player.x,player.y+player.h+3,player.w/2,3,.4);
+      FX.glow(ctx,'#00e5ff',14);
+      FX.tile(ctx,Math.round(player.x-player.w/2),player.y,player.w,player.h,'#2ee6d6',6);FX.noGlow(ctx);
+      FX.tile(ctx,Math.round(player.x-5),player.y-14,10,17,'#7af5ff',4);
+      FX.orb(ctx,player.x,player.y+player.h/2,4,'#ff3d9a');
+    }
+  }
+  FX.drawBurst(ctx,sparks);
 }
 function toX(ev){
   var t=(ev.touches&&ev.touches.length)?ev.touches[0]:ev;

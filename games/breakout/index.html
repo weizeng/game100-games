@@ -418,7 +418,7 @@ const cv=$('cv'),ctx=cv.getContext('2d');
 const W=400,H=560;
 const ROWC=['#ef5350','#ff9800','#ffeb3b','#8bc34a','#00bcd4','#9c27b0'];
 let paddle,ball,bricks,score,lives,state,running,raf;
-function toGame(e,c){const r=c.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*c.width/r.width,y:(t.clientY-r.top)*c.height/r.height};}
+function toGame(e,c){const r=c.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
 function startGame(){
   paddle={x:W/2-40,w:GameUI.pick(80,60),h:12,y:H-40};
   score=0;lives=3;state='ready';running=true;
@@ -457,7 +457,7 @@ function update(){
   for(let i=0;i<bricks.length;i++){
     const b=bricks[i];
     if(ball.x>b.x&&ball.x<b.x+b.w&&ball.y>b.y&&ball.y<b.y+b.h){
-      b.hp--;if(b.hp<=0){bricks.splice(i,1);score+=10;}ball.vy*=-1;updateTop();break;
+      b.hp--;if(b.hp<=0){bricks.splice(i,1);score+=10;if(FX)FX.burst(sparks,b.x+b.w/2,b.y+b.h/2,b.c,12);}ball.vy*=-1;updateTop();break;
     }
   }
   if(bricks.length===0){running=false;showOver('🎉 胜利！','砖块全部清除，最终得分 '+score+'！');return;}
@@ -468,6 +468,7 @@ function update(){
   }
 }
 function draw(){
+  if(FX)return drawFx();
   ctx.clearRect(0,0,W,H);
   for(const b of bricks){ctx.fillStyle=b.c;ctx.beginPath();ctx.roundRect(b.x+1,b.y,b.w-2,b.h,4);ctx.fill();ctx.fillStyle='#ffffff44';ctx.fillRect(b.x+4,b.y+2,b.w-8,3);if(b.hp>1){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.strokeRect(b.x+5,b.y+6,b.w-10,b.h-10);}}
   ctx.fillStyle='#00bcd4';
@@ -478,6 +479,24 @@ function draw(){
     ctx.fillStyle='#888';ctx.font='18px sans-serif';ctx.textAlign='center';
     ctx.fillText('👆 点击屏幕发射',W/2,H/2);
   }
+}
+/* ART T1-1: candy-depth renderer (GameUI.fx); the flat draw() below stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null,sparks=[],trail=[];let gridLayer=null;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function drawFx(){
+  FX.stage(ctx,W,H,'#3a1170','#0b0522');
+  if(!gridLayer){gridLayer=document.createElement('canvas');const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1));gridLayer.width=W*d;gridLayer.height=H*d;const g=gridLayer.getContext('2d');g.scale(d,d);
+    g.strokeStyle='rgba(0,229,255,.10)';g.lineWidth=1;for(let x=0;x<=W;x+=40){g.beginPath();g.moveTo(x+.5,0);g.lineTo(x+.5,H);g.stroke();}for(let y=0;y<=H;y+=40){g.beginPath();g.moveTo(0,y+.5);g.lineTo(W,y+.5);g.stroke();}
+    const fl=g.createLinearGradient(0,H-90,0,H);fl.addColorStop(0,'rgba(255,61,154,0)');fl.addColorStop(1,'rgba(255,61,154,.22)');g.fillStyle=fl;g.fillRect(0,H-90,W,90);}
+  ctx.drawImage(gridLayer,0,0,W,H);
+  for(const b of bricks){FX.tile(ctx,b.x+1,b.y,b.w-2,b.h,b.c,6);if(b.hp>1){ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=2;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(b.x+6,b.y+5,b.w-12,b.h-10,3);else ctx.rect(b.x+6,b.y+5,b.w-12,b.h-10);ctx.stroke();}}
+  FX.drawBurst(ctx,sparks);
+  FX.shadow(ctx,paddle.x+paddle.w/2,paddle.y+paddle.h+7,paddle.w/2,4,.35);
+  FX.glow(ctx,'#00e5ff',16);FX.tile(ctx,Math.round(paddle.x),paddle.y,paddle.w,paddle.h+2,'#19d3f0',7);FX.noGlow(ctx);
+  if(state==='play'){trail.push(ball.x,ball.y);if(trail.length>16)trail.splice(0,2);}else trail.length=0;
+  for(let i=0;i<trail.length;i+=2){const a=(i+2)/trail.length;ctx.fillStyle='rgba(120,240,255,'+(a*.35).toFixed(3)+')';ctx.beginPath();ctx.arc(trail[i],trail[i+1],ball.r*(.4+.6*a),0,7);ctx.fill();}
+  FX.glow(ctx,'rgba(160,245,255,.9)',14);FX.orb(ctx,ball.x,ball.y,ball.r,'#e9fbff');FX.noGlow(ctx);
+  if(state==='ready'){ctx.font='800 18px sans-serif';ctx.textAlign='center';ctx.lineWidth=5;ctx.lineJoin='round';ctx.strokeStyle='rgba(20,6,40,.85)';ctx.strokeText('👆 点击屏幕发射',W/2,H/2);ctx.fillStyle='#fff';ctx.fillText('👆 点击屏幕发射',W/2,H/2);}
 }
 function movePaddle(e){const p=toGame(e,cv);paddle.x=Math.min(W-paddle.w,Math.max(0,p.x-paddle.w/2));}
 cv.addEventListener('touchmove',e=>{e.preventDefault();movePaddle(e);},{passive:false});
