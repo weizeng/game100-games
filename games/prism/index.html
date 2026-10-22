@@ -630,12 +630,14 @@ function draw(){FX?FX.stage(ctx,W,H,'#1a1450','#07051a'):(ctx.fillStyle='#0d0a26
     ctx.fillStyle='#fff';ctx.font='bold 11px sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillText((r.ok?'✓':'')+COLS[r.k][0],WX-9,r.y);}
   if(boss){const c=COLS[boss.k][1];if(FX){FX.shadow(ctx,WX-10,boss.y+boss.h+6,16,4);FX.glow(ctx,c,16);FX.orb(ctx,WX-8,boss.y|0,boss.h+4,boss.flash>0?'#ffffff':c);FX.noGlow(ctx);}else{ctx.fillStyle=c;ctx.beginPath();ctx.arc(WX-8,boss.y,boss.h,0,7);ctx.fill();}
     ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('👾',WX-8,boss.y+1);}
-  // 入射白光 + 棱镜
-  const g0=ctx.createLinearGradient(0,PY,PX,PY);g0.addColorStop(0,'rgba(255,255,255,.15)');g0.addColorStop(1,'#fff');ctx.strokeStyle=g0;ctx.lineWidth=6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(6,PY+Math.tan(BETA)*(PX-6));ctx.lineTo(PX,PY);ctx.lineTo(EX,EY);ctx.stroke();
+  // 入射白光 + 棱镜（#22：入射光束绕入射点 (PX,PY) 随入射角实时摆动；ang=50° 时与旧版像素一致）
+  const beamA0=Math.atan2(Math.tan(BETA)*(PX-6),6-PX),beamL=Math.hypot(PX-6,Math.tan(BETA)*(PX-6));
+  const beamA=beamA0-(ang-50)*0.8*Math.PI/180,bsx=PX+beamL*Math.cos(beamA),bsy=PY+beamL*Math.sin(beamA);
+  const g0=ctx.createLinearGradient(bsx,bsy,PX,PY);g0.addColorStop(0,'rgba(255,255,255,.15)');g0.addColorStop(1,'#fff');ctx.strokeStyle=g0;ctx.lineWidth=6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(bsx,bsy);ctx.lineTo(PX,PY);ctx.lineTo(EX,EY);ctx.stroke();
   const rot=(ang-50)*Math.PI/180*.6;ctx.save();ctx.translate(PX+14,PY+8);ctx.rotate(-rot);ctx.beginPath();ctx.moveTo(0,-62);ctx.lineTo(-54,34);ctx.lineTo(54,34);ctx.closePath();
   ctx.fillStyle=['rgba(160,210,255,.22)','rgba(200,170,255,.26)','rgba(255,170,220,.3)'][gl];ctx.fill();ctx.strokeStyle='#cfe3ff';ctx.lineWidth=3;ctx.stroke();
   ctx.fillStyle='rgba(255,255,255,.35)';ctx.beginPath();ctx.moveTo(-6,-46);ctx.lineTo(-36,16);ctx.lineTo(-28,16);ctx.closePath();ctx.fill();ctx.restore();
-  ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.textAlign='left';ctx.fillText('白光',8,PY+Math.tan(BETA)*(PX-6)-12);ctx.fillStyle='#cfe3ff';ctx.fillText(GL[gl].n,PX-30,PY+70);
+  ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.textAlign='left';ctx.fillText('白光',Math.min(Math.max(bsx-4,8),W-44),bsy-12);ctx.fillStyle='#cfe3ff';ctx.fillText(GL[gl].n,PX-30,PY+70);
   // 瞄准镜预览
   const sc=Kit.up('scope');if(sc){for(const k of sc>=2?[0,6]:[0]){const y=landY(ang,gl,k);if(y!==null){ctx.fillStyle=COLS[k][1];ctx.beginPath();ctx.moveTo(WX-2,y);ctx.lineTo(WX-12,y-6);ctx.lineTo(WX-12,y+6);ctx.fill();}}}
   // 上一束的残影
