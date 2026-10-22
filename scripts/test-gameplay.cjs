@@ -28,11 +28,15 @@ const server = http.createServer((req, res) => {
     for (const mode of ['classic', 'expert']) {
       const expert = mode === 'expert';
       await game('game2048', mode, async p => {
-        assert.deepEqual(await p.evaluate(() => slideLine([2,2,4,4])), { line: [4,8,0,0], moved: true, gain: 12 });
-        assert.deepEqual(await p.evaluate(() => slideLine([2,2,2,2]).line), [4,4,0,0]);
-        assert.equal(await p.evaluate(() => grid.flat().filter(Boolean).length), 2);
-        const value = await p.evaluate(() => { const rng=Math.random;Math.random=()=>.8;grid=Array.from({length:4},()=>[0,0,0,0]);addRandom();Math.random=rng;return grid.flat().find(Boolean); });
-        assert.equal(value, expert ? 4 : 2);
+        // 2026-10-21 可玩性升级后：关卡制（__T.kit.go），棋盘 B 为 16 格对象数组，含石块/万能块
+        await p.evaluate(() => __T.kit.go(0));
+        assert.equal(await p.evaluate(() => B.filter(Boolean).length), 2);
+        assert.equal(await p.evaluate(() => __T.state().L.p4), expert ? 0.25 : 0.1);
+        const slide = arr => p.evaluate(arr => { B = Array(16).fill(null); arr.forEach((v, i) => { B[i] = v === 'R' ? { rock: 1 } : v ? { v } : null; }); const r = slideLine([0,1,2,3]); return { line: r.res.map(t => !t ? 0 : t.rock ? 'R' : t.v), moved: r.moved, gain: r.gain }; }, arr);
+        assert.deepEqual(await slide([2,2,4,4]), { line: [4,8,0,0], moved: true, gain: 12 });
+        assert.deepEqual((await slide([2,2,2,2])).line, [4,4,0,0]);
+        assert.deepEqual((await slide([2,'R',2,2])).line, [2,'R',4,0], 'rock blocks sliding');
+        assert.deepEqual(await slide(['W',8,0,0]), { line: [16,0,0,0], moved: true, gain: 16 }, 'wild tile merges with any number');
         await p.evaluate(() => { GameUI.storageSet('audit-record','42'); GameUI.storageSet('g100_sound','0'); });
         assert.equal(await p.evaluate(() => localStorage.getItem('g100_sound')), '0');
         assert.equal(await p.evaluate(() => localStorage.getItem(GameUI.expert?'expert:audit-record':'audit-record')), '42');
@@ -46,8 +50,9 @@ const server = http.createServer((req, res) => {
         assert.deepEqual(await p.evaluate(() => ({width:paddle.w,hp:bricks[0].hp,count:bricks.length})), {width:expert?60:80,hp:expert?2:1,count:48});
       });
       await game('minesweeper', mode, async p => {
-        await p.locator('#grid .cell').first().click();
-        assert.deepEqual(await p.evaluate(() => ({count:mines.size,safe:!mines.has(0)})), { count:expert?14:10,safe:true });
+        // 关卡制：第 1 关 8×8、8 雷（进阶 ×1.12 → 9 雷），首点及其邻格必无雷
+        await p.evaluate(() => { __T.kit.go(0); __T.act(0, false); });
+        assert.deepEqual(await p.evaluate(() => ({ count: cells.filter(c => c.mine).length, safe: !cells[0].mine && nbr(0).every(k => !cells[k].mine), open: cells[0].open })), { count: expert ? 9 : 8, safe: true, open: true });
       });
       await game('solitaire', mode, async p => {
         await p.locator('#stockPile').click();
@@ -59,9 +64,14 @@ const server = http.createServer((req, res) => {
         assert.deepEqual(result,{armored:expert,reward:expert?28:14});
       });
     }
-    await game('gomoku','expert',async p => {
-      const r=await p.evaluate(() => { grid=Array.from({length:SZ},()=>Array(SZ).fill(0));over=false;for(let x=4;x<8;x++)grid[7][x]=2;aiMove();return over; });
-      assert.equal(r,true,'AI should complete its winning five');
+    for (const mode of ['classic', 'expert']) await game('gomoku', mode, async p => {
+      // 关卡制对手：AI 执白（2），有四连必成五；对手失误率进阶减半
+      const r = await p.evaluate(() => { __T.kit.go(0); grid = Array.from({length:SZ}, () => Array(SZ).fill(0)); ended = false; for (let x = 4; x < 8; x++) grid[7][x] = 2;
+        const m = think(2, { bl: 0, top: 1, dw: 1, ply: 1 }); place(m.x, m.y, 2); return { y: m.y, x: m.x, ended, bl: lvParam(0).bl }; });
+      assert.equal(r.ended, true, 'AI should complete its winning five'); assert.equal(r.y, 7); assert.ok(r.x === 3 || r.x === 8);
+      assert.equal(r.bl, mode === 'expert' ? 0.225 : 0.45);
+      const block = await p.evaluate(() => { __T.kit.go(0); grid = Array.from({length:SZ}, () => Array(SZ).fill(0)); for (let y = 3; y < 7; y++) grid[y][2] = 1; grid[2][2] = 2; return think(2, { bl: 0, top: 1, dw: 1, ply: 1 }); });
+      assert.deepEqual({ x: block.x, y: block.y }, { x: 2, y: 7 }, 'AI must block an open four');
     });
     await game('xiangqi','expert',async p => {
       const r=await p.evaluate(() => { const b=newBoard(),t=performance.now(),m=aiBestMove(b);return {legal:genAllLegal(b,'b').some(x=>JSON.stringify(x)===JSON.stringify(m)),ms:performance.now()-t}; });
