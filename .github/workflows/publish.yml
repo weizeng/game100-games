@@ -9,11 +9,17 @@ on:
       - '.github/workflows/publish.yml'
 permissions:
   contents: write
+# 连续推送时排队执行（同一时间只跑一个，排队中只保留最新一次），避免互相 push 冲突
+concurrency:
+  group: publish-main
+  cancel-in-progress: false
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main  # 总是按最新 main 打包，排队的旧触发也不会发布旧内容
       - name: 打包 zip 并生成 manifest.json
         run: |
           python3 - <<'EOF'
@@ -54,6 +60,11 @@ jobs:
           git add -A
           if git diff --cached --quiet; then echo "无变化"; exit 0; fi
           git commit -m "自动发布游戏资源 [skip ci]"
+          # 打包期间若有新推送：rebase 到最新 main 后重试（新推送会再触发一次发布，覆盖成最新 zip）
+          for i in 1 2 3; do
+            if git push; then exit 0; fi
+            git pull --rebase -X theirs origin main
+          done
           git push
       - name: 刷新 CDN 缓存
         run: |
