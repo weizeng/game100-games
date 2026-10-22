@@ -430,9 +430,10 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
         <h1>📡 声呐寻宝</h1>
         <p class="center">深海底埋着一只宝箱🧰，用声呐把它找出来！</p>
         <p>1️⃣ 点任意格子发射声呐，数字 = 该格到宝箱的<span class="kbd">曼哈曼距离</span>（横+竖格数）。<br>
-        2️⃣ 每关只有 <span class="kbd">3 次</span>声呐，用完后点一格<span class="kbd">下挖</span>判定。<br>
+        2️⃣ 每关只有 <span class="kbd"><span id="pgStart">4</span> 次</span>声呐，用完后点一格<span class="kbd">下挖</span>判定。<br>
         3️⃣ 挖中过关得分，挖错本关重来。<br>
-        4️⃣ 关卡越大网格越大（8×6 → 12×10），共 7 关。</p>
+        4️⃣ 关卡越大网格越大（8×6 → 12×10）、声呐也越多，共 7 关。<br>
+        5️⃣ 通关全部 7 关可永久解锁 <span class="kbd">+1 声呐</span>（最多 +3）。</p>
         <button class="bigbtn" id="bStart">开始寻宝</button>
         <div class="tip">💡 卡住就点右上角 💡 看三角定位思路</div>
       </div>
@@ -445,7 +446,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
         🔹 先在网格中央附近发第 1 次声呐，缩小大范围。<br>
         🔹 第 2 次选另一个方向发射，两次的菱形圈<span class="kbd">交点</span>只有 2~4 个候选格。<br>
         🔹 第 3 次对着候选格附近发射：数字越小，宝箱离该格越近——<span class="kbd">找小数字格子的交集</span>，基本就能锁定！<br><br>
-        ⚠️ 别把 3 次声呐全打在角落里，中央开局信息量最大。</p>
+        ⚠️ 别把声呐全打在角落里，中央开局信息量最大。</p>
         <button class="bigbtn" id="bCloseHint">明白了</button>
       </div>
     </div>
@@ -493,7 +494,12 @@ function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}}
 
 /* ================= 状态 ================= */
 const LEVELS=[{c:8,r:6},{c:9,r:6},{c:10,r:7},{c:10,r:8},{c:11,r:9},{c:12,r:10},{c:12,r:10}];
-const PINGS=3;
+/* 声呐次数（issue #23）：随关卡网格增大而增加 + 成长解锁（g100_sonar_prog），原 g100_sonar_hs 保持兼容 */
+let prog={bonus:0};
+try{prog=Object.assign({bonus:0},JSON.parse(localStorage.getItem('g100_sonar_prog')||'{}'));}catch(e){}
+function pingsFor(level){return 4+Math.floor(level/2)+(prog.bonus||0);}
+function saveProg(){try{localStorage.setItem('g100_sonar_prog',JSON.stringify(prog));}catch(e){}}
+let pingsTotal=pingsFor(0);
 let lv=0,score=0,hs=parseInt(localStorage.getItem('g100_sonar_hs')||'0',10)||0;
 let tx=0,ty=0,pings=[],phase='ping',started=false,paused=false,resultShown=false,found=false,foundT=0;
 let rings=[],parts=[],floats=[],marks=[];
@@ -505,7 +511,7 @@ window.addEventListener('resize',resize);resize();
 function grid(){const L=LEVELS[lv];const s=Math.min((W-24)/L.c,(H-24)/L.r);return{s:s,ox:(W-s*L.c)/2,oy:(H-s*L.r)/2,c:L.c,r:L.r};}
 function cellAt(px,py){const g=grid();const x=Math.floor((px-g.ox)/g.s),y=Math.floor((py-g.oy)/g.s);if(x<0||y<0||x>=g.c||y>=g.r)return null;return{x:x,y:y};}
 
-function newLevel(i){lv=i;const L=LEVELS[lv];tx=Math.floor(Math.random()*L.c);ty=Math.floor(Math.random()*L.r);pings=[];phase='ping';resultShown=false;found=false;rings=[];marks=[];document.getElementById('lv').textContent=lv+1;document.getElementById('pg').textContent=PINGS;hideAll();}
+function newLevel(i){lv=i;const L=LEVELS[lv];tx=Math.floor(Math.random()*L.c);ty=Math.floor(Math.random()*L.r);pings=[];pingsTotal=pingsFor(lv);phase='ping';resultShown=false;found=false;rings=[];marks=[];document.getElementById('lv').textContent=lv+1;document.getElementById('pg').textContent=pingsTotal;hideAll();}
 function hideAll(){['ovStart','ovHint','ovPause','ovResult','ovWin'].forEach(id=>document.getElementById(id).classList.add('hidden'));}
 function updHUD(){$('sc').textContent=score;$('hs').textContent=hs;}
 function $(id){return document.getElementById(id);}
@@ -518,15 +524,15 @@ cv.addEventListener('pointerdown',e=>{
   if(!cell)return;
   if(phase==='ping'){
     if(pings.some(p=>p.x===cell.x&&p.y===cell.y))return;
-    if(pings.length>=PINGS)return;
+    if(pings.length>=pingsTotal)return;
     const g=grid(),cx=g.ox+(cell.x+0.5)*g.s,cy=g.oy+(cell.y+0.5)*g.s;
     const d=Math.abs(cell.x-tx)+Math.abs(cell.y-ty);
     pings.push({x:cell.x,y:cell.y,d:d});
     rings.push({x:cx,y:cy,r:6,max:g.s*1.6,a:1});
     floats.push({x:cx,y:cy-g.s*0.4,txt:'d='+d,t:0,life:1.6,color:'#7ee787'});
     sPing();buzz(25);
-    $('pg').textContent=PINGS-pings.length;
-    if(pings.length>=PINGS){phase='dig';setTimeout(()=>{if(phase==='dig'&&!resultShown)floats.push({x:W/2,y:H*0.12,txt:'声呐用尽！点一格下挖 ⛏',t:0,life:2.2,color:'#ffd54f'});},400);}
+    $('pg').textContent=pingsTotal-pings.length;
+    if(pings.length>=pingsTotal){phase='dig';setTimeout(()=>{if(phase==='dig'&&!resultShown)floats.push({x:W/2,y:H*0.12,txt:'声呐用尽！点一格下挖 ⛏',t:0,life:2.2,color:'#ffd54f'});},400);}
   }else if(phase==='dig'){
     digAt(cell);
   }
@@ -543,7 +549,12 @@ function digAt(cell){
     sWin();buzz([40,60,40]);
     resultShown=true;phase='done';
     setTimeout(()=>{
-      if(lv>=LEVELS.length-1){$('winText').textContent='7 关全通！总分 '+score+'，最高 '+hs;$('ovWin').classList.remove('hidden');}
+      if(lv>=LEVELS.length-1){
+        let msg='7 关全通！总分 '+score+'，最高 '+hs;
+        if(prog.bonus<3){prog.bonus++;saveProg();msg+='。🎖 永久解锁 +1 声呐（当前 +'+prog.bonus+'）！';}
+        else{msg+='。🎖 声呐加成已满（+'+prog.bonus+'）！';}
+        $('winText').textContent=msg;$('ovWin').classList.remove('hidden');
+      }
       else{$('resTitle').textContent='🎉 找到宝箱！';$('resText').textContent='第 '+(lv+1)+' 关通过，得 '+gain+' 分';$('bNext').classList.remove('hidden');$('bRetry').classList.add('hidden');$('ovResult').classList.remove('hidden');}
     },1100);
   }else{
@@ -614,7 +625,7 @@ function draw(t){
   // 阶段提示条
   ctx.fillStyle='rgba(2,10,25,.55)';rr(10,H-44,Math.min(300,W-20),32,10);ctx.fill();
   ctx.fillStyle='#bcd9ff';ctx.font='14px system-ui';ctx.textAlign='left';
-  ctx.fillText(phase==='ping'?'👆 点格子发射声呐（剩余 '+(PINGS-pings.length)+' 次）':(phase==='dig'?'⛏ 声呐用尽，点一格下挖！':''),22,H-28);
+  ctx.fillText(phase==='ping'?'👆 点格子发射声呐（剩余 '+(pingsTotal-pings.length)+' 次）':(phase==='dig'?'⛏ 声呐用尽，点一格下挖！':''),22,H-28);
 }
 
 /* ================= 按钮 ================= */
@@ -629,6 +640,8 @@ $('bRetry').onclick=()=>{sClick();newLevel(lv);};
 $('bAgain').onclick=()=>{sClick();score=0;updHUD();newLevel(0);};
 $('bMute').onclick=function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');this.textContent=muted?'🔇':'🔊';if(!muted)sClick();};
 if(muted)$('bMute').textContent='🔇';
+$('pg').textContent=pingsFor(0);
+$('pgStart').textContent=pingsFor(0);
 updHUD();
 </script>
 </body>
