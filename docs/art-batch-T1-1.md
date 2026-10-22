@@ -1,6 +1,6 @@
 # 画面升级批次 T1-1（2026-10-21 制作，2026-10-22 推送）
 
-第 3 步「画布画面升级」第一档第 1 批。原计划 10 款，实际推送 **9 款**（小行星剔除，见下）。批次表见 [皮肤 B 上线记录](ui-skin-b-2026-10-20.md)。
+第 3 步「画布画面升级」第一档第 1 批。10-22 15:08 先推送 **9 款**（小行星当时剔除，见下）；10-22 下午救回小行星后在新代码上补做，**10 款全部完成**。批次表见 [皮肤 B 上线记录](ui-skin-b-2026-10-20.md)。
 
 > **推送记录**：本批 10-21 做完并在本地测试通过，但当天定时任务没有完成提交推送。10-22 rebase 到最新 `origin/main` 后重新跑了全部测试再推送。
 >
@@ -70,11 +70,27 @@
 - `node scripts/check-game.cjs dino,flappy,breakout,pacman,invaders,pong,pinball,bubble,zuma`：两种尺寸 18/18 PASS。
 - 无头浏览器整局测试（Playwright 假时钟；点开始→暂停→继续→玩到结算→再来一局）：390×844 和 360×640 都是 18/18 PASS，控制台无报错，开局前、结束后滚动量都是 0。
 - `node scripts/sync-game-ui.cjs --check --strict --only=<本批 9 款>`：Verified 9，退出码 0。
-  - 不加 `--only` 的全量检查在 `origin/main` 上本来就失败（和本批无关）：asteroid、billiards、collapse、ninja、slingshot 的共用界面块过期（10-21 的修复 #11～#16 用旧代码覆盖了这几款），gunslinger、lasso 没在 catalog 登记。
+  - 不加 `--only` 的全量检查当时在 `origin/main` 上本来就失败（和本批无关，已在 `df26450` 修好，全量 258 款通过）：asteroid、billiards、collapse、ninja、slingshot 的共用界面块过期（10-21 的修复 #11～#16 用旧代码覆盖了这几款），gunslinger、lasso 没在 catalog 登记。
 - `node scripts/build-classic-games.cjs --check`：五款 Verified。
 - `node scripts/test-classic-games.cjs`：10/10 PASS。
 - `node scripts/test-gameplay.cjs`：breakout 两种模式（classic、expert）都 PASS（挡板 80/60、砖块护甲 1/2、48 块砖）。
   - 整个脚本在 game2048 就失败；跳过 game2048、minesweeper 后，snake、tetris、breakout、solitaire、simon、towerdef 都通过，然后停在 gomoku（`aiMove is not defined`）。这三款都被可玩性升级第 1 批改写了，测试脚本还是旧接口，跟本批无关。
+
+## 补做：小行星（asteroid，10-22 下午）
+
+- 先救回：`8774542`（修复 #11）用 10-09 的 v1 旧代码覆盖了皮肤 B 版。`df26450` 以覆盖前的 v4 为底，把 #11 的实际改动（全屏拖拽跟随、拖拽中自动连射、去掉底部按键）三方合并回去，版本 5、补回 `studio: "Muse"`、共用界面块重新同步。
+- 画面升级在救回后的代码上重做（版本 5→6），做法与本批其他 9 款一致：
+  - 新增 `drawFx()`，原平面 `draw()` 保留为无 FX 兜底；玩法、碰撞、计分不变。
+  - 星云渐变背景 + 远景小行星带只画一次进离屏 canvas（按 W×H×DPR 缓存）。
+  - 陨石预渲染成糖果色（紫/粉/青）立体岩块：径向光照、亮边、陨坑高光、投影；按 3 种尺寸 × 4 种形状缓存 12 张精灵。
+  - 飞船：渐变机身 + 青色发光 + 投影 + 粉色驾驶舱光泽球；拖拽移动时尾焰（#11 去掉了推进键，尾焰改按移动速度显示）；复活无敌时有护盾圈。
+  - 新增：拖拽时手指位置的虚线脉动引导光圈，配合 #11 的手势操作。
+  - UFO 用倒角糖果块 + 光泽球舱罩 + 闪灯；子弹发光金色拖尾；粒子改圆点；飘字描边。
+- 测试：`check-game` 两种尺寸 PASS；无头浏览器 390×844 / 360×640 整局（拖拽开火→被撞到结算）都能结束，无脚本报错，滚动量 0。
+
+| 改前 / 改后（390×844，同一随机种子） |
+|---|
+| ![asteroid](art-batch-T1-1/asteroid.png) |
 
 ## 10-21 的原始测试记录（10 款，含小行星）
 

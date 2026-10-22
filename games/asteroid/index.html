@@ -527,6 +527,7 @@ for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.y+=fl.vy;fl.life--;if(fl
 }
 function draw(){
 if(state==='start')return; // No scene objects exist until startGame initializes them.
+if(FX)return drawFx();
 
 ctx.clearRect(0,0,W,H);
 ctx.fillStyle='#ffffff';
@@ -541,6 +542,60 @@ var gr=ctx.createLinearGradient(-12,0,14,0);gr.addColorStop(0,'#4fc3f7');gr.addC
 ctx.fillStyle=gr;ctx.beginPath();ctx.moveTo(15,0);ctx.lineTo(-10,10);ctx.lineTo(-5,0);ctx.lineTo(-10,-10);ctx.closePath();ctx.fill();ctx.restore();}
 parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/45);ctx.fillStyle=p.col;ctx.fillRect(p.x,p.y,p.s,p.s);});ctx.globalAlpha=1;
 ctx.font='bold 15px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/50);ctx.fillStyle='#ffd740';ctx.fillText(f.t,f.x-10,f.y);});ctx.globalAlpha=1;
+}
+/* 画面升级（霓虹糖果立体，GameUI.fx）：上面的平面 draw() 保留为无 FX 兜底；玩法、碰撞、计分不变 */
+var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null,rockSpr={},nebula=null,nebKey='';
+var ROCKC=['#9d7bff','#ff8ac6','#5fd0ff'];
+function fxRock(size,v){
+  var key=size+'_'+v;if(rockSpr[key])return rockSpr[key];
+  var r=size*16,pad=6,d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas'),S=Math.ceil((r*1.15+pad)*2);
+  c.width=Math.ceil(S*d);c.height=Math.ceil(S*d);var g=c.getContext('2d');g.scale(d,d);g.translate(S/2,S/2);
+  var s=size*31+v*7+3;function rnd(){s=(s*16807)%2147483647;return s/2147483647;}
+  var pts=[];for(var i=0;i<11;i++){var a=i/11*Math.PI*2,rr=r*(0.84+rnd()*0.26);pts.push([Math.cos(a)*rr,Math.sin(a)*rr]);}
+  function path(){g.beginPath();pts.forEach(function(p,i){i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]);});g.closePath();}
+  var col=ROCKC[(size+v)%3];
+  g.save();g.translate(2,4);path();g.fillStyle='rgba(0,0,0,.4)';g.fill();g.restore();
+  path();var bg=g.createRadialGradient(-r*.35,-r*.4,r*.1,0,0,r*1.1);bg.addColorStop(0,FX.shade(col,.55));bg.addColorStop(.45,FX.shade(col,-.15));bg.addColorStop(1,FX.shade(col,-.6));g.fillStyle=bg;g.fill();
+  g.lineWidth=2;g.strokeStyle=FX.shade(col,.35);g.stroke();
+  for(var k=0;k<size+1;k++){var cx=(rnd()-.5)*r*1.1,cy=(rnd()-.5)*r*1.1,cr=r*(.12+rnd()*.12);
+    g.fillStyle='rgba(20,0,50,.32)';g.beginPath();g.arc(cx,cy,cr,0,7);g.fill();g.fillStyle='rgba(255,255,255,.22)';g.beginPath();g.arc(cx-cr*.25,cy-cr*.3,cr*.55,0,7);g.fill();}
+  g.fillStyle='rgba(255,255,255,.55)';g.beginPath();g.ellipse(-r*.38,-r*.45,r*.22,r*.1,-.6,0,7);g.fill();
+  c._s=S;rockSpr[key]=c;return c;
+}
+function fxNebula(){
+  var k=W+'x'+H+'@'+DPR;if(nebula&&nebKey===k)return nebula;nebKey=k;
+  var d=DPR,c=document.createElement('canvas');c.width=Math.round(W*d);c.height=Math.round(H*d);var g=c.getContext('2d');g.scale(d,d);
+  var bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#1d0b4d');bg.addColorStop(1,'#05031a');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  [[.2,.25,'255,61,154',.22],[.8,.55,'0,200,255',.18],[.45,.85,'178,107,255',.2]].forEach(function(n){var gr=g.createRadialGradient(W*n[0],H*n[1],10,W*n[0],H*n[1],Math.max(W,H)*.45);gr.addColorStop(0,'rgba('+n[2]+','+n[3]+')');gr.addColorStop(1,'rgba('+n[2]+',0)');g.fillStyle=gr;g.fillRect(0,0,W,H);});
+  // 远景小行星带（静态，离屏缓存一次）
+  for(var i=0;i<26;i++){var x=(i*97)%W,y=H*.12+((i*53)%Math.round(H*.8)),rr=1.5+(i%4);g.fillStyle='rgba(157,123,255,'+(.08+(i%3)*.04)+')';g.beginPath();g.arc(x,y,rr,0,7);g.fill();}
+  nebula=c;return c;
+}
+function drawFx(){
+  ctx.drawImage(fxNebula(),0,0,W,H);
+  ctx.fillStyle='#ffffff';
+  stars.forEach(function(s){ctx.globalAlpha=.3+.7*Math.abs(Math.sin(s.p));ctx.fillRect(s.x,s.y,s.s,s.s);});ctx.globalAlpha=1;
+  rocks.forEach(function(r){if(r._v==null)r._v=(Math.random()*4)|0;var c=fxRock(r.size,r._v);FX.shadow(ctx,r.x+3,r.y+r.r*.9,r.r*.8,r.r*.22,.22);ctx.save();ctx.translate(r.x,r.y);ctx.rotate(r.a);ctx.drawImage(c,-c._s/2,-c._s/2,c._s,c._s);ctx.restore();});
+  ufos.forEach(function(u){FX.shadow(ctx,u.x,u.y+14,15,4,.3);FX.glow(ctx,'#ff5cf0',16);FX.tile(ctx,Math.round(u.x-17),Math.round(u.y-5),34,11,'#e040fb',5);FX.noGlow(ctx);FX.orb(ctx,Math.round(u.x),Math.round(u.y-5),7,'#7af5ff');
+    ctx.fillStyle=(u.t>>3)%2?'#ffe14d':'#fff';[-10,0,10].forEach(function(o){ctx.beginPath();ctx.arc(u.x+o,u.y+1,1.6,0,7);ctx.fill();});});
+  FX.glow(ctx,'#ffd34d',10);ctx.strokeStyle='#ffe58a';ctx.lineWidth=3.5;ctx.lineCap='round';
+  bullets.forEach(function(b){ctx.beginPath();ctx.moveTo(b.x-b.vx*.8,b.y-b.vy*.8);ctx.lineTo(b.x,b.y);ctx.stroke();});FX.noGlow(ctx);
+  parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/45);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.s*.8,0,7);ctx.fill();});ctx.globalAlpha=1;
+  // 拖拽中：手指位置的引导光圈（#11 手势操作的可视反馈）
+  if(state==='play'&&dragOn){var pul=.5+.5*Math.sin(Date.now()/160);ctx.strokeStyle='rgba(0,229,255,'+(.35+.3*pul)+')';ctx.lineWidth=2;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(dragTX,dragTY,16+pul*4,0,7);ctx.stroke();ctx.setLineDash([]);}
+  if(state==='play'&&!(invuln>0&&Math.floor(invuln/6)%2===0)){
+    var moving=keys.t||(dragOn&&Math.hypot(ship.vx,ship.vy)>1.2);
+    ctx.save();ctx.translate(ship.x,ship.y);ctx.rotate(ship.a);
+    if(moving){var fl=ctx.createLinearGradient(-22,0,-6,0);fl.addColorStop(0,'rgba(255,90,60,0)');fl.addColorStop(1,'#ffd34d');ctx.fillStyle=fl;ctx.beginPath();ctx.moveTo(-6,-5);ctx.lineTo(-20-Math.random()*6,0);ctx.lineTo(-6,5);ctx.closePath();ctx.fill();}
+    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.moveTo(17,3);ctx.lineTo(-8,13);ctx.lineTo(-3,3);ctx.lineTo(-8,-7);ctx.closePath();ctx.fill();
+    FX.glow(ctx,'rgba(0,229,255,.8)',14);
+    var gr=ctx.createLinearGradient(0,-11,0,11);gr.addColorStop(0,'#bdf6ff');gr.addColorStop(.45,'#38c8ff');gr.addColorStop(1,'#5a3dff');
+    ctx.fillStyle=gr;ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-10,11);ctx.lineTo(-5,0);ctx.lineTo(-10,-11);ctx.closePath();ctx.fill();FX.noGlow(ctx);
+    ctx.fillStyle='rgba(255,255,255,.7)';ctx.beginPath();ctx.moveTo(13,-1);ctx.lineTo(-6,-8);ctx.lineTo(-3,-2);ctx.closePath();ctx.fill();
+    FX.orb(ctx,3,0,3,'#ff3d9a');
+    ctx.restore();
+    if(invuln>0){ctx.strokeStyle='rgba(122,245,255,.5)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(ship.x,ship.y,22,0,7);ctx.stroke();}}
+  ctx.font='900 16px sans-serif';ctx.lineJoin='round';ctx.lineWidth=4;floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/50);ctx.strokeStyle='#2a0a4a';ctx.strokeText(f.t,f.x-10,f.y);ctx.fillStyle='#ffe14d';ctx.fillText(f.t,f.x-10,f.y);});ctx.globalAlpha=1;
 }
 function loop(){update();draw();requestAnimationFrame(loop);}
 initStars();loop();
