@@ -47,7 +47,10 @@ const server = http.createServer((req, res) => {
       });
       await game('tetris', mode, async p => assert.equal(await p.evaluate(() => board.flat().filter(Boolean).length), expert?27:0));
       await game('breakout', mode, async p => {
-        assert.deepEqual(await p.evaluate(() => ({width:paddle.w,hp:bricks[0].hp,count:bricks.length})), {width:expert?60:80,hp:expert?2:1,count:48});
+        // 2026-10-22 可玩性升级后：15 关，第 1 关 3 排×8 块；进阶挡板更窄、球更快；第 5 关是首领
+        await p.evaluate(() => __T.kit.go(0));
+        assert.deepEqual(await p.evaluate(() => ({ width: __T.state().paddle.w, count: bricks.length, hp: bricks[0].hp, spd: Math.round(LP.spd) })), { width: expert ? 64 : 80, count: 24, hp: 1, spd: expert ? 336 : 300 });
+        assert.equal(await p.evaluate(() => { __T.kit.go(4); return __T.state().boss; }), 22);
       });
       await game('minesweeper', mode, async p => {
         // 关卡制：第 1 关 8×8、8 雷（进阶 ×1.12 → 9 雷），首点及其邻格必无雷
