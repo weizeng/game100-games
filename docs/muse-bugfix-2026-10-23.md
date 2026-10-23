@@ -71,4 +71,5 @@
 
 ## 发布
 
-见本次 push 后的 GitHub Actions「发布游戏资源」运行记录（提交说明中附链接）。
+- 提交：`6575a41`
+- Actions：https://github.com/weizeng/game100-games/actions/runs/39940499919
