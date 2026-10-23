@@ -39,8 +39,31 @@ jobs:
           git push
       - name: 刷新 CDN 缓存
         run: |
-          curl -s "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/manifest.json" -o /dev/null || true
-          for f in *.zip; do
-            curl -s "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/$f" -o /dev/null || true
+          set -e
+          EXPECTED=$(python3 -c "import json; print(json.load(open('manifest.json')).get('updated',''))")
+          echo "expected updated=$EXPECTED"
+          # GitHub raw 偶发落后于 tip；等它跟上再 purge，否则 jsDelivr 会把旧内容重新缓存进去
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            RAW=$(curl -fsSL -A Game100/1.0 -H 'Cache-Control: no-cache'               "https://raw.githubusercontent.com/weizeng/game100-games/main/manifest.json"               | python3 -c "import sys,json; print(json.load(sys.stdin).get('updated',''))" || true)
+            echo "raw try $i updated=$RAW"
+            if [ "$RAW" = "$EXPECTED" ]; then break; fi
+            sleep 6
           done
-          echo purged
+          curl -fsS "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/manifest.json" || true
+          for f in *.zip; do
+            curl -fsS "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/$f" >/dev/null || true
+          done
+          # 主线路 cdn.jsdelivr.net 必须读到本轮 manifest（App 默认第一线路）
+          OK=0
+          for i in 1 2 3 4 5 6; do
+            GOT=$(curl -fsSL -A Game100/1.0 -H 'Cache-Control: no-cache'               "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main/manifest.json"               | python3 -c "import sys,json; print(json.load(sys.stdin).get('updated',''))" || true)
+            echo "cdn try $i updated=$GOT"
+            if [ "$GOT" = "$EXPECTED" ]; then OK=1; break; fi
+            curl -fsS "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/manifest.json" || true
+            sleep 8
+          done
+          if [ "$OK" != 1 ]; then
+            echo "::warning::cdn.jsdelivr.net 仍未吃到 updated=$EXPECTED，4.14 用户可能仍看到旧推荐；raw 直链一般已新"
+          else
+            echo "cdn.jsdelivr.net OK"
+          fi
