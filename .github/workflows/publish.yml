@@ -50,9 +50,12 @@ jobs:
             sleep 6
           done
           curl -fsS "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/manifest.json" || true
-          for f in *.zip; do
+          # 只刷新本轮提交改动的 zip，避免 200+ 次 purge 触发 jsDelivr 限流（限流后 manifest 也会刷不进去）
+          CHANGED=$(git show --name-only --pretty='' HEAD | grep '\.zip$' || true)
+          for f in $CHANGED; do
             curl -fsS "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/$f" >/dev/null || true
           done
+          echo "purged manifest + $(echo "$CHANGED" | grep -c . || true) zips"
           # 主线路 cdn.jsdelivr.net 必须读到本轮 manifest（App 默认第一线路）
           OK=0
           for i in 1 2 3 4 5 6; do
