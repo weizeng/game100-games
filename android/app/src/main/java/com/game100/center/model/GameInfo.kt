@@ -33,6 +33,8 @@ data class InstalledGame(
     val color: String,
     val category: String,
     val premium: Boolean = false,
+    /** 首页推荐位序（来自本地 meta；离线/cn 内置包会写入） */
+    val featured: Int = 0,
     val studio: String = ""
 ) {
     fun displayStudio(): String = Studio.resolve(studio, null)

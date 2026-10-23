@@ -122,6 +122,7 @@ class GameRepository(private val context: Context) {
                         color = meta.optString("color", "#607D8B"),
                         category = meta.optString("category", "经典重温"),
                         premium = meta.optBoolean("premium", false),
+                        featured = meta.optInt("featured", 0),
                         studio = meta.optString("studio", "")
                     )
                 )
@@ -197,7 +198,11 @@ class GameRepository(private val context: Context) {
                     remote = rem,
                     isNew = isNewGame(id),
                     isPremium = ins.premium || (rem?.premium == true),
-                    featuredRank = rem?.featured ?: 0,
+                    featuredRank = when {
+                        rem != null && rem.featured > 0 -> rem.featured
+                        ins.featured > 0 -> ins.featured
+                        else -> 0
+                    },
                     studio = Studio.resolve(rem?.studio, ins.studio)
                 )
             )

@@ -28,7 +28,14 @@ scripts/classics/ + build-classic-games.cjs ← 五款经典（connectfour color
 <id>.zip、manifest.json   ← ⚠️ 由 GitHub Actions 自动生成，永远不要手改、不要手动提交
 ```
 
-**流水线**：push 到 `main` 且改动了 `games/**` → `.github/workflows/publish.yml` 调用 `scripts/build-publish-assets.py`：把每个 `games/<id>/` 打成 `<id>.zip`、生成 `manifest.json`（= meta.json 全部字段 + `url` + `size`），并**自动把最近改动的 12 款游戏标为首页推荐**（`premium: true`，`featured: 1…12`，1 最新）。由 `game100-bot` 提交 `自动发布游戏资源 [skip ci]`，并刷新 jsDelivr 上 `manifest.json` 的缓存。App 下拉刷新即可看到新推荐（不必升 App）；`featured` 排序需要 App ≥ 4.15。**不要**在 `meta.json` 里手写 `premium` / `featured`。App 对比 `version` 决定是否提示游戏更新。
+**流水线**：push 到 `main` 且改动了 `games/**` → `.github/workflows/publish.yml` 调用 `scripts/build-publish-assets.py`：把每个 `games/<id>/` 打成 `<id>.zip`、生成 `manifest.json`（= meta.json 全部字段 + `url` + `size`），并**自动把最近改动的 12 款游戏标为首页推荐**（`premium: true`，`featured: 1…12`，1 最新；同时写入 zip 内 meta，供离线内置）。由 `game100-bot` 提交 `自动发布游戏资源 [skip ci]`，并刷新 jsDelivr 上 `manifest.json` 的缓存。
+
+**各 App 版本怎么看到推荐**：
+- **direct / play / taptap（有联网）4.14**：下拉刷新拉取 manifest 的 `premium` 即可换「精选推荐」内容；顺序按**中文名**，不是最新在前。
+- **cn 渠道 4.14**：完全离线、不读 manifest，精选只认 APK 内置 meta——**必须发新版 App** 才能换推荐。
+- **≥ 4.15**：按 `featured` 最新在前；联网有缓存穿透；cn 内置包也会带上推荐位。
+
+**不要**在 `meta.json` 里手写 `premium` / `featured`。App 对比 `version` 决定是否提示游戏更新。
 
 - 打包 APK 在 muse 侧完成。`build-apk.yml`、`android/`、keystore 文件**不要动**。
 - 推送前先 `git pull --rebase`，因为 bot 的自动提交会让本地落后。**只做普通 push，禁止 force-push。**

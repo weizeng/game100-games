@@ -36,8 +36,8 @@ class FeaturedAdapter(
         val ctx = h.itemView.context
         h.bg.background = GameAdapter.featuredBackground(ctx, item.color)
         h.kicker.text = when {
-            item.isNew -> "新鲜上架"
             item.isPremium -> "精选推荐"
+            item.isNew -> "新鲜上架"
             else -> item.category
         }
         h.kicker.visibility = View.VISIBLE

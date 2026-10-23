@@ -10,14 +10,14 @@ object ManifestFetcher {
     @Throws(Exception::class)
     fun fetch(url: String): List<RemoteGame> {
         // 多线路容灾（见 Mirrors），最多 2 轮，轮间等 1 秒
-        val urls = Mirrors.candidates(url)
+        val urls = Mirrors.candidates(url).map { withCacheBust(it) }
         var lastError: Exception? = null
         for (round in 0 until 2) {
             if (round > 0) Thread.sleep(1_000)
             for (u in urls) {
                 try {
                     val list = fetchSingle(u)
-                    Mirrors.markGood(u)
+                    Mirrors.markGood(u.substringBefore("?"))
                     return list
                 } catch (e: Exception) {
                     lastError = e
@@ -27,6 +27,13 @@ object ManifestFetcher {
         throw lastError ?: IOException("游戏源连接失败")
     }
 
+    /** 10 分钟一档的查询参数，避开 jsDelivr / 运营商对 @main 的长时间缓存。 */
+    private fun withCacheBust(url: String): String {
+        val bucket = System.currentTimeMillis() / 600_000L
+        val sep = if (url.contains("?")) "&" else "?"
+        return "$url${sep}cb=$bucket"
+    }
+
     @Throws(Exception::class)
     private fun fetchSingle(url: String): List<RemoteGame> {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -34,6 +41,8 @@ object ManifestFetcher {
             readTimeout = GameDownloader.readTimeoutMs
             useCaches = false
             setRequestProperty("User-Agent", "Game100/1.0")
+            setRequestProperty("Cache-Control", "no-cache")
+            setRequestProperty("Pragma", "no-cache")
             instanceFollowRedirects = true
         }
         try {

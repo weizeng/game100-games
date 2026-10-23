@@ -134,20 +134,35 @@ if (!hasReleaseSigning) {
 def gamesSrcDir = rootProject.file("../games")
 def bundledOut = layout.buildDirectory.dir("generated/bundledGames/bundled")
 def zipBundledGames = tasks.register("zipBundledGames") {
-    description = "把 ../games 下所有游戏打包为内置 assets（所有渠道）"
+    description = "把 ../games 下所有游戏打包为内置 assets（所有渠道），并写入首页推荐位"
     inputs.dir(gamesSrcDir).optional()
+    inputs.file(rootProject.file("../scripts/featured-ranks.py")).optional()
     outputs.dir(bundledOut)
     doLast {
         def out = bundledOut.get().asFile
         project.delete(out)
         out.mkdirs()
+        // 与 publish 脚本同一套「最近改动 N 款」规则，cn 离线也能看到精选推荐
+        def ranks = [:]
+        def ranksScript = rootProject.file("../scripts/featured-ranks.py")
+        if (ranksScript.exists()) {
+            def proc = ["python3", ranksScript.absolutePath, rootProject.file("..").absolutePath].execute()
+            proc.waitFor()
+            if (proc.exitValue() == 0) {
+                def parsed = new groovy.json.JsonSlurper().parseText(proc.text)
+                parsed.each { k, v -> ranks[k.toString()] = (v as int) }
+            } else {
+                logger.warn("[game100] featured-ranks.py 失败，内置包不写推荐位：${proc.err.text}")
+            }
+        }
         int n = 0
+        int featuredN = 0
         (gamesSrcDir.listFiles() ?: new File[0]).sort { it.name }.each { File g ->
             if (!g.isDirectory()) return
             if (!new File(g, "index.html").exists() || !new File(g, "meta.json").exists()) return
+            def rank = ranks[g.name]
             new File(out, "${g.name}.zip").withOutputStream { os ->
                 def zos = new java.util.zip.ZipOutputStream(os)
-                // 固定顺序 + 固定时间戳，构建可复现
                 def files = []
                 g.eachFileRecurse(groovy.io.FileType.FILES) { File f -> if (!f.name.startsWith(".")) files << f }
                 files.sort { g.toPath().relativize(it.toPath()).toString() }.each { File f ->
@@ -155,7 +170,19 @@ def zipBundledGames = tasks.register("zipBundledGames") {
                     def e = new java.util.zip.ZipEntry(rel)
                     e.setTime(0L)
                     zos.putNextEntry(e)
-                    f.withInputStream { zos << it }
+                    if (rel == "meta.json") {
+                        def meta = new HashMap(new groovy.json.JsonSlurper().parse(f) as Map)
+                        meta.remove("premium"); meta.remove("featured")
+                        if (rank != null) {
+                            meta.premium = true
+                            meta.featured = rank
+                            featuredN++
+                        }
+                        def body = new groovy.json.JsonBuilder(meta).toPrettyString() + "\n"
+                        zos.write(body.getBytes("UTF-8"))
+                    } else {
+                        f.withInputStream { zos << it }
+                    }
                     zos.closeEntry()
                 }
                 zos.close()
@@ -163,7 +190,7 @@ def zipBundledGames = tasks.register("zipBundledGames") {
             n++
         }
         if (n == 0) throw new GradleException("没有找到任何游戏（期望目录：${gamesSrcDir}）。请在完整仓库里构建。")
-        logger.lifecycle("[game100] 内置游戏：${n} 款")
+        logger.lifecycle("[game100] 内置游戏：${n} 款（推荐位 ${featuredN}）")
     }
 }
 tasks.configureEach { t ->
