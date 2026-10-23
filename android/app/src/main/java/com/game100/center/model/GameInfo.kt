@@ -15,6 +15,8 @@ data class RemoteGame(
     val url: String,
     val size: Long,
     val premium: Boolean = false,
+    /** 首页推荐位序：1=最前，0=未上推荐；由 publish 写入 manifest */
+    val featured: Int = 0,
     val studio: String = ""
 ) {
     /** 展示用出品方：缺字段的老游戏默认归属 DEFAULT_STUDIO */
@@ -48,6 +50,8 @@ data class GameItem(
     val remote: RemoteGame?,
     val isNew: Boolean = false,
     val isPremium: Boolean = false,
+    /** 首页推荐位序：1=最前，0=未上推荐（来自远端 manifest） */
+    val featuredRank: Int = 0,
     /** 出品方（已规范化，见 [Studio.resolve]） */
     val studio: String = DEFAULT_STUDIO
 ) {

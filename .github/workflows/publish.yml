@@ -1,11 +1,12 @@
 name: 发布游戏资源
-# games/ 或本 workflow 有更新时：打包 zip、生成 manifest.json、刷新 CDN
-# manifest 条目 = meta.json 全部字段 + url/size（以后 meta 加字段无需改脚本）
+# games/ 或本 workflow / 打包脚本有更新时：打包 zip、生成 manifest.json、刷新 CDN
+# manifest 条目 = meta.json 全部字段 + url/size，并自动写入首页推荐位（premium/featured）
 on:
   push:
     branches: [main]
     paths:
       - 'games/**'
+      - 'scripts/build-publish-assets.py'
       - '.github/workflows/publish.yml'
 permissions:
   contents: write
@@ -20,39 +21,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main  # 总是按最新 main 打包，排队的旧触发也不会发布旧内容
-      - name: 打包 zip 并生成 manifest.json
-        run: |
-          python3 - <<'EOF'
-          import json, os, zipfile, datetime
-          BASE = "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main"
-          # 清理根目录旧 zip（全部由本流程管理）
-          for f in os.listdir('.'):
-              if f.endswith('.zip') and os.path.isfile(f):
-                  os.remove(f)
-          games = []
-          for gid in sorted(os.listdir('games')):
-              gdir = os.path.join('games', gid)
-              meta_p = os.path.join(gdir, 'meta.json')
-              idx_p = os.path.join(gdir, 'index.html')
-              if not (os.path.isdir(gdir) and os.path.isfile(meta_p) and os.path.isfile(idx_p)):
-                  continue
-              meta = json.load(open(meta_p, encoding='utf-8'))
-              zp = f'{gid}.zip'
-              with zipfile.ZipFile(zp, 'w', zipfile.ZIP_DEFLATED) as z:
-                  z.write(idx_p, 'index.html')
-                  z.write(meta_p, 'meta.json')
-              entry = dict(meta)  # 透传 meta 全部字段
-              entry['id'] = gid
-              entry['url'] = f"{BASE}/{zp}"
-              entry['size'] = os.path.getsize(zp)
-              games.append(entry)
-          manifest = {
-              "updated": datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-              "games": games,
-          }
-          json.dump(manifest, open('manifest.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-          print(f"packed {len(games)} games")
-          EOF
+          fetch-depth: 0  # 需要完整 git 历史，才能按「最近改动」排推荐位
+      - name: 打包 zip 并生成 manifest.json（含自动推荐位）
+        run: python3 scripts/build-publish-assets.py
       - name: 提交 zip 与 manifest
         run: |
           git config user.name "game100-bot"

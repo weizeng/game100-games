@@ -197,6 +197,7 @@ class GameRepository(private val context: Context) {
                     remote = rem,
                     isNew = isNewGame(id),
                     isPremium = ins.premium || (rem?.premium == true),
+                    featuredRank = rem?.featured ?: 0,
                     studio = Studio.resolve(rem?.studio, ins.studio)
                 )
             )
@@ -215,6 +216,7 @@ class GameRepository(private val context: Context) {
                         remote = r,
                         isNew = isNewGame(r.id),
                         isPremium = r.premium,
+                        featuredRank = r.featured,
                         studio = Studio.resolve(r.studio, null)
                     )
                 )

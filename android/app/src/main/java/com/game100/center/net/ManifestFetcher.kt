@@ -59,6 +59,7 @@ object ManifestFetcher {
                         url = o.optString("url", ""),
                         size = o.optLong("size", 0),
                         premium = o.optBoolean("premium", false),
+                        featured = o.optInt("featured", 0),
                         studio = o.optString("studio", "")
                     )
                 )

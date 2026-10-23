@@ -314,7 +314,7 @@ class MainActivity : AppCompatActivity() {
     private fun applyFilterUnsafe() {
         var filtered = when (selectedCat) {
             "全部" -> allItems
-            "精品" -> allItems.filter { it.isPremium }
+            "精品" -> allItems.filter { it.isPremium }.sortedWith(::featuredOrder)
             "新上架" -> allItems.filter { it.isNew }
             else -> allItems.filter { it.category == selectedCat }
         }
@@ -360,11 +360,21 @@ class MainActivity : AppCompatActivity() {
         applyFilter()
     }
 
+    /** 推荐位：有 featured 序号的按 1…N（最新在前），其余按名称。 */
+    private fun featuredOrder(a: GameItem, b: GameItem): Int {
+        val ar = if (a.featuredRank > 0) a.featuredRank else Int.MAX_VALUE
+        val br = if (b.featuredRank > 0) b.featuredRank else Int.MAX_VALUE
+        if (ar != br) return ar - br
+        return a.name.compareTo(b.name)
+    }
+
     private fun refreshFeatured() {
         // Keep discovery out of the way while the user searches or browses a category.
         val showFeatured = selectedCat == "全部" && searchQuery.isBlank() && selectedStudio == null
         val featGames = (allItems.filter { it.isPremium } + allItems.filter { it.isNew && !it.isPremium })
-            .distinctBy { it.id }.take(8)
+            .distinctBy { it.id }
+            .sortedWith(::featuredOrder)
+            .take(8)
         findViewById<View>(R.id.science_banner).visibility = if (showFeatured) View.VISIBLE else View.GONE
         val featHeader = findViewById<View>(R.id.feat_section_header)
         val featTitle = findViewById<TextView>(R.id.feat_title)

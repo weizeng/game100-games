@@ -5,7 +5,7 @@
 ## 10 条必须遵守的规则
 
 1. **一款游戏 = `games/<id>/index.html` + `meta.json`**，单文件、全部内联、离线可玩。不得出现任何 `http(s)://` 资源（字体、CDN、图片、音频都不行）。
-2. **`<id>.zip` 和 `manifest.json` 由 GitHub Actions 生成**，永远不要手改或手动提交。`build-apk.yml`、`android/`、keystore 文件不要动。
+2. **`<id>.zip` 和 `manifest.json` 由 GitHub Actions 生成**，永远不要手改或手动提交。`build-apk.yml`、`android/`、keystore 文件不要动。发布脚本会按「最近改动的游戏」自动写入首页推荐位（manifest 里的 `premium` / `featured`），**不要**在 `meta.json` 里手写 `premium`。
 3. **meta.json**：`category` 只能是 `街机动作 / 科学实验 / 益智解谜 / 休闲趣味 / 经典重温`；`version` 为正整数，文件有任何改动就 **+1**；**`studio`（出品方）必填**：Muse 做的写 `"Muse"`，Grok 做的写 `"Grok"`。升级别人的游戏**不改** studio（以最初创作者为准）。App 会按出品方显示彩色角标（Muse 紫 ✦ / Grok 橙 ◆）并支持筛选，`check-game.cjs` 缺 studio 会报错。
 4. **每款游戏都要在 `scripts/game-ui/catalog.cjs` 登记主题**（科学实验一律用 `lab`），然后运行 `node scripts/sync-game-ui.cjs`。不要手改 `<!-- GAME UI BEGIN/END -->` 之间的内容。
 5. **使用标准结构**：`.wrap`、`.topbar` + `<b id="score">`、`<canvas id="cv">`、`.overlay#startScr`（内含 `h1`、`p`、`button.btn#startBtn`）、`.hidden`。这样能自动获得皮肤 B「霓虹糖果」外观，开始按钮也一定能点到。
