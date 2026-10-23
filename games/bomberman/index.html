@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>炸弹人</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #sndBtn{min-width:44px;min-height:44px}
+html.game-ui #cv{max-width:min(440px,calc((100vh - 340px)*1));max-width:min(440px,calc((100svh - 340px)*1))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -669,6 +671,7 @@ function step(dt){
 }
 // ============ 绘制 ============
 function draw(){
+  if(FX)return drawFx();
   if(!grid)return;
   ctx.clearRect(0,0,390,390);
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
@@ -732,6 +735,72 @@ function draw(){
     ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle='#FFD54F';
     ctx.fillText(f.txt,f.x,f.y);
   }
+  ctx.globalAlpha=1;
+}
+/* ART T1-2: candy-depth renderer (GameUI.fx); the flat draw() stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let bmFloor=null;
+if(FX)FX.hidpi(cv,ctx,390,390);
+function fxBmFloor(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=390*d;c.height=390*d;const g=c.getContext('2d');g.scale(d,d);
+  const bg=g.createLinearGradient(0,0,0,390);bg.addColorStop(0,'#0f2a1a');bg.addColorStop(1,'#06140c');g.fillStyle=bg;g.fillRect(0,0,390,390);
+  for(let r=0;r<ROWS;r++)for(let c2=0;c2<COLS;c2++){
+    if((r+c2)%2===0){g.fillStyle='rgba(255,255,255,.04)';g.fillRect(c2*T,r*T,T,T);}
+  }
+  return c;
+}
+function drawFx(){
+  if(!grid)return;
+  if(!bmFloor)bmFloor=fxBmFloor();
+  ctx.drawImage(bmFloor,0,0,390,390);
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const x=c*T,y=r*T;
+    if(grid[r][c]===1){
+      FX.tile(ctx,x|0,y|0,T,T,'#455a64',4);
+      FX.tile(ctx,(x+3)|0,(y+3)|0,T-6,T-6,'#607d8b',3);
+    }
+    if(grid[r][c]===2){
+      FX.shadow(ctx,x+T/2,y+T-2,T*0.35,3,.3);
+      FX.tile(ctx,(x+1)|0,(y+1)|0,T-2,T-2,'#a1887f',5);
+      ctx.fillStyle='rgba(60,30,20,.35)';ctx.fillRect(x+4,y+4,T-8,T-8);
+    }
+  }
+  const [dr,dc]=door;
+  if(grid[dr][dc]===0){
+    if(exitOpen)FX.glow(ctx,'#ffd54f',14);
+    FX.tile(ctx,(dc*T+4)|0,(dr*T+4)|0,T-8,T-8,exitOpen?'#ffd54f':'#5d4037',6);
+    if(exitOpen)FX.noGlow(ctx);
+    ctx.font='18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(exitOpen?'🚪':'❓',dc*T+T/2,dr*T+T/2+1);
+    if(exitOpen){ctx.strokeStyle='rgba(255,213,79,'+(0.5+0.4*Math.sin(Date.now()/300))+')';ctx.lineWidth=3;ctx.strokeRect(dc*T+2,dr*T+2,T-4,T-4);}
+  }
+  for(const b of bombs){
+    const bx=b.c*T+T/2,by=b.r*T+T/2;
+    const pul=1+0.15*Math.sin(Date.now()/120);
+    FX.glow(ctx,'#ff9800',10*pul);FX.orb(ctx,bx|0,by|0,(12*pul)|0,'#ff9800');FX.noGlow(ctx);
+    ctx.font=(20*pul)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('💣',bx,by);
+  }
+  for(const f of flames){
+    for(const [r,c] of f.cells){
+      FX.glow(ctx,'#ff5722',12);FX.tile(ctx,(c*T+2)|0,(r*T+2)|0,T-4,T-4,'#ff9800',4);FX.noGlow(ctx);
+    }
+  }
+  for(const e of enemies){
+    if(!e.alive)continue;
+    const x=e.x*T+T/2,y=e.y*T+T/2;
+    FX.shadow(ctx,x,y+12,10,3,.3);FX.orb(ctx,x|0,y|0,11,'#7e57c2');
+    ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('👾',x,y);
+  }
+  if(player.alive){
+    if(!(invuln>0&&((Date.now()/150)|0)%2===0)){
+      const x=player.x*T+T/2,y=player.y*T+T/2;
+      FX.shadow(ctx,x,y+12,11,3,.35);FX.glow(ctx,'#4fc3f7',8);FX.orb(ctx,x|0,y|0,12,'#4fc3f7');FX.noGlow(ctx);
+      ctx.font='24px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🧑‍🚀',x,y);
+    }
+  }
+  for(const p of particles){ctx.globalAlpha=Math.max(0,Math.min(1,p.life));FX.orb(ctx,p.x|0,p.y|0,3,p.color);}
+  ctx.globalAlpha=1;
+  ctx.font='bold 15px sans-serif';ctx.textAlign='center';
+  for(const f of floaters){ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle='#FFD54F';ctx.fillText(f.txt,f.x,f.y);}
   ctx.globalAlpha=1;
 }
 function loop(ts){

@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>消消乐</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #muteBtn,html.game-ui #hintBtn{min-width:44px;min-height:44px}
+html.game-ui canvas{max-width:min(480px,calc((100vh - 220px)*1));max-width:min(480px,calc((100svh - 220px)*1))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:linear-gradient(160deg,#1a0f24 0%,#2c1440 55%,#160a20 100%);color:#f3eef7;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px 14px 22px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -798,6 +800,7 @@ function drawGem(gem){
   g.restore();
 }
 function render(){
+  if(FX)return renderFx();
   g.clearRect(0,0,SZ,SZ);
   g.fillStyle='#1d1029';
   g.beginPath();
@@ -858,6 +861,45 @@ function render(){
   g.restore();
 }
 
+/* ART T1-2: candy-depth renderer (GameUI.fx); the flat render() stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let jewelBg=null;
+if(FX)FX.hidpi(cv,g,SZ,SZ);
+function fxJewelBg(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=SZ*d;c.height=SZ*d;const x=c.getContext('2d');x.scale(d,d);
+  const bg=x.createLinearGradient(0,0,0,SZ);bg.addColorStop(0,'#4a1f86');bg.addColorStop(.55,'#2a1158');bg.addColorStop(1,'#14082c');x.fillStyle=bg;x.beginPath();if(x.roundRect)x.roundRect(0,0,SZ,SZ,16);else x.rect(0,0,SZ,SZ);x.fill();
+  const sp=x.createRadialGradient(SZ/2,SZ*.35,20,SZ/2,SZ/2,SZ*.7);sp.addColorStop(0,'rgba(255,170,230,.22)');sp.addColorStop(1,'rgba(0,0,0,.35)');x.fillStyle=sp;x.fillRect(0,0,SZ,SZ);
+  x.fillStyle='rgba(255,255,255,.045)';for(let y=0;y<N;y++)for(let xx=0;xx<N;xx++)if((xx+y)%2===0)x.fillRect(xx*CELL,y*CELL,CELL,CELL);
+  return c;
+}
+function drawGemFx(gem){
+  const s=CELL*0.86*gem.sc;if(s<1||gem.alpha<=0)return;
+  g.save();g.globalAlpha=gem.alpha;
+  FX.shadow(g,gem.px,gem.py+s*0.42,s*0.42,s*0.14,.32);
+  const col=GCOLS[gem.t][1];
+  const r=Math.max(8,(s*0.42)|0);
+  FX.orb(g,gem.px|0,gem.py|0,r,col);
+  g.restore();
+}
+function renderFx(){
+  if(!jewelBg)jewelBg=fxJewelBg();
+  g.drawImage(jewelBg,0,0,SZ,SZ);
+  g.save();
+  g.beginPath();if(g.roundRect)g.roundRect(0,0,SZ,SZ,16);else g.rect(0,0,SZ,SZ);g.clip();
+  for(let fi=0;fi<flashes.length;fi++){
+    const f=flashes[fi],a=1-f.t/0.4;
+    g.fillStyle='rgba(255,255,255,'+(0.55*a)+')';
+    if(f.kind==='line'){if(f.dir==='h')g.fillRect(0,f.fixed*CELL,SZ,CELL);else g.fillRect(f.fixed*CELL,0,CELL,SZ);}
+    else if(f.kind==='cross'){g.fillRect(0,f.y*CELL,SZ,CELL);g.fillRect(f.x*CELL,0,CELL,SZ);}
+    else{g.fillRect((f.x-1)*CELL,(f.y-1)*CELL,CELL*3,CELL*3);}
+  }
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){const gem=board[y]&&board[y][x];if(gem)drawGemFx(gem);}
+  if(sel){const gem=board[sel.y]&&board[sel.y][sel.x];if(gem){g.strokeStyle='#fff';g.lineWidth=3;g.setLineDash([8,6]);g.beginPath();g.arc(gem.px,gem.py,CELL*0.44,0,Math.PI*2);g.stroke();g.setLineDash([]);}}
+  if(hintMove&&!busy){const a=0.4+0.3*Math.sin(performance.now()/180);g.strokeStyle='rgba(255,213,79,'+a+')';g.lineWidth=3;const pts=[[hintMove.ax,hintMove.ay],[hintMove.bx,hintMove.by]];for(let i=0;i<2;i++){const p=cellXY(pts[i][0],pts[i][1]);g.beginPath();g.arc(p[0],p[1],CELL*0.44,0,Math.PI*2);g.stroke();}}
+  for(let i=0;i<parts.length;i++){const p=parts[i];g.globalAlpha=Math.max(0,p.life/p.max);g.fillStyle=p.c;g.beginPath();g.arc(p.x,p.y,p.s,0,Math.PI*2);g.fill();}
+  g.globalAlpha=1;g.textAlign='center';g.lineJoin='round';
+  for(let i=0;i<floats.length;i++){const f=floats[i];g.globalAlpha=Math.max(0,f.life/f.max);g.font='900 26px sans-serif';g.lineWidth=5;g.strokeStyle='rgba(40,10,60,.75)';g.strokeText(f.txt,f.x,f.y);g.fillStyle=f.c;g.fillText(f.txt,f.x,f.y);}
+  g.globalAlpha=1;g.restore();
+}
 /* ============ 输入 ============ */
 let lastTouch=0,dragStart=null;
 function evtCell(e){

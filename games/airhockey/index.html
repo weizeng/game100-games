@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>气垫球</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #soundBtn{min-width:44px;min-height:44px}
+html.game-ui canvas{max-width:min(400px,calc((100vh - 160px)*.71));max-width:min(400px,calc((100svh - 160px)*.71))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -484,7 +486,7 @@ if(puck.y>H-puck.r){if(puck.x>gx0&&puck.x<gx1){if(puck.y>H+puck.r){goal(false);r
 collide(me);collide({x:ai.x,y:ai.y,vx:0,vy:0,r:ai.r});
 if(goalT>0)goalT--;}
 function drawPaddle(x,y,color){const g=ctx.createRadialGradient(x-6,y-8,4,x,y,PR);g.addColorStop(0,'#ffffff');g.addColorStop(0.35,color);g.addColorStop(1,color);ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,PR,0,7);ctx.fill();ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.arc(x,y,10,0,7);ctx.fill();}
-function draw(){ctx.clearRect(0,0,W,H);
+function draw(){if(FX)return drawFx();ctx.clearRect(0,0,W,H);
 ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(14,MID);ctx.lineTo(W-14,MID);ctx.stroke();
 ctx.beginPath();ctx.arc(W/2,MID,52,0,7);ctx.stroke();
 ctx.strokeStyle='rgba(255,255,255,.2)';ctx.strokeRect(14,14,W-28,H-28);
@@ -495,6 +497,42 @@ const g=ctx.createRadialGradient(puck.x-4,puck.y-5,2,puck.x,puck.y,PUCKR);g.addC
 for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/42);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
 if(goalT>0){ctx.globalAlpha=Math.min(1,goalT/25);ctx.fillStyle='#ffd740';ctx.font='bold 30px sans-serif';ctx.textAlign='center';ctx.fillText(goalMsg,W/2,MID);ctx.textAlign='left';ctx.globalAlpha=1;}
 if(freeze>0&&state==='play'){ctx.fillStyle='rgba(255,255,255,.7)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('准备…',W/2,MID-70);ctx.textAlign='left';}
+}
+/* ART T1-2: candy-depth renderer (GameUI.fx); the flat draw() stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let rink=null;const sparks=[];
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxRink(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#1a2f5e');bg.addColorStop(.5,'#0f1628');bg.addColorStop(1,'#0a2818');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  const v=g.createRadialGradient(W/2,H/2,30,W/2,H/2,H*.65);v.addColorStop(0,'rgba(255,255,255,.08)');v.addColorStop(1,'rgba(0,0,0,.4)');g.fillStyle=v;g.fillRect(0,0,W,H);
+  g.strokeStyle='rgba(122,245,255,.7)';g.lineWidth=2.5;g.shadowColor='#00e5ff';g.shadowBlur=10;
+  g.beginPath();if(g.roundRect)g.roundRect(14,14,W-28,H-28,12);else g.rect(14,14,W-28,H-28);g.stroke();
+  g.setLineDash([10,8]);g.beginPath();g.moveTo(14,MID);g.lineTo(W-14,MID);g.stroke();g.setLineDash([]);
+  g.beginPath();g.arc(W/2,MID,52,0,7);g.stroke();g.shadowBlur=0;
+  g.fillStyle='#ef5350';g.fillRect(W/2-GOALW/2,8,GOALW,10);
+  g.fillStyle='#66bb6a';g.fillRect(W/2-GOALW/2,H-18,GOALW,10);
+  return c;
+}
+function drawPaddleFx(x,y,color,glow){
+  FX.shadow(ctx,x,y+PR*0.6,PR*0.7,6,.35);
+  if(glow)FX.glow(ctx,glow,14);
+  FX.orb(ctx,x|0,y|0,PR,color);
+  if(glow)FX.noGlow(ctx);
+  FX.orb(ctx,x|0,y|0,10,'#1a0d2e');
+}
+function drawFx(){
+  if(!rink)rink=fxRink();
+  ctx.drawImage(rink,0,0,W,H);
+  ctx.fillStyle='#EF5350';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('AI 球门',W/2,34);
+  ctx.fillStyle='#66BB6A';ctx.fillText('你的球门',W/2,H-26);ctx.textAlign='left';
+  drawPaddleFx(ai.x,ai.y,'#ef5350','#ff5252');
+  drawPaddleFx(me.x,me.y,'#66bb6a','#69f0ae');
+  FX.shadow(ctx,puck.x+3,puck.y+6,PUCKR*.9,4,.3);
+  FX.glow(ctx,'#90caf9',12);FX.orb(ctx,puck.x|0,puck.y|0,PUCKR,'#90caf9');FX.noGlow(ctx);
+  if(FX)FX.drawBurst(ctx,sparks);
+  for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/42);FX.orb(ctx,p.x|0,p.y|0,3,p.color);}ctx.globalAlpha=1;
+  if(goalT>0){ctx.globalAlpha=Math.min(1,goalT/25);ctx.fillStyle='#ffd740';ctx.font='bold 30px sans-serif';ctx.textAlign='center';ctx.fillText(goalMsg,W/2,MID);ctx.textAlign='left';ctx.globalAlpha=1;}
+  if(freeze>0&&state==='play'){ctx.fillStyle='rgba(255,255,255,.7)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('准备…',W/2,MID-70);ctx.textAlign='left';}
 }
 function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){if(freeze>0)freeze--;else physics();
 for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.life--;}parts=parts.filter(p=>p.life>0);}

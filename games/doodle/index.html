@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>涂鸦跳</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #soundBtn{min-width:44px;min-height:44px}
+html.game-ui canvas{max-width:min(400px,calc((100vh - 160px)*.71));max-width:min(400px,calc((100svh - 160px)*.71))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -454,7 +456,7 @@ ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-7,-6,7,0,7);ctx.arc(7,-6,7,0,7);ct
 ctx.fillStyle='#212121';const lx=Math.max(-3,Math.min(3,vx*0.5));ctx.beginPath();ctx.arc(-7+lx,-6,3.2,0,7);ctx.arc(7+lx,-6,3.2,0,7);ctx.fill();
 ctx.strokeStyle='#33691e';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,8,7,0.3,Math.PI-0.3);ctx.stroke();
 ctx.strokeStyle='#7cb342';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-10,-20);ctx.lineTo(-14,-28);ctx.moveTo(10,-20);ctx.lineTo(14,-28);ctx.stroke();ctx.restore();}
-function draw(){ctx.clearRect(0,0,W,H);
+function draw(){if(FX)return drawFx();ctx.clearRect(0,0,W,H);
 ctx.strokeStyle='rgba(255,255,255,.045)';ctx.lineWidth=1;for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
 for(const p of plats){const y=p.y-camY;if(y<-30||y>H+30)continue;
 if(p.type==='m'){const g=ctx.createLinearGradient(0,y,0,y+12);g.addColorStop(0,'#4fc3f7');g.addColorStop(1,'#0288d1');ctx.fillStyle=g;}
@@ -464,6 +466,37 @@ if(p.spring){ctx.strokeStyle='#e0e0e0';ctx.lineWidth=3;ctx.beginPath();const sy=
 drawMonster(px,py-camY,vy);
 for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/38);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
 ctx.fillStyle='#888';ctx.font='12px sans-serif';ctx.fillText('⬅ 拖动控制 ➡',10,20);
+}
+/* ART T1-2: candy-depth renderer (GameUI.fx); the flat draw() stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let doodBg=null;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxDoodBg(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#3a1170');bg.addColorStop(.5,'#1a2f5e');bg.addColorStop(1,'#0a2818');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  g.strokeStyle='rgba(255,255,255,.06)';g.lineWidth=1;for(let x=0;x<W;x+=40){g.beginPath();g.moveTo(x+.5,0);g.lineTo(x+.5,H);g.stroke();}for(let y=0;y<H;y+=40){g.beginPath();g.moveTo(0,y+.5);g.lineTo(W,y+.5);g.stroke();}
+  return c;
+}
+function drawMonsterFx(x,y,vy){
+  ctx.save();ctx.translate(x,y);const sq=Math.max(-0.2,Math.min(0.25,vy*0.02));ctx.scale(1+sq*0.4,1-sq*0.4);
+  FX.shadow(ctx,0,22,16,5,.35);
+  FX.tile(ctx,-17,-20,34,40,'#8bc34a',14);
+  FX.orb(ctx,-7,-6,7,'#ffffff');FX.orb(ctx,7,-6,7,'#ffffff');
+  const lx=Math.max(-3,Math.min(3,vx*0.5));FX.orb(ctx,(-7+lx)|0,-6,3,'#212121');FX.orb(ctx,(7+lx)|0,-6,3,'#212121');
+  ctx.strokeStyle='#33691e';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,8,7,0.3,Math.PI-0.3);ctx.stroke();
+  FX.glow(ctx,'#ffd54f',6);ctx.strokeStyle='#ffd54f';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-10,-20);ctx.lineTo(-14,-28);ctx.moveTo(10,-20);ctx.lineTo(14,-28);ctx.stroke();FX.noGlow(ctx);
+  ctx.restore();
+}
+function drawFx(){
+  if(!doodBg)doodBg=fxDoodBg();
+  ctx.drawImage(doodBg,0,0,W,H);
+  for(const p of plats){const y=p.y-camY;if(y<-30||y>H+30)continue;
+    FX.shadow(ctx,p.x+p.w/2,y+14,p.w*0.4,4,.3);
+    FX.tile(ctx,p.x|0,y|0,p.w|0,12,p.type==='m'?'#29b6f6':'#9ccc65',6);
+    if(p.spring){ctx.strokeStyle='#e0e0e0';ctx.lineWidth=3;ctx.beginPath();const sy=y;for(let i=0;i<4;i++){ctx.moveTo(p.x+p.w/2-8,sy-i*5);ctx.lineTo(p.x+p.w/2+8,sy-(i+1)*5);}ctx.stroke();FX.tile(ctx,(p.x+p.w/2-12)|0,(sy-24)|0,24,6,'#ef5350',3);}
+  }
+  drawMonsterFx(px,py-camY,vy);
+  for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/38);FX.orb(ctx,p.x|0,p.y|0,3,p.color);}ctx.globalAlpha=1;
+  ctx.fillStyle='#aaa';ctx.font='12px sans-serif';ctx.fillText('⬅ 拖动控制 ➡',10,20);
 }
 function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){
 px+=(targetX-px)*0.18;vx=(targetX-px)*0.18;

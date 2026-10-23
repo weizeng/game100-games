@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>跳一跳</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #soundBtn{min-width:44px;min-height:44px}
+html.game-ui canvas{max-width:min(400px,calc((100vh - 160px)*.71));max-width:min(400px,calc((100svh - 160px)*.71))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -461,7 +463,7 @@ function drawPlayer(x,y,squash){ctx.save();ctx.translate(x,y);ctx.scale(1,1-squa
 const g=ctx.createLinearGradient(0,-46,0,0);g.addColorStop(0,'#90caf9');g.addColorStop(1,'#42a5f5');ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(-13,-46,26,34,10);ctx.fill();
 ctx.fillStyle='#ffcc80';ctx.beginPath();ctx.arc(0,-52,11,0,7);ctx.fill();
 ctx.fillStyle='#212121';ctx.beginPath();ctx.arc(-4,-54,2.4,0,7);ctx.arc(4,-54,2.4,0,7);ctx.fill();ctx.restore();}
-function draw(){ctx.clearRect(0,0,W,H);
+function draw(){if(FX)return drawFx();ctx.clearRect(0,0,W,H);
 ctx.fillStyle='rgba(255,255,255,.05)';for(let i=0;i<6;i++){ctx.beginPath();ctx.arc(60+i*70,90+(i%3)*40,22,0,7);ctx.fill();}
 for(const p of plats)drawPlat(p);
 let drawY=py,drawX=sx(px),sq=0;
@@ -472,6 +474,43 @@ drawPlayer(drawX,drawY,sq);
 for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/42);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
 ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/60);ctx.fillStyle=f.color||'#fff';ctx.font='bold 20px sans-serif';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
 if(phase==='charge'){ctx.fillStyle='#ffd740';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText('蓄力 '+Math.round(power*100)+'%',W/2,120);ctx.textAlign='left';}
+}
+/* ART T1-2: candy-depth renderer (GameUI.fx); the flat draw() stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let jumpBg=null;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxJumpBg(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#1a3a28');bg.addColorStop(.55,'#0e1a14');bg.addColorStop(1,'#0a1010');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  g.fillStyle='rgba(102,187,106,.08)';for(let i=0;i<6;i++){g.beginPath();g.arc(60+i*70,90+(i%3)*40,22,0,7);g.fill();}
+  return c;
+}
+function drawPlatFx(p){
+  const x=sx(p.x);if(x>W+40||x+p.w<-40)return;
+  FX.shadow(ctx,x+p.w/2,GY+4,p.w*0.4,5,.35);
+  FX.tile(ctx,x|0,(GY-26)|0,p.w|0,26,'#43a047',8);
+  FX.tile(ctx,(x+4)|0,(GY-26)|0,(p.w-8)|0,4,'#a5d6a7',2);
+  const c=p.x+p.w/2;FX.glow(ctx,'#ffd740',8);FX.tile(ctx,sx(c-p.w*0.22)|0,(GY-26)|0,(p.w*0.44)|0,26,'#ffd54f',6);FX.noGlow(ctx);
+}
+function drawPlayerFx(x,y,squash){
+  ctx.save();ctx.translate(x,y);ctx.scale(1,1-squash*0.25);
+  FX.shadow(ctx,0,4,14,4,.35);
+  FX.tile(ctx,-13,-46,26,34,'#42a5f5',10);
+  FX.orb(ctx,0,-52,11,'#ffcc80');
+  FX.orb(ctx,-4,-54,2,'#212121');FX.orb(ctx,4,-54,2,'#212121');
+  ctx.restore();
+}
+function drawFx(){
+  if(!jumpBg)jumpBg=fxJumpBg();
+  ctx.drawImage(jumpBg,0,0,W,H);
+  for(const p of plats)drawPlatFx(p);
+  let drawY=py,drawX=sx(px),sq=0;
+  if(phase==='charge'){sq=power*0.8;const pr=26+power*46;FX.glow(ctx,'#ffd740',10);ctx.strokeStyle='rgba(255,215,64,.85)';ctx.lineWidth=5;ctx.beginPath();ctx.arc(sx(px),GY-24,pr,-Math.PI/2,-Math.PI/2+power*Math.PI*2);ctx.stroke();FX.noGlow(ctx);}
+  if(phase==='jump'&&jump){const t=Math.min(1,jump.t/jump.dur);const e=t;drawX=sx(jump.x0+jump.dist*e);drawY=GY-4*jump.peak*e*(1-e);}
+  if(phase==='fall'){drawY=py+(fallT*fallT)*0.6;}
+  drawPlayerFx(drawX,drawY,sq);
+  for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/42);FX.orb(ctx,p.x|0,p.y|0,3,p.color);}ctx.globalAlpha=1;
+  ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/60);ctx.fillStyle=f.color||'#fff';ctx.font='bold 20px sans-serif';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
+  if(phase==='charge'){ctx.fillStyle='#ffd740';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText('蓄力 '+Math.round(power*100)+'%',W/2,120);ctx.textAlign='left';}
 }
 let fallT=0;
 function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){

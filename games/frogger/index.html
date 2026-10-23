@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>青蛙过河</title>
 <style>
+html.game-ui canvas{max-width:min(468px,calc((100vh - 200px)*1.18));max-width:min(468px,calc((100svh - 200px)*1.18))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -536,6 +537,7 @@ function update(){
   setHUD();
 }
 function draw(){
+  if(FX)return drawFx();
   ctx.clearRect(0,0,W,H);
   for(let r=0;r<ROWS;r++){
     if(r===GOAL_ROW){ctx.fillStyle='#2e7d32';}
@@ -579,6 +581,48 @@ function draw(){
   // 青蛙
   ctx.font='26px sans-serif';
   ctx.fillText('🐸',px()+CELL/2,py()+CELL/2+1);
+}
+/* ART T1-2: candy-depth renderer (GameUI.fx); the flat draw() stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let frogBg=null;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxFrogBg(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
+  for(let r=0;r<ROWS;r++){
+    let top,bot;
+    if(r===GOAL_ROW){top='#4caf50';bot='#1b5e20';}
+    else if(r>=RIVER_TOP&&r<=RIVER_BOT){top='#42a5f5';bot='#0d47a1';}
+    else if(r===MID_ROW||r===START_ROW){top='#8bc34a';bot='#33691e';}
+    else{top='#5a5a6a';bot='#2a2a38';}
+    const lg=g.createLinearGradient(0,r*CELL,0,(r+1)*CELL);lg.addColorStop(0,top);lg.addColorStop(1,bot);g.fillStyle=lg;g.fillRect(0,r*CELL,W,CELL);
+  }
+  g.fillStyle='rgba(255,255,255,.18)';
+  for(let r=RIVER_TOP;r<=RIVER_BOT;r++)for(let i=0;i<8;i++){const x=((i*97+r*53)%W);g.beginPath();g.ellipse(x,r*CELL+18,10,2.5,0,0,7);g.fill();}
+  g.fillStyle='rgba(255,235,59,.55)';
+  for(let r=ROAD_TOP;r<=ROAD_BOT;r++)for(let x=0;x<W;x+=44)g.fillRect(x,r*CELL+CELL/2-1,22,2);
+  return c;
+}
+function drawFx(){
+  if(!frogBg)frogBg=fxFrogBg();
+  ctx.drawImage(frogBg,0,0,W,H);
+  for(const l of logs){
+    FX.shadow(ctx,l.x+l.w/2,l.row*CELL+CELL-2,l.w*0.42,4,.3);
+    FX.tile(ctx,l.x|0,(l.row*CELL+5)|0,l.w|0,(CELL-10)|0,'#a1887f',8);
+    ctx.fillStyle='rgba(60,30,20,.35)';for(let x=l.x+12;x<l.x+l.w-8;x+=26)ctx.fillRect(x,l.row*CELL+8,4,CELL-16);
+  }
+  for(const c of cars){
+    const y=c.row*CELL+4;
+    FX.shadow(ctx,c.x+c.w/2,y+CELL-6,c.w*0.4,4,.3);
+    FX.tile(ctx,c.x|0,y|0,c.w|0,(CELL-8)|0,c.c,7);
+    FX.tile(ctx,(c.x+8)|0,(y+6)|0,(c.w-16)|0,10,'#c9e8ff',4);
+    FX.glow(ctx,'#ffd34d',6);ctx.fillStyle='#ffd34d';
+    if(c.dir>0){ctx.fillRect(c.x+c.w-6,y+CELL/2-8,5,5);ctx.fillRect(c.x+c.w-6,y+CELL/2+3,5,5);}
+    else{ctx.fillRect(c.x+1,y+CELL/2-8,5,5);ctx.fillRect(c.x+1,y+CELL/2+3,5,5);}FX.noGlow(ctx);
+  }
+  ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  for(let i=0;i<COLS;i+=2){FX.glow(ctx,'#ffd34d',8);ctx.fillText('🏁',i*CELL+CELL/2,CELL/2);FX.noGlow(ctx);}
+  FX.shadow(ctx,px()+CELL/2,py()+CELL-2,14,4,.35);
+  FX.orb(ctx,(px()+CELL/2)|0,(py()+CELL/2)|0,14,'#7ed957');
+  ctx.font='26px sans-serif';ctx.fillText('🐸',px()+CELL/2,py()+CELL/2+1);
 }
 function loop(){
   if(state!=='play')return;

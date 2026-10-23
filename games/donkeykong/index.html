@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>金刚</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #sndBtn{min-width:44px;min-height:44px}
+html.game-ui #cv{max-width:min(440px,calc((100vh - 280px)*0.91));max-width:min(440px,calc((100svh - 280px)*0.91))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -675,6 +677,7 @@ function step(){
 }
 // ============ 绘制 ============
 function draw(){
+  if(FX)return drawFx();
   ctx.clearRect(0,0,W,H);
   // 背景星空
   ctx.fillStyle='rgba(255,255,255,.25)';
@@ -726,6 +729,52 @@ function draw(){
     ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle='#FFD54F';
     ctx.fillText(f.txt,f.x,f.y);
   }
+  ctx.globalAlpha=1;
+}
+/* ART T1-2: candy-depth renderer (GameUI.fx); the flat draw() stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let dkBg=null;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxDkBg(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#1a0a3a');bg.addColorStop(.55,'#0b0522');bg.addColorStop(1,'#2a0f1a');g.fillStyle=bg;g.fillRect(0,0,W,H);
+  g.fillStyle='rgba(255,255,255,.35)';for(let i=0;i<40;i++){const sx=(i*137)%W,sy=(i*89)%H;g.beginPath();g.arc(sx,sy,1.2+(i%3)*0.4,0,7);g.fill();}
+  const sp=g.createRadialGradient(W/2,H*.3,20,W/2,H/2,H*.7);sp.addColorStop(0,'rgba(255,140,80,.12)');sp.addColorStop(1,'rgba(0,0,0,.4)');g.fillStyle=sp;g.fillRect(0,0,W,H);
+  return c;
+}
+function drawFx(){
+  if(!dkBg)dkBg=fxDkBg();
+  ctx.drawImage(dkBg,0,0,W,H);
+  for(const p of L?L.plats:[]){
+    FX.shadow(ctx,(p.x0+p.x1)/2,p.y+4,(p.x1-p.x0)*0.42,5,.35);
+    FX.tile(ctx,p.x0|0,(p.y-8)|0,(p.x1-p.x0)|0,12,'#a1887f',4);
+    ctx.fillStyle='rgba(60,30,20,.4)';for(let x=p.x0+8;x<p.x1;x+=24)ctx.fillRect(x,p.y-4,10,4);
+  }
+  for(const l of L?L.ladders:[]){
+    FX.glow(ctx,'#ffd54f',6);
+    ctx.strokeStyle='#ffecb3';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(l.x-7,l.y0);ctx.lineTo(l.x-7,l.y1);ctx.moveTo(l.x+7,l.y0);ctx.lineTo(l.x+7,l.y1);
+    for(let y=l.y0;y<l.y1;y+=12){ctx.moveTo(l.x-7,y);ctx.lineTo(l.x+7,y);}ctx.stroke();FX.noGlow(ctx);
+  }
+  if(!L)return;
+  ctx.font='34px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  FX.shadow(ctx,50,50,16,5,.3);ctx.fillText('🦍',50,38);
+  ctx.font='26px sans-serif';FX.glow(ctx,'#ff80ab',10);ctx.fillText('👸',345,40);FX.noGlow(ctx);
+  for(const b of barrels){
+    ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.x/14);
+    FX.orb(ctx,0,0,11,'#8d6e63');
+    ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🛢',0,0);ctx.restore();
+  }
+  if(player.alive){
+    if(!(invuln>0&&((Date.now()/150)|0)%2===0)){
+      FX.shadow(ctx,player.x,player.y+14,12,4,.35);
+      ctx.font='26px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(player.climbing?'🧗':'🏃',player.x,player.y);
+    }
+  }
+  for(const p of particles){ctx.globalAlpha=Math.max(0,Math.min(1,p.life));FX.orb(ctx,p.x|0,p.y|0,3,p.color);}
+  ctx.globalAlpha=1;
+  ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  for(const f of floaters){ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle='#FFD54F';ctx.fillText(f.txt,f.x,f.y);}
   ctx.globalAlpha=1;
 }
 function loop(){

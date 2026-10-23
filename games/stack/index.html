@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>叠叠乐</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#0b0e17;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
 body{display:flex;justify-content:center}
@@ -549,6 +550,7 @@ function drawBlock(x,y,w,hueV,alpha,glow){
   ctx.restore();
 }
 function draw(){
+  if(FX)return drawFx();
   ctx.clearRect(0,0,W,H);
   ctx.save();
   if(shakeT>0){var s=9*Math.min(1,shakeT*3);ctx.translate((Math.random()*2-1)*s,(Math.random()*2-1)*s);}
@@ -564,6 +566,32 @@ function draw(){
   ctx.restore();
 }
 
+/* ART T1-2: candy-depth renderer (GameUI.fx); the flat draw() stays as the no-FX fallback */
+var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
+function hslCol(h){return 'hsl('+h+',72%,50%)';}
+function drawBlockFx(x,y,w,hueV,alpha,glow){
+  if(w<=0)return;ctx.save();ctx.globalAlpha=alpha==null?1:alpha;
+  FX.shadow(ctx,x+w/2,y+BH+4,w*0.42,5,.32);
+  if(glow)FX.glow(ctx,'hsla('+hueV+',90%,65%,.9)',16);
+  FX.tile(ctx,Math.round(x),Math.round(y),Math.round(w),BH,hslCol(hueV),7);
+  if(glow)FX.noGlow(ctx);
+  ctx.restore();
+}
+function drawFx(){
+  ctx.clearRect(0,0,W,H);
+  ctx.save();
+  if(shakeT>0){var s=9*Math.min(1,shakeT*3);ctx.translate((Math.random()*2-1)*s,(Math.random()*2-1)*s);}
+  /* neon ground */
+  FX.glow(ctx,'#7af5ff',8);ctx.fillStyle='rgba(122,245,255,.25)';ctx.fillRect(0,H-88,W,2);FX.noGlow(ctx);
+  var i,b;
+  for(i=0;i<tower.length;i++){b=tower[i];var y=b.y+camY;if(y>H+40||y<-60)continue;drawBlockFx(b.x,y,b.w,b.hue);}
+  if(mode==='playing'&&mover){drawBlockFx(mover.x,mover.y+camY,mover.w,hue(level),0.92,true);}
+  for(i=0;i<falling.length;i++){var f=falling[i];ctx.save();ctx.globalAlpha=Math.max(0,f.alpha);ctx.translate(f.x+f.w/2,f.y+camY+BH/2);ctx.rotate(f.rot);drawBlockFx(-f.w/2,-BH/2,f.w,f.hue,1);ctx.restore();}
+  ctx.textAlign='center';
+  for(i=0;i<pops.length;i++){var q=pops[i];ctx.globalAlpha=Math.max(0,1-q.t);ctx.font='800 '+q.size+'px sans-serif';ctx.fillStyle=q.color;ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=3;var yy=q.y-q.t*40;ctx.strokeText(q.text,q.x,yy);ctx.fillText(q.text,q.x,yy);}
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
 /* ---------- 主循环 ---------- */
 function loop(ts){rafId=requestAnimationFrame(loop);var dt=Math.min(0.033,last?(ts-last)/1000:0.016);last=ts;update(dt);draw();}
 function stopLoop(){if(rafId){cancelAnimationFrame(rafId);rafId=0;}}

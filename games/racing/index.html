@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>狂野赛车</title>
 <style>
+html.game-ui canvas{max-width:min(400px,calc((100vh - 160px)*.66));max-width:min(400px,calc((100svh - 160px)*.66))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -477,6 +478,7 @@ function update(){
     const dx=s.x-playerX,dy=s.y-PY;
     if(dx*dx+dy*dy<48*48){
       starCount++;score+=50;setHUD();vibrate(30);
+      if(FX)FX.burst(sparks,s.x,s.y,'#ffd34d',10);
       stars.splice(i,1);
     }
   }
@@ -496,6 +498,7 @@ function drawCar(x,y,w,h,color,isPlayer){
   ctx.fillRect(x-w/2+6,y+h/2-10,10,6);ctx.fillRect(x+w/2-16,y+h/2-10,10,6);
 }
 function draw(){
+  if(FX)return drawFx();
   ctx.clearRect(0,0,W,H);
   // 草地
   ctx.fillStyle='#1e3a24';ctx.fillRect(0,0,ROAD_L,H);ctx.fillRect(ROAD_R,0,W-ROAD_R,H);
@@ -525,6 +528,45 @@ function draw(){
   ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(ROAD_L+6,8,86,26);
   ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
   ctx.fillText('时速 '+(120+((score/8)|0))+'km/h',ROAD_L+12,22);
+}
+/* ART T1-2: candy-depth renderer (GameUI.fx); the flat draw() stays as the no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let roadLayer=null;const sparks=[];
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxRoad(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
+  const sky=g.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#3a1170');sky.addColorStop(.45,'#1a0a3a');sky.addColorStop(1,'#0b0522');g.fillStyle=sky;g.fillRect(0,0,W,H);
+  const grassL=g.createLinearGradient(0,0,ROAD_L,0);grassL.addColorStop(0,'#1a5c2e');grassL.addColorStop(1,'#2e9a4a');g.fillStyle=grassL;g.fillRect(0,0,ROAD_L,H);
+  const grassR=g.createLinearGradient(ROAD_R,0,W,0);grassR.addColorStop(0,'#2e9a4a');grassR.addColorStop(1,'#1a5c2e');g.fillStyle=grassR;g.fillRect(ROAD_R,0,W-ROAD_R,H);
+  g.fillStyle='rgba(255,255,255,.08)';for(let y=10;y<H;y+=28){g.beginPath();g.arc(18+(y%40),y,3,0,7);g.fill();g.beginPath();g.arc(W-18-(y%36),y,3,0,7);g.fill();}
+  const rd=g.createLinearGradient(ROAD_L,0,ROAD_R,0);rd.addColorStop(0,'#2a2a38');rd.addColorStop(.5,'#3a3a4a');rd.addColorStop(1,'#2a2a38');g.fillStyle=rd;g.fillRect(ROAD_L,0,ROAD_R-ROAD_L,H);
+  g.fillStyle='#ff5fa2';g.fillRect(ROAD_L-5,0,5,H);g.fillRect(ROAD_R,0,5,H);
+  g.fillStyle='rgba(255,255,255,.15)';g.fillRect(ROAD_L,0,3,H);g.fillRect(ROAD_R-3,0,3,H);
+  return c;
+}
+function drawCarFx(x,y,w,h,color,isPlayer){
+  FX.shadow(ctx,x,y+h/2+6,w*0.42,6,.35);
+  if(isPlayer)FX.glow(ctx,'#ff5fa2',14);
+  FX.tile(ctx,(x-w/2)|0,(y-h/2)|0,w|0,h|0,color,10);
+  if(isPlayer)FX.noGlow(ctx);
+  FX.tile(ctx,(x-w/2+6)|0,(y-h/2+8)|0,(w-12)|0,(h*0.28)|0,'#c9e8ff',6);
+  ctx.fillStyle='#1a0d2e';
+  ctx.fillRect(x-w/2-4,y-h/2+10,5,h*0.22);ctx.fillRect(x+w/2-1,y-h/2+10,5,h*0.22);
+  ctx.fillRect(x-w/2-4,y+h/2-h*0.3,5,h*0.22);ctx.fillRect(x+w/2-1,y+h/2-h*0.3,5,h*0.22);
+  const lc=isPlayer?'#ffd34d':'#fff';
+  FX.glow(ctx,lc,8);ctx.fillStyle=lc;ctx.fillRect(x-w/2+6,y+h/2-10,10,6);ctx.fillRect(x+w/2-16,y+h/2-10,10,6);FX.noGlow(ctx);
+}
+function drawFx(){
+  if(!roadLayer)roadLayer=fxRoad();
+  ctx.drawImage(roadLayer,0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.85)';
+  for(let i=1;i<LANES;i++){const x=ROAD_L+LANE_W*i;for(let y=-60;y<H;y+=60){FX.tile(ctx,(x-2)|0,(y+lineOff)|0,4,28,'#fff8e0',2);}}
+  for(const s of stars){const tw=1+Math.sin(s.ph)*0.15;FX.glow(ctx,'#ffd34d',12);FX.orb(ctx,s.x|0,s.y|0,(14*tw)|0,'#ffd34d');FX.noGlow(ctx);}
+  for(const e of enemies)drawCarFx(e.x,e.y,e.w,e.h,e.c,false);
+  drawCarFx(playerX,PY,CAR_W,CAR_H,'#F44336',true);
+  FX.tile(ctx,ROAD_L+6,8,96,28,'#3a1170',8);
+  ctx.fillStyle='#fff';ctx.font='700 13px sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText('时速 '+(120+((score/8)|0))+'km/h',ROAD_L+14,22);
+  if(FX)FX.drawBurst(ctx,sparks);
 }
 function loop(){
   if(state!=='play')return;
