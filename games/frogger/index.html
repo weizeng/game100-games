@@ -2,25 +2,41 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>青蛙过河</title>
+<link rel="icon" href="data:,">
 <style>
-html.game-ui canvas{max-width:min(468px,calc((100vh - 200px)*1.18));max-width:min(468px,calc((100svh - 200px)*1.18))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
-.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
-.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:16px}
-.topbar b{color:#8BC34A;font-size:22px}
-.timebar{width:100%;height:8px;background:#2a2a2a;border-radius:4px;overflow:hidden}
-.timebar i{display:block;height:100%;background:#8BC34A;width:100%}
-canvas{background:#1e1e1e;border-radius:12px;touch-action:none;width:100%;height:auto;max-width:468px}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
-.overlay.hidden{display:none}
-.overlay h1{font-size:30px}
-.overlay p{color:#bbb;font-size:15px;line-height:1.8}
-.btn{background:#8BC34A;border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer}
-.btn:active{transform:scale(.95)}
-.hint{color:#888;font-size:13px;text-align:center}
+html,body{height:100%;overflow:hidden}
+body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;height:100%;padding:10px 12px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap!important;gap:6px}
+.topbar .stat{display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13px;overflow:hidden}
+.topbar .tools{display:flex;gap:6px;flex:none}
+.topbar .tools .iconbtn{min-width:44px;min-height:44px;padding:0 6px}
+.subbar{width:100%;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.prog{flex:1;height:10px;border-radius:6px;background:rgba(0,0,0,.2);overflow:hidden}.prog i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#ffd34d,#ff5fa2);transition:width .2s}
+.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;z-index:20;padding:20px;text-align:center}
+.overlay.hidden,.hidden{display:none!important}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;width:100%}
+.lvgrid .lvl{min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;padding:3px!important;line-height:1.1}
+.lvgrid .lvl small{font-size:10px;letter-spacing:-1px;margin-top:2px}
+.lvgrid .lvl[disabled]{opacity:.45}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}
+.shop button{min-height:46px;font-size:12px!important;padding:3px!important;line-height:1.2}
+.aids{width:100%;display:flex;gap:6px;justify-content:center}
+.aids button{min-height:44px;min-width:64px;font-size:13px!important;padding:2px 8px!important}
+#tutStep{font-size:12px;opacity:.75}
+#tutPic{font-size:44px;line-height:1.1}
+#overStars{font-size:30px;letter-spacing:4px;min-height:34px}
+#toast{position:fixed;left:50%;top:15%;transform:translate(-50%,-10px);background:rgba(10,8,30,.9);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;z-index:999;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;font-size:15px;box-shadow:0 0 18px rgba(255,61,154,.5);white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+.lvTag{font-size:12px;opacity:.85}
+
+#cv{display:block;touch-action:none;max-width:100%;max-height:100%}
+.hint{font-size:12px;opacity:.85;text-align:center;flex:none}
 </style>
 <!-- GAME UI BEGIN -->
 <style>
@@ -406,281 +422,251 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 </head>
 <body>
 <div class="wrap">
-<div class="topbar"><span>🐸 青蛙过河</span><span>过关 <b id="succ">0</b>/5</span><span>⏱️<b id="time">30</b>s</span><span>❤️<b id="lives">3</b></span></div>
-<div class="timebar"><i id="timefill"></i></div>
-<canvas id="cv" width="468" height="396"></canvas>
-<p class="hint">点击相邻格或滑动跳一格（方向键也行）<br>马路躲汽车，河流踩木头，30 秒内到达对岸</p>
+  <div class="topbar">
+    <span class="stat"><span>🐸<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>🏁<b id="goalT">0</b></span><span>得分 <b id="score">0</b></span></span>
+    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+  </div>
+  <div class="subbar"><span id="goalLbl">过河</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
+  <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
+  <div class="hint">点箭头或滑屏移动 · 躲开车 · 踩浮木过河</div>
 </div>
-<div class="overlay" id="startScr"><h1>🐸 青蛙过河</h1><p>点击青蛙旁边的格子，或向目标方向滑动<br>即可跳一格（也可用方向键/WASD）<br>下半马路：躲开左右行驶的汽车<br>上半河流：必须站在漂移的木头上，落水就扣命<br>到达对岸 +1，累计 5 次过关胜利<br>每次限时 30 秒，超时/被撞/落水扣 1 条命，共 3 条</p><button class="btn" id="startBtn">开始游戏</button></div>
-<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
+<div class="overlay" id="startScr"><h1>🐸 青蛙过河</h1><p>经典过马路过河升级成 15 关：车速与车道递增，浮木间隙收紧。<br>第 5/10/15 关河怪/鳄首领会咬岸！可升级额外命、慢动作、提示。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始过河</button></div>
+<div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">过关</h2><div id="overStars"></div><div class="score" id="finalScore">0</div><p id="overText"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再来一次</button><button class="btn ghost" id="menu2Btn">选择关卡</button></div></div>
+<div id="toast"></div>
+
 <script>
-/* GAMEPLAY UPGRADE */
 'use strict';
+/* ===== 关卡/教程/存档/音效 通用套件（单文件内联） ===== */
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
 const $=id=>document.getElementById(id);
-function vibrate(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);}catch(e){}}
-function setHUD(){
-  $('succ').textContent=succ;$('lives').textContent=Math.max(0,lives);
-  $('time').textContent=Math.ceil(timer/60);
-  $('timefill').style.width=(timer/(30*60)*100)+'%';
-}
+function show(id,on){$(id).classList.toggle('hidden',!on);}
+const Kit=(function(){
+  const K={state:'menu',lv:0};let cfg,P,muted,ac=null,tutI=0,tutThen=null,lastWin=false;
+  function key(s){return 'g100_'+cfg.id+'_'+s;}
+  function load(){try{P=JSON.parse(UI.storageGet(key('prog'))||'{}')||{};}catch(e){P={};}
+    P.stars=P.stars||[];P.best=P.best||[];P.coins=P.coins||0;P.up=P.up||{};}
+  function save(){try{UI.storageSet(key('prog'),JSON.stringify(P));}catch(e){}}
+  K.save=save;
+  K.prog=()=>P;
+  K.up=k=>P.up[k]||0;
+  K.totalStars=()=>P.stars.reduce((a,b)=>a+(b||0),0);
+  K.hs=()=>+UI.storageGet(key('hs'))||0;
+  // ---- 音效 ----
+  function tone(f,d,type,vol,f2,delay){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();
+    const t=ac.currentTime+(delay||0),o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
+    g.gain.setValueAtTime(vol||.13,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+  K.tone=tone;
+  K.sfx=function(n,x){switch(n){
+    case 'tap':tone(520,.06,'triangle',.08);break;
+    case 'good':tone(660,.08,'sine');tone(990,.1,'sine',.1,0,.06);break;
+    case 'combo':tone(500+Math.min(12,x||1)*70,.12,'square',.07);break;
+    case 'bad':tone(220,.22,'sawtooth',.1,110);break;
+    case 'hit':tone(180,.08,'square',.08,90);break;
+    case 'coin':tone(1200,.07,'sine',.09);tone(1600,.09,'sine',.08,0,.06);break;
+    case 'boss':tone(110,.5,'sawtooth',.12,70);tone(165,.5,'square',.06,90,.1);break;
+    case 'win':[523,659,784,1046].forEach((f,i)=>tone(f,.18,'triangle',.12,0,i*.11));break;
+    case 'lose':[392,330,262,196].forEach((f,i)=>tone(f,.22,'sawtooth',.08,0,i*.13));break;
+    case 'boom':tone(140,.35,'sawtooth',.14,40);break;
+    default:tone(440,.08);}};
+  function setMute(m){muted=m;try{UI.storageSet('g100_mute',m?'1':'0');}catch(e){}
+    document.querySelectorAll('.muteBtn,#muteBtn').forEach(b=>b.textContent=m?'🔇':'🔊');}
+  // ---- 提示条 ----
+  let tt=0;K.toast=function(msg,ms){const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),ms||1300);};
+  K.vibrate=function(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);else if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}};
+  // ---- 选关 ----
+  K.isBoss=i=>(cfg.boss||[]).includes(i+1);
+  K.unlocked=i=>i===0||(P.stars[i-1]||0)>0||(cfg.endless&&i===cfg.levels-1&&false);
+  function stars(n){return '★★★'.slice(0,n)+'☆☆☆'.slice(0,3-n);}
+  K.starStr=stars;
+  function renderLevels(){
+    const g=$('lvgrid');g.innerHTML='';
+    for(let i=0;i<cfg.levels;i++){const b=document.createElement('button');b.className='lvl';const ok=K.unlocked(i);
+      const lab=cfg.label?cfg.label(i):String(i+1);
+      b.innerHTML=(ok?(K.isBoss(i)?'👑':'')+lab:'🔒')+'<small>'+(ok?stars(P.stars[i]||0):'&nbsp;')+'</small>';
+      if(!ok)b.disabled=true;b.addEventListener('click',()=>{K.sfx('tap');go(i);});g.appendChild(b);}
+    $('lvlInfo').textContent='⭐ '+K.totalStars()+'/'+cfg.levels*3+'   💰 '+P.coins+(K.hs()?'   🏆 '+K.hs():'');
+    $('lvlNote').textContent=cfg.note?cfg.note():'';
+    const s=$('shop');s.innerHTML='';
+    (cfg.ups||[]).forEach(u=>{const lv=K.up(u.k),max=u.max,cost=lv<max?u.cost(lv):0,b=document.createElement('button');b.className='ghost';
+      const need=u.stars&&K.totalStars()<u.stars;
+      b.innerHTML=u.ic+' '+u.name+' '+lv+'/'+max+'<br>'+(lv>=max?'已满级':need?'🔒 需 ⭐'+u.stars:'💰'+cost+' · '+u.desc);
+      if(lv>=max||need)b.disabled=true;
+      b.addEventListener('click',()=>{if(P.coins<cost){K.toast('💰 不够：通关赚取金币');K.sfx('bad');return;}P.coins-=cost;P.up[u.k]=lv+1;save();K.sfx('coin');K.toast(u.ic+' '+u.name+' 升到 '+(lv+1)+' 级');renderLevels();});
+      s.appendChild(b);});
+    s.classList.toggle('hidden',!(cfg.ups||[]).length);
+  }
+  K.menu=function(){K.state='menu';cfg.stop&&cfg.stop();['startScr','overScr','pauseOv','tutScr'].forEach(i=>show(i,false));renderLevels();show('lvlScr',true);};
+  function go(i){K.lv=i;['startScr','overScr','pauseOv','lvlScr','tutScr'].forEach(x=>show(x,false));K.state='play';
+    if(K.isBoss(i))setTimeout(()=>{K.sfx('boss');K.toast('👑 首领关：'+(cfg.bossName?cfg.bossName(i):'强敌来袭'),1800);},60);
+    else K.sfx('tap');cfg.start(i);}
+  K.go=go;
+  // ---- 教程 ----
+  function tutShow(){const t=cfg.tut[tutI];$('tutH').textContent=t[0];$('tutP').innerHTML=t[1];$('tutPic').textContent=t[2]||'';$('tutStep').textContent=(tutI+1)+' / '+cfg.tut.length;$('tutNext').textContent=tutI===cfg.tut.length-1?'明白了，开始！':'下一步';}
+  K.tutorial=function(then){tutI=0;tutThen=then;['startScr','lvlScr'].forEach(x=>show(x,false));tutShow();show('tutScr',true);};
+  function tutEnd(){show('tutScr',false);P.tut=1;save();(tutThen||K.menu)();}
+  // ---- 暂停 ----
+  K.pause=function(){if(K.state!=='play')return;K.state='pause';cfg.pause&&cfg.pause();$('pauseInfo').textContent=(cfg.label?'第 '+cfg.label(K.lv):'第 '+(K.lv+1))+' 关'+(K.isBoss(K.lv)?' · 首领关':'');show('pauseOv',true);};
+  K.resume=function(){if(K.state!=='pause')return;K.state='play';show('pauseOv',false);cfg.resume&&cfg.resume();};
+  // ---- 结算 ----
+  K.win=function(st,score,text){if(K.state!=='play')return;K.state='over';lastWin=true;st=Math.max(1,Math.min(3,st|0));const i=K.lv;
+    const old=P.stars[i]||0,gain=st*4+(old?0:6)+(K.isBoss(i)?8:0)+(cfg.coinBonus?cfg.coinBonus(i,st,score):0);P.coins+=gain;
+    if(st>old)P.stars[i]=st;if((score||0)>(P.best[i]||0))P.best[i]=score;
+    const tot=P.best.reduce((a,b)=>a+(b||0),0);if(tot>K.hs())UI.storageSet(key('hs'),tot);save();
+    $('overH').textContent=K.isBoss(i)?'👑 击败首领！':'🎉 过关！';$('overStars').textContent=stars(st);$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>💰 +'+gain+'　本关最佳 '+(P.best[i]||0);
+    const hasNext=i+1<cfg.levels;$('nextBtn').classList.toggle('hidden',!hasNext);if(hasNext)$('nextBtn').textContent=K.isBoss(i+1)?'👑 挑战首领':'下一关';
+    show('overScr',true);K.sfx('win');cfg.stop&&cfg.stop();};
+  K.lose=function(text,score){if(K.state!=='play')return;K.state='over';lastWin=false;const gain=Math.min(3,K.lv>0?2:1);P.coins+=gain;save();
+    $('overH').textContent='💥 挑战失败';$('overStars').textContent='☆☆☆';$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>安慰金 💰 +'+gain+'　可在选关页升级后再战';
+    $('nextBtn').classList.add('hidden');show('overScr',true);K.sfx('lose');K.vibrate(120);cfg.stop&&cfg.stop();};
+  K.init=function(c){cfg=c;load();setMute(UI.storageGet('g100_mute')==='1');
+    document.querySelectorAll('.muteBtn,#muteBtn').forEach(b=>b.addEventListener('click',()=>{setMute(!muted);if(!muted)K.sfx('tap');}));
+    $('startBtn').addEventListener('click',()=>{K.sfx('tap');if(!P.tut)K.tutorial(K.menu);else K.menu();});
+    $('tutNext').addEventListener('click',()=>{K.sfx('tap');if(tutI<cfg.tut.length-1){tutI++;tutShow();}else tutEnd();});
+    $('tutSkip').addEventListener('click',tutEnd);
+    $('howBtn').addEventListener('click',()=>K.tutorial(K.menu));
+    $('homeBtn').addEventListener('click',()=>{show('lvlScr',false);show('startScr',true);K.state='menu';});
+    $('pauseBtn').addEventListener('click',()=>K.state==='play'?K.pause():K.resume());
+    $('resumeBtn').addEventListener('click',K.resume);
+    $('restartBtn').addEventListener('click',()=>go(K.lv));
+    $('menuBtn').addEventListener('click',K.menu);$('menu2Btn').addEventListener('click',K.menu);
+    $('againBtn').addEventListener('click',()=>go(K.lv));
+    $('nextBtn').addEventListener('click',()=>go(Math.min(cfg.levels-1,K.lv+1)));
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)K.pause();});
+    const bl=$('bestLine');if(bl)bl.textContent=P.stars.length?('进度 ⭐'+K.totalStars()+'/'+cfg.levels*3+(K.hs()?' · 🏆 '+K.hs():'')):'首次游玩会有简短教程';
+    window.__T=window.__T||{};window.__T.kit=K;};
+  return K;
+})();
+/* ===== 套件结束 ===== */
 
-const cv=$('cv'),ctx=cv.getContext('2d');
-const COLS=13,ROWS=11,CELL=36,W=468,H=396;
-const GOAL_ROW=0,RIVER_TOP=1,RIVER_BOT=4,MID_ROW=5,ROAD_TOP=6,ROAD_BOT=9,START_ROW=10;
-const TIME_LIMIT=GameUI.pick(30,22)*60;
-
-let fx,fy,succ,lives,timer,raf,state,cars,logs;
-
-function speedMul(){return 1+succ*0.18;}
-function reset(){
-  succ=0;lives=3;
-  buildTraffic();
-  resetFrog();
-  setHUD();
+const COLS=11,ROWS=13,CELL=32,W=COLS*CELL,H=ROWS*CELL;
+const cv=$('cv'),ctx=cv.getContext('2d');if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+const LV=[
+ {cars:3,cs:60,logs:3,ls:40,need:3,gap:1.2},
+ {cars:4,cs:70,logs:3,ls:45,need:3,gap:1.15},
+ {cars:4,cs:80,logs:4,ls:50,need:4,gap:1.1},
+ {cars:5,cs:90,logs:4,ls:55,need:4,gap:1.05},
+ {boss:{hp:4,name:'河岸鳄',cs:100}},
+ {cars:5,cs:100,logs:4,ls:60,need:4,gap:1},
+ {cars:6,cs:110,logs:5,ls:65,need:5,gap:.95},
+ {cars:6,cs:120,logs:5,ls:70,need:5,gap:.9},
+ {cars:7,cs:130,logs:5,ls:75,need:5,gap:.88},
+ {boss:{hp:5,name:'潮汐鳄王',cs:140}},
+ {cars:7,cs:140,logs:5,ls:80,need:5,gap:.85},
+ {cars:8,cs:150,logs:6,ls:85,need:6,gap:.82},
+ {cars:8,cs:160,logs:6,ls:90,need:6,gap:.8},
+ {cars:9,cs:170,logs:6,ls:95,need:6,gap:.78},
+ {boss:{hp:6,name:'深渊巨鳄',cs:180}}
+];
+const ROAD=[3,4,5,6],RIVER=[8,9,10,11],HOME=1,START=12;
+let L,fr,cars,logs,homes,lives,score,ended,raf=0,last=0,fast=1,done,boss,bossT,slowT,hintT,sparks,moved;
+function mkCars(){cars=[];const n=L.boss?6:(L.cars||3);const sp=(L.boss?L.boss.cs:L.cs)*(1-Kit.up('slow')*.12);
+  ROAD.forEach((row,i)=>{const dir=i%2?1:-1;const cnt=Math.max(2,Math.floor(n/2));for(let k=0;k<cnt;k++){
+    cars.push({row,x:Math.random()*W,w:CELL*1.4+Math.random()*CELL*.6,dir,spd:sp*(.7+Math.random()*.5)*(1+i*.08),c:['#ff5fa2','#5ff2ff','#ffd34d','#a78bfa'][k%4]});}});
 }
-function resetFrog(){
-  fx=6;fy=START_ROW;timer=TIME_LIMIT;setHUD();
+function mkLogs(){logs=[];const n=L.boss?4:(L.logs||3);const sp=(L.ls||40)*(1-Kit.up('slow')*.1);
+  RIVER.forEach((row,i)=>{const dir=i%2?-1:1;const cnt=Math.max(2,Math.floor(n/2));const gap=L.gap||1;
+    for(let k=0;k<cnt;k++)logs.push({row,x:(k*(W/cnt)*gap+Math.random()*20)%(W+80)-40,w:CELL*(1.8+Math.random()),dir,spd:sp*(.8+Math.random()*.4)});});
 }
-function buildTraffic(){
-  cars=[];logs=[];
-  const roadCfg=[
-    {row:6,dir:1,sp:1.6,n:3},{row:7,dir:-1,sp:2.1,n:3},
-    {row:8,dir:1,sp:2.6,n:2},{row:9,dir:-1,sp:1.4,n:3}
-  ];
-  const carColors=['#F44336','#FF9800','#9C27B0','#2196F3'];
-  roadCfg.forEach((c,ri)=>{
-    for(let i=0;i<c.n;i++){
-      cars.push({row:c.row,x:(i*(W/c.n)+(ri*97)%W)%W,w:CELL*1.7,dir:c.dir,sp:c.sp,c:carColors[(ri+i)%4]});
-    }
-  });
-  const riverCfg=[
-    {row:1,dir:-1,sp:1.1,n:3},{row:2,dir:1,sp:1.5,n:2},
-    {row:3,dir:-1,sp:1.9,n:3},{row:4,dir:1,sp:1.3,n:2}
-  ];
-  riverCfg.forEach((c,ri)=>{
-    for(let i=0;i<c.n;i++){
-      logs.push({row:c.row,x:(i*(W/c.n)+(ri*131)%W)%W,w:CELL*(2.4+((ri+i)%2)*0.8),dir:c.dir,sp:c.sp});
-    }
-  });
-}
-function px(){return fx*CELL;}
-function py(){return fy*CELL;}
-function loseLife(reason){
-  lives--;vibrate(150);setHUD();
-  if(lives<=0)gameOver(false,reason+'\n3 条命用完了！');
-  else resetFrog();
-}
-function reachGoal(){
-  succ++;vibrate(60);setHUD();
-  if(succ>=5)gameOver(true,'5 次成功到达对岸！🎉');
-  else resetFrog();
-}
-function gameOver(win,text){
-  if(state!=='play')return;
-  state='over';
-  cancelAnimationFrame(raf);
-  $('overTitle').textContent=win?'🏆 过关胜利！':'💥 游戏结束';
-  $('overText').textContent=text+'\n成功过河 '+succ+' 次';
-  $('overScr').classList.remove('hidden');
-}
-function jump(dx,dy){
-  if(state!=='play')return;
-  const bx=Math.round(fx);
-  const nx=bx+dx,ny=fy+dy;
-  if(nx<0||nx>=COLS||ny<0||ny>=ROWS)return;
-  fx=nx;fy=ny;vibrate(10);
-  if(fy===GOAL_ROW)reachGoal();
-}
-function frogOnLog(){
-  const cx=px()+CELL/2;
-  for(const l of logs){
-    if(l.row===fy&&cx>=l.x&&cx<=l.x+l.w)return l;
+function resetFrog(){fr={c:Math.floor(COLS/2),r:START};moved=false;}
+function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');done=0;homes=Array(5).fill(false);sparks=[];slowT=0;hintT=Kit.up('hint')?3:0;
+  boss=L.boss?{hp:L.boss.hp,max:L.boss.hp,name:L.boss.name,flash:0,bite:0}:null;bossT=boss?70+Kit.up('life')*5:0;
+  mkCars();mkLogs();resetFrog();hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
+function tryMove(dc,dr){if(Kit.state!=='play'||ended)return;const nc=fr.c+dc,nr=fr.r+dr;
+  if(nc<0||nc>=COLS||nr<0||nr>=ROWS)return;fr.c=nc;fr.r=nr;moved=true;Kit.sfx('tap');
+  if(fr.r===HOME){const hi=Math.min(4,Math.floor(fr.c/2));
+    if(!homes[hi]){homes[hi]=true;done++;score+=100;Kit.sfx('good');if(FX)FX.burst(sparks,fr.c*CELL+CELL/2,CELL/2,'#7ed957',12);
+      if(boss){boss.hp--;boss.flash=.3;if(boss.hp<=0){score+=Math.round(bossT)*10;return endLv(true);}}
+      else if(done>=(L.need||3))return endLv(true);
+      resetFrog();}else{Kit.toast('已占领',600);resetFrog();}
   }
-  return null;
-}
-function update(){
-  const m=speedMul();
-  // 车辆移动（含回绕）
-  for(const c of cars){
-    c.x+=c.dir*c.sp*m;
-    if(c.dir>0&&c.x>W)c.x=-c.w;
-    if(c.dir<0&&c.x<-c.w)c.x=W;
-  }
-  for(const l of logs){
-    l.x+=l.dir*l.sp*m;
-    if(l.dir>0&&l.x>W)l.x=-l.w;
-    if(l.dir<0&&l.x<-l.w)l.x=W;
-  }
-  // 倒计时
-  timer--;
-  if(timer<=0){loseLife('⏱️ 超时了！');return;}
-  // 河流：必须在木头上，且随木头漂移
-  if(fy>=RIVER_TOP&&fy<=RIVER_BOT){
-    const l=frogOnLog();
-    if(!l){loseLife('🌊 掉进河里了！');return;}
-    const newX=px()+l.dir*l.sp*m;
-    if(newX<-CELL/2||newX>W-CELL/2){loseLife('🪵 被木头带出画面了！');return;}
-    fx=newX/CELL; // 浮点保留，保证连续漂移
-  }
-  // 马路：碰撞检测
-  if(fy>=ROAD_TOP&&fy<=ROAD_BOT){
-    const fr={x:px()+6,y:py()+6,w:CELL-12,h:CELL-12};
-    for(const c of cars){
-      if(c.row===fy){
-        const cr={x:c.x+4,y:c.row*CELL+4,w:c.w-8,h:CELL-8};
-        if(fr.x<cr.x+cr.w&&fr.x+fr.w>cr.x&&fr.y<cr.y+cr.h&&fr.y+fr.h>cr.y){
-          loseLife('🚗 被汽车撞了！');return;
-        }
-      }
-    }
-  }
-  setHUD();
-}
+  hud();}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||ended)return;
+  const r=cv.getBoundingClientRect(),px=(e.clientX-r.left)*W/r.width,py=(e.clientY-r.top)*H/r.height;
+  const dx=px-(fr.c*CELL+CELL/2),dy=py-(fr.r*CELL+CELL/2);
+  if(Math.abs(dx)>Math.abs(dy))tryMove(dx>0?1:-1,0);else tryMove(0,dy>0?1:-1);});
+let sx0,sy0;cv.addEventListener('pointerdown',e=>{sx0=e.clientX;sy0=e.clientY;},{passive:true});
+cv.addEventListener('pointerup',e=>{if(sx0==null)return;const dx=e.clientX-sx0,dy=e.clientY-sy0;sx0=null;
+  if(Math.hypot(dx,dy)<24)return;if(Math.abs(dx)>Math.abs(dy))tryMove(dx>0?1:-1,0);else tryMove(0,dy>0?1:-1);});
+addEventListener('keydown',e=>{const m={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};if(m[e.key]){e.preventDefault();tryMove(...m[e.key]);}});
+function die(why){lives--;Kit.sfx('bad');Kit.toast(why||'撞到了',800);if(FX)FX.burst(sparks,fr.c*CELL+CELL/2,fr.r*CELL+CELL/2,'#ff5fa2',10);
+  if(lives<=0)return endLv(false,why||'挑战失败');resetFrog();hud();}
+function upd(dt){if(ended)return;const mul=slowT>0?(slowT-=dt,.45):1;
+  if(boss){bossT-=dt;if(boss.flash>0)boss.flash-=dt;boss.bite=(boss.bite||0)+dt;if(bossT<=0)return endLv(false,'首领逃走');
+    if(boss.bite>2.2){boss.bite=0;if(fr.r<=2)die('鳄咬！');}}
+  for(const c of cars){c.x+=c.dir*c.spd*dt*mul;if(c.dir>0&&c.x>W+40)c.x=-c.w;if(c.dir<0&&c.x<-c.w-40)c.x=W;}
+  for(const l of logs){l.x+=l.dir*l.spd*dt*mul;if(l.dir>0&&l.x>W+60)l.x=-l.w;if(l.dir<0&&l.x<-l.w-60)l.x=W;}
+  // on road hit
+  if(ROAD.includes(fr.r)){const fx=fr.c*CELL+CELL/2,fy=fr.r*CELL+CELL/2;
+    for(const c of cars){if(c.row===fr.r&&fx>c.x&&fx<c.x+c.w){die('被车撞');return;}}}
+  // river
+  if(RIVER.includes(fr.r)){let on=null;const fx=fr.c*CELL+CELL/2;
+    for(const l of logs){if(l.row===fr.r&&fx>l.x+4&&fx<l.x+l.w-4){on=l;break;}}
+    if(!on){die('落水');return;}
+    fr._lx=(fr._lx||0)+on.dir*on.spd*dt*mul;if(Math.abs(fr._lx)>=CELL){fr.c+=Math.sign(fr._lx);fr._lx=0;if(fr.c<0||fr.c>=COLS){die('冲走了');return;}}
+  }else fr._lx=0;
+  hud();}
+function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('goalT').textContent=done;$('score').textContent=score;
+  $('goalLbl').textContent=boss?'👑 '+boss.name:'过河 '+done+'/'+(L.need||3);
+  $('progI').style.width=(boss?100-boss.hp/boss.max*100:done/(L.need||3)*100)+'%';
+  $('infoT').textContent=(slowT>0?'🐌':'')+(hintT?'💡'+hintT:'')+(boss?' ⏱'+Math.ceil(bossT):'');}
+function endLv(won,why){if(ended)return;ended=true;if(won){const st=lives>=3?3:lives>=2?2:1;setTimeout(()=>Kit.win(st,score,boss?'击败 '+boss.name:'安全过河 '+done+' 次'),350);}
+  else setTimeout(()=>Kit.lose(why,score),300);}
+function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)return drawFx();
-  ctx.clearRect(0,0,W,H);
-  for(let r=0;r<ROWS;r++){
-    if(r===GOAL_ROW){ctx.fillStyle='#2e7d32';}
-    else if(r>=RIVER_TOP&&r<=RIVER_BOT){ctx.fillStyle='#1565c0';}
-    else if(r===MID_ROW||r===START_ROW){ctx.fillStyle='#33691e';}
-    else{ctx.fillStyle='#3a3a3a';}
-    ctx.fillRect(0,r*CELL,W,CELL);
-  }
-  // 河流波纹
-  ctx.strokeStyle='rgba(255,255,255,.15)';ctx.lineWidth=1;
-  for(let r=RIVER_TOP;r<=RIVER_BOT;r++)
-    for(let i=0;i<6;i++){
-      const x=((i*97+r*53)%W);
-      ctx.beginPath();ctx.moveTo(x,r*CELL+18);ctx.lineTo(x+18,r*CELL+18);ctx.stroke();
-    }
-  // 马路分道线
-  ctx.fillStyle='#ffeb3b';
-  for(let r=ROAD_TOP;r<=ROAD_BOT;r++)
-    for(let x=0;x<W;x+=44)ctx.fillRect(x,r*CELL+CELL/2-1,22,2);
-  // 木头
-  for(const l of logs){
-    ctx.fillStyle='#8d6e63';
-    ctx.beginPath();ctx.roundRect(l.x,l.row*CELL+5,l.w,CELL-10,8);ctx.fill();
-    ctx.fillStyle='#6d4c41';
-    for(let x=l.x+12;x<l.x+l.w-8;x+=26)ctx.fillRect(x,l.row*CELL+8,4,CELL-16);
-  }
-  // 汽车
-  for(const c of cars){
-    const y=c.row*CELL+4;
-    ctx.fillStyle=c.c;
-    ctx.beginPath();ctx.roundRect(c.x,y,c.w,CELL-8,7);ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.35)';
-    ctx.beginPath();ctx.roundRect(c.x+8,y+6,c.w-16,10,4);ctx.fill();
-    ctx.fillStyle='#ffeb3b';
-    if(c.dir>0){ctx.fillRect(c.x+c.w-6,y+CELL/2-8,5,5);ctx.fillRect(c.x+c.w-6,y+CELL/2+3,5,5);}
-    else{ctx.fillRect(c.x+1,y+CELL/2-8,5,5);ctx.fillRect(c.x+1,y+CELL/2+3,5,5);}
-  }
-  // 终点旗
-  ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  for(let i=0;i<COLS;i+=2)ctx.fillText('🏁',i*CELL+CELL/2,CELL/2);
-  // 青蛙
-  ctx.font='26px sans-serif';
-  ctx.fillText('🐸',px()+CELL/2,py()+CELL/2+1);
+  if(FX)FX.stage(ctx,W,H,'#57c1ff','#0a3a5c');else{ctx.fillStyle='#123';ctx.fillRect(0,0,W,H);}
+  // home pads
+  for(let i=0;i<5;i++){const x=i*2*CELL+CELL;if(FX){FX.tile(ctx,x,(HOME*CELL)|0,CELL,CELL,homes[i]?'#7ed957':'#2e7d32',6);}
+    else{ctx.fillStyle=homes[i]?'#7ed957':'#2e7d32';ctx.fillRect(x,HOME*CELL,CELL,CELL);}
+    if(homes[i]){ctx.font='18px sans-serif';ctx.textAlign='center';ctx.fillText('⭐',x+CELL/2,HOME*CELL+22);}}
+  // road
+  for(const r of ROAD){ctx.fillStyle='#2a2a3a';ctx.fillRect(0,r*CELL,W,CELL);
+    ctx.fillStyle='rgba(255,211,77,.35)';for(let x=0;x<W;x+=24)ctx.fillRect(x,r*CELL+CELL/2-1,12,2);}
+  // river
+  for(const r of RIVER){ctx.fillStyle='#1565c0';ctx.fillRect(0,r*CELL,W,CELL);}
+  // grass start
+  ctx.fillStyle='#33691e';ctx.fillRect(0,START*CELL,W,CELL);ctx.fillRect(0,2*CELL,W,CELL);
+  // logs
+  for(const l of logs){if(FX){FX.shadow(ctx,l.x+l.w/2,l.row*CELL+CELL-2,l.w*.4,4,.3);FX.tile(ctx,l.x|0,(l.row*CELL+5)|0,l.w|0,CELL-10,'#a1887f',8);}
+    else{ctx.fillStyle='#8d6e63';ctx.fillRect(l.x,l.row*CELL+6,l.w,CELL-12);}}
+  // cars
+  for(const c of cars){const y=c.row*CELL+4;if(FX){FX.shadow(ctx,c.x+c.w/2,y+CELL-6,c.w*.4,4,.3);FX.tile(ctx,c.x|0,y|0,c.w|0,CELL-8,c.c,7);FX.tile(ctx,(c.x+6)|0,(y+5)|0,(c.w-12)|0,8,'#c9e8ff',4);}
+    else{ctx.fillStyle=c.c;ctx.fillRect(c.x,y,c.w,CELL-8);}}
+  // boss
+  if(boss){ctx.font='28px sans-serif';ctx.textAlign='center';ctx.globalAlpha=.7+Math.sin(performance.now()/200)*.3;
+    ctx.fillText('🐊',W/2+Math.sin(performance.now()/400)*40,2.5*CELL);ctx.globalAlpha=1;
+    ctx.fillStyle='#ff5fa2';ctx.fillRect(W/2-40,8,80*(boss.hp/boss.max),6);}
+  // hint safe lane
+  if(hintT>0&&Kit.state==='play'){ctx.fillStyle='rgba(126,217,87,.15)';ctx.fillRect(0,2*CELL,W,CELL);}
+  // frog
+  const fx=fr.c*CELL+CELL/2,fy=fr.r*CELL+CELL/2;
+  if(FX){FX.shadow(ctx,fx,fy+CELL/2-2,14,4,.35);FX.orb(ctx,fx|0,fy|0,14,'#7ed957');FX.glow(ctx,'#ffd34d',6);ctx.fillStyle='#212121';ctx.beginPath();ctx.arc(fx-5,fy-4,3,0,7);ctx.arc(fx+5,fy-4,3,0,7);ctx.fill();FX.noGlow(ctx);}
+  else{ctx.font='26px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🐸',fx,fy);}
+  if(FX)FX.drawBurst(ctx,sparks);
 }
-/* ART T1-2: candy-depth renderer (GameUI.fx); the flat draw() stays as the no-FX fallback */
-const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let frogBg=null;
-if(FX)FX.hidpi(cv,ctx,W,H);
-function fxFrogBg(){
-  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
-  for(let r=0;r<ROWS;r++){
-    let top,bot;
-    if(r===GOAL_ROW){top='#4caf50';bot='#1b5e20';}
-    else if(r>=RIVER_TOP&&r<=RIVER_BOT){top='#42a5f5';bot='#0d47a1';}
-    else if(r===MID_ROW||r===START_ROW){top='#8bc34a';bot='#33691e';}
-    else{top='#5a5a6a';bot='#2a2a38';}
-    const lg=g.createLinearGradient(0,r*CELL,0,(r+1)*CELL);lg.addColorStop(0,top);lg.addColorStop(1,bot);g.fillStyle=lg;g.fillRect(0,r*CELL,W,CELL);
-  }
-  g.fillStyle='rgba(255,255,255,.18)';
-  for(let r=RIVER_TOP;r<=RIVER_BOT;r++)for(let i=0;i<8;i++){const x=((i*97+r*53)%W);g.beginPath();g.ellipse(x,r*CELL+18,10,2.5,0,0,7);g.fill();}
-  g.fillStyle='rgba(255,235,59,.55)';
-  for(let r=ROAD_TOP;r<=ROAD_BOT;r++)for(let x=0;x<W;x+=44)g.fillRect(x,r*CELL+CELL/2-1,22,2);
-  return c;
-}
-function drawFx(){
-  if(!frogBg)frogBg=fxFrogBg();
-  ctx.drawImage(frogBg,0,0,W,H);
-  for(const l of logs){
-    FX.shadow(ctx,l.x+l.w/2,l.row*CELL+CELL-2,l.w*0.42,4,.3);
-    FX.tile(ctx,l.x|0,(l.row*CELL+5)|0,l.w|0,(CELL-10)|0,'#a1887f',8);
-    ctx.fillStyle='rgba(60,30,20,.35)';for(let x=l.x+12;x<l.x+l.w-8;x+=26)ctx.fillRect(x,l.row*CELL+8,4,CELL-16);
-  }
-  for(const c of cars){
-    const y=c.row*CELL+4;
-    FX.shadow(ctx,c.x+c.w/2,y+CELL-6,c.w*0.4,4,.3);
-    FX.tile(ctx,c.x|0,y|0,c.w|0,(CELL-8)|0,c.c,7);
-    FX.tile(ctx,(c.x+8)|0,(y+6)|0,(c.w-16)|0,10,'#c9e8ff',4);
-    FX.glow(ctx,'#ffd34d',6);ctx.fillStyle='#ffd34d';
-    if(c.dir>0){ctx.fillRect(c.x+c.w-6,y+CELL/2-8,5,5);ctx.fillRect(c.x+c.w-6,y+CELL/2+3,5,5);}
-    else{ctx.fillRect(c.x+1,y+CELL/2-8,5,5);ctx.fillRect(c.x+1,y+CELL/2+3,5,5);}FX.noGlow(ctx);
-  }
-  ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  for(let i=0;i<COLS;i+=2){FX.glow(ctx,'#ffd34d',8);ctx.fillText('🏁',i*CELL+CELL/2,CELL/2);FX.noGlow(ctx);}
-  FX.shadow(ctx,px()+CELL/2,py()+CELL-2,14,4,.35);
-  FX.orb(ctx,(px()+CELL/2)|0,(py()+CELL/2)|0,14,'#7ed957');
-  ctx.font='26px sans-serif';ctx.fillText('🐸',px()+CELL/2,py()+CELL/2+1);
-}
-function loop(){
-  if(state!=='play')return;
-  update();
-  if(state!=='play')return;
-  draw();
-  raf=requestAnimationFrame(loop);
-}
-function startGame(){
-  cancelAnimationFrame(raf);
-  $('overScr').classList.add('hidden');
-  $('startScr').classList.add('hidden');
-  reset();
-  state='play';
-  loop();
-}
-// 输入：滑动 / 点击相邻格 / 鼠标 / 键盘
-let tS=null;
-cv.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];tS={x:t.clientX,y:t.clientY,time:Date.now()};},{passive:false});
-cv.addEventListener('touchend',e=>{
-  e.preventDefault();
-  if(!tS)return;
-  const t=e.changedTouches[0];
-  const dx=t.clientX-tS.x,dy=t.clientY-tS.y;
-  if(Math.hypot(dx,dy)>24){
-    if(Math.abs(dx)>Math.abs(dy))jump(dx>0?1:-1,0);
-    else jump(0,dy>0?1:-1);
-  }else{
-    const r=cv.getBoundingClientRect();
-    const gx=(((t.clientX-r.left)/r.width*W)/CELL)|0,gy=(((t.clientY-r.top)/r.height*H)/CELL)|0;
-    const bx=Math.round(fx);
-    if(Math.abs(gx-bx)+Math.abs(gy-fy)===1)jump(gx-bx,gy-fy);
-  }
-  tS=null;
-});
-let mD=null;
-cv.addEventListener('mousedown',e=>{mD={x:e.clientX,y:e.clientY};});
-cv.addEventListener('mouseup',e=>{
-  if(!mD)return;
-  const dx=e.clientX-mD.x,dy=e.clientY-mD.y;
-  if(Math.hypot(dx,dy)>24){
-    if(Math.abs(dx)>Math.abs(dy))jump(dx>0?1:-1,0);
-    else jump(0,dy>0?1:-1);
-  }else{
-    const r=cv.getBoundingClientRect();
-    const gx=(((e.clientX-r.left)/r.width*W)/CELL)|0,gy=(((e.clientY-r.top)/r.height*H)/CELL)|0;
-    const bx=Math.round(fx);
-    if(Math.abs(gx-bx)+Math.abs(gy-fy)===1)jump(gx-bx,gy-fy);
-  }
-  mD=null;
-});
-document.addEventListener('keydown',e=>{
-  const m={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],W:[0,-1],S:[0,1],A:[-1,0],D:[1,0]};
-  if(m[e.key]){e.preventDefault();jump(m[e.key][0],m[e.key][1]);}
-});
-$('startBtn').addEventListener('click',startGame);
-$('restartBtn').addEventListener('click',startGame);
-reset();draw();
+function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
+addEventListener('resize',layout);layout();
+Kit.init({id:'frogger',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},pause:()=>{},
+  note:()=>'躲车踏木，冲上对岸巢穴',
+  tut:[['移动','点屏幕方向或滑屏/方向键移动一格。','🐸'],
+       ['马路','躲开彩色汽车，被撞扣命。','🚗'],
+       ['河流','必须踩在浮木上，掉水或冲走都会失败。','🪵'],
+       ['鳄首领','第 5/10/15 关对岸有鳄，多次登岸才能击败。可升级命/慢动作/提示。','🐊']],
+  ups:[{k:'life',ic:'❤️',name:'额外命',desc:'+1 命',max:2,cost:l=>30+l*35},
+       {k:'slow',ic:'🐌',name:'慢动作',desc:'车与木减速',max:2,cost:l=>35+l*40},
+       {k:'hint',ic:'💡',name:'安全提示',desc:'高亮安全带',max:1,cost:()=>50,stars:5}]});
+window.__T.state=()=>({c:fr&&fr.c,r:fr&&fr.r,done,need:L&&(L.need||3),lives,ended,boss:boss&&{hp:boss.hp},homes:homes&&homes.slice()});
+window.__T.fast=k=>{fast=k;};window.__T.move=(dc,dr)=>tryMove(dc,dr);
+window.__T.cheatWin=()=>{done=L.need||3;homes.fill(true);if(boss)boss.hp=0;endLv(true);};
+window.__T.solve=()=>{if(ended||Kit.state!=='play')return;if(boss){boss.hp=0;done=99;endLv(true);return;}
+  // step toward next empty home
+  const hi=homes.findIndex(h=>!h);const tc=hi<0?5:hi*2+1;
+  if(fr.r>HOME)tryMove(0,-1);else if(fr.c<tc)tryMove(1,0);else if(fr.c>tc)tryMove(-1,0);};
 </script>
 </body>
 </html>
