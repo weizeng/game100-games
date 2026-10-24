@@ -35,7 +35,10 @@
 | goodssort | `c2d89d5` |
 | hillclimb | `cba3bb2` |
 
-Actions「发布游戏资源」见推送后的 runs（本文件提交时一并核对）。
+Actions「发布游戏资源」均成功：
+
+- watersort 推送：[run 40048287283](https://github.com/weizeng/game100-games/actions/runs/40048287283)
+- 其余 5 款批量推送：[run 40048295168](https://github.com/weizeng/game100-games/actions/runs/40048295168)
 
 ## 遗留
 
