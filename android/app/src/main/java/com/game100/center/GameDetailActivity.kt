@@ -13,6 +13,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.game100.center.data.UserData
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import com.game100.center.net.LeaderboardSync
+import androidx.lifecycle.lifecycleScope
 import com.game100.center.model.RemoteGame
 
 /**
@@ -155,9 +160,15 @@ class GameDetailActivity : AppCompatActivity() {
             }
         }
         refreshPlayButton()
+        bindLeaderboard(gameId)
         val content = findViewById<android.view.ViewGroup>(android.R.id.content)
         UiMotion.bindButtons(content)
         UiMotion.enterPage(content)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::game.isInitialized) bindLeaderboard(game.id)
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -166,6 +177,48 @@ class GameDetailActivity : AppCompatActivity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun bindLeaderboard(gameId: String) {
+        val panel = findViewById<LinearLayout>(R.id.leaderboard_panel)
+        val listTv = findViewById<TextView>(R.id.leaderboard_list)
+        val statusTv = findViewById<TextView>(R.id.leaderboard_status)
+        val myTv = findViewById<TextView>(R.id.leaderboard_mine)
+        if (!com.game100.center.BuildConfig.ONLINE_CATALOG) {
+            panel.visibility = android.view.View.GONE
+            return
+        }
+        panel.visibility = android.view.View.VISIBLE
+        statusTv.text = getString(R.string.leaderboard_loading)
+        listTv.text = ""
+        myTv.text = ""
+        lifecycleScope.launch(Dispatchers.IO) {
+            val top = LeaderboardSync.fetchTop(this@GameDetailActivity, gameId, 10)
+            val mine = LeaderboardSync.fetchMyRank(this@GameDetailActivity, gameId)
+            withContext(Dispatchers.Main) {
+                if (top.isEmpty()) {
+                    statusTv.text = getString(R.string.leaderboard_empty)
+                    listTv.text = ""
+                } else {
+                    statusTv.text = getString(R.string.leaderboard_title)
+                    listTv.text = top.joinToString("\n") { e ->
+                        val medal = when (e.rank.toInt()) {
+                            1 -> "🥇"
+                            2 -> "🥈"
+                            3 -> "🥉"
+                            else -> "${e.rank}."
+                        }
+                        "$medal  ${e.nickname}  ·  ${e.score}"
+                    }
+                }
+                myTv.text = when {
+                    mine == null -> ""
+                    !mine.ranked -> getString(R.string.leaderboard_not_ranked)
+                    else -> getString(R.string.leaderboard_my_rank, mine.rank, mine.score)
+                }
+            }
+        }
+    }
+
 
     private fun formatSize(bytes: Long): String = when {
         bytes <= 0 -> "未知大小"

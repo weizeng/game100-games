@@ -2,9 +2,10 @@ package com.game100.center.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.util.UUID
 
 /**
- * 用户数据：评分、收藏、最高分（本地存储）
+ * 用户数据：评分、收藏、最高分、排行榜昵称与设备 ID（本地存储）。
  */
 class UserData(context: Context) {
     private val prefs: SharedPreferences =
@@ -21,7 +22,6 @@ class UserData(context: Context) {
     fun toggleFavorite(gameId: String): Boolean {
         val new = !isFavorite(gameId)
         prefs.edit().putBoolean("fav_$gameId", new).apply()
-        // 维护收藏 ID 集合，方便列表查询
         val set = getFavoriteIds().toMutableSet()
         if (new) set.add(gameId) else set.remove(gameId)
         prefs.edit().putStringSet("fav_ids", set).apply()
@@ -29,13 +29,41 @@ class UserData(context: Context) {
     }
     fun getFavoriteIds(): Set<String> = prefs.getStringSet("fav_ids", emptySet()) ?: emptySet()
 
-    // ===== 最高分 =====
+    // ===== 最高分（本机） =====
     fun getBestScore(gameId: String): Int = prefs.getInt("score_$gameId", 0)
     fun reportScore(gameId: String, score: Int): Boolean {
         if (score > getBestScore(gameId)) {
             prefs.edit().putInt("score_$gameId", score).apply()
-            return true // 破纪录
+            return true
         }
         return false
+    }
+
+    // ===== 排行榜身份 =====
+    /** 稳定设备 ID，用于云端排行；卸载重装会变。 */
+    fun getDeviceId(): String {
+        val existing = prefs.getString(KEY_DEVICE_ID, null)
+        if (!existing.isNullOrBlank()) return existing
+        val id = UUID.randomUUID().toString()
+        prefs.edit().putString(KEY_DEVICE_ID, id).apply()
+        return id
+    }
+
+    fun getNickname(): String {
+        val n = prefs.getString(KEY_NICKNAME, null)?.trim().orEmpty()
+        return if (n.isBlank()) DEFAULT_NICKNAME else n.take(24)
+    }
+
+    fun setNickname(name: String) {
+        val cleaned = name.trim()
+            .replace(Regex("[\\n\\r\\t]"), "")
+            .take(24)
+        prefs.edit().putString(KEY_NICKNAME, cleaned.ifBlank { DEFAULT_NICKNAME }).apply()
+    }
+
+    companion object {
+        private const val KEY_DEVICE_ID = "leaderboard_device_id"
+        private const val KEY_NICKNAME = "leaderboard_nickname"
+        const val DEFAULT_NICKNAME = "玩家"
     }
 }

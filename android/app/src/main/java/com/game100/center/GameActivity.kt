@@ -15,7 +15,13 @@ import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.game100.center.data.UserData
+import com.game100.center.net.LeaderboardSync
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
+import org.json.JSONObject
 import java.net.URLEncoder
 
 class GameActivity : AppCompatActivity() {
@@ -25,11 +31,12 @@ class GameActivity : AppCompatActivity() {
     }
 
     private lateinit var webView: WebView
+    private lateinit var gameId: String
+    private var lastCloudScore = 0
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 全屏沉浸
         window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = (
@@ -39,8 +46,7 @@ class GameActivity : AppCompatActivity() {
             )
         setContentView(R.layout.activity_game)
 
-        val gameId = intent.getStringExtra(EXTRA_GAME_ID)
-        if (gameId.isNullOrBlank()) {
+        gameId = intent.getStringExtra(EXTRA_GAME_ID) ?: run {
             finish()
             return
         }
@@ -65,13 +71,13 @@ class GameActivity : AppCompatActivity() {
             displayZoomControls = false
         }
         webView.addJavascriptInterface(JsBridge(this) { score ->
-            val userData = com.game100.center.data.UserData(this)
-            val isRecord = userData.reportScore(gameId, score)
-            if (isRecord) {
-                android.widget.Toast.makeText(this, "🎉 新纪录：$score 分！", android.widget.Toast.LENGTH_SHORT).show()
-            }
+            onScoreReported(score)
         }, "NativeBridge")
-        webView.webViewClient = WebViewClient()
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                injectScoreHook()
+            }
+        }
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 progress.visibility = if (newProgress < 100) View.VISIBLE else View.GONE
@@ -79,16 +85,95 @@ class GameActivity : AppCompatActivity() {
         }
         webView.loadUrl("file://${indexFile.absolutePath}")
 
-        // 🐛 bug 提交按钮（v1.10）：跳预填好的 GitHub Issue，每日自动修复任务处理
         val btnBug = findViewById<Button>(R.id.bug_button)
         btnBug.setOnClickListener { showBugDialog(gameId) }
     }
 
+    /** 游戏主动 reportScore，或注入脚本从 localStorage 嗅探到的新高分 */
+    private fun onScoreReported(score: Int) {
+        if (score <= 0) return
+        val userData = UserData(this)
+        val isRecord = userData.reportScore(gameId, score)
+        if (isRecord) {
+            Toast.makeText(this, "🎉 新纪录：$score 分！", Toast.LENGTH_SHORT).show()
+        }
+        if (score > lastCloudScore) {
+            lastCloudScore = score
+            lifecycleScope.launch(Dispatchers.IO) {
+                LeaderboardSync.submitBest(this@GameActivity, gameId, score)
+            }
+        }
+    }
+
     /**
-     * v1.10：游戏内 🐛 提交 bug。
-     * 弹框让用户写一句话描述，然后跳到 GitHub 预填 Issue 页面；
-     * 每日自动任务会读取 Issue、分析并修复、关闭 Issue。
+     * 不改动游戏 zip：在 WebView 里挂钩 GameUI.storageSet / localStorage，
+     * 看到像最高分的数字就回调 NativeBridge.reportScore。
+     * 游戏本身仍完全离线可玩；无网时云端同步静默失败。
      */
+    private fun injectScoreHook() {
+        val idJson = JSONObject.quote(gameId)
+        val js = """
+            (function(gid){
+              if (window.__g100ScoreHook) return;
+              window.__g100ScoreHook = true;
+              var last = 0;
+              function maybe(score){
+                score = parseInt(score, 10);
+                if (!isFinite(score) || score <= 0 || score <= last) return;
+                if (score > 1000000000) return;
+                last = score;
+                try {
+                  if (window.NativeBridge && NativeBridge.reportScore) NativeBridge.reportScore(score);
+                } catch (e) {}
+              }
+              function keyLooksScore(k){
+                if (!k) return false;
+                k = String(k);
+                if (/mute|sound|theme|mode|prog|progress|level|unlock|setting|lang|name|nick/i.test(k)) return false;
+                return /(^|[_-])(hs|best|high|hiscore|highscore|record|score)([_-]|$)/i.test(k)
+                    || k === 'g100_' + gid + '_hs'
+                    || k === gid + '_best'
+                    || k === gid + '_hs';
+              }
+              try {
+                var origSet = Storage.prototype.setItem;
+                Storage.prototype.setItem = function(key, value){
+                  var ret = origSet.call(this, key, value);
+                  try {
+                    if (keyLooksScore(key)) {
+                      var n = parseInt(value, 10);
+                      if (String(n) === String(value).trim()) maybe(n);
+                    }
+                  } catch (e) {}
+                  return ret;
+                };
+              } catch (e) {}
+              function hookGameUI(){
+                try {
+                  if (!window.GameUI || GameUI.__g100Hooked) return;
+                  if (typeof GameUI.storageSet === 'function') {
+                    var orig = GameUI.storageSet.bind(GameUI);
+                    GameUI.storageSet = function(k,v){ var r=orig(k,v); try{ if(keyLooksScore(k)){ var n=parseInt(v,10); if(String(n)===String(v).trim()) maybe(n);} }catch(e){} return r; };
+                  }
+                  GameUI.reportScore = function(s){ maybe(s); };
+                  GameUI.__g100Hooked = true;
+                } catch (e) {}
+              }
+              hookGameUI();
+              setInterval(hookGameUI, 1500);
+              // 进页时读一次常见键
+              try {
+                var keys = [gid+'_best','g100_'+gid+'_hs',gid+'_hs','best','highScore','hiscore'];
+                keys.forEach(function(k){
+                  var v = localStorage.getItem(k);
+                  if (v != null) maybe(v);
+                });
+              } catch (e) {}
+            })($idJson);
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
     private fun showBugDialog(gameId: String) {
         val input = EditText(this)
         input.hint = "描述一下哪里不对（比如：点开始没反应）"

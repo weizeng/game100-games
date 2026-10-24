@@ -11,6 +11,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.game100.center.data.GameRepository
+import com.game100.center.data.UserData
 import com.game100.center.net.AppUpdater
 import com.game100.center.ui.UiMotion
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,15 @@ class SettingsActivity : AppCompatActivity() {
 
         val etUrl = findViewById<EditText>(R.id.et_url)
         etUrl.setText(repo.getManifestUrl())
+
+        val userData = UserData(this)
+        val etNick = findViewById<EditText>(R.id.et_nickname)
+        etNick.setText(userData.getNickname())
+        findViewById<Button>(R.id.btn_save_nickname).setOnClickListener {
+            userData.setNickname(etNick.text.toString())
+            etNick.setText(userData.getNickname())
+            Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
+        }
 
         findViewById<TextView>(R.id.tv_version).text =
             getString(R.string.version_full, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)

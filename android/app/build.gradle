@@ -11,8 +11,8 @@ plugins {
 def readProp = { String name ->
     project.findProperty(name)?.toString() ?: System.getenv(name.toUpperCase().replace('.', '_'))
 }
-def appVersionCode = (readProp("game100.versionCode") ?: "32").toInteger()
-def appVersionName = readProp("game100.versionName") ?: "4.15"
+def appVersionCode = (readProp("game100.versionCode") ?: "33").toInteger()
+def appVersionName = readProp("game100.versionName") ?: "4.16"
 
 // 签名：只从 release.properties（不入库）/ -P 参数 / 环境变量读取，绝不写死在仓库里。
 // 缺少任一项时 release 包不签名（可由 muse 或 apksigner/jarsigner 事后签名），不会让同步失败。
@@ -23,6 +23,12 @@ def signProp = { String name -> releaseProps.getProperty(name) ?: readProp(name)
 def hasReleaseSigning = ["game100.release.storeFile", "game100.release.storePassword",
                          "game100.release.keyAlias", "game100.release.keyPassword"].every { signProp(it) }
 
+// local.properties 可覆盖（与 sdk.dir 同文件）；也可用 -P / 环境变量
+def localProps = new Properties()
+def localPropFile = rootProject.file("local.properties")
+if (localPropFile.exists()) { localPropFile.withInputStream { localProps.load(it) } }
+def supabaseUrl = readProp("game100.supabase.url") ?: localProps.getProperty("game100.supabase.url") ?: "https://whhwkfqrrqukfwqzqpif.supabase.co"
+def supabaseAnon = readProp("game100.supabase.anonKey") ?: localProps.getProperty("game100.supabase.anonKey") ?: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndoaHdrZnFycnF1a2Z3cXpxcGlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4MDEzMTksImV4cCI6MjEwODM3NzMxOX0.75rBJzVj_lzIVPdDa3xP6wKlesRDIFWm3w_l3t0pPV0"
 def bundledGamesDirPath = "${project.layout.buildDirectory.get().asFile}/generated/bundledGames/bundled"
 
 android {
@@ -35,6 +41,9 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
+        // anon 是公开密钥；service_role 永远不要写进仓库或 BuildConfig
+        buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${supabaseAnon}\"")
     }
 
     signingConfigs {

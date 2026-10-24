@@ -14,3 +14,7 @@
 8. **画面要有立体感**：画布内用 `GameUI.fx`（tile、orb、shadow、stage、glow、burst），并保留无 FX 时的兜底画法；文字对比度 ≥4.5:1（亮色按钮用深色字）。
 9. **玩法完整**：开始、暂停、结算、再来一局、计分、最佳纪录、难度递进、音效（WebAudio 合成 + 静音开关）。
 10. **推送前**：先 `git pull --rebase`，在最新文件上修改（**不要用本地旧副本整体覆盖**）。依次跑通 `node scripts/sync-game-ui.cjs --check --strict`、`node scripts/build-classic-games.cjs --check`、`node scripts/check-game.cjs <ids>`，然后只做普通 `git push`，**禁止 force-push**。推送后确认 Actions「发布游戏资源」成功。
+
+## 全服排行榜
+
+见 [docs/supabase-leaderboard.md](docs/supabase-leaderboard.md)。需在 Supabase SQL Editor 执行 `supabase/migrations/20261024_leaderboard.sql`；App ≥ 4.16。不要把 service_role 写进仓库。
