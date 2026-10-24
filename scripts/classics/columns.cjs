@@ -28,10 +28,21 @@ const game={
   down(soft=false){if(!ui.active()||!this.piece)return;if(this.valid(this.piece.x,this.piece.y+1)){this.piece.y++;if(soft)ui.add(1);}else this.lock();this.render();},
   hard(){if(!ui.active()||!this.piece)return;let distance=0;while(this.valid(this.piece.x,this.piece.y+1)){this.piece.y++;distance++;}ui.add(distance*2);this.lock();ui.tone(260);},
   render(){
-    const ctx=$('cv').getContext('2d');ctx.fillStyle='#142438';ctx.fillRect(0,0,240,520);ctx.strokeStyle='#294056';ctx.lineWidth=1;for(let r=0;r<=13;r++){ctx.beginPath();ctx.moveTo(0,r*40);ctx.lineTo(240,r*40);ctx.stroke();}for(let c=0;c<=6;c++){ctx.beginPath();ctx.moveTo(c*40,0);ctx.lineTo(c*40,520);ctx.stroke();}
-    const gem=(r,c,v,alpha=1)=>{if(r<0||r>=13)return;ctx.globalAlpha=alpha;ctx.fillStyle=gemColors[v-1];ctx.beginPath();ctx.roundRect(c*40+4,r*40+4,32,32,7);ctx.fill();ctx.fillStyle='#ffffff30';ctx.fillRect(c*40+9,r*40+7,22,3);ctx.fillStyle='#fff';ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(gemMarks[v-1],c*40+20,r*40+21);ctx.globalAlpha=1;};
-    this.board.forEach((row,r)=>row.forEach((v,c)=>{if(v)gem(r,c,v);}));
-    if(this.piece&&ui.running){let landing=this.piece.y;while(this.valid(this.piece.x,landing+1))landing++;this.piece.colors.forEach((v,i)=>gem(landing+i,this.piece.x,v,.18));this.piece.colors.forEach((v,i)=>gem(this.piece.y+i,this.piece.x,v));}
+    const cv=$('cv'),ctx=cv.getContext('2d');
+    const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
+    if(FX&&!cv._fxHi){FX.hidpi(cv,ctx,240,520);cv._fxHi=1;}
+    if(FX){
+      if(!this._bg){const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=240*d;c.height=520*d;const g=c.getContext('2d');g.scale(d,d);FX.stage(g,240,520,'#2a1858','#0e0820');g.strokeStyle='rgba(255,255,255,.08)';g.lineWidth=1;for(let r=0;r<=13;r++){g.beginPath();g.moveTo(0,r*40);g.lineTo(240,r*40);g.stroke();}for(let c=0;c<=6;c++){g.beginPath();g.moveTo(c*40,0);g.lineTo(c*40,520);g.stroke();}this._bg=c;}
+      ctx.drawImage(this._bg,0,0,240,520);
+      const gem=(r,c,v,alpha=1)=>{if(r<0||r>=13)return;ctx.globalAlpha=alpha;FX.tile(ctx,c*40+4,r*40+4,32,32,gemColors[v-1],8);ctx.fillStyle='#fff';ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(gemMarks[v-1],c*40+20,r*40+21);ctx.globalAlpha=1;};
+      this.board.forEach((row,r)=>row.forEach((v,c)=>{if(v)gem(r,c,v);}));
+      if(this.piece&&ui.running){let landing=this.piece.y;while(this.valid(this.piece.x,landing+1))landing++;this.piece.colors.forEach((v,i)=>gem(landing+i,this.piece.x,v,.18));this.piece.colors.forEach((v,i)=>gem(this.piece.y+i,this.piece.x,v));}
+    }else{
+      ctx.fillStyle='#142438';ctx.fillRect(0,0,240,520);ctx.strokeStyle='#294056';ctx.lineWidth=1;for(let r=0;r<=13;r++){ctx.beginPath();ctx.moveTo(0,r*40);ctx.lineTo(240,r*40);ctx.stroke();}for(let c=0;c<=6;c++){ctx.beginPath();ctx.moveTo(c*40,0);ctx.lineTo(c*40,520);ctx.stroke();}
+      const gem=(r,c,v,alpha=1)=>{if(r<0||r>=13)return;ctx.globalAlpha=alpha;ctx.fillStyle=gemColors[v-1];ctx.beginPath();ctx.roundRect(c*40+4,r*40+4,32,32,7);ctx.fill();ctx.fillStyle='#ffffff30';ctx.fillRect(c*40+9,r*40+7,22,3);ctx.fillStyle='#fff';ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(gemMarks[v-1],c*40+20,r*40+21);ctx.globalAlpha=1;};
+      this.board.forEach((row,r)=>row.forEach((v,c)=>{if(v)gem(r,c,v);}));
+      if(this.piece&&ui.running){let landing=this.piece.y;while(this.valid(this.piece.x,landing+1))landing++;this.piece.colors.forEach((v,i)=>gem(landing+i,this.piece.x,v,.18));this.piece.colors.forEach((v,i)=>gem(this.piece.y+i,this.piece.x,v));}
+    }
     $('nextGems').replaceChildren();for(const v of this.next){const s=document.createElement('span');s.className='next-gem';s.style.background=gemColors[v-1];s.textContent=gemMarks[v-1];$('nextGems').append(s);}$('clearedV').textContent=this.cleared;ui.hud(this.level);
   },
   tick(t){const dt=this.last?Math.min(100,t-this.last):0;this.last=t;if(ui.active()){this.elapsed+=dt;const interval=Math.max(130,(expert?590:820)-(this.level-1)*55);if(this.elapsed>=interval){this.elapsed=0;this.down();}}requestAnimationFrame(t=>this.tick(t));},

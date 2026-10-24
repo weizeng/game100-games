@@ -1,7 +1,7 @@
 // Source for these five standalone packages lives in scripts/classics/.
 // Embed every asset: the Android downloader only needs index.html and meta.json.
 const fs = require('node:fs');
-const CLASSIC_VERSION = 3;
+const CLASSIC_VERSION = 4;
 const path = require('node:path');
 const vm = require('node:vm');
 const catalog = require('./game-ui/catalog.cjs');

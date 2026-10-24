@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>象棋</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px}
+html.game-ui #cv{max-width:min(420px,calc((100vh - 220px)*0.887));max-width:min(420px,calc((100svh - 220px)*0.887))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#0d0a16;color:#f0eaff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:460px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -680,7 +682,28 @@ function drawStar(x,y){
     ctx.stroke();
   }
 }
+/* ART T1-3: candy-depth (GameUI.fx); flat drawBoard/drawPieceAt stay as no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let xqBoard=null;
+if(FX)FX.hidpi(cv,ctx,W,H);
+function fxXqBoard(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
+  FX.stage(g,W,H,'#c9a06a','#6e4a28');
+  g.fillStyle='#f3dfba';g.beginPath();if(g.roundRect)g.roundRect(M-18,M-18,W-2*M+36,H-2*M+36,10);else g.rect(M-18,M-18,W-2*M+36,H-2*M+36);g.fill();
+  g.strokeStyle='#a68a59';g.lineWidth=2;g.beginPath();if(g.roundRect)g.roundRect(M-18,M-18,W-2*M+36,H-2*M+36,10);else g.rect(M-18,M-18,W-2*M+36,H-2*M+36);g.stroke();
+  g.strokeStyle='#735a36';g.lineWidth=2;
+  for(let y=0;y<10;y++){g.beginPath();g.moveTo(cx(0),cy(y));g.lineTo(cx(8),cy(y));g.stroke();}
+  for(let x=0;x<9;x++){if(x===0||x===8){g.beginPath();g.moveTo(cx(x),cy(0));g.lineTo(cx(x),cy(9));g.stroke();}
+    else{g.beginPath();g.moveTo(cx(x),cy(0));g.lineTo(cx(x),cy(4));g.stroke();g.beginPath();g.moveTo(cx(x),cy(5));g.lineTo(cx(x),cy(9));g.stroke();}}
+  g.beginPath();g.moveTo(cx(3),cy(0));g.lineTo(cx(5),cy(2));g.stroke();
+  g.beginPath();g.moveTo(cx(5),cy(0));g.lineTo(cx(3),cy(2));g.stroke();
+  g.beginPath();g.moveTo(cx(3),cy(7));g.lineTo(cx(5),cy(9));g.stroke();
+  g.beginPath();g.moveTo(cx(5),cy(7));g.lineTo(cx(3),cy(9));g.stroke();
+  g.fillStyle='#8a734e';g.font='bold 26px "PingFang SC","Microsoft YaHei",serif';g.textAlign='center';g.textBaseline='middle';
+  g.fillText('楚 河',cx(2),cy(4)+CELL/2);g.fillText('汉 界',cx(6),cy(4)+CELL/2);
+  return c;
+}
 function drawBoard(){
+  if(FX){if(!xqBoard)xqBoard=fxXqBoard();ctx.drawImage(xqBoard,0,0,W,H);return;}
   ctx.fillStyle='#e8cda2'; ctx.fillRect(0,0,W,H);
   ctx.fillStyle='#f3dfba';
   roundRect(M-18,M-18,W-2*M+36,H-2*M+36,10); ctx.fill();
@@ -716,7 +739,15 @@ function roundRect(x,y,w,h,r){
 }
 function drawPieceAt(px,py,p,glow){
   const c=colorOf(p), t=typeOf(p);
-  const R=CELL*0.44;
+  const R=Math.round(CELL*0.44);
+  if(FX){
+    if(glow){FX.glow(ctx,'#ffd76a',10);ctx.strokeStyle='#ffd76a';ctx.lineWidth=4;ctx.beginPath();ctx.arc(px,py,R+5,0,Math.PI*2);ctx.stroke();FX.noGlow(ctx);}
+    FX.shadow(ctx,px,py+R*0.55,R*0.7,3,.3);
+    FX.orb(ctx,px|0,py|0,R,c==='r'?'#f0d9a8':'#e8e0d0');
+    ctx.strokeStyle=c==='r'?'#a83b31':'#4c4b3e';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(px,py,R,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=c==='r'?'#a02e27':'#343a34';ctx.font='bold 30px "PingFang SC","Microsoft YaHei",serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(GLYPH[t][c==='r'?0:1],px,py+1);
+    return;
+  }
   if(glow){ ctx.strokeStyle='#ffd76a'; ctx.lineWidth=4;
     ctx.beginPath(); ctx.arc(px,py,R+5,0,Math.PI*2); ctx.stroke(); }
   const grad=ctx.createRadialGradient(px-6,py-8,4,px,py,R);

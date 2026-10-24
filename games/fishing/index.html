@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>钓鱼</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 160px)*0.7));max-width:min(480px,calc((100svh - 160px)*0.7))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#0d0d16;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
 #wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#0b2033 0%,#0d2b45 35%,#082033 100%)}
@@ -526,6 +528,7 @@ ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(0,0,18,10,0,0,6.28);ctx.fill();
 ctx.fillStyle='#212121';ctx.beginPath();ctx.arc(9,-3,2.5,0,6.28);ctx.fill();
 ctx.restore();}
 function draw(){
+if(FX)return drawFx();
 if(state==='start')return; // No scene objects exist until startGame initializes them.
 
 ctx.clearRect(0,0,W,H);
@@ -559,6 +562,53 @@ wg.addColorStop(0,'rgba(79,195,247,0)');wg.addColorStop(.5,'rgba(79,195,247,.55)
 ctx.fillStyle=wg;ctx.fillRect(0,SURF-8,W,16);
 parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/40);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,6.28);ctx.fill();});ctx.globalAlpha=1;
 ctx.font='bold 16px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/50);ctx.fillStyle='#ffd740';ctx.fillText(f.t,f.x-16,f.y);});ctx.globalAlpha=1;
+}
+/* ART T1-3: candy-depth renderer (GameUI.fx); own resize() DPR — no FX.hidpi; flat draw() is no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let fishBg=null;
+function fxFishBg(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');
+  const ww=Math.max(1,W||360),hh=Math.max(1,H||640),sf=SURF||86;
+  c.width=ww*d;c.height=hh*d;const g=c.getContext('2d');g.scale(d,d);
+  const sky=g.createLinearGradient(0,0,0,sf);sky.addColorStop(0,'#7ec8ff');sky.addColorStop(1,'#4aa3e8');
+  g.fillStyle=sky;g.fillRect(0,0,ww,sf);
+  const water=g.createLinearGradient(0,sf,0,hh);water.addColorStop(0,'#1a6a9a');water.addColorStop(.55,'#0d3d66');water.addColorStop(1,'#071a30');
+  g.fillStyle=water;g.fillRect(0,sf,ww,hh-sf);
+  g.fillStyle='rgba(255,255,255,.08)';for(let y=sf+20;y<hh;y+=36)for(let x=(y/36|0)%2?18:0;x<ww;x+=36){g.beginPath();g.arc(x,y,2.4,0,7);g.fill();}
+  return c;
+}
+function drawFishFx(f){
+  ctx.save();ctx.translate(f.x,f.y+Math.sin(f.ph)*4);ctx.scale(f.dir*f.s,f.s);
+  var tail=Math.sin(f.ph*2)*8;
+  ctx.fillStyle=f.col[1];ctx.beginPath();ctx.moveTo(-18,0);ctx.lineTo(-30,-8-tail*.4);ctx.lineTo(-30,8+tail*.4);ctx.closePath();ctx.fill();
+  FX.orb(ctx,0,0,14,f.col[0]);
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(8,-3,3,0,7);ctx.fill();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(9,-3,1.5,0,7);ctx.fill();
+  ctx.restore();
+}
+function drawFx(){
+  if(state==='start')return;
+  if(!fishBg||fishBg._w!==W||fishBg._h!==H){fishBg=fxFishBg();fishBg._w=W;fishBg._h=H;}
+  ctx.drawImage(fishBg,0,0,W,H);
+  ctx.fillStyle='rgba(79,195,247,.08)';
+  for(var i=0;i<3;i++){var lx=W*(.25+.25*i)+Math.sin(frame*.01+i)*20;
+  ctx.beginPath();ctx.moveTo(lx-40,SURF);ctx.lineTo(lx+40,SURF);ctx.lineTo(lx+90,H);ctx.lineTo(lx-10,H);ctx.closePath();ctx.fill();}
+  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;
+  bubbles.forEach(function(b){ctx.beginPath();ctx.arc(b.x,b.y,b.s,0,6.28);ctx.stroke();});
+  fishes.forEach(drawFishFx);
+  FX.tile(ctx,(BOATX-46)|0,SURF|0,92,26,'#8d6e63',8);
+  FX.tile(ctx,(BOATX-6)|0,(SURF-26)|0,12,28,'#a1887f',4);
+  FX.orb(ctx,BOATX|0,(SURF-14)|0,8,'#ffcc80');
+  FX.tile(ctx,(BOATX-8)|0,(SURF-6)|0,16,14,'#e53935',4);
+  ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=1.5;
+  var hy=hook?hook.y:SURF+10;
+  ctx.beginPath();ctx.moveTo(BOATX,SURF-24);ctx.lineTo(BOATX,hy);ctx.stroke();
+  FX.glow(ctx,'#ffd740',8);ctx.strokeStyle='#ffd740';ctx.lineWidth=3;ctx.beginPath();ctx.arc(BOATX,hy+6,5,0,Math.PI*1.5);ctx.stroke();FX.noGlow(ctx);
+  if(hook&&hook.fish){var hf=hook.fish;ctx.save();ctx.translate(hf.x,hf.y);ctx.scale(hf.s,hf.s);ctx.rotate(Math.PI/2);
+    FX.orb(ctx,0,0,12,hf.col[0]);ctx.restore();}
+  var wg=ctx.createLinearGradient(0,SURF-8,0,SURF+8);
+  wg.addColorStop(0,'rgba(79,195,247,0)');wg.addColorStop(.5,'rgba(79,195,247,.55)');wg.addColorStop(1,'rgba(79,195,247,0)');
+  ctx.fillStyle=wg;ctx.fillRect(0,SURF-8,W,16);
+  parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/40);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,6.28);ctx.fill();});ctx.globalAlpha=1;
+  ctx.font='bold 16px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/50);ctx.fillStyle='#ffd740';ctx.fillText(f.t,f.x-16,f.y);});ctx.globalAlpha=1;
 }
 function loop(){update();draw();requestAnimationFrame(loop);}
 resize();loop();

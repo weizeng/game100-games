@@ -6,6 +6,8 @@
 <title>坦克大战</title>
 <link rel="icon" href="data:,">
 <style>
+html.game-ui #pauseBtn,html.game-ui #fireBtn{min-width:44px;min-height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 200px)*1));max-width:min(480px,calc((100svh - 200px)*1))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -449,7 +451,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 'use strict';
 /* ===== 关卡/教程/存档/音效 通用套件（单文件内联） ===== */
 const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
-const FX=UI.fx&&UI.fx.on?UI.fx:null;
+const FX=UI.fx&&UI.fx.on?UI.fx:null;let tankBg=null;
+function fxTankBg(){const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);FX.stage(g,W,H,'#1d1240','#0b0620');return c;}
 const $=id=>document.getElementById(id);
 function show(id,on){$(id).classList.toggle('hidden',!on);}
 const Kit=(function(){
@@ -685,7 +688,7 @@ function drawTank(t){const s=sz(t),x=t.x,y=t.y,cx=x+s/2,cy=y+s/2,isP=t===player;
   if(!isP&&t.hp>1&&!t.big){ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t.hp,cx,cy+1);}
   if(isP&&t.inv>2){ctx.strokeStyle='rgba(61,184,255,.8)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx,cy,s*.62,0,7);ctx.stroke();}
   ctx.globalAlpha=1;}
-function draw(){FX?FX.stage(ctx,W,H,'#1d1240','#0b0620'):(ctx.fillStyle='#120a28',ctx.fillRect(0,0,W,H));if(!tiles)return;
+function draw(){FX?(tankBg||(tankBg=fxTankBg()),ctx.drawImage(tankBg,0,0,W,H)):(ctx.fillStyle='#120a28',ctx.fillRect(0,0,W,H));if(!tiles)return;
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){const t=tiles[y][x],px=x*C,py=y*C;
     if(t===B){if(FX)FX.tile(ctx,px+1,py+1,C-2,C-2,'#d9773f',4);else{ctx.fillStyle='#a0663a';ctx.fillRect(px+1,py+1,C-2,C-2);}ctx.fillStyle='rgba(0,0,0,.18)';ctx.fillRect(px+2,py+C/2-1,C-4,2);}
     else if(t===S){if(FX)FX.tile(ctx,px+1,py+1,C-2,C-2,'#aab4c8',4);else{ctx.fillStyle='#9e9e9e';ctx.fillRect(px+1,py+1,C-2,C-2);}}

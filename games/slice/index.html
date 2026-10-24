@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>切水果</title>
 <style>
+html.game-ui #pauseBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px}
+html.game-ui #game,html.game-ui canvas{max-width:min(480px,calc((100vh - 180px)*0.75));max-width:min(480px,calc((100svh - 180px)*0.75))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#0b0e17;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
 body{display:flex;justify-content:center}
@@ -570,6 +572,7 @@ function drawHalf(h){
   ctx.restore();
 }
 function draw(){
+  if(FX)return drawFx();
   ctx.clearRect(0,0,W,H);
   ctx.save();
   if(shakeT>0){var s=10*Math.min(1,shakeT*3);ctx.translate((Math.random()*2-1)*s,(Math.random()*2-1)*s);}
@@ -589,6 +592,34 @@ function draw(){
   if(flashT>0){ctx.fillStyle='rgba(244,67,54,'+(Math.max(0,flashT)*0.32)+')';ctx.fillRect(0,0,W,H);}
 }
 
+/* ART T1-3: candy-depth renderer (GameUI.fx); own fit() DPR — no FX.hidpi; flat draw() is no-FX fallback */
+const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let sliceBg=null;
+function fxSliceBg(){
+  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');
+  const ww=Math.max(1,W||360),hh=Math.max(1,H||640);
+  c.width=ww*d;c.height=hh*d;const g=c.getContext('2d');g.scale(d,d);
+  FX.stage(g,ww,hh,'#4a1f6a','#1a0a28');
+  g.fillStyle='rgba(255,255,255,.05)';for(let y=12;y<hh;y+=28)for(let x=(y/28|0)%2?14:0;x<ww;x+=28){g.beginPath();g.arc(x,y,2.2,0,7);g.fill();}
+  return c;
+}
+function drawFx(){
+  if(!sliceBg||sliceBg._w!==W||sliceBg._h!==H){sliceBg=fxSliceBg();sliceBg._w=W;sliceBg._h=H;}
+  ctx.save();
+  if(shakeT>0){var s=10*Math.min(1,shakeT*3);ctx.translate((Math.random()*2-1)*s,(Math.random()*2-1)*s);}
+  ctx.drawImage(sliceBg,0,0,W,H);
+  var i;ctx.textAlign='center';ctx.textBaseline='middle';
+  for(i=0;i<fruits.length;i++){var f=fruits[i];FX.shadow(ctx,f.x,f.y+f.r*0.55,f.r*0.7,4,.3);ctx.save();ctx.translate(f.x,f.y);ctx.rotate(f.rot);ctx.font=(f.r*1.7)+'px serif';ctx.fillText(f.emoji,0,2);ctx.restore();}
+  for(i=0;i<halves.length;i++)drawHalf(halves[i]);
+  for(i=0;i<parts.length;i++){var p=parts[i];ctx.globalAlpha=Math.max(0,Math.min(1,p.life));ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,6.29);ctx.fill();}
+  ctx.globalAlpha=1;
+  for(i=0;i<pops.length;i++){var q=pops[i];var a=1-q.t;ctx.globalAlpha=Math.max(0,a);ctx.font='800 '+q.size+'px sans-serif';ctx.strokeStyle='rgba(0,0,0,.55)';ctx.lineWidth=4;ctx.strokeText(q.text,q.x,q.y);ctx.fillStyle=q.color;ctx.fillText(q.text,q.x,q.y);}
+  ctx.globalAlpha=1;
+  if(trail.length>1){FX.glow(ctx,'#7fd4ff',12);ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+    for(i=1;i<trail.length;i++){var al=i/trail.length;ctx.strokeStyle='rgba(170,225,255,'+(al*0.9)+')';ctx.lineWidth=2+11*al;ctx.beginPath();ctx.moveTo(trail[i-1].x,trail[i-1].y);ctx.lineTo(trail[i].x,trail[i].y);ctx.stroke();}
+    ctx.restore();FX.noGlow(ctx);}
+  ctx.restore();
+  if(flashT>0){ctx.fillStyle='rgba(244,67,54,'+(Math.max(0,flashT)*0.32)+')';ctx.fillRect(0,0,W,H);}
+}
 /* ---------- 主循环 ---------- */
 function loop(ts){rafId=requestAnimationFrame(loop);var dt=Math.min(0.033,last?(ts-last)/1000:0.016);last=ts;update(dt);draw();}
 function stopLoop(){if(rafId){cancelAnimationFrame(rafId);rafId=0;}}
