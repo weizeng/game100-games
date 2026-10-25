@@ -2,112 +2,43 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>元素周期表 - 化学学习</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>元素周期表</title>
+<link rel="icon" href="data:,">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { height:100%; }
-  body {
-    background:#0b1622; color:#e8f4fd; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
-    display:flex; flex-direction:column; align-items:center; min-height:100vh; overflow-x:hidden;
-    user-select:none; -webkit-user-select:none;
-  }
-  #app { width:100%; max-width:480px; min-height:100vh; display:flex; flex-direction:column; padding:12px; }
-  /* 顶部栏 */
-  #topbar { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
-  #modeSwitch { display:flex; background:#13273c; border-radius:12px; padding:4px; gap:4px; }
-  #modeSwitch button {
-    border:none; background:transparent; color:#9fb6cc; font-size:15px; min-height:44px; padding:0 14px;
-    border-radius:9px; cursor:pointer; transition:all .25s cubic-bezier(.34,1.56,.64,1);
-  }
-  #modeSwitch button.active { background:#5C6BC0; color:#fff; }
-  .icon-btn {
-    width:44px; height:44px; border-radius:12px; border:none; background:#13273c; color:#e8f4fd;
-    font-size:20px; cursor:pointer; transition:transform .15s ease, background .25s ease;
-    display:flex; align-items:center; justify-content:center; flex:none;
-  }
-  .icon-btn:active { transform:scale(.9); }
-  /* 分数条 */
-  #scorebar { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding:0 4px; }
-  #score { font-size:17px; font-weight:bold; color:#ffd54f; }
-  #hs { font-size:13px; color:#9fb6cc; }
-  #quizProgress { font-size:14px; color:#9fb6cc; }
-  /* 网格 */
-  #grid {
-    display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:12px;
-  }
-  .cell {
-    min-height:64px; border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    cursor:pointer; border:2px solid transparent; position:relative; overflow:hidden;
-    transition:transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s ease, border-color .22s ease, filter .3s ease;
-  }
-  .cell:active { transform:scale(.93); }
-  .cell .sym { font-size:22px; font-weight:800; line-height:1.15; }
-  .cell .cn { font-size:12px; opacity:.9; }
-  .cell .num { position:absolute; top:5px; left:8px; font-size:11px; opacity:.75; }
-  .cell.metal { background:linear-gradient(135deg,#1565c0,#1e88e5); color:#fff; }
-  .cell.nonmetal { background:linear-gradient(135deg,#1b7a3d,#2e9e52); color:#fff; }
-  .cell.noble { background:linear-gradient(135deg,#6a1b9a,#9c4dc4); color:#fff; }
-  .cell.selected { border-color:#ffd54f; box-shadow:0 0 14px rgba(255,213,79,.65); transform:scale(1.05); }
-  .cell.dim { filter:grayscale(.7) brightness(.55); }
-  .cell.dim.pickable { filter:none; }
-  .cell.shake { animation:shake .4s ease; }
-  @keyframes shake {
-    0%,100% { transform:translateX(0); } 20% { transform:translateX(-8px); }
-    40% { transform:translateX(8px); } 60% { transform:translateX(-6px); } 80% { transform:translateX(6px); }
-  }
-  .cell.pop { animation:pop .45s cubic-bezier(.34,1.56,.64,1); }
-  @keyframes pop { 0% { transform:scale(.6); } 60% { transform:scale(1.12); } 100% { transform:scale(1); } }
-  /* 测验题目条 */
-  #quizQ {
-    display:none; background:#13273c; border-radius:12px; padding:12px 14px; margin-bottom:10px;
-    font-size:16px; text-align:center; border-left:4px solid #ffd54f;
-    animation:slideDown .35s cubic-bezier(.34,1.56,.64,1);
-  }
-  #quizQ.show { display:block; }
-  @keyframes slideDown { from { opacity:0; transform:translateY(-14px); } to { opacity:1; transform:translateY(0); } }
-  /* 信息卡 */
-  #info {
-    background:#13273c; border-radius:16px; padding:14px 16px; min-height:120px; margin-bottom:12px;
-    transition:opacity .25s ease, transform .25s cubic-bezier(.34,1.56,.64,1);
-  }
-  #info.swap { opacity:0; transform:translateY(8px); }
-  #info .i-title { font-size:20px; font-weight:800; margin-bottom:6px; }
-  #info .i-title .z { font-size:13px; color:#9fb6cc; font-weight:400; margin-left:8px; }
-  #info .i-cat { display:inline-block; font-size:12px; padding:3px 10px; border-radius:20px; margin:4px 0 8px; color:#fff; }
-  #info .i-cat.metal { background:#1e88e5; } #info .i-cat.nonmetal { background:#2e9e52; } #info .i-cat.noble { background:#9c4dc4; }
-  #info .i-fact { font-size:14px; color:#c9ddf0; line-height:1.6; }
-  #info .i-hint { font-size:14px; color:#9fb6cc; text-align:center; padding:26px 0; }
-  /* 图例 + 知识点按钮 */
-  #legend { display:flex; align-items:center; justify-content:center; gap:12px; font-size:12px; color:#9fb6cc; margin-bottom:10px; flex-wrap:wrap; }
-  .dot { display:inline-block; width:12px; height:12px; border-radius:4px; margin-right:4px; vertical-align:baseline; }
-  #knowBtn {
-    width:100%; min-height:48px; border:none; border-radius:14px; background:#5C6BC0; color:#fff;
-    font-size:16px; font-weight:700; cursor:pointer; transition:transform .15s ease, background .25s ease;
-  }
-  #knowBtn:active { transform:scale(.97); background:#4a57ab; }
-  /* 遮罩层 */
-  .overlay {
-    position:fixed; inset:0; background:rgba(4,10,18,.82); display:flex; align-items:center; justify-content:center;
-    z-index:50; padding:20px; opacity:0; pointer-events:none; transition:opacity .3s ease;
-  }
-  .overlay.show { opacity:1; pointer-events:auto; }
-  .card {
-    background:#13273c; border-radius:20px; padding:26px 22px; max-width:400px; width:100%; text-align:center;
-    transform:scale(.85) translateY(16px); transition:transform .35s cubic-bezier(.34,1.56,.64,1);
-  }
-  .overlay.show .card { transform:scale(1) translateY(0); }
-  .card h1 { font-size:26px; margin-bottom:6px; }
-  .card h2 { font-size:20px; margin-bottom:10px; }
-  .card p { font-size:14px; color:#c9ddf0; line-height:1.8; margin-bottom:16px; text-align:left; }
-  .card .big { font-size:22px; font-weight:800; color:#ffd54f; margin:8px 0 16px; }
-  .big-btn {
-    width:100%; min-height:52px; border:none; border-radius:14px; background:#5C6BC0; color:#fff;
-    font-size:18px; font-weight:800; cursor:pointer; margin-top:8px; transition:transform .15s ease, background .25s ease;
-  }
-  .big-btn:active { transform:scale(.97); background:#4a57ab; }
-  #knowCard p { margin-bottom:8px; }
-  #knowCard .k { color:#ffd54f; font-weight:700; }
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;height:100%;padding:10px 12px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap!important;gap:6px}
+.topbar .stat{display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13px;overflow:hidden}
+.topbar .tools{display:flex;gap:6px;flex:none}
+.topbar .tools .iconbtn{min-width:44px;min-height:44px;padding:0 6px}
+.subbar{width:100%;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.prog{flex:1;height:10px;border-radius:6px;background:rgba(0,0,0,.2);overflow:hidden}.prog i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#ffd34d,#ff5fa2);transition:width .2s}
+.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;z-index:20;padding:20px;text-align:center}
+.overlay.hidden,.hidden{display:none!important}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;width:100%}
+.lvgrid .lvl{min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;padding:3px!important;line-height:1.1}
+.lvgrid .lvl small{font-size:10px;letter-spacing:-1px;margin-top:2px}
+.lvgrid .lvl[disabled]{opacity:.45}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}
+.shop button{min-height:46px;font-size:12px!important;padding:3px!important;line-height:1.2}
+.aids{width:100%;display:flex;gap:6px;justify-content:center}
+.aids button{min-height:44px;min-width:64px;font-size:13px!important;padding:2px 8px!important}
+#tutStep{font-size:12px;opacity:.75}
+#tutPic{font-size:44px;line-height:1.1}
+#overStars{font-size:30px;letter-spacing:4px;min-height:34px}
+#toast{position:fixed;left:50%;top:15%;transform:translate(-50%,-10px);background:rgba(10,8,30,.9);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;z-index:999;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;font-size:15px;box-shadow:0 0 18px rgba(255,61,154,.5);white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+.lvTag{font-size:12px;opacity:.85}
+
+#cv{display:block;touch-action:none;max-width:100%;max-height:100%}
+.hint{font-size:12px;opacity:.85;text-align:center;flex:none}
+.aids{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.aids button{min-height:52px;font-size:14px!important;padding:6px!important;line-height:1.2}
 </style>
 <!-- GAME UI BEGIN -->
 <style>
@@ -492,331 +423,206 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <!-- GAME UI END -->
 </head>
 <body>
-<div id="app">
-  <div id="topbar">
-    <div id="modeSwitch">
-      <button id="btnLearn" class="active">📚 学习</button>
-      <button id="btnQuiz">📝 测验</button>
-    </div>
-    <button id="btnPause" class="icon-btn" title="暂停">⏸</button>
-    <button id="btnMute" class="icon-btn" title="静音">🔊</button>
+<div class="wrap">
+  <div class="topbar">
+    <span class="stat"><span>🧬<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>题 <b id="qT">0</b></span><span>得分 <b id="score">0</b></span></span>
+    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
-  <div id="scorebar">
-    <div id="score">得分 0</div>
-    <div id="quizProgress"></div>
-    <div id="hs">最高 0</div>
-  </div>
-  <div id="quizQ"></div>
-  <div id="grid"></div>
-  <div id="info"><div class="i-hint">👆 点击任意元素，查看它的秘密</div></div>
-  <div id="legend">
-    <span><span class="dot" style="background:#1e88e5"></span>金属</span>
-    <span><span class="dot" style="background:#2e9e52"></span>非金属</span>
-    <span><span class="dot" style="background:#9c4dc4"></span>稀有气体</span>
-  </div>
-  <button id="knowBtn">📖 知识点</button>
+  <div class="subbar"><span id="goalLbl">答题</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
+  <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
+  <div class="aids" id="aids"></div>
+  <div class="hint">根据提示选出正确元素 · 限时作答</div>
 </div>
-
-<!-- 开始界面 -->
-<div id="startOv" class="overlay show">
-  <div class="card">
-    <h1>🧬 元素周期表</h1>
-    <p>
-      🌍 前 20 号元素的化学之旅！<br>
-      📚 <b>学习模式</b>：点击元素卡片，查看名称、类别和一句话特性。<br>
-      📝 <b>测验模式</b>：8 道挑战题，答对 +12.5 分（总分 100），答错震动提醒但不扣分。<br>
-      💡 颜色代表类别：蓝色=金属，绿色=非金属，紫色=稀有气体。
-    </p>
-    <button id="btnStart" class="big-btn">开始学习</button>
-  </div>
-</div>
-
-<!-- 暂停界面 -->
-<div id="pauseOv" class="overlay">
-  <div class="card">
-    <h2>⏸ 游戏已暂停</h2>
-    <div class="big">休息一下吧～</div>
-    <button id="btnResume" class="big-btn">继续</button>
-  </div>
-</div>
-
-<!-- 结束界面 -->
-<div id="endOv" class="overlay">
-  <div class="card">
-    <h2 id="endTitle">🎉 测验完成！</h2>
-    <div class="big" id="endScore">100 分</div>
-    <p id="endDetail" style="text-align:center"></p>
-    <button id="btnRestart" class="big-btn">再来一次</button>
-  </div>
-</div>
-
-<!-- 知识点 -->
-<div id="knowOv" class="overlay">
-  <div class="card" id="knowCard">
-    <h2>📖 实验结论</h2>
-    <p>⚛️ <span class="k">元素按原子序数由小到大排列</span>，形成周期表。</p>
-    <p>↔️ <span class="k">横行叫周期</span>，共 7 个周期，代表电子层数。</p>
-    <p>↕️ <span class="k">纵列叫族</span>，同一族的元素化学性质相似。</p>
-    <p>🔵 <span class="k">金属多在左边</span>，善于导电导热、有金属光泽。</p>
-    <p>🟢 <span class="k">非金属多在右上方</span>，性质活泼多样。</p>
-    <p>🟣 <span class="k">稀有气体最稳定</span>，几乎不和别的元素反应。</p>
-    <button id="btnKnowClose" class="big-btn">知道了</button>
-  </div>
-</div>
+<div class="overlay" id="startScr"><h1>🧬 元素周期表</h1><p>15 关元素问答：题量增加、干扰项更像、时限更紧。<br>第 5/10/15 关神秘元素 Boss！可升级提示、加时、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始测验</button></div>
+<div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">过关</h2><div id="overStars"></div><div class="score" id="finalScore">0</div><p id="overText"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再来一次</button><button class="btn ghost" id="menu2Btn">选择关卡</button></div></div>
+<div id="toast"></div>
 
 <script>
 'use strict';
-// ---------- 数据：前20号元素 ----------
-var ELEMENTS = [
-  {n:1,  sym:'H',  cn:'氢', cat:'nonmetal', fact:'最轻的元素，宇宙中最多的元素。'},
-  {n:2,  sym:'He', cn:'氦', cat:'noble',    fact:'最稳定的气体之一，气球里的"轻功高手"。'},
-  {n:3,  sym:'Li', cn:'锂', cat:'metal',    fact:'最轻的金属，手机电池的"能量心脏"。'},
-  {n:4,  sym:'Be', cn:'铍', cat:'metal',    fact:'又轻又硬，航天器材爱用它。'},
-  {n:5,  sym:'B',  cn:'硼', cat:'nonmetal', fact:'让玻璃耐高温，硼砂的"主角"。'},
-  {n:6,  sym:'C',  cn:'碳', cat:'nonmetal', fact:'生命的基础，钻石和铅笔芯都是它。'},
-  {n:7,  sym:'N',  cn:'氮', cat:'nonmetal', fact:'空气里最多的气体，植物生长需要它。'},
-  {n:8,  sym:'O',  cn:'氧', cat:'nonmetal', fact:'维持呼吸，助燃，是生命的必需品。'},
-  {n:9,  sym:'F',  cn:'氟', cat:'nonmetal', fact:'最活泼的元素，牙膏里的"护牙卫士"。'},
-  {n:10, sym:'Ne', cn:'氖', cat:'noble',    fact:'霓虹灯里的发光明星，五彩缤纷。'},
-  {n:11, sym:'Na', cn:'钠', cat:'metal',    fact:'柔软的金属，食盐里有它的身影。'},
-  {n:12, sym:'Mg', cn:'镁', cat:'metal',    fact:'燃烧发出耀眼白光，烟花的"闪光弹"。'},
-  {n:13, sym:'Al', cn:'铝', cat:'metal',    fact:'最常见的金属，易拉罐就是它做的。'},
-  {n:14, sym:'Si', cn:'硅', cat:'nonmetal', fact:'芯片和沙子的主要成分，信息时代的基石。'},
-  {n:15, sym:'P',  cn:'磷', cat:'nonmetal', fact:'火柴头一擦就着，夜里会发光的"鬼火"也与它有关。'},
-  {n:16, sym:'S',  cn:'硫', cat:'nonmetal', fact:'有臭鸡蛋味，火药和温泉都离不开它。'},
-  {n:17, sym:'Cl', cn:'氯', cat:'nonmetal', fact:'自来水消毒靠它，食盐里也有它。'},
-  {n:18, sym:'Ar', cn:'氩', cat:'noble',    fact:'空气里第三多的气体，灯泡的"保护神"。'},
-  {n:19, sym:'K',  cn:'钾', cat:'metal',    fact:'香蕉里富含它，植物生长的"营养餐"。'},
-  {n:20, sym:'Ca', cn:'钙', cat:'metal',    fact:'骨骼牙齿的主力，牛奶补钙补的就是它。'}
+/* ===== 关卡/教程/存档/音效 通用套件（单文件内联） ===== */
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
+const $=id=>document.getElementById(id);
+function show(id,on){$(id).classList.toggle('hidden',!on);}
+const Kit=(function(){
+  const K={state:'menu',lv:0};let cfg,P,muted,ac=null,tutI=0,tutThen=null,lastWin=false;
+  function key(s){return 'g100_'+cfg.id+'_'+s;}
+  function load(){try{P=JSON.parse(UI.storageGet(key('prog'))||'{}')||{};}catch(e){P={};}
+    P.stars=P.stars||[];P.best=P.best||[];P.coins=P.coins||0;P.up=P.up||{};}
+  function save(){try{UI.storageSet(key('prog'),JSON.stringify(P));}catch(e){}}
+  K.save=save;
+  K.prog=()=>P;
+  K.up=k=>P.up[k]||0;
+  K.totalStars=()=>P.stars.reduce((a,b)=>a+(b||0),0);
+  K.hs=()=>+UI.storageGet(key('hs'))||0;
+  // ---- 音效 ----
+  function tone(f,d,type,vol,f2,delay){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();
+    const t=ac.currentTime+(delay||0),o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
+    g.gain.setValueAtTime(vol||.13,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+  K.tone=tone;
+  K.sfx=function(n,x){switch(n){
+    case 'tap':tone(520,.06,'triangle',.08);break;
+    case 'good':tone(660,.08,'sine');tone(990,.1,'sine',.1,0,.06);break;
+    case 'combo':tone(500+Math.min(12,x||1)*70,.12,'square',.07);break;
+    case 'bad':tone(220,.22,'sawtooth',.1,110);break;
+    case 'hit':tone(180,.08,'square',.08,90);break;
+    case 'coin':tone(1200,.07,'sine',.09);tone(1600,.09,'sine',.08,0,.06);break;
+    case 'boss':tone(110,.5,'sawtooth',.12,70);tone(165,.5,'square',.06,90,.1);break;
+    case 'win':[523,659,784,1046].forEach((f,i)=>tone(f,.18,'triangle',.12,0,i*.11));break;
+    case 'lose':[392,330,262,196].forEach((f,i)=>tone(f,.22,'sawtooth',.08,0,i*.13));break;
+    case 'boom':tone(140,.35,'sawtooth',.14,40);break;
+    default:tone(440,.08);}};
+  function setMute(m){muted=m;try{UI.storageSet('g100_mute',m?'1':'0');}catch(e){}
+    document.querySelectorAll('.muteBtn,#muteBtn').forEach(b=>b.textContent=m?'🔇':'🔊');}
+  // ---- 提示条 ----
+  let tt=0;K.toast=function(msg,ms){const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),ms||1300);};
+  K.vibrate=function(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);else if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}};
+  // ---- 选关 ----
+  K.isBoss=i=>(cfg.boss||[]).includes(i+1);
+  K.unlocked=i=>i===0||(P.stars[i-1]||0)>0||(cfg.endless&&i===cfg.levels-1&&false);
+  function stars(n){return '★★★'.slice(0,n)+'☆☆☆'.slice(0,3-n);}
+  K.starStr=stars;
+  function renderLevels(){
+    const g=$('lvgrid');g.innerHTML='';
+    for(let i=0;i<cfg.levels;i++){const b=document.createElement('button');b.className='lvl';const ok=K.unlocked(i);
+      const lab=cfg.label?cfg.label(i):String(i+1);
+      b.innerHTML=(ok?(K.isBoss(i)?'👑':'')+lab:'🔒')+'<small>'+(ok?stars(P.stars[i]||0):'&nbsp;')+'</small>';
+      if(!ok)b.disabled=true;b.addEventListener('click',()=>{K.sfx('tap');go(i);});g.appendChild(b);}
+    $('lvlInfo').textContent='⭐ '+K.totalStars()+'/'+cfg.levels*3+'   💰 '+P.coins+(K.hs()?'   🏆 '+K.hs():'');
+    $('lvlNote').textContent=cfg.note?cfg.note():'';
+    const s=$('shop');s.innerHTML='';
+    (cfg.ups||[]).forEach(u=>{const lv=K.up(u.k),max=u.max,cost=lv<max?u.cost(lv):0,b=document.createElement('button');b.className='ghost';
+      const need=u.stars&&K.totalStars()<u.stars;
+      b.innerHTML=u.ic+' '+u.name+' '+lv+'/'+max+'<br>'+(lv>=max?'已满级':need?'🔒 需 ⭐'+u.stars:'💰'+cost+' · '+u.desc);
+      if(lv>=max||need)b.disabled=true;
+      b.addEventListener('click',()=>{if(P.coins<cost){K.toast('💰 不够：通关赚取金币');K.sfx('bad');return;}P.coins-=cost;P.up[u.k]=lv+1;save();K.sfx('coin');K.toast(u.ic+' '+u.name+' 升到 '+(lv+1)+' 级');renderLevels();});
+      s.appendChild(b);});
+    s.classList.toggle('hidden',!(cfg.ups||[]).length);
+  }
+  K.menu=function(){K.state='menu';cfg.stop&&cfg.stop();['startScr','overScr','pauseOv','tutScr'].forEach(i=>show(i,false));renderLevels();show('lvlScr',true);};
+  function go(i){K.lv=i;['startScr','overScr','pauseOv','lvlScr','tutScr'].forEach(x=>show(x,false));K.state='play';
+    if(K.isBoss(i))setTimeout(()=>{K.sfx('boss');K.toast('👑 首领关：'+(cfg.bossName?cfg.bossName(i):'强敌来袭'),1800);},60);
+    else K.sfx('tap');cfg.start(i);}
+  K.go=go;
+  // ---- 教程 ----
+  function tutShow(){const t=cfg.tut[tutI];$('tutH').textContent=t[0];$('tutP').innerHTML=t[1];$('tutPic').textContent=t[2]||'';$('tutStep').textContent=(tutI+1)+' / '+cfg.tut.length;$('tutNext').textContent=tutI===cfg.tut.length-1?'明白了，开始！':'下一步';}
+  K.tutorial=function(then){tutI=0;tutThen=then;['startScr','lvlScr'].forEach(x=>show(x,false));tutShow();show('tutScr',true);};
+  function tutEnd(){show('tutScr',false);P.tut=1;save();(tutThen||K.menu)();}
+  // ---- 暂停 ----
+  K.pause=function(){if(K.state!=='play')return;K.state='pause';cfg.pause&&cfg.pause();$('pauseInfo').textContent=(cfg.label?'第 '+cfg.label(K.lv):'第 '+(K.lv+1))+' 关'+(K.isBoss(K.lv)?' · 首领关':'');show('pauseOv',true);};
+  K.resume=function(){if(K.state!=='pause')return;K.state='play';show('pauseOv',false);cfg.resume&&cfg.resume();};
+  // ---- 结算 ----
+  K.win=function(st,score,text){if(K.state!=='play')return;K.state='over';lastWin=true;st=Math.max(1,Math.min(3,st|0));const i=K.lv;
+    const old=P.stars[i]||0,gain=st*4+(old?0:6)+(K.isBoss(i)?8:0)+(cfg.coinBonus?cfg.coinBonus(i,st,score):0);P.coins+=gain;
+    if(st>old)P.stars[i]=st;if((score||0)>(P.best[i]||0))P.best[i]=score;
+    const tot=P.best.reduce((a,b)=>a+(b||0),0);if(tot>K.hs())UI.storageSet(key('hs'),tot);save();
+    $('overH').textContent=K.isBoss(i)?'👑 击败首领！':'🎉 过关！';$('overStars').textContent=stars(st);$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>💰 +'+gain+'　本关最佳 '+(P.best[i]||0);
+    const hasNext=i+1<cfg.levels;$('nextBtn').classList.toggle('hidden',!hasNext);if(hasNext)$('nextBtn').textContent=K.isBoss(i+1)?'👑 挑战首领':'下一关';
+    show('overScr',true);K.sfx('win');cfg.stop&&cfg.stop();};
+  K.lose=function(text,score){if(K.state!=='play')return;K.state='over';lastWin=false;const gain=Math.min(3,K.lv>0?2:1);P.coins+=gain;save();
+    $('overH').textContent='💥 挑战失败';$('overStars').textContent='☆☆☆';$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>安慰金 💰 +'+gain+'　可在选关页升级后再战';
+    $('nextBtn').classList.add('hidden');show('overScr',true);K.sfx('lose');K.vibrate(120);cfg.stop&&cfg.stop();};
+  K.init=function(c){cfg=c;load();setMute(UI.storageGet('g100_mute')==='1');
+    document.querySelectorAll('.muteBtn,#muteBtn').forEach(b=>b.addEventListener('click',()=>{setMute(!muted);if(!muted)K.sfx('tap');}));
+    $('startBtn').addEventListener('click',()=>{K.sfx('tap');if(!P.tut)K.tutorial(K.menu);else K.menu();});
+    $('tutNext').addEventListener('click',()=>{K.sfx('tap');if(tutI<cfg.tut.length-1){tutI++;tutShow();}else tutEnd();});
+    $('tutSkip').addEventListener('click',tutEnd);
+    $('howBtn').addEventListener('click',()=>K.tutorial(K.menu));
+    $('homeBtn').addEventListener('click',()=>{show('lvlScr',false);show('startScr',true);K.state='menu';});
+    $('pauseBtn').addEventListener('click',()=>K.state==='play'?K.pause():K.resume());
+    $('resumeBtn').addEventListener('click',K.resume);
+    $('restartBtn').addEventListener('click',()=>go(K.lv));
+    $('menuBtn').addEventListener('click',K.menu);$('menu2Btn').addEventListener('click',K.menu);
+    $('againBtn').addEventListener('click',()=>go(K.lv));
+    $('nextBtn').addEventListener('click',()=>go(Math.min(cfg.levels-1,K.lv+1)));
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)K.pause();});
+    const bl=$('bestLine');if(bl)bl.textContent=P.stars.length?('进度 ⭐'+K.totalStars()+'/'+cfg.levels*3+(K.hs()?' · 🏆 '+K.hs():'')):'首次游玩会有简短教程';
+    window.__T=window.__T||{};window.__T.kit=K;};
+  return K;
+})();
+/* ===== 套件结束 ===== */
+
+const W=360,H=280;
+const cv=$('cv'),ctx=cv.getContext('2d');if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+const EL=[
+ {n:1,sym:'H',cn:'氢',cat:'非金属',fact:'最轻，宇宙最多'},{n:2,sym:'He',cn:'氦',cat:'稀有气体',fact:'气球轻功高手'},
+ {n:3,sym:'Li',cn:'锂',cat:'金属',fact:'手机电池心脏'},{n:4,sym:'Be',cn:'铍',cat:'金属',fact:'又轻又硬航天材'},
+ {n:5,sym:'B',cn:'硼',cat:'非金属',fact:'耐高温玻璃'},{n:6,sym:'C',cn:'碳',cat:'非金属',fact:'生命基础钻石石墨'},
+ {n:7,sym:'N',cn:'氮',cat:'非金属',fact:'空气最多植物需'},{n:8,sym:'O',cn:'氧',cat:'非金属',fact:'呼吸助燃必需'},
+ {n:9,sym:'F',cn:'氟',cat:'非金属',fact:'最活泼护牙'},{n:10,sym:'Ne',cn:'氖',cat:'稀有气体',fact:'霓虹灯明星'},
+ {n:11,sym:'Na',cn:'钠',cat:'金属',fact:'食盐里的金属'},{n:12,sym:'Mg',cn:'镁',cat:'金属',fact:'燃烧白光烟花'},
+ {n:13,sym:'Al',cn:'铝',cat:'金属',fact:'易拉罐主角'},{n:14,sym:'Si',cn:'硅',cat:'非金属',fact:'芯片与沙子'},
+ {n:15,sym:'P',cn:'磷',cat:'非金属',fact:'火柴与鬼火'},{n:16,sym:'S',cn:'硫',cat:'非金属',fact:'臭鸡蛋味火药'},
+ {n:17,sym:'Cl',cn:'氯',cat:'非金属',fact:'消毒与食盐'},{n:18,sym:'Ar',cn:'氩',cat:'稀有气体',fact:'灯泡保护气'},
+ {n:19,sym:'K',cn:'钾',cat:'金属',fact:'香蕉富含'},{n:20,sym:'Ca',cn:'钙',cat:'金属',fact:'骨骼牙齿主力'}
 ];
-var CAT_NAME = { metal:'金属', nonmetal:'非金属', noble:'稀有气体' };
-var HS_KEY = 'g100_periodic_hs';
-var MUTE_KEY = 'g100_mute';
-
-// ---------- 状态 ----------
-var mode = 'learn';          // learn | quiz
-var paused = false;
-var score = 0;
-var mistakes = 0;
-var quizList = [];
-var quizIdx = 0;
-var quizActive = false;
-
-// ---------- DOM ----------
-function $(id){ return document.getElementById(id); }
-var grid = $('grid'), info = $('info'), quizQ = $('quizQ');
-
-// ---------- 音效（WebAudio 合成） ----------
-var actx = null;
-var muted = (localStorage.getItem(MUTE_KEY) === '1');
-function ensureAudio(){
-  if (!actx){
-    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ actx = null; }
-  }
-  if (actx && actx.state === 'suspended') actx.resume();
+const LV=[
+ {need:4,pool:10,time:50,mode:'sym'},{need:4,pool:12,time:48,mode:'cn'},{need:5,pool:14,time:55,mode:'fact'},{need:5,pool:16,time:52,mode:'cat'},
+ {boss:{name:'神秘元素',need:5,pool:20,time:60,mode:'mix'}},
+ {need:5,pool:16,time:50,mode:'sym'},{need:6,pool:18,time:55,mode:'cn'},{need:6,pool:18,time:52,mode:'fact'},{need:6,pool:20,time:55,mode:'cat'},
+ {boss:{name:'同位素幻影',need:6,pool:20,time:65,mode:'mix'}},
+ {need:7,pool:20,time:55,mode:'fact'},{need:7,pool:20,time:52,mode:'mix'},{need:8,pool:20,time:58,mode:'mix'},{need:8,pool:20,time:55,mode:'mix'},
+ {boss:{name:'周期表守护者',need:8,pool:20,time:70,mode:'mix'}}
+];
+let L,q,opts,done,need,lives,score,ended,raf=0,last=0,fast=1,timeLeft,mode,prompt,sparks,boss,hintLeft;
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];}return a;}
+function start(i){L=LV[i];score=0;ended=false;done=0;lives=3+Kit.up('life');sparks=[];hintLeft=Kit.up('hint');
+  const b=L.boss||L;need=b.need;timeLeft=(b.time||50)+Kit.up('time')*8;mode=b.mode;boss=L.boss?{name:L.boss.name}:null;
+  nextQ();hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
+function nextQ(){const pool=EL.slice(0,(L.boss||L).pool||10);q=pool[(Math.random()*pool.length)|0];
+  const m=mode==='mix'?['sym','cn','fact','cat'][(Math.random()*4)|0]:mode;
+  let correct,wrongPool;
+  if(m==='sym'){prompt='符号 '+q.sym+' 是？';correct=q.cn;wrongPool=pool.filter(e=>e.cn!==q.cn).map(e=>e.cn);}
+  else if(m==='cn'){prompt=q.cn+' 的元素符号？';correct=q.sym;wrongPool=pool.filter(e=>e.sym!==q.sym).map(e=>e.sym);}
+  else if(m==='fact'){prompt=q.fact+' → 是？';correct=q.cn;wrongPool=pool.filter(e=>e.cn!==q.cn).map(e=>e.cn);}
+  else{prompt=q.cn+' 属于？';correct=q.cat;wrongPool=['金属','非金属','稀有气体'].filter(c=>c!==q.cat);}
+  opts=shuffle([correct,...shuffle(wrongPool).slice(0,3)]);
+  const a=$('aids');a.innerHTML='';opts.forEach(o=>{const b=document.createElement('button');b.className='btn ghost';b.textContent=o;
+    b.onclick=()=>answer(o,correct);a.appendChild(b);});
+  if(hintLeft>0){const hb=document.createElement('button');hb.className='btn';hb.textContent='💡 提示('+hintLeft+')';
+    hb.onclick=()=>{hintLeft--;Kit.sfx('coin');Kit.toast(q.fact||q.cat,1400);hb.remove();};a.appendChild(hb);}}
+function answer(pick,correct){if(ended||Kit.state!=='play')return;
+  if(pick===correct){done++;score+=100;Kit.sfx('good');if(FX)FX.burst(sparks,W/2,H/2,'#9FC4FF',12);if(done>=need)return endLv(true);nextQ();}
+  else{lives--;Kit.sfx('bad');if(lives<=0)return endLv(false,'答错太多');nextQ();}
+  hud();}
+function upd(dt){if(ended)return;timeLeft-=dt;if(timeLeft<=0)return endLv(false,'时间到');hud();}
+function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('qT').textContent=done+'/'+need;$('score').textContent=score;
+  $('goalLbl').textContent=boss?'👑 '+boss.name:'答题 '+done+'/'+need;$('progI').style.width=(done/need*100)+'%';
+  $('infoT').textContent=Math.ceil(timeLeft)+'s';}
+function endLv(won,why){if(ended)return;ended=true;if(won){const st=lives>=3?3:lives>=2?2:1;setTimeout(()=>Kit.win(st,score,boss?'识破 '+boss.name:'答对 '+done),300);}
+  else setTimeout(()=>Kit.lose(why,score),250);}
+function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
+function draw(){
+  if(FX)FX.stage(ctx,W,H,'#5C6BC0','#1a237e');else{ctx.fillStyle='#12122a';ctx.fillRect(0,0,W,H);}
+  if(FX){FX.glow(ctx,'#9FC4FF',14);FX.tile(ctx,40,40,W-80,H-80,'#283593',16);FX.noGlow(ctx);}
+  else{ctx.fillStyle='#283593';ctx.fillRect(40,40,W-80,H-80);}
+  ctx.fillStyle='#fff';ctx.font='bold 18px sans-serif';ctx.textAlign='center';
+  const lines=(prompt||'').match(/.{1,16}/g)||[''];lines.forEach((ln,i)=>ctx.fillText(ln,W/2,H/2-10+i*24));
+  if(q){ctx.font='bold 36px sans-serif';ctx.fillStyle='#ffd54f';ctx.fillText(q.sym,W/2,70);}
+  if(FX)FX.drawBurst(ctx,sparks);
 }
-function tone(freq, dur, type, delay){
-  if (muted || !actx) return;
-  var t = actx.currentTime + (delay || 0);
-  var o = actx.createOscillator(), g = actx.createGain();
-  o.type = type || 'sine'; o.frequency.value = freq;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g); g.connect(actx.destination);
-  o.start(t); o.stop(t + dur + 0.05);
-}
-function sfxClick(){ tone(520, 0.12, 'triangle'); }                       // 点击
-function sfxRight(){ tone(523, 0.15, 'sine'); tone(659, 0.15, 'sine', 0.12); tone(784, 0.25, 'sine', 0.24); } // 答对
-function sfxWrong(){ tone(180, 0.25, 'sawtooth'); tone(140, 0.3, 'sawtooth', 0.15); }                        // 答错
-function sfxDone(){ tone(523,0.15,'sine'); tone(587,0.15,'sine',0.12); tone(659,0.15,'sine',0.24); tone(784,0.4,'sine',0.36); }
-document.addEventListener('pointerdown', ensureAudio, { passive:true });
-
-// ---------- 构建网格 ----------
-var cells = [];
-function buildGrid(){
-  grid.innerHTML = '';
-  cells = [];
-  ELEMENTS.forEach(function(el){
-    var d = document.createElement('div');
-    d.className = 'cell ' + el.cat;
-    d.innerHTML = '<span class="num">' + el.n + '</span><span class="sym">' + el.sym + '</span><span class="cn">' + el.cn + '</span>';
-    d.addEventListener('pointerdown', function(){ onCellTap(el, d); });
-    grid.appendChild(d);
-    cells.push(d);
-  });
-}
-
-// ---------- 学习模式：信息卡 ----------
-function showInfo(el, animate){
-  function fill(){
-    info.innerHTML =
-      '<div class="i-title">' + el.sym + ' · ' + el.cn + '<span class="z">原子序数 ' + el.n + '</span></div>' +
-      '<span class="i-cat ' + el.cat + '">' + CAT_NAME[el.cat] + '</span>' +
-      '<div class="i-fact">💡 ' + el.cn + '：' + el.fact + '</div>';
-    info.classList.remove('swap');
-  }
-  if (animate){
-    info.classList.add('swap');
-    setTimeout(fill, 180);
-  } else fill();
-}
-function clearSelection(){
-  cells.forEach(function(c){ c.classList.remove('selected'); });
-}
-
-// ---------- 测验：出题 ----------
-function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
-function byCat(cat){ return ELEMENTS.filter(function(e){ return e.cat === cat; }); }
-function genQuestion(){
-  var type = Math.floor(Math.random() * 8);
-  var metals = byCat('metal'), nonmetals = byCat('nonmetal'), nobles = byCat('noble');
-  var el, targets;
-  switch (type){
-    case 0: targets = nobles;   return { text:'点出一种稀有气体 🟣', targets:targets };
-    case 1: targets = metals;   return { text:'点出一种金属 🔵', targets:targets };
-    case 2: targets = nonmetals;return { text:'点出一种非金属 🟢', targets:targets };
-    case 3: return { text:'点出原子序数最大的金属 🔵', targets:[ELEMENTS[19]] }; // Ca
-    case 4: return { text:'点出原子序数最小的元素', targets:[ELEMENTS[0]] };
-    case 5: el = pick(ELEMENTS);return { text:'点出元素 ' + el.sym + '（' + el.cn + '）', targets:[el] };
-    case 6: el = pick(ELEMENTS);return { text:'点出原子序数 ' + el.n + ' 的元素', targets:[el] };
-    default: return { text:'点出原子序数最大的稀有气体 🟣', targets:[ELEMENTS[17]] }; // Ar
-  }
-}
-function startQuiz(){
-  score = 0; mistakes = 0; quizIdx = 0; quizActive = true;
-  quizList = [];
-  for (var i = 0; i < 8; i++) quizList.push(genQuestion());
-  updateScore(); clearSelection(); dimNonTargets();
-  nextQuestion();
-}
-function dimNonTargets(){
-  var q = quizList[quizIdx];
-  cells.forEach(function(c, i){
-    c.classList.remove('selected');
-    c.classList.add(q.targets.indexOf(ELEMENTS[i]) >= 0 ? 'pickable' : 'dim');
-  });
-}
-function nextQuestion(){
-  if (quizIdx >= quizList.length){ endQuiz(); return; }
-  var q = quizList[quizIdx];
-  quizQ.textContent = '第 ' + (quizIdx + 1) + ' / 8 题：' + q.text;
-  quizQ.classList.add('show');
-  $('quizProgress').textContent = '第 ' + (quizIdx + 1) + '/8 题';
-  dimNonTargets();
-  // 测验模式信息卡让位给题目
-  info.innerHTML = '<div class="i-hint">🎯 ' + q.text + '</div>';
-}
-function endQuiz(){
-  quizActive = false;
-  quizQ.classList.remove('show');
-  $('quizProgress').textContent = '';
-  cells.forEach(function(c){ c.classList.remove('dim'); c.classList.remove('pickable'); });
-  var finalScore = Math.round(score);
-  var hs = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
-  var newRecord = finalScore > hs;
-  if (newRecord){ hs = finalScore; localStorage.setItem(HS_KEY, String(hs)); }
-  $('hs').textContent = '最高 ' + hs;
-  $('endTitle').textContent = finalScore >= 75 ? '🎉 测验完成！太棒了！' : (finalScore >= 50 ? '💪 测验完成！继续加油！' : '📚 测验完成！多去学习模式看看～');
-  $('endScore').textContent = finalScore + ' 分';
-  $('endDetail').textContent = '8 题全部答对可得 100 分' + (mistakes > 0 ? ' · 点错 ' + mistakes + ' 次' : ' · 一次都没点错！') + (newRecord ? ' · 🏆 新纪录！' : '');
-  $('endOv').classList.add('show');
-  sfxDone();
-}
-
-// ---------- 点击元素 ----------
-function onCellTap(el, d){
-  ensureAudio();
-  if (paused) return;
-  if (mode === 'learn' && !quizActive){
-    sfxClick();
-    clearSelection();
-    d.classList.add('selected');
-    d.classList.remove('pop'); void d.offsetWidth; d.classList.add('pop');
-    showInfo(el, true);
-    return;
-  }
-  // 测验模式
-  if (!quizActive) return;
-  var q = quizList[quizIdx];
-  if (q.targets.indexOf(el) >= 0){
-    sfxRight();
-    score += 12.5;
-    updateScore();
-    d.classList.remove('pop'); void d.offsetWidth; d.classList.add('pop');
-    quizIdx++;
-    setTimeout(nextQuestion, 350);
-  } else {
-    sfxWrong();
-    mistakes++;
-    if (navigator.vibrate) navigator.vibrate(200);
-    d.classList.remove('shake'); void d.offsetWidth; d.classList.add('shake');
-    showInfo(el, true); // 点错也顺便学一下
-  }
-}
-
-// ---------- 分数 / 最高分 ----------
-function updateScore(){
-  $('score').textContent = '得分 ' + Math.round(score);
-  var hs = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
-  $('hs').textContent = '最高 ' + hs;
-}
-
-// ---------- 模式切换 ----------
-function setMode(m){
-  mode = m;
-  $('btnLearn').classList.toggle('active', m === 'learn');
-  $('btnQuiz').classList.toggle('active', m === 'quiz');
-  ensureAudio(); sfxClick();
-  if (m === 'quiz'){ startQuiz(); }
-  else {
-    quizActive = false;
-    quizQ.classList.remove('show');
-    $('quizProgress').textContent = '';
-    cells.forEach(function(c){ c.classList.remove('dim'); c.classList.remove('pickable'); c.classList.remove('selected'); });
-    info.innerHTML = '<div class="i-hint">👆 点击任意元素，查看它的秘密</div>';
-  }
-}
-$('btnLearn').addEventListener('click', function(){ setMode('learn'); });
-$('btnQuiz').addEventListener('click', function(){ setMode('quiz'); });
-
-// ---------- 暂停 ----------
-function setPaused(p){
-  paused = p;
-  $('pauseOv').classList.toggle('show', p);
-  $('btnPause').textContent = p ? '▶' : '⏸';
-}
-$('btnPause').addEventListener('click', function(){ ensureAudio(); sfxClick(); setPaused(!paused); });
-$('btnResume').addEventListener('click', function(){ ensureAudio(); sfxClick(); setPaused(false); });
-
-// ---------- 静音 ----------
-function refreshMute(){ $('btnMute').textContent = muted ? '🔇' : '🔊'; }
-$('btnMute').addEventListener('click', function(){
-  ensureAudio();
-  muted = !muted;
-  localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
-  refreshMute();
-  if (!muted) sfxClick();
-});
-refreshMute();
-
-// ---------- 开始 / 重来 / 知识点 ----------
-$('btnStart').addEventListener('click', function(){
-  ensureAudio(); sfxClick();
-  $('startOv').classList.remove('show');
-});
-$('btnRestart').addEventListener('click', function(){
-  ensureAudio(); sfxClick();
-  $('endOv').classList.remove('show');
-  startQuiz();
-});
-$('knowBtn').addEventListener('click', function(){ ensureAudio(); sfxClick(); $('knowOv').classList.add('show'); });
-$('btnKnowClose').addEventListener('click', function(){ ensureAudio(); sfxClick(); $('knowOv').classList.remove('show'); });
-$('knowOv').addEventListener('click', function(e){ if (e.target === $('knowOv')) $('knowOv').classList.remove('show'); });
-
-// ---------- 初始化 ----------
-buildGrid();
-updateScore();
+function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
+addEventListener('resize',layout);layout();
+Kit.init({id:'periodic',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},pause:()=>{},
+  note:()=>'看提示选出正确元素或类别',
+  tut:[['题型','符号↔中文、事实、类别等多种问法。','🧬'],
+       ['作答','点选项按钮，答对推进进度。','✅'],
+       ['提示','可升级提示卡查看事实。','💡'],
+       ['Boss','混合题型神秘元素，可升级加时/命。','👑']],
+  ups:[{k:'hint',ic:'💡',name:'提示',desc:'提示次数',max:2,cost:l=>30+l*35},
+       {k:'time',ic:'⏱️',name:'加时',desc:'+8 秒',max:2,cost:l=>28+l*30},
+       {k:'life',ic:'❤️',name:'额外命',desc:'+1 命',max:2,cost:l=>35+l*40,stars:5}]});
+window.__T.state=()=>({done,need,lives,ended,prompt,opts,q:q&&q.sym});
+window.__T.fast=k=>{fast=k;};
+window.__T.cheatWin=()=>{done=need;endLv(true);};
+window.__T.solve=()=>{if(ended||Kit.state!=='play'||!opts)return;
+  // click correct by matching known
+  const correct=opts.find(o=>o===q.cn||o===q.sym||o===q.cat);if(correct)answer(correct,correct);};
 </script>
 </body>
 </html>
