@@ -37,6 +37,13 @@ body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-
 
 #cv{display:block;touch-action:none;max-width:100%;max-height:100%}
 .hint{font-size:12px;opacity:.85;text-align:center;flex:none}
+.pad{display:grid;grid-template-columns:repeat(3,68px);grid-template-rows:repeat(3,68px);gap:8px;margin:4px auto 2px;flex:none}
+.pb{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:16px;color:#fff;font-size:24px;font-weight:800;cursor:pointer;-webkit-user-select:none;user-select:none;touch-action:manipulation;min-width:68px;min-height:68px}
+.pb:active{background:rgba(126,217,87,.45);transform:scale(.94)}
+.pb.x{visibility:hidden;pointer-events:none}
+.stagebox{min-height:220px}
+@media(max-height:700px){.pad{grid-template-columns:repeat(3,58px);grid-template-rows:repeat(3,58px);gap:6px}.pb{min-width:58px;min-height:58px;font-size:20px}.wrap{padding:6px 8px;gap:4px}.hint{font-size:11px}}
+@media(max-width:380px){.pad{grid-template-columns:repeat(3,54px);grid-template-rows:repeat(3,54px)}.pb{min-width:54px;min-height:54px}}
 </style>
 <!-- GAME UI BEGIN -->
 <style>
@@ -428,7 +435,18 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   </div>
   <div class="subbar"><span id="goalLbl">过河</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
-  <div class="hint">点箭头或滑屏移动 · 躲开车 · 踩浮木过河</div>
+  <div class="pad" aria-label="方向键">
+    <button class="pb x" tabindex="-1" aria-hidden="true"></button>
+    <button class="pb" data-d="u" aria-label="上">▲</button>
+    <button class="pb x" tabindex="-1" aria-hidden="true"></button>
+    <button class="pb" data-d="l" aria-label="左">◀</button>
+    <button class="pb" data-d="d" aria-label="下">▼</button>
+    <button class="pb" data-d="r" aria-label="右">▶</button>
+    <button class="pb x" tabindex="-1" aria-hidden="true"></button>
+    <button class="pb x" tabindex="-1" aria-hidden="true"></button>
+    <button class="pb x" tabindex="-1" aria-hidden="true"></button>
+  </div>
+  <div class="hint">方向键 / 滑屏移动 · 躲开车 · 踩浮木过河</div>
 </div>
 <div class="overlay" id="startScr"><h1>🐸 青蛙过河</h1><p>经典过马路过河升级成 15 关：车速与车道递增，浮木间隙收紧。<br>第 5/10/15 关河怪/鳄首领会咬岸！可升级额外命、慢动作、提示。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始过河</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -547,11 +565,11 @@ const Kit=(function(){
 const COLS=11,ROWS=13,CELL=32,W=COLS*CELL,H=ROWS*CELL;
 const cv=$('cv'),ctx=cv.getContext('2d');if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
 const LV=[
- {cars:3,cs:60,logs:3,ls:40,need:3,gap:1.2},
- {cars:4,cs:70,logs:3,ls:45,need:3,gap:1.15},
- {cars:4,cs:80,logs:4,ls:50,need:4,gap:1.1},
- {cars:5,cs:90,logs:4,ls:55,need:4,gap:1.05},
- {boss:{hp:4,name:'河岸鳄',cs:100}},
+ {cars:2,cs:42,logs:3,ls:32,need:2,gap:1.35},
+ {cars:3,cs:50,logs:3,ls:36,need:3,gap:1.28},
+ {cars:3,cs:58,logs:4,ls:40,need:3,gap:1.22},
+ {cars:4,cs:66,logs:4,ls:44,need:3,gap:1.15},
+ {boss:{hp:3,name:'河岸鳄',cs:78}},
  {cars:5,cs:100,logs:4,ls:60,need:4,gap:1},
  {cars:6,cs:110,logs:5,ls:65,need:5,gap:.95},
  {cars:6,cs:120,logs:5,ls:70,need:5,gap:.9},
@@ -565,13 +583,13 @@ const LV=[
 ];
 const ROAD=[3,4,5,6],RIVER=[8,9,10,11],HOME=1,START=12;
 let L,fr,cars,logs,homes,lives,score,ended,raf=0,last=0,fast=1,done,boss,bossT,slowT,hintT,sparks,moved;
-function mkCars(){cars=[];const n=L.boss?6:(L.cars||3);const sp=(L.boss?L.boss.cs:L.cs)*(1-Kit.up('slow')*.12);
-  ROAD.forEach((row,i)=>{const dir=i%2?1:-1;const cnt=Math.max(2,Math.floor(n/2));for(let k=0;k<cnt;k++){
-    cars.push({row,x:Math.random()*W,w:CELL*1.4+Math.random()*CELL*.6,dir,spd:sp*(.7+Math.random()*.5)*(1+i*.08),c:['#ff5fa2','#5ff2ff','#ffd34d','#a78bfa'][k%4]});}});
+function mkCars(){cars=[];const n=L.boss?5:(L.cars||3);const sp=(L.boss?L.boss.cs:L.cs)*(1-Kit.up('slow')*.12);
+  ROAD.forEach((row,i)=>{const dir=i%2?1:-1;const cnt=Math.max(1,Math.floor(n/2));for(let k=0;k<cnt;k++){
+    cars.push({row,x:Math.random()*W,w:CELL*1.3+Math.random()*CELL*.5,dir,spd:sp*(.65+Math.random()*.4)*(1+i*.06),c:['#ff5fa2','#5ff2ff','#ffd34d','#a78bfa'][k%4]});}});
 }
 function mkLogs(){logs=[];const n=L.boss?4:(L.logs||3);const sp=(L.ls||40)*(1-Kit.up('slow')*.1);
-  RIVER.forEach((row,i)=>{const dir=i%2?-1:1;const cnt=Math.max(2,Math.floor(n/2));const gap=L.gap||1;
-    for(let k=0;k<cnt;k++)logs.push({row,x:(k*(W/cnt)*gap+Math.random()*20)%(W+80)-40,w:CELL*(1.8+Math.random()),dir,spd:sp*(.8+Math.random()*.4)});});
+  RIVER.forEach((row,i)=>{const dir=i%2?-1:1;const cnt=Math.max(2,Math.floor(n/2)+1);const gap=L.gap||1;
+    for(let k=0;k<cnt;k++)logs.push({row,x:(k*(W/cnt)*gap+Math.random()*20)%(W+80)-40,w:CELL*(2.2+Math.random()*.8),dir,spd:sp*(.75+Math.random()*.35)});});
 }
 function resetFrog(){fr={c:Math.floor(COLS/2),r:START};moved=false;}
 function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');done=0;homes=Array(5).fill(false);sparks=[];slowT=0;hintT=Kit.up('hint')?3:0;
@@ -586,14 +604,34 @@ function tryMove(dc,dr){if(Kit.state!=='play'||ended)return;const nc=fr.c+dc,nr=
       resetFrog();}else{Kit.toast('已占领',600);resetFrog();}
   }
   hud();}
-cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||ended)return;
-  const r=cv.getBoundingClientRect(),px=(e.clientX-r.left)*W/r.width,py=(e.clientY-r.top)*H/r.height;
-  const dx=px-(fr.c*CELL+CELL/2),dy=py-(fr.r*CELL+CELL/2);
-  if(Math.abs(dx)>Math.abs(dy))tryMove(dx>0?1:-1,0);else tryMove(0,dy>0?1:-1);});
-let sx0,sy0;cv.addEventListener('pointerdown',e=>{sx0=e.clientX;sy0=e.clientY;},{passive:true});
-cv.addEventListener('pointerup',e=>{if(sx0==null)return;const dx=e.clientX-sx0,dy=e.clientY-sy0;sx0=null;
-  if(Math.hypot(dx,dy)<24)return;if(Math.abs(dx)>Math.abs(dy))tryMove(dx>0?1:-1,0);else tryMove(0,dy>0?1:-1);});
-addEventListener('keydown',e=>{const m={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};if(m[e.key]){e.preventDefault();tryMove(...m[e.key]);}});
+/* 滑屏移动（取消点按，避免与抬起手势叠跳） */
+let sx0,sy0,swiped=false;
+cv.addEventListener('pointerdown',e=>{
+  if(Kit.state!=='play'||ended)return;
+  sx0=e.clientX;sy0=e.clientY;swiped=false;
+  try{cv.setPointerCapture(e.pointerId);}catch(_){}
+  if(e.cancelable)e.preventDefault();
+},{passive:false});
+cv.addEventListener('pointermove',e=>{
+  if(sx0==null)return;
+  if(Math.hypot(e.clientX-sx0,e.clientY-sy0)>28)swiped=true;
+});
+cv.addEventListener('pointerup',e=>{
+  if(sx0==null)return;
+  const dx=e.clientX-sx0,dy=e.clientY-sy0;sx0=null;
+  if(!swiped||Math.hypot(dx,dy)<28)return;
+  if(Math.abs(dx)>Math.abs(dy))tryMove(dx>0?1:-1,0);else tryMove(0,dy>0?1:-1);
+});
+cv.addEventListener('pointercancel',()=>{sx0=null;});
+document.querySelectorAll('.pb[data-d]').forEach(b=>{
+  b.addEventListener('pointerdown',e=>{
+    e.preventDefault();e.stopPropagation();
+    if(Kit.state!=='play'||ended)return;
+    const m={u:[0,-1],d:[0,1],l:[-1,0],r:[1,0]}[b.dataset.d];
+    if(m)tryMove(...m);
+  });
+});
+addEventListener('keydown',e=>{const m={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1],a:[-1,0],d:[1,0],w:[0,-1],s:[0,1]};if(m[e.key]){e.preventDefault();tryMove(...m[e.key]);}});
 function die(why){lives--;Kit.sfx('bad');Kit.toast(why||'撞到了',800);if(FX)FX.burst(sparks,fr.c*CELL+CELL/2,fr.r*CELL+CELL/2,'#ff5fa2',10);
   if(lives<=0)return endLv(false,why||'挑战失败');resetFrog();hud();}
 function upd(dt){if(ended)return;const mul=slowT>0?(slowT-=dt,.45):1;
@@ -653,7 +691,7 @@ function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.wi
 addEventListener('resize',layout);layout();
 Kit.init({id:'frogger',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},pause:()=>{},
   note:()=>'躲车踏木，冲上对岸巢穴',
-  tut:[['移动','点屏幕方向或滑屏/方向键移动一格。','🐸'],
+  tut:[['移动','用下方方向键或滑屏移动一格。','🐸'],
        ['马路','躲开彩色汽车，被撞扣命。','🚗'],
        ['河流','必须踩在浮木上，掉水或冲走都会失败。','🪵'],
        ['鳄首领','第 5/10/15 关对岸有鳄，多次登岸才能击败。可升级命/慢动作/提示。','🐊']],

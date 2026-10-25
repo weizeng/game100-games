@@ -438,7 +438,7 @@ const PR=26,PUCKR=13,GOALW=150,WIN=7,MID=H/2;
 let puck,me,ai,sMe,sAi,state,paused,parts,raf,freeze,goalMsg,goalT,best,t;
 
 function resetPuck(dir){puck={x:W/2,y:MID,vx:(Math.random()-0.5)*4,vy:dir*3,r:PUCKR};}
-function reset(){me={x:W/2,y:H-110,px:W/2,py:H-110,vx:0,vy:0,r:PR};ai={x:W/2,y:110,r:PR};resetPuck(1);sMe=0;sAi=0;parts=[];paused=false;freeze=0;goalMsg='';goalT=0;t=0;$('sMe').textContent='0';$('sAi').textContent='0';}
+function reset(){me={x:W/2,y:H-110,px:W/2,py:H-110,vx:0,vy:0,r:PR};ai={x:W/2,y:110,vx:0,vy:0,r:PR};stuckN=0;resetPuck(1);sMe=0;sAi=0;parts=[];paused=false;freeze=0;goalMsg='';goalT=0;t=0;$('sMe').textContent='0';$('sAi').textContent='0';}
 function startGame(){reset();state='play';hide('startScr');hide('overScr');hide('pauseScr');}
 function show(id){$(id).classList.remove('hidden');}
 function hide(id){$(id).classList.add('hidden');}
@@ -464,26 +464,42 @@ let md=false;
 
 function collide(pad){const dx=puck.x-pad.x,dy=puck.y-pad.y;const d=Math.hypot(dx,dy),min=puck.r+pad.r;
 if(d<min&&d>0.01){const nx=dx/d,ny=dy/d;puck.x=pad.x+nx*min;puck.y=pad.y+ny*min;
-const rel=(puck.vx-pad.vx)*nx+(puck.vy-pad.vy)*ny;
-if(rel<0){const imp=-rel*1.9;puck.vx+=nx*imp+pad.vx*0.55;puck.vy+=ny*imp+pad.vy*0.55;sHit();burst(puck.x,puck.y,'#fff',5);}}}
+const rel=(puck.vx-(pad.vx||0))*nx+(puck.vy-(pad.vy||0))*ny;
+/* Always separate; if closing, bounce with pad velocity */
+if(rel<0){const imp=-rel*1.9+0.35;puck.vx+=nx*imp+(pad.vx||0)*0.6;puck.vy+=ny*imp+(pad.vy||0)*0.6;sHit();burst(puck.x,puck.y,'#fff',5);}
+else if(Math.hypot(puck.vx,puck.vy)<1.2){puck.vx+=nx*1.8+(pad.vx||0)*.4;puck.vy+=ny*1.8+(pad.vy||0)*.4;}}
+}
+let stuckN=0;
 function physics(){t++;
 if(target){const tx=Math.max(30,Math.min(W-30,target.x)),ty=Math.max(MID+24,Math.min(H-40,target.y));
 me.px=me.x;me.py=me.y;me.x+=(tx-me.x)*0.4;me.y+=(ty-me.y)*0.4;me.vx=(me.x-me.px);me.vy=(me.y-me.py);}
 else{me.vx*=0.8;me.vy*=0.8;}
 const inOff=puck.y<MID*0.9;const wob=Math.sin(t*0.045)*26;
-let tx2=W/2,ty2=120;
-if(inOff){tx2=Math.max(40,Math.min(W-40,puck.x+wob));ty2=Math.max(50,Math.min(250,puck.y+30));}
-const dx=tx2-ai.x,dy=ty2-ai.y,d=Math.hypot(dx,dy),sp=Math.min(d,GameUI.pick(4.6,6.2));
+let tx2=W/2,ty2=110;
+const cornerPin=(puck.x<70||puck.x>W-70)&&puck.y<130;
+const aiNear=Math.hypot(puck.x-ai.x,puck.y-ai.y)<PR+PUCKR+28;
+if(inOff){
+  if(cornerPin&&aiNear){/* 退开，避免把球挤死在角落 */tx2=W/2;ty2=95;}
+  else{tx2=Math.max(50,Math.min(W-50,puck.x+wob*0.6));
+    /* 站在球的己方一侧（下方），不要压到墙边 */ty2=Math.max(55,Math.min(MID-40,puck.y+36));
+    if(puck.y<ai.y+8)ty2=Math.min(ty2,puck.y+18);}
+}
+const ax0=ai.x,ay0=ai.y;
+const dx=tx2-ai.x,dy=ty2-ai.y,d=Math.hypot(dx,dy),sp=Math.min(d,GameUI.pick(4.2,5.6));
 if(d>1){ai.x+=dx/d*sp;ai.y+=dy/d*sp;}
-ai.x=Math.max(30,Math.min(W-30,ai.x));ai.y=Math.max(30,Math.min(MID-24,ai.y));
+ai.x=Math.max(36,Math.min(W-36,ai.x));ai.y=Math.max(40,Math.min(MID-28,ai.y));
+ai.vx=ai.x-ax0;ai.vy=ai.y-ay0;
 puck.x+=puck.vx;puck.y+=puck.vy;puck.vx*=0.992;puck.vy*=0.992;
 const spd=Math.hypot(puck.vx,puck.vy);if(spd>13){puck.vx*=13/spd;puck.vy*=13/spd;}
-if(puck.x<puck.r){puck.x=puck.r;puck.vx*=-1;sWall();}
-if(puck.x>W-puck.r){puck.x=W-puck.r;puck.vx*=-1;sWall();}
+if(puck.x<puck.r){puck.x=puck.r;puck.vx=Math.abs(puck.vx)*.95+0.4;sWall();}
+if(puck.x>W-puck.r){puck.x=W-puck.r;puck.vx=-Math.abs(puck.vx)*.95-0.4;sWall();}
 const gx0=W/2-GOALW/2,gx1=W/2+GOALW/2;
-if(puck.y<puck.r){if(puck.x>gx0&&puck.x<gx1){if(puck.y<-puck.r){goal(true);return;}}else{puck.y=puck.r;puck.vy*=-1;sWall();}}
-if(puck.y>H-puck.r){if(puck.x>gx0&&puck.x<gx1){if(puck.y>H+puck.r){goal(false);return;}}else{puck.y=H-puck.r;puck.vy*=-1;sWall();}}
-collide(me);collide({x:ai.x,y:ai.y,vx:0,vy:0,r:ai.r});
+if(puck.y<puck.r){if(puck.x>gx0&&puck.x<gx1){if(puck.y<-puck.r){goal(true);return;}}else{puck.y=puck.r;puck.vy=Math.abs(puck.vy)*.95+0.4;sWall();}}
+if(puck.y>H-puck.r){if(puck.x>gx0&&puck.x<gx1){if(puck.y>H+puck.r){goal(false);return;}}else{puck.y=H-puck.r;puck.vy=-Math.abs(puck.vy)*.95-0.4;sWall();}}
+collide(me);collide({x:ai.x,y:ai.y,vx:ai.vx||0,vy:ai.vy||0,r:ai.r});
+/* 防卡死：球速过低过久则朝中场弹开 */
+if(Math.hypot(puck.vx,puck.vy)<0.55){stuckN++;if(stuckN>40){puck.vx+=(W/2-puck.x)*0.03+(Math.random()-.5)*2.5;puck.vy+=(MID-puck.y)*0.03+1.2*(puck.y<MID?1:-1);stuckN=0;}}
+else stuckN=0;
 if(goalT>0)goalT--;}
 function drawPaddle(x,y,color){const g=ctx.createRadialGradient(x-6,y-8,4,x,y,PR);g.addColorStop(0,'#ffffff');g.addColorStop(0.35,color);g.addColorStop(1,color);ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,PR,0,7);ctx.fill();ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.arc(x,y,10,0,7);ctx.fill();}
 function draw(){if(FX)return drawFx();ctx.clearRect(0,0,W,H);

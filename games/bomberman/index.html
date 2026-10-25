@@ -18,11 +18,12 @@ body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFo
 .iconbtn:active{transform:scale(.9)}
 #cv{background:#0d1b14;border-radius:12px;touch-action:none;width:100%;max-width:440px;height:auto;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 .controls{display:flex;gap:18px;align-items:center;justify-content:center;width:100%}
-.dpad{display:grid;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(3,58px);gap:4px}
-.dbtn{background:#1f1f1f;border:1px solid #444;color:#fff;font-size:22px;border-radius:12px;cursor:pointer;transition:transform .08s;touch-action:none}
-.dbtn:active{transform:scale(.9);background:#333}
-.bombbtn{width:92px;height:92px;border-radius:50%;background:linear-gradient(135deg,#FF9800,#E65100);border:none;font-size:40px;cursor:pointer;transition:transform .08s;box-shadow:0 4px 18px rgba(255,152,0,.4);touch-action:none}
-.bombbtn:active{transform:scale(.9)}
+.dpad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,64px);gap:6px}
+.dbtn{background:#1f1f1f;border:1px solid #444;color:#fff;font-size:24px;border-radius:14px;cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;min-width:64px;min-height:64px}
+.dbtn:active,.dbtn.on{transform:scale(.94);background:#333}
+.bombbtn{width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#FF9800,#E65100);border:none;font-size:42px;cursor:pointer;box-shadow:0 4px 18px rgba(255,152,0,.4);touch-action:none;-webkit-user-select:none;user-select:none;min-width:96px;min-height:96px}
+.bombbtn:active{transform:scale(.94)}
+@media(max-height:700px){.dpad{grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px)}.dbtn{min-width:56px;min-height:56px;font-size:20px}.bombbtn{width:84px;height:84px;min-width:84px;min-height:84px;font-size:36px}}
 .tip{font-size:12px;color:#888;text-align:center}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.87);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
 .hidden{display:none!important}
@@ -540,11 +541,31 @@ function updateHUD(){
 }
 function walkable(r,c){return r>=0&&r<ROWS&&c>=0&&c<COLS&&grid[r][c]===0;}
 function bombAt(r,c){return bombs.some(b=>b.r===r&&b.c===c);}
+function solidAt(r,c){return !walkable(r,c);}
+function overlapsCell(x,y,r,c){const rad=0.35;return x+rad>c&&x-rad<c+1&&y+rad>r&&y-rad<r+1;}
+/* Soft collision: allow walking out of a bomb you are already standing on */
+function blockedTile(r,c,fromX,fromY){
+  if(solidAt(r,c))return true;
+  if(!bombAt(r,c))return false;
+  if(overlapsCell(fromX,fromY,r,c))return false;
+  return true;
+}
+function canEnter(nx,ny){
+  const rad=0.35;
+  const cells=[
+    [Math.floor(ny-rad),Math.floor(nx-rad)],
+    [Math.floor(ny-rad),Math.floor(nx+rad)],
+    [Math.floor(ny+rad),Math.floor(nx-rad)],
+    [Math.floor(ny+rad),Math.floor(nx+rad)]
+  ];
+  for(const [r,c] of cells){if(blockedTile(r,c,player.x,player.y))return false;}
+  return true;
+}
 function placeBomb(){
   if(over||paused||!started||!player.alive)return;
   const r=Math.round(player.y),c=Math.round(player.x);
   if(bombAt(r,c)||bombs.length>=2)return;
-  bombs.push({r,c,t:2.5});sfx.bomb();
+  bombs.push({r,c,t:2.5,owner:true});sfx.bomb();
 }
 function explode(b){
   sfx.boom();
@@ -609,12 +630,22 @@ function step(dt){
     if(keys.up){dy=-1;player.face='up';}else if(keys.down){dy=1;player.face='down';}
     else if(keys.left){dx=-1;player.face='left';}else if(keys.right){dx=1;player.face='right';}
     if(dx||dy){
-      const nx=player.x+dx*player.speed*dt,ny=player.y+dy*player.speed*dt;
-      // 按轴碰撞
-      if(walkable(Math.round(player.y),Math.round(nx))&&!bombAt(Math.round(player.y),Math.round(nx)))player.x=nx;
-      if(walkable(Math.round(ny),Math.round(player.x))&&!bombAt(Math.round(ny),Math.round(player.x)))player.y=ny;
-      player.x=Math.max(0.3,Math.min(COLS-1.3,player.x));
-      player.y=Math.max(0.3,Math.min(ROWS-1.3,player.y));
+      const sp=player.speed*dt;
+      const nx=player.x+dx*sp,ny=player.y+dy*sp;
+      /* axis-separated AABB — no Math.round wall clip */
+      if(canEnter(nx,player.y))player.x=nx;
+      else{
+        /* snap flush to blocked edge */
+        if(dx>0)player.x=Math.floor(player.x+0.35)+1-0.35-0.001;
+        else if(dx<0)player.x=Math.ceil(player.x-0.35)-1+0.35+0.001;
+      }
+      if(canEnter(player.x,ny))player.y=ny;
+      else{
+        if(dy>0)player.y=Math.floor(player.y+0.35)+1-0.35-0.001;
+        else if(dy<0)player.y=Math.ceil(player.y-0.35)-1+0.35+0.001;
+      }
+      player.x=Math.max(1,Math.min(COLS-2,player.x));
+      player.y=Math.max(1,Math.min(ROWS-2,player.y));
     }
     if(invuln>0)invuln-=dt/60;
     // 出口
@@ -811,20 +842,32 @@ function loop(ts){
 }
 // ============ 输入 ============
 function bindHold(el,down,up){
-  const on=e=>{if(e.cancelable)e.preventDefault();down();};
-  const off=e=>{if(e.cancelable)e.preventDefault();if(up)up();};
-  el.addEventListener('touchstart',on,{passive:false});
-  el.addEventListener('touchend',off,{passive:false});
-  el.addEventListener('touchcancel',off,{passive:false});
-  el.addEventListener('mousedown',on);
-  el.addEventListener('mouseup',off);
-  el.addEventListener('mouseleave',off);
+  let held=false;
+  const on=e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    if(e.cancelable)e.preventDefault();
+    try{el.setPointerCapture(e.pointerId);}catch(_){}
+    held=true;el.classList.add('on');down();
+  };
+  const off=e=>{
+    if(!held)return;held=false;el.classList.remove('on');
+    if(e&&e.cancelable)e.preventDefault();
+    if(up)up();
+  };
+  el.addEventListener('pointerdown',on,{passive:false});
+  el.addEventListener('pointerup',off,{passive:false});
+  el.addEventListener('pointercancel',off,{passive:false});
+  el.addEventListener('lostpointercapture',off);
+  /* clear stuck keys if page hides */
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)off();});
 }
 document.querySelectorAll('.dbtn').forEach(b=>{
   const d=b.dataset.d;
   bindHold(b,()=>{keys[d]=true;},()=>{keys[d]=false;});
 });
 bindHold(document.getElementById('bombBtn'),()=>{placeBomb();});
+/* safety: release all dirs on blur */
+window.addEventListener('blur',()=>{keys={};document.querySelectorAll('.dbtn.on').forEach(b=>b.classList.remove('on'));});
 document.addEventListener('keydown',e=>{
   const m={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right'};
   if(m[e.key])keys[m[e.key]]=true;

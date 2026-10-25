@@ -547,7 +547,7 @@ const Kit=(function(){
 const W=360,H=520,GY=400;
 const cv=$('cv'),ctx=cv.getContext('2d');if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
 const LV=[
- {need:5,dist:[80,120],w:[70,90]},{need:6,dist:[90,130],w:[65,85]},{need:7,dist:[100,140],w:[60,80]},{need:8,dist:[110,150],w:[55,75]},
+ {need:4,dist:[70,100],w:[75,95]},{need:5,dist:[80,110],w:[70,90]},{need:6,dist:[90,120],w:[65,85]},{need:7,dist:[100,130],w:[60,80]},
  {boss:{hp:4,name:'巨型移动台',w:100}},
  {need:8,dist:[115,155],w:[55,70]},{need:9,dist:[120,160],w:[50,68]},{need:10,dist:[125,165],w:[48,65]},{need:10,dist:[130,170],w:[46,62]},
  {boss:{hp:5,name:'摇摆巨台',w:90}},
@@ -566,14 +566,21 @@ function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');hit=0;power
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
 function press(){if(Kit.state!=='play'||ended||phase!=='idle')return;phase='charge';power=0;Kit.sfx('tap');}
 function release(){if(phase!=='charge')return;phase='fly';
-  const cur=plats[pi],nxt=plats[pi+1];const dist=power*2.2;const ang=-Math.PI/3.2;
-  px=cur.x+cur.w/2;py=GY-40; // reset
-  window._vx=Math.cos(ang)*dist;window._vy=Math.sin(ang)*dist;window._t=0;window._sx=px;window._sy=py;
-  window._tx=nxt.x+nxt.w/2; // for hint
+  const cur=plats[pi],nxt=plats[pi+1];
+  /* power 0..140 → horizontal range ~0..224 (covers LV gaps up to ~190) */
+  const range=Math.max(8,power*1.6);
+  px=cur.x+cur.w/2;py=GY-40;
+  const flightT=0.55,g=900;
+  window._vx=range/flightT;window._vy=-0.5*g*flightT;window._g=g;
+  window._t=0;window._sx=px;window._sy=py;
+  window._tx=nxt?nxt.x+nxt.w/2:px;
 }
-cv.addEventListener('pointerdown',e=>{e.preventDefault();press();});
-cv.addEventListener('pointerup',e=>{e.preventDefault();release();});
-cv.addEventListener('pointercancel',()=>{if(phase==='charge')release();});
+function bindJump(el){
+  el.addEventListener('pointerdown',e=>{e.preventDefault();try{el.setPointerCapture(e.pointerId);}catch(_){}press();});
+  el.addEventListener('pointerup',e=>{e.preventDefault();release();});
+  el.addEventListener('pointercancel',()=>{if(phase==='charge')release();});
+}
+bindJump(cv);bindJump($('box'));
 addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter')press();});
 addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter')release();});
 function land(){const nxt=plats[pi+1];const cx=nxt.x+nxt.w/2;const dx=Math.abs(px-cx);const half=nxt.w/2+tol;
@@ -586,11 +593,11 @@ function land(){const nxt=plats[pi+1];const cx=nxt.x+nxt.w/2;const dx=Math.abs(p
     phase='idle';px=plats[pi].x+plats[pi].w/2;py=GY-40;}
   hud();}
 function upd(dt){if(ended)return;if(boss){bossT-=dt;if(bossT<=0)return endLv(false,'巨台驶离');}
-  for(const p of plats){if(p.mv){p.ph+=dt;p.x=p.bx+(p.bx?0:(p.bx=p.x))+Math.sin(p.ph)*p.mv*.3;}}
-  // keep boss next platform moving more
-  if(boss&&plats[pi+1]){const p=plats[pi+1];p.ph=(p.ph||0)+dt;p.x=(p.bx||(p.bx=p.x))+Math.sin(p.ph)*55;}
+  for(const p of plats){if(p.mv){if(!p.bx)p.bx=p.x;p.ph+=dt;p.x=p.bx+Math.sin(p.ph)*p.mv*.3;}}
+  if(boss&&plats[pi+1]){const p=plats[pi+1];if(!p.bx)p.bx=p.x;p.ph=(p.ph||0)+dt;p.x=p.bx+Math.sin(p.ph)*55;}
   if(phase==='charge'){power=Math.min(140,power+90*dt);squash=Math.min(.4,power/350);}
-  if(phase==='fly'){window._t+=dt;const t=window._t;px=window._sx+window._vx*t;py=window._sy+window._vy*t+480*t*t;
+  if(phase==='fly'){window._t+=dt;const t=window._t,g=window._g||900;
+    px=window._sx+window._vx*t;py=window._sy+window._vy*t+0.5*g*t*t;
     cam=Math.max(0,px-80);if(py>=GY-40){py=GY-40;land();}}
   if(squash>0)squash=Math.max(0,squash-dt*1.5);
   hud();}
@@ -610,7 +617,7 @@ function draw(){
       const c=p.x+p.w/2;FX.glow(ctx,'#ffd740',8);FX.tile(ctx,sx(c-p.w*.22)|0,(GY-26)|0,(p.w*.44)|0,26,'#ffd54f',6);FX.noGlow(ctx);}
     else{ctx.fillStyle='#43a047';ctx.fillRect(x,GY-26,p.w,26);}}
   // power gauge / hint
-  if(phase==='charge'||hint){const cur=plats[pi],nxt=plats[pi+1];if(nxt){const ideal=Math.hypot((nxt.x+nxt.w/2)-(cur.x+cur.w/2),0)/2.2;
+  if(phase==='charge'||hint){const cur=plats[pi],nxt=plats[pi+1];if(nxt){const ideal=Math.max(0,((nxt.x+nxt.w/2)-(cur.x+cur.w/2))/1.6);
     if(hint&&phase==='charge'){ctx.strokeStyle='rgba(255,215,64,.5)';ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(sx(px),py);ctx.quadraticCurveTo(sx(px+(nxt.x+nxt.w/2-px)/2),py-80,sx(nxt.x+nxt.w/2),GY-40);ctx.stroke();ctx.setLineDash([]);}
     ctx.fillStyle='#fff';ctx.fillRect(20,20,Math.min(120,power),8);ctx.strokeStyle='#ffd54f';ctx.strokeRect(20,20,120,8);
     if(hint){ctx.fillStyle='rgba(255,213,77,.35)';ctx.fillRect(20,20,Math.min(120,ideal),8);}}}
@@ -635,7 +642,7 @@ window.__T.state=()=>({hit,need:L&&(L.need||5),lives,phase,power,ended,boss:boss
 window.__T.fast=k=>{fast=k;};
 window.__T.cheatWin=()=>{hit=L.need||5;if(boss)boss.hp=0;endLv(true);};
 window.__T.solve=()=>{if(ended||Kit.state!=='play')return;if(phase==='idle'){phase='charge';power=0;}
-  if(phase==='charge'){const cur=plats[pi],nxt=plats[pi+1];if(!nxt)return;const dist=(nxt.x+nxt.w/2)-(cur.x+cur.w/2);power=Math.min(140,dist/2.2);release();}};
+  if(phase==='charge'){const cur=plats[pi],nxt=plats[pi+1];if(!nxt)return;const dist=(nxt.x+nxt.w/2)-(cur.x+cur.w/2);power=Math.min(140,Math.max(10,dist/1.6));release();}};
 </script>
 </body>
 </html>

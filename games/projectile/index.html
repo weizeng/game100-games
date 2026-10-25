@@ -41,6 +41,9 @@ body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-
 .row{display:flex;gap:6px;align-items:center;width:100%}
 .row input{flex:1;min-width:0;height:44px;accent-color:#ff5fa2}
 .row .ghost{min-width:46px;min-height:44px;font-size:18px!important;padding:0 6px!important}
+.stagebox{min-height:160px}
+@media(max-height:700px){.ctl{gap:3px}.row input{height:36px}.row .ghost{min-height:36px;min-width:40px}.wrap{padding:6px 8px;gap:4px}#fireBtn{min-height:44px!important;padding:8px 16px!important}}
+@media(max-height:600px){.stagebox{min-height:120px}.ctl .lab{font-size:11px}}
 .lab{min-width:52px;font-weight:900;text-align:center;font-size:13px}
 #fireBtn{min-height:48px;flex:1}
 
@@ -567,7 +570,7 @@ const LV=[
  {boss:{hp:6,name:'狂风靶王',t:75,tol:18}},
  {n:6,wind:40,mov:.65,tol:12,shots:5},{n:7,wind:42,mov:.7,tol:11,shots:6},{n:7,wind:45,mov:.7,tol:10,shots:5},{n:8,wind:48,mov:.75,tol:10,shots:6},
  {boss:{hp:8,name:'要塞靶皇',t:85,tol:16}}];
-let L,ang=45,spd=90,targets,ti,lives,shots,score,ended,raf=0,last=0,fast=1,flying,trail,ball,sparks,boss,bossT,wind,miss,ghost;
+let L,ang=45,spd=90,targets,ti,lives,shots,score,ended,raf=0,last=0,fast=1,flying,trail,ball,sparks,boss,bossT,wind=0,miss,ghost=[];
 function sync(){$('aR').value=ang;$('vR').value=spd;$('aV').textContent=ang+'°';$('vV').textContent=spd;}
 function mkTargets(n){const a=[];for(let i=0;i<n;i++){const x=120+i*((W-140)/Math.max(1,n-1))+Math.random()*10;const y=80+Math.random()*140;a.push({x,y,bx:x,by:y,r:16,ok:0,mv:Math.random()<(L.mov||0)?(30+Math.random()*40):0,ph:Math.random()*6});}return a;}
 function start(i){L=LV[i];score=0;ended=false;ti=0;lives=3+Kit.up('life');shots=L.boss?99:(L.shots+Kit.up('ammo'));flying=false;trail=[];sparks=[];miss=0;ang=45;spd=90;wind=(L.wind||0)*(Math.random()<.5?-1:1)*(1-Kit.up('wind')*.2);
@@ -577,7 +580,7 @@ function start(i){L=LV[i];score=0;ended=false;ti=0;lives=3+Kit.up('life');shots=
 [['aM',()=>ang=Math.max(15,ang-1)],['aP',()=>ang=Math.min(80,ang+1)],['vM',()=>spd=Math.max(40,spd-2)],['vP',()=>spd=Math.min(160,spd+2)]].forEach(([id,fn])=>$(id).addEventListener('click',()=>{fn();sync();Kit.sfx('tap');pred();}));
 $('aR').addEventListener('input',e=>{ang=+e.target.value;sync();pred();});$('vR').addEventListener('input',e=>{spd=+e.target.value;sync();pred();});
 $('fireBtn').addEventListener('click',fire);
-function pred(){ghost=[];const a=ang*Math.PI/180,vx=Math.cos(a)*spd,vy=-Math.sin(a)*spd;let x=CX0,y=CY0,vvx=vx,vvy=vy;for(let k=0;k<90;k++){vvy+=G*0.016;vvx+=wind*0.016;x+=vvx*0.016;y+=vvy*0.016;if(k%3===0)ghost.push({x,y});if(y>H||x>W+20||x<-20)break;}}
+function pred(){ghost=[];const w=Number.isFinite(wind)?wind:0;const a=ang*Math.PI/180,vx=Math.cos(a)*spd,vy=-Math.sin(a)*spd;let x=CX0,y=CY0,vvx=vx,vvy=vy;for(let k=0;k<90;k++){vvy+=G*0.016;vvx+=w*0.016;x+=vvx*0.016;y+=vvy*0.016;if(k%3===0)ghost.push({x,y});if(y>H||x>W+20||x<-20)break;}}
 function fire(){if(Kit.state!=='play'||ended||flying)return;if(shots<=0)return endLv(false,'炮弹打光了');shots--;flying=true;trail=[];const a=ang*Math.PI/180;ball={x:CX0,y:CY0,vx:Math.cos(a)*spd,vy:-Math.sin(a)*spd};Kit.sfx('hit');Kit.tone(180,.15,'square',.08);}
 function upd(dt){if(boss){boss.ph+=dt;boss.y=90+Math.sin(boss.ph*1.2)*80;boss.x=260+Math.sin(boss.ph*.7)*40;if(boss.flash>0)boss.flash-=dt;bossT-=dt;if(bossT<=0)return endLv(false,'时间到，'+boss.name+'还剩 '+boss.hp+' 血');}
   for(const t of targets){if(t.mv){t.ph+=dt;t.y=Math.max(40,Math.min(H-40,t.by+Math.sin(t.ph)*t.mv));t.x=t.bx+Math.cos(t.ph*.7)*t.mv*.4;}}
@@ -610,9 +613,10 @@ function draw(){FX?FX.stage(ctx,W,H,'#4a2040','#1a0a18'):(ctx.fillStyle='#241018
   if(flying&&ball){ctx.strokeStyle='rgba(255,112,67,.7)';ctx.lineWidth=2;ctx.beginPath();trail.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
     if(FX)FX.orb(ctx,ball.x|0,ball.y|0,7,'#ffd34d');else{ctx.fillStyle='#ffd34d';ctx.beginPath();ctx.arc(ball.x,ball.y,7,0,7);ctx.fill();}}
   if(FX)FX.drawBurst(ctx,sparks);}
-function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
-addEventListener('resize',layout);layout();pred();
-Kit.init({id:'projectile',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;flying=false;},pause:()=>{},label:i=>String(i+1),
+function layout(){const b=$('box');if(!b)return;const r=b.getBoundingClientRect();const bw=Math.max(1,r.width),bh=Math.max(1,r.height);const s=Math.min(bw/W,bh/H);cv.style.width=Math.max(1,Math.floor(W*s))+'px';cv.style.height=Math.max(1,Math.floor(H*s))+'px';}
+addEventListener('resize',layout);
+try{layout();pred();}catch(e){console.warn('projectile layout',e);}
+try{Kit.init({id:'projectile',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;flying=false;},pause:()=>{},label:i=>String(i+1),
   note:()=>'抛物线：x=v·cosθ·t，y=v·sinθ·t−½gt²；注意侧风',
   tut:[['瞄准','调<b>角度</b>和<b>初速</b>，虚线是预估弹道（含风力）。点「发射炮弹」。','🎯'],
        ['侧风','🌬 数字是水平风速，会把炮弹吹偏。升级「稳风仪」可减弱风力。','🌬'],
@@ -620,7 +624,10 @@ Kit.init({id:'projectile',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,s
        ['铁甲靶王','首领会左右躲闪，连续命中才能打掉护甲。可升级弹药、瞄准容差和加时。','🛡️']],
   ups:[{k:'life',ic:'❤️',name:'备用命',desc:'每关 +1',max:2,cost:l=>30+l*35},{k:'ammo',ic:'💥',name:'弹药',desc:'+1 发炮弹',max:2,cost:l=>35+l*40},
        {k:'aim',ic:'🎯',name:'弹着点',desc:'判定半径 +2',max:2,cost:l=>40+l*45,stars:6},{k:'wind',ic:'🌬',name:'稳风仪',desc:'风力 −20%',max:2,cost:l=>35+l*40},{k:'time',ic:'⏱',name:'加时',desc:'首领 +8 秒',max:2,cost:l=>25+l*30}]});
-window.__T.state=()=>({ang,spd,ti,need:targets.length,lives,shots,ended,flying,boss:boss&&{hp:boss.hp,x:boss.x,y:boss.y},wind,targets:targets.map(t=>({x:t.x,y:t.y,ok:t.ok}))});
+}catch(e){console.error('projectile init',e);try{const o=document.getElementById('startScr');if(o){o.classList.remove('hidden');const p=o.querySelector('p');if(p)p.textContent='加载出错，请重开本页。'+(e&&e.message?e.message:'');}}catch(_){}}
+requestAnimationFrame(()=>{try{layout();}catch(_){}});
+window.__T=window.__T||{};
+window.__T.state=()=>({ang,spd,ti,need:targets&&targets.length,lives,shots,ended,flying,boss:boss&&{hp:boss.hp,x:boss.x,y:boss.y},wind,targets:(targets||[]).map(t=>({x:t.x,y:t.y,ok:t.ok}))});
 window.__T.set=(a,v)=>{ang=a;spd=v;sync();pred();};window.__T.fire=fire;window.__T.fast=k=>{fast=k;};
 window.__T.solve=()=>{if(ended||flying)return;if(boss){ang=55;spd=110;sync();pred();fire();return;}
   const t=targets.find(x=>!x.ok);if(!t)return;let best=null;
