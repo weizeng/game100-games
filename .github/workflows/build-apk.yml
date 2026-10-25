@@ -1,9 +1,7 @@
 name: 构建 App APK（release）
-# 手动运行：云端编译 direct 渠道 release APK（正式签名，含 App 内自升级）、
-# 发布到 releases/、更新 app.json（direct 版自升级用）、刷新 CDN。
-# 以前是 push 到 android/** 或 games/** 时自动运行，常与 publish.yml 抢着 push main 而失败；
-# 现在由 muse 打包，所以改成只能手动触发。需要恢复自动的话，把 push 触发加回来即可。
-# Play / 国内商店 / TapTap 的包不走这里，见 docs/ANDROID-BUILD-FOR-MUSE.md 和 publish-stores.yml。
+# 手动运行：编译 cn / direct / play 三渠道 release APK（正式签名）、
+# 写入 releases/、打 GitHub Release tag、更新 app.json（direct 自升级用）。
+# Play AAB / 商店上架仍见 publish-stores.yml。
 on:
   workflow_dispatch:
 permissions:
@@ -11,6 +9,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -19,17 +20,20 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: 安装 Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: 安装 Android SDK 组件
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
 
       - name: 还原 release 签名密钥
         run: |
           base64 -d android-release.keystore.b64 > /tmp/release.keystore
           echo "keystore 已还原"
 
-      - name: 编译 direct 渠道 release APK
+      - name: 编译 cn / direct / play release APK
         env:
           GAME100_RELEASE_STOREFILE: /tmp/release.keystore
           GAME100_RELEASE_STOREPASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
@@ -38,44 +42,95 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDirectRelease -x lint
+          ./gradlew assembleCnRelease assembleDirectRelease assemblePlayRelease -x lint
 
-      - name: 发布 APK 并更新 app.json
+      - name: 发布 APK、更新 app.json、打 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
-          APK="$(ls android/app/build/outputs/apk/direct/release/*.apk | head -1)"
-          VC="$("$AAPT" dump badging "$APK" | grep -oP "versionCode='\K[0-9]+")"
-          VN="$("$AAPT" dump badging "$APK" | grep -oP "versionName='\K[^']+")"
-          echo "versionCode=$VC versionName=$VN"
           mkdir -p releases
-          # 只保留最新版 APK
           rm -f releases/*.apk
-          APK_NAME="game100-v${VN}-release.apk"
-          cp "$APK" "releases/$APK_NAME"
-          CHANGELOG="$(git log -1 --pretty=%s -- android/ | head -1)"
-          python3 - "$VC" "$VN" "$APK_NAME" "$CHANGELOG" <<'EOF'
-          import json, sys, datetime
-          vc, vn, apk_name, changelog = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] or "版本更新"
-          base = "https://raw.githubusercontent.com/weizeng/game100-games/main"
-          info = {
-              "versionCode": int(vc),
-              "versionName": vn,
-              "apkUrl": f"{base}/releases/{apk_name}",
-              "changelog": changelog,
-              "updated": datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-          }
-          json.dump(info, open('app.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-          print(json.dumps(info, ensure_ascii=False))
-          EOF
+
+          declare -A OUT
+          OUT[cn]=android/app/build/outputs/apk/cn/release
+          OUT[direct]=android/app/build/outputs/apk/direct/release
+          OUT[play]=android/app/build/outputs/apk/play/release
+
+          VC=""; VN=""
+          for ch in cn direct play; do
+            APK="$(ls "${OUT[$ch]}"/*.apk | head -1)"
+            this_vc="$("$AAPT" dump badging "$APK" | grep -oP "versionCode='\K[0-9]+")"
+            this_vn="$("$AAPT" dump badging "$APK" | grep -oP "versionName='\K[^']+")"
+            echo "$ch: versionCode=$this_vc versionName=$this_vn file=$APK"
+            if [ -z "$VC" ]; then VC="$this_vc"; VN="$this_vn"; fi
+            if [ "$this_vc" != "$VC" ] || [ "$this_vn" != "$VN" ]; then
+              echo "version mismatch across flavors" >&2; exit 1
+            fi
+            cp "$APK" "releases/game100-${ch}-${VN}.apk"
+          done
+          # direct 自升级历史文件名兼容
+          cp "releases/game100-direct-${VN}.apk" "releases/game100-v${VN}-release.apk"
+
+          N_GAMES="$(find games -mindepth 1 -maxdepth 1 -type d | wc -l)"
+          CHANGELOG=$(cat <<CHG
+v${VN}: 修复「更新不到新游戏 / 飞刀入木仍是旧版」——仓库已超 jsDelivr 50MB 限制，cdn@main 常卡住旧 manifest；本版默认游戏源改走 GitHub raw，推荐位按 featured 最新在前。cn 离线包重新内置全部 ${N_GAMES} 款（含飞刀入木 v2、今日 bugfix 与新增）。覆盖安装即可，进度保留。
+CHG
+)
+
+          # apkUrl：GitHub Release 直链（不经 jsDelivr）
+          APK_REL="game100-direct-${VN}.apk"
+          APK_URL="https://github.com/weizeng/game100-games/releases/download/v${VN}/${APK_REL}"
+          python3 -c '
+import json, sys, datetime
+vc, vn, apk_url, changelog = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+info = {
+  "versionCode": int(vc),
+  "versionName": vn,
+  "apkUrl": apk_url,
+  "changelog": changelog,
+  "updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+}
+json.dump(info, open("app.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print(json.dumps(info, ensure_ascii=False, indent=2))
+' "$VC" "$VN" "$APK_URL" "$CHANGELOG"
+
           git config user.name "game100-bot"
           git config user.email "game100-bot@users.noreply.github.com"
-          git pull --rebase origin main || true
+          git fetch origin main && git rebase origin/main || { git rebase --abort || true; git pull --rebase origin main; }
           git add releases app.json
-          if git diff --cached --quiet; then echo "无变化"; exit 0; fi
-          git commit -m "发布 App v${VN} [skip ci]"
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "发布 App v${VN}（cn/direct/play）[skip ci]"
+            git push
+          else
+            echo "releases/app.json 无变化"
+          fi
 
-      - name: 刷新 CDN 缓存
-        run: |
-          curl -s "https://purge.jsdelivr.net/gh/weizeng/game100-games@main/app.json" -o /dev/null || true
+          # 打/更新 GitHub Release
+          TAG="v${VN}"
+          NOTES=$(cat <<NOTES
+## 游戏100 ${VN}（versionCode ${VC}）
+
+${CHANGELOG}
+
+### 下载
+- **国内离线包（cn）**：\`game100-cn-${VN}.apk\` ← 你现在用的渠道，必须装这个才能拿到内置新游戏
+- **官网直装（direct）**：\`game100-direct-${VN}.apk\`（可自升级）
+- **Play/TapTap 用（play）**：\`game100-play-${VN}.apk\`
+
+覆盖安装即可，本地进度保留。
+NOTES
+)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" releases/game100-cn-${VN}.apk releases/game100-direct-${VN}.apk releases/game100-play-${VN}.apk releases/game100-v${VN}-release.apk --clobber
+            gh release edit "$TAG" --notes "$NOTES"
+          else
+            gh release create "$TAG" \
+              releases/game100-cn-${VN}.apk \
+              releases/game100-direct-${VN}.apk \
+              releases/game100-play-${VN}.apk \
+              releases/game100-v${VN}-release.apk \
+              --title "游戏100 ${VN}" \
+              --notes "$NOTES"
+          fi
