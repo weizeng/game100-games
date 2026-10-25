@@ -6,6 +6,10 @@
 <title>简单电路</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-1 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -628,7 +632,14 @@ function hud(){$('lvT').textContent=Kit.lv+1;$('tryT').textContent=tries;$('scor
 function endLv(won,why){if(ended)return;ended=true;if(won){const st=used===0?3:used===1?2:1;score+=L.boss?Math.round(timeLeft)*10:0;
     setTimeout(()=>Kit.win(st,score,(L.boss?'击退 '+L.boss.name+'！':'电路正常工作！')+'　失败试验 '+used+' 次<br>三星：一次成功 · 二星：失败 ≤1 次'),300);}
   else setTimeout(()=>Kit.lose(why,score),300);}
-function draw(){FX?FX.stage(ctx,W,H,'#14204a','#070b1e'):(ctx.fillStyle='#0d1430',ctx.fillRect(0,0,W,H));if(!L)return;
+
+/* ART T2-1: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+function draw(){ctx.drawImage(ensureLabBg('#14204a','#070b1e'),0,0);if(!L)return;
   const ok=result&&result.state==='ok';ctx.strokeStyle=ok?'#ffd75e':'#5d6a96';ctx.lineWidth=6;ctx.lineJoin='round';ctx.strokeRect(40,46,W-80,H-106);
   // 开关
   const sx=64,sy=46;ctx.fillStyle='#0d1430';ctx.fillRect(sx-18,sy-8,36,16);ctx.strokeStyle=ok?'#5ef2b8':'#c9d3e6';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(sx-16,sy);ctx.lineTo(ok?sx+16:sx+10,ok?sy:sy-18);ctx.stroke();

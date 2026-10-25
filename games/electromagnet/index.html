@@ -6,6 +6,10 @@
 <title>电磁铁</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-1 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -610,8 +614,15 @@ function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('sco
 function endLv(won,why){ended=true;if(won){const st=miss===0?3:miss===1?2:1;
     setTimeout(()=>Kit.win(st,score,boss?'击退 '+boss.name+'！剩余 '+Math.ceil(bossT)+' 秒':'完成 '+orders+' 张订单，失误 '+miss+' 次<br>三星：0 失误 · 二星：1 失误'),500);}
   else setTimeout(()=>Kit.lose(why,score),400);}
+
+/* ART T2-1: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
 function draw(){const sx=shake>0?(Math.random()-.5)*6:0;ctx.save();ctx.translate(sx,0);
-  FX?FX.stage(ctx,W,H,'#1d2a5c','#0a0820'):(ctx.fillStyle='#101030',ctx.fillRect(0,0,W,H));if(!L){ctx.restore();return;}
+  ctx.drawImage(ensureLabBg('#1d2a5c','#0a0820'),0,0);if(!L){ctx.restore();return;}
   const on=hang>0,str=Math.min(1,N*I/1600);
   // 吊臂
   ctx.fillStyle='#3b4470';ctx.fillRect(20,18,320,10);if(FX)FX.tile(ctx,166,26,28,40,'#8892c0',4);else{ctx.fillStyle='#8892c0';ctx.fillRect(166,26,28,40);}

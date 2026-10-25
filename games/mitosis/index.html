@@ -6,6 +6,10 @@
 <title>细胞分裂</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-1 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -597,7 +601,14 @@ function drawPhase(ph,cx,cy){ctx.save();ctx.translate(cx,cy);
   else if(ph===3){ctx.fillStyle='rgba(206,147,216,.35)';ctx.beginPath();ctx.ellipse(-28,0,22,28,0,0,7);ctx.fill();ctx.beginPath();ctx.ellipse(28,0,22,28,0,0,7);ctx.fill();}
   else{ctx.strokeStyle='#26a69a';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(-32,0,30,40,0,0,7);ctx.stroke();ctx.beginPath();ctx.ellipse(32,0,30,40,0,0,7);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-50);ctx.lineTo(0,50);ctx.stroke();}
   ctx.restore();}
-function draw(){FX?FX.stage(ctx,W,H,'#0d3d38','#041816'):(ctx.fillStyle='#06221f',ctx.fillRect(0,0,W,H));
+
+/* ART T2-1: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+function draw(){ctx.drawImage(ensureLabBg('#0d3d38','#041816'),0,0);
   const ph=mode==='id'?showId:Math.min(4,step);drawPhase(ph,W/2,H/2);
   ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText(mode==='id'?'? ? ?':PHASES[Math.min(4,step)].n+(step>=5?' ✓':''),W/2,24);
   if(boss){ctx.fillStyle=boss.flash>0?'#fff':'#ef5350';ctx.font='20px sans-serif';ctx.fillText('🦠',W/2,H-20);}

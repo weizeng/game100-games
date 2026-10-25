@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>晶体生长</title>
 <style>
+/* ART T2-1 */
+html.game-ui .iconbtn,html.game-ui .icobtn,html.game-ui #btnPause,html.game-ui #btnMute,html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #btnSound{min-width:44px;min-height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 260px)*1.2));max-width:min(480px,calc((100svh - 260px)*1.2))}
+
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;background:#0b1622;color:#e8f4fd;font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;}
 #app{max-width:560px;margin:0 auto;padding:10px 12px 28px;}
@@ -621,6 +625,15 @@ function tempColor(t) {
   const hue = 210 - clamp(t / 90, 0, 1) * 200;   // 冷蓝 → 热橙红
   return 'hsl(' + hue.toFixed(0) + ',72%,42%)';
 }
+/* ART T2-1 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+/* ART T2-1: candy-depth */
+var crBg=null,crBgKey='';
+function ensureCrBg(){
+  var k=W+'x'+H; if(crBg&&crBgKey===k)return crBg; crBgKey=k;
+  var c=document.createElement('canvas'); c.width=W; c.height=H; var g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,'#0e2a48','#061018'); else {g.fillStyle='#0e1c2d';g.fillRect(0,0,W,H);}
+  crBg=c; return crBg;
+}
 function drawBeaker(m, liquidAlpha) {
   ctx.save();
   // 溶液
@@ -650,8 +663,9 @@ function drawBeaker(m, liquidAlpha) {
 function drawThermometer(m) {
   const x = m.cx - m.wTop / 2 - 34, y0 = m.top + 6, y1 = m.bottom - 6;
   ctx.save();
-  ctx.fillStyle = '#0a1520'; ctx.strokeStyle = '#3a5a7d'; ctx.lineWidth = 2;
-  roundRect(x - 8, y0, 16, y1 - y0, 8); ctx.fill(); ctx.stroke();
+  if(FX){FX.tile(ctx,(x-8)|0,y0|0,16,(y1-y0)|0,'#1a3050',8);}
+  else{ctx.fillStyle = '#0a1520'; ctx.strokeStyle = '#3a5a7d'; ctx.lineWidth = 2;
+  roundRect(x - 8, y0, 16, y1 - y0, 8); ctx.fill(); ctx.stroke();}
   const f = clamp(S.shownTemp / 90, 0, 1);
   ctx.fillStyle = tempColor(S.shownTemp);
   const hh = (y1 - y0 - 10) * f;
@@ -682,6 +696,7 @@ function drawCrystal(c, x, y, r, rot, purity) {
   g.addColorStop(0.5, 'rgba(150,190,250,0.92)');
   g.addColorStop(1, 'rgba(126,87,194,0.95)');
   poly(pts); c.fillStyle = g; c.fill();
+  if(FX){ try{ FX.glow(c,'#a0d0ff',10); poly(pts); c.strokeStyle='rgba(255,255,255,.5)'; c.stroke(); FX.noGlow(c);}catch(e){} }
   // 刻面线
   c.strokeStyle = 'rgba(255,255,255,0.55)'; c.lineWidth = 1.5;
   pts.forEach(q => { c.beginPath(); c.moveTo(0, 0); c.lineTo(q[0], q[1]); c.stroke(); });
@@ -710,18 +725,20 @@ function drawSparkles(c) {
     if (t >= 1) return;
     const a = t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75;
     const s = 3 + 5 * Math.sin(t * Math.PI);
-    c.strokeStyle = 'rgba(255,250,210,' + (a * 0.95).toFixed(2) + ')';
+    if(FX){c.globalAlpha=a;FX.orb(c,p.x|0,p.y|0,Math.max(2,s|0),'#fffad2');c.globalAlpha=1;}
+    else{c.strokeStyle = 'rgba(255,250,210,' + (a * 0.95).toFixed(2) + ')';
     c.lineWidth = 1.6;
     c.beginPath();
     c.moveTo(p.x - s, p.y); c.lineTo(p.x + s, p.y);
     c.moveTo(p.x, p.y - s); c.lineTo(p.x, p.y + s);
-    c.stroke();
+    c.stroke();}
   });
   c.restore();
 }
 
 function render() {
   ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(ensureCrBg(),0,0);
   const m = beaker();
   S.maxR = Math.min(72, (m.bottom - m.liquidY) * 0.52);
 
@@ -731,8 +748,8 @@ function render() {
     // 溶质颗粒下落溶解
     ctx.save();
     S.grains.forEach(p => {
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.beginPath(); ctx.arc(p.x, p.y, 2.4, 0, Math.PI * 2); ctx.fill();
+      if(FX)FX.orb(ctx,p.x|0,p.y|0,3,'#e8f4fd');
+      else{ctx.fillStyle = 'rgba(255,255,255,0.9)';ctx.beginPath(); ctx.arc(p.x, p.y, 2.4, 0, Math.PI * 2); ctx.fill();}
     });
     ctx.restore();
     // 气泡

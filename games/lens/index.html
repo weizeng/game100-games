@@ -6,6 +6,10 @@
 <title>凸透镜成像</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-1 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -619,7 +623,14 @@ function endLv(won,why){ended=true;if(won){const st=boss?(bossT>L.boss.t*.45?3:b
     setTimeout(()=>Kit.win(st,score,boss?'击退 '+boss.name+'！剩余 '+Math.ceil(bossT)+' 秒':'用 '+used+' 张胶片完成 '+tasks+' 个任务<br>三星：一次命中全部 · 二星：只多用 1 张'),500);}
   else setTimeout(()=>Kit.lose(why,score),400);}
 function arrow(x,y,h,col,w){ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=w||3;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-h);ctx.stroke();const d=h>0?1:-1;ctx.beginPath();ctx.moveTo(x,y-h);ctx.lineTo(x-5,y-h+7*d);ctx.lineTo(x+5,y-h+7*d);ctx.fill();}
-function draw(){FX?FX.stage(ctx,W,H,'#241a5a','#0b0722'):(ctx.fillStyle='#120c30',ctx.fillRect(0,0,W,H));if(!L)return;
+
+/* ART T2-1: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+function draw(){ctx.drawImage(ensureLabBg('#241a5a','#0b0722'),0,0);if(!L)return;
   // 光具座
   {const bg=ctx.createLinearGradient(0,AY+54,0,AY+70);bg.addColorStop(0,'#8a93c0');bg.addColorStop(1,'#3b4470');ctx.fillStyle=bg;ctx.fillRect(6,AY+54,348,14);ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(10,AY+68,340,5);}
   ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;ctx.setLineDash([4,5]);ctx.beginPath();ctx.moveTo(0,AY);ctx.lineTo(W,AY);ctx.stroke();ctx.setLineDash([]);

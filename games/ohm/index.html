@@ -6,6 +6,10 @@
 <title>欧姆定律</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-1 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -627,7 +631,14 @@ function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('sco
 function endLv(won,why){ended=true;if(won){const st=miss===0?3:miss===1?2:1;
     setTimeout(()=>Kit.win(st,score,boss?'击退 '+boss.name+'！剩余 '+Math.ceil(bossT)+' 秒':'完成 '+tasks+' 个任务，失误 '+miss+' 次<br>三星：0 失误 · 二星：1 失误'),500);}
   else setTimeout(()=>Kit.lose(why,score),400);}
-function draw(){FX?FX.stage(ctx,W,H,'#1b2d55','#081020'):(ctx.fillStyle='#0d1630',ctx.fillRect(0,0,W,H));if(!L||!task)return;
+
+/* ART T2-1: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+function draw(){ctx.drawImage(ensureLabBg('#1b2d55','#081020'),0,0);if(!L||!task)return;
   // 电路回路
   const x0=40,y0=40,x1=320,y1=200;ctx.strokeStyle=on>0?'#ffd34d':'#7a86b8';ctx.lineWidth=5;ctx.lineJoin='round';ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   if(on>0){ctx.fillStyle='#7cf3ff';const per=2*(x1-x0+y1-y0);for(let k=0;k<18;k++){let d=((k/18*per)+flow*30)%per;let x,y;if(d<x1-x0){x=x0+d;y=y0;}else if((d-=x1-x0)<y1-y0){x=x1;y=y0+d;}else if((d-=y1-y0)<x1-x0){x=x1-d;y=y1;}else{d-=x1-x0;x=x0;y=y1-d;}ctx.beginPath();ctx.arc(x,y,3,0,7);ctx.fill();}}

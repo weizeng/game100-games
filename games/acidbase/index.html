@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>酸碱中和 · 滴定实验</title>
 <style>
+/* ART T2-1 */
+html.game-ui .iconbtn,html.game-ui .icobtn,html.game-ui #btnPause,html.game-ui #btnMute,html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #btnSound{min-width:44px;min-height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 260px)*1.2));max-width:min(480px,calc((100svh - 260px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{
@@ -745,10 +749,21 @@ function sizeCanvas(){
 var PADL=34, PADR=12, PADT=12, PADB=26;
 function xOf(v,w){ return PADL+(v/60)*(w-PADL-PADR); }
 function yOf(ph,h){ return PADT+(1-(ph-1)/12)*(h-PADT-PADB); }
+/* ART T2-1 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+/* ART T2-1: candy-depth */
+var abBg=null,abBgKey='';
+function ensureAbBg(w,h){
+  var k=w+'x'+h; if(abBg&&abBgKey===k)return abBg; abBgKey=k;
+  var c=document.createElement('canvas'); c.width=Math.ceil(w); c.height=Math.ceil(h);
+  var g=c.getContext('2d');
+  if(FX)FX.stage(g,w,h,'#1a1450','#07051a'); else {g.fillStyle='#0a0420';g.fillRect(0,0,w,h);}
+  abBg=c; return abBg;
+}
 function drawCurve(){
   var w=cv.getBoundingClientRect().width, h=cv.getBoundingClientRect().height;
   if(!w||!h) return;
   ctx.clearRect(0,0,w,h);
+  ctx.drawImage(ensureAbBg(w,h),0,0);
   ctx.font='10px sans-serif'; ctx.textAlign='center';
   // 网格
   for(var ph=1;ph<=13;ph+=2){
@@ -788,9 +803,10 @@ function drawCurve(){
   if(state.history.length){
     var last=state.history[state.history.length-1];
     var lx=xOf(last[0],w), ly=yOf(last[1],h);
-    ctx.fillStyle='#ff8ab3'; ctx.beginPath(); ctx.arc(lx,ly,5,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle='#fff'; ctx.stroke();
+    if(FX){FX.glow(ctx,'#ff8ab3',10);FX.orb(ctx,lx|0,ly|0,6,'#ff8ab3');FX.noGlow(ctx);}
+    else{ctx.fillStyle='#ff8ab3'; ctx.beginPath(); ctx.arc(lx,ly,5,0,Math.PI*2); ctx.fill();ctx.strokeStyle='#fff'; ctx.stroke();}
   }
+  if(FX)FX.drawBurst(ctx,sparks);
 }
 
 /* ================= 状态刷新 ================= */

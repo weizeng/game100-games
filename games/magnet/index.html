@@ -6,6 +6,10 @@
 <title>磁铁实验</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-1 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -595,7 +599,14 @@ function endLv(won,why){if(ended)return;ended=true;hud();if(won){const st=boss?(
     setTimeout(()=>Kit.win(st,score,boss?'击退 '+boss.name+'！剩余 '+Math.ceil(bossT)+' 秒':'吸到 '+gems+' 颗宝石（达标 '+need+'），被炸 '+miss+' 次<br>三星：超额 25% 且不被炸'),500);}
   else setTimeout(()=>Kit.lose(why,score),400);}
 function poleC(p){return p==='N'?'#ff4d6d':'#3bb8ff';}
-function draw(){const sx=shake>0?(Math.random()-.5)*8:0;ctx.save();ctx.translate(sx,0);FX?FX.stage(ctx,W,H,'#2a1b5e','#0b0722'):(ctx.fillStyle='#160e38',ctx.fillRect(0,0,W,H));if(!L){ctx.restore();return;}
+
+/* ART T2-1: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+function draw(){const sx=shake>0?(Math.random()-.5)*8:0;ctx.save();ctx.translate(sx,0);ctx.drawImage(ensureLabBg('#2a1b5e','#0b0722'),0,0);if(!L){ctx.restore();return;}
   for(let k=0;k<3;k++){ctx.fillStyle=k===lane?'rgba(255,255,255,.07)':'rgba(255,255,255,.025)';ctx.fillRect(k*120+6,0,108,H);}
   // 磁感线
   const px=LN[lane];ctx.globalAlpha=.35;ctx.strokeStyle=poleC(pole);ctx.lineWidth=1.5;for(let k=1;k<=4;k++){ctx.beginPath();ctx.ellipse(px,PY,24+k*16,18+k*20,0,Math.PI,0);ctx.stroke();}ctx.globalAlpha=1;

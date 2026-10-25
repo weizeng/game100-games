@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>肺活量测试</title>
 <style>
+/* ART T2-1 */
+html.game-ui .iconbtn,html.game-ui .icobtn,html.game-ui #btnPause,html.game-ui #btnMute,html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #btnSound{min-width:44px;min-height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 260px)*1.2));max-width:min(480px,calc((100svh - 260px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{background:#0b0e14;color:#eef2f7;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;justify-content:center;user-select:none;-webkit-user-select:none;touch-action:manipulation}
@@ -591,15 +595,25 @@ function rr(c,x,y,w,h,r){
 }
 
 /* ---------- 绘制 ---------- */
+/* ART T2-1 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+/* ART T2-1: candy-depth */
+var luBg=null,luBgKey='';
+function ensureLuBg(){
+  var k=W+'x'+H; if(luBg&&luBgKey===k)return luBg; luBgKey=k;
+  var c=document.createElement('canvas'); c.width=W; c.height=H; var g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,'#0e2a48','#061018'); else {g.fillStyle='#07090d';g.fillRect(0,0,W,H);}
+  luBg=c; return luBg;
+}
 function drawLungs(){
   var f=lungF;
   ctx.clearRect(0,0,W,H);
+  ctx.drawImage(ensureLuBg(),0,0);
   /* 胸廓外框 */
   ctx.strokeStyle='rgba(140,180,220,0.22)'; ctx.lineWidth=3;
   rr(ctx,38,48,284,272,42); ctx.stroke();
   /* 气管 */
-  ctx.fillStyle='#d98ca6';
-  rr(ctx,168,8,24,62,10); ctx.fill();
+  if(FX){FX.tile(ctx,168,8,24,62,'#d98ca6',10);}
+  else{ctx.fillStyle='#d98ca6';rr(ctx,168,8,24,62,10); ctx.fill();}
   /* 支气管 */
   ctx.strokeStyle='#d98ca6'; ctx.lineWidth=11; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(176,64); ctx.lineTo(132,100); ctx.stroke();
@@ -609,8 +623,10 @@ function drawLungs(){
   var g=ctx.createLinearGradient(0,80,0,270);
   g.addColorStop(0,'#f8bbd0'); g.addColorStop(1,'#ec407a');
   ctx.fillStyle=g;
+  if(FX)FX.glow(ctx,'#ec407a',14);
   ctx.beginPath(); ctx.ellipse(118,172,54*sc,80*sc,0,0,Math.PI*2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(242,172,54*sc,80*sc,0,0,Math.PI*2); ctx.fill();
+  if(FX)FX.noGlow(ctx);
   ctx.fillStyle='rgba(255,255,255,0.16)';
   ctx.beginPath(); ctx.ellipse(104,150,22*sc,36*sc,-0.25,0,Math.PI*2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(228,150,22*sc,36*sc,-0.25,0,Math.PI*2); ctx.fill();
@@ -622,8 +638,8 @@ function drawLungs(){
     var p=airParts[i];
     ctx.save();
     ctx.globalAlpha=Math.max(0,Math.min(1,p.life));
-    ctx.fillStyle='#a5dcff';
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    if(FX)FX.orb(ctx,p.x|0,p.y|0,Math.max(2,p.r|0),'#a5dcff');
+    else{ctx.fillStyle='#a5dcff';ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();}
     ctx.restore();
   }
   /* 膈肌：吸气时下降变平，呼气时上升成穹顶 */

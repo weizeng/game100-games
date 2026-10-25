@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>自由落体</title>
 <style>
+/* ART T2-1 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui .iconBtn{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
 #cv{position:fixed;inset:0;display:block}
@@ -468,6 +471,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 'use strict';
 /* ============ 基础框架 ============ */
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+/* ART T2-1 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
 var W=0,H=0,DPR=1,PANEL_H=0;
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2);
@@ -593,12 +597,36 @@ function updDust(dt){
     p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=300*dt;
   }
 }
+/* ART T2-1: candy-depth renderer (GameUI.fx); flat path stays as no-FX fallback */
+var ffBg=null,ffBgKey='';
+function ensureFfBg(G){
+  var k=W+'x'+H+'x'+G.groundY+'x'+G.towerPx+'x'+G.tx;
+  if(ffBg&&ffBgKey===k)return ffBg;ffBgKey=k;
+  var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');
+  if(FX)FX.stage(g,W,G.groundY,'#1a2758','#0a1028');else{g.fillStyle='#0d1330';g.fillRect(0,0,W,G.groundY);}
+  g.fillStyle='rgba(255,255,255,.55)';
+  for(var s=0;s<28;s++){var sx=(s*173)%W,sy=(s*97)%Math.max(60,G.groundY-10);g.fillRect(sx,sy,1.6,1.6);}
+  g.fillStyle='#1b2438';g.fillRect(0,G.groundY,W,H-G.groundY);
+  g.fillStyle='#2e3a58';g.fillRect(0,G.groundY,W,4);
+  g.save();var lean=G.towerPx*0.10;g.translate(G.tx,G.topY);
+  if(FX){FX.tile(g,0|0,0|0,G.tw|0,G.towerPx|0,'#a89f93',6);}
+  else{g.fillStyle='#a89f93';g.beginPath();g.moveTo(0,0);g.lineTo(G.tw,0);g.lineTo(G.tw+lean,G.towerPx);g.lineTo(lean,G.towerPx);g.closePath();g.fill();}
+  g.strokeStyle='#7d7466';g.lineWidth=2;
+  for(var l=1;l<6;l++){var yy=G.towerPx*l/6,off=lean*l/6;g.beginPath();g.moveTo(off,yy);g.lineTo(off+G.tw,yy);g.stroke();}
+  if(FX){FX.tile(g,(-lean*0.4)|0,-22,((G.tw+lean*0.8)|0),24,'#b7ae9f',4);}
+  else{g.fillStyle='#b7ae9f';g.fillRect(-lean*0.4,-22,G.tw+lean*0.8,24);}
+  g.fillStyle='#0a0e1a';g.fillRect(-lean*0.4+6,-16,G.tw+lean*0.8-12,12);
+  g.restore();
+  g.fillStyle='#8f8678';g.font='12px sans-serif';g.textAlign='center';
+  g.fillText('比萨斜塔',G.tx+G.tw/2+lean/2,G.groundY+14);
+  ffBg=c;return ffBg;
+}
 function drawDust(){
   for(var i=0;i<dust.length;i++){
     var p=dust[i];
     ctx.globalAlpha=Math.max(0,Math.min(1,p.life));
-    ctx.fillStyle='#c9b48a';
-    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.29);ctx.fill();
+    if(FX)FX.orb(ctx,p.x|0,p.y|0,Math.max(2,p.r|0),'#c9b48a');
+    else{ctx.fillStyle='#c9b48a';ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.29);ctx.fill();}
   }
   ctx.globalAlpha=1;
 }
@@ -614,46 +642,16 @@ function geom(){
   return {towerPx:towerPx,groundY:groundY,topY:topY,tw:tw,tx:tx,ax:ax,bx:bx,scale:towerPx/h};
 }
 function drawScene(G,ya,yb,tagText){
-  /* 星空 */
-  ctx.fillStyle='#0d1330';
-  ctx.fillRect(0,0,W,G.groundY);
-  ctx.fillStyle='rgba(255,255,255,.5)';
-  for(var s=0;s<28;s++){var sx=(s*173)%W,sy=(s*97)%Math.max(60,G.groundY-10);ctx.fillRect(sx,sy,1.6,1.6);}
-  /* 地面 */
-  ctx.fillStyle='#1b2438';ctx.fillRect(0,G.groundY,W,H-G.groundY);
-  ctx.fillStyle='#2e3a58';ctx.fillRect(0,G.groundY,W,4);
-  /* 比萨斜塔简笔画 */
-  ctx.save();
-  var lean=G.towerPx*0.10;
-  ctx.translate(G.tx,G.topY);
-  ctx.fillStyle='#a89f93';
-  ctx.beginPath();
-  ctx.moveTo(0,0);ctx.lineTo(G.tw,0);ctx.lineTo(G.tw+lean,G.towerPx);ctx.lineTo(lean,G.towerPx);ctx.closePath();ctx.fill();
-  ctx.strokeStyle='#7d7466';ctx.lineWidth=2;
-  for(var l=1;l<6;l++){
-    var yy=G.towerPx*l/6,off=lean*l/6;
-    ctx.beginPath();ctx.moveTo(off,yy);ctx.lineTo(off+G.tw,yy);ctx.stroke();
-  }
-  /* 顶层钟楼 */
-  ctx.fillStyle='#b7ae9f';ctx.fillRect(-lean*0.4,-22,G.tw+lean*0.8,24);
-  ctx.fillStyle='#0a0e1a';ctx.fillRect(-lean*0.4+6,-16,G.tw+lean*0.8-12,12);
-  ctx.restore();
-  ctx.fillStyle='#8f8678';ctx.font='12px sans-serif';ctx.textAlign='center';
-  ctx.fillText('比萨斜塔',G.tx+G.tw/2+lean/2,G.groundY+14);
-  /* A铁球 */
-  drawBall(G.ax,ya,13,'#90a4ae','#546e7a','A 铁球');
-  /* B纸团 */
-  drawBall(G.bx,yb,10,'#fff176','#f9a825','B 纸团');
-  /* 阶段标签 */
+  ctx.drawImage(ensureFfBg(G),0,0);
+  drawBall(G.ax,ya,13,'#90a4ae','A 铁球');
+  drawBall(G.bx,yb,10,'#fff176','B 纸团');
   if(tagText){ctx.fillStyle='#4fc3f7';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(tagText,W/2,34);}
 }
-function drawBall(x,ym,r,c1,c2,label){
+function drawBall(x,ym,r,col,label){
   var G=geomCache;
   var y=G.topY+16+ym*G.scale;
-  var grd=ctx.createRadialGradient(x-r*0.3,y-r*0.3,r*0.2,x,y,r);
-  grd.addColorStop(0,c1);grd.addColorStop(1,c2);
-  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(x,y,r,0,6.29);ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1.5;ctx.stroke();
+  if(FX){FX.shadow(ctx,x,y+r+2,r*0.7,3,.35);FX.orb(ctx,x|0,y|0,r|0,col);}
+  else{var grd=ctx.createRadialGradient(x-r*0.3,y-r*0.3,r*0.2,x,y,r);grd.addColorStop(0,col);grd.addColorStop(1,'#546e7a');ctx.fillStyle=grd;ctx.beginPath();ctx.arc(x,y,r,0,6.29);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1.5;ctx.stroke();}
   ctx.fillStyle='#e8eaf6';ctx.font='12px sans-serif';ctx.textAlign='center';
   ctx.fillText(label,x,y+r+14);
 }
@@ -669,7 +667,7 @@ window.onFrame=function(dt){
     var ym=Math.min(h,0.5*g*animT*animT);
     ya=yb=ym; tag='🚫 无空气阻力：同步下落';
     if(animT>=tN&&!landedN){
-      landedN=true;addDust(G.ax,G.groundY);addDust(G.bx,G.groundY);
+      landedN=true;addDust(G.ax,G.groundY);addDust(G.bx,G.groundY);if(FX){FX.burst(sparks,G.ax,G.groundY,'#c9b48a',10);FX.burst(sparks,G.bx,G.groundY,'#c9b48a',10);}
       floatText(W/2,G.groundY-70,'同时落地','#66BB6A');
       buzz(60);
       $('readout').innerHTML='✅ 无阻力：两球<b>同时落地</b>！t='+f2(tN)+'s，末速v=√(2gh)='+f2(vN)+'m/s';
@@ -703,6 +701,7 @@ window.onFrame=function(dt){
   }
   drawScene(G,ya,yb,tag);
   drawDust();
+  if(FX)FX.drawBurst(ctx,sparks);
 };
 window.onResize=function(){};
 </script>

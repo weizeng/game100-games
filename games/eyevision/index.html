@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>眼睛成像</title>
 <style>
+/* ART T2-1 */
+html.game-ui .iconbtn,html.game-ui .icobtn,html.game-ui #btnPause,html.game-ui #btnMute,html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #btnSound{min-width:44px;min-height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 260px)*1.2));max-width:min(480px,calc((100svh - 260px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#12161f;color:#e8eef4;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:440px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -588,6 +592,16 @@ function rr(x,y,w,h,r){
   ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);
   ctx.closePath();
 }
+/* ART T2-1 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+/* ART T2-1: candy-depth */
+var evBg=null,evBgKey='';
+function ensureEvBg(){
+  var ww=cv.width, hh=cv.height;
+  var k=ww+'x'+hh; if(evBg&&evBgKey===k)return evBg; evBgKey=k;
+  var c=document.createElement('canvas'); c.width=ww; c.height=hh; var g=c.getContext('2d');
+  if(FX)FX.stage(g,ww,hh,'#1a2040','#0a0e1a'); else {g.fillStyle='#141a26';g.fillRect(0,0,ww,hh);}
+  evBg=c; return evBg;
+}
 function drawEye(lensT){
   ctx.fillStyle='rgba(150,180,205,0.07)';
   ctx.strokeStyle='#7f9bb3';ctx.lineWidth=2;
@@ -615,6 +629,7 @@ function drawEye(lensT){
   ctx.fillText('视网膜',retinaX,AXIS_Y+78);
 }
 function drawObject(x,h,label){
+  if(FX)FX.shadow(ctx,x,AXIS_Y,14,4,.3);
   ctx.strokeStyle='#ff5252';ctx.lineWidth=3;ctx.lineCap='round';
   ctx.beginPath();ctx.moveTo(x,AXIS_Y);ctx.lineTo(x,AXIS_Y-h);ctx.stroke();
   ctx.fillStyle='#ff5252';
@@ -672,6 +687,7 @@ function drawFMarks(f_){
   });
 }
 function drawBlur(x,y,r,emo,txt){
+  if(FX){FX.glow(ctx,'#4fc3f7',12);}
   ctx.fillStyle='rgba(255,138,128,0.3)';
   ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
   ctx.strokeStyle='rgba(255,138,128,0.7)';ctx.lineWidth=1.5;
@@ -680,7 +696,8 @@ function drawBlur(x,y,r,emo,txt){
   ctx.fillText(emo,x,y-r-20);
   ctx.font='12px sans-serif';ctx.fillStyle='#ffab91';
   ctx.fillText(txt,x,y+r+16);
-}
+
+  if(FX)FX.noGlow(ctx);}
 function drawGlasses(kind,gx){
   if(kind==='concave'){
     const H=40,te=8,tm=2;
@@ -794,6 +811,7 @@ function drawExp3(){
   }
 }
 function draw(now){
+  ctx.drawImage(ensureEvBg(),0,0);
   ctx.clearRect(0,0,cv.width,cv.height);
   if(stage==='exp1')drawExp1();
   else if(stage==='exp2')drawExp2();

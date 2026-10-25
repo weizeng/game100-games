@@ -6,6 +6,10 @@
 <title>三棱镜色散</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-1 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -622,7 +626,14 @@ function hud(){$('lvT').textContent=Kit.lv+1;$('shotT').textContent=boss?(cool>0
 function endLv(won,why){ended=true;if(won){const st=boss?(hits<=boss.max+0&&timeLeft>L.boss.t*.4?3:timeLeft>L.boss.t*.15?2:1):(used<=2?3:used<=3?2:1);
     setTimeout(()=>Kit.win(st,score,boss?'击退 '+boss.name+'！剩余 '+Math.ceil(timeLeft)+' 秒':'用了 '+used+' 束光全部命中<br>三星：≤2 束 · 二星：≤3 束'),600);}
   else setTimeout(()=>Kit.lose(why,score),400);}
-function draw(){FX?FX.stage(ctx,W,H,'#1a1450','#07051a'):(ctx.fillStyle='#0d0a26',ctx.fillRect(0,0,W,H));if(!L)return;
+
+/* ART T2-1: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+function draw(){ctx.drawImage(ensureLabBg('#1a1450','#07051a'),0,0);if(!L)return;
   // 接收墙
   ctx.fillStyle='rgba(255,255,255,.08)';ctx.fillRect(WX,0,W-WX,H);
   for(const o of obs){if(FX)FX.tile(ctx,o.x-5,o.y1|0,10,(o.y2-o.y1)|0,'#5a6280',4);else{ctx.fillStyle='#5a6280';ctx.fillRect(o.x-5,o.y1,10,o.y2-o.y1);}}

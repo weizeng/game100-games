@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>杠杆平衡</title>
 <style>
+/* ART T2-1 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui .iconBtn{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
 #cv{position:fixed;inset:0;display:block}
@@ -493,6 +496,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 'use strict';
 /* ============ 基础框架（勿改） ============ */
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+/* ART T2-1 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
 var W=0,H=0,DPR=1,PANEL_H=0;
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2);
@@ -575,10 +579,16 @@ var FORM='M₁ = F₁·L₁ = F₂·L₂ = M₂';
 var stars=[];
 for(var si=0;si<60;si++){stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.4+0.5});}
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+/* ART T2-1: candy-depth */
+var levBg=null,levBgKey='';
 function drawBG(){
-  ctx.fillStyle='#0a0e1a';ctx.fillRect(0,0,W,H-PANEL_H);
-  ctx.fillStyle='rgba(255,255,255,.35)';
-  for(var i=0;i<stars.length;i++){var s=stars[i];ctx.beginPath();ctx.arc(s.x*W,s.y*(H-PANEL_H),s.r,0,6.283);ctx.fill();}
+  var hh=H-PANEL_H,k=W+'x'+hh;
+  if(!(levBg&&levBgKey===k)){levBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');
+    if(FX)FX.stage(g,W,hh,'#1a2450','#060a18');else{g.fillStyle='#0a0e1a';g.fillRect(0,0,W,hh);}
+    g.fillStyle='rgba(255,255,255,.4)';
+    for(var i=0;i<stars.length;i++){var s=stars[i];g.beginPath();g.arc(s.x*W,s.y*hh,s.r,0,6.283);g.fill();}
+    levBg=c;}
+  ctx.drawImage(levBg,0,0);
 }
 function moments(){return {L:mL*9.8*LL,R:mR*9.8*LR};}
 function updReadout(){
@@ -621,6 +631,7 @@ function scoreDrop(x,y){
     addScore(100,x,y);sGood();buzz(60);
     floatText(x,y-30,'⚖️ 完美平衡！','#66BB6A');
     for(var i=0;i<6;i++){floatText(x+(Math.random()*220-110),y-70-Math.random()*70,'✨','#FFD54F');}
+    if(FX)FX.burst(sparks,x,y,'#FFD54F',20);
   }else if(err<0.15){
     addScore(60,x,y);sGood();buzz(40);floatText(x,y-30,'基本平衡','#FFD54F');
   }else{
@@ -637,7 +648,8 @@ function drawWeight(x,m,color){
   ctx.strokeStyle='#cfd8dc';ctx.lineWidth=2;
   ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,16);ctx.stroke();
   var side=20+6*m;
-  ctx.fillStyle=color;rr(x-side/2,16,side,side,5);ctx.fill();
+  if(FX){FX.shadow(ctx,x,16+side+2,side*0.4,3,.35);FX.tile(ctx,(x-side/2)|0,16,side|0,side|0,color,6);}
+  else{ctx.fillStyle=color;rr(x-side/2,16,side,side,5);ctx.fill();}
   ctx.fillStyle='#0a0e1a';ctx.font='bold 13px sans-serif';ctx.textAlign='center';
   ctx.fillText(m+'kg',x,16+side/2+5);
 }
@@ -650,12 +662,13 @@ window.onFrame=function(dt){
     if(Math.abs(target-ang)<0.15){ang=target;settle=true;scoreDrop(cx,cy-120);}
   }
   // 支点三角
-  ctx.fillStyle='#78909C';
-  ctx.beginPath();ctx.moveTo(cx-28,cy+8);ctx.lineTo(cx+28,cy+8);ctx.lineTo(cx,cy-16);ctx.closePath();ctx.fill();
-  ctx.fillStyle='#455A64';ctx.fillRect(cx-3,cy-2,6,26);
+  if(FX){FX.tile(ctx,(cx-28)|0,(cy-16)|0,56,24,'#78909C',4);FX.tile(ctx,(cx-3)|0,(cy-2)|0,6,26,'#455A64',2);}
+  else{ctx.fillStyle='#78909C';ctx.beginPath();ctx.moveTo(cx-28,cy+8);ctx.lineTo(cx+28,cy+8);ctx.lineTo(cx,cy-16);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#455A64';ctx.fillRect(cx-3,cy-2,6,26);}
   // 杠杆杆体（旋转）
   ctx.save();ctx.translate(cx,cy);ctx.rotate(ang*Math.PI/180);
-  ctx.fillStyle='#5C6BC0';rr(-5*scale,-7,10*scale,14,7);ctx.fill();
+  if(FX){FX.shadow(ctx,0,10,5*scale,4,.3);FX.tile(ctx,(-5*scale)|0,-7,(10*scale)|0,14,'#5C6BC0',7);}
+  else{ctx.fillStyle='#5C6BC0';rr(-5*scale,-7,10*scale,14,7);ctx.fill();}
   ctx.strokeStyle='#9FA8DA';ctx.lineWidth=1.5;
   ctx.beginPath();ctx.moveTo(-5*scale,-7);ctx.lineTo(5*scale,-7);ctx.stroke();
   // 力臂刻度尺（每0.5m一格，整米标注）
@@ -675,6 +688,7 @@ window.onFrame=function(dt){
   ctx.fillText('左：'+mL+'kg × '+LL+'m',14,66);
   ctx.fillStyle='#4FC3F7';ctx.textAlign='right';
   ctx.fillText('右：'+mR+'kg × '+LR.toFixed(2)+'m',W-14,66);
+  if(FX)FX.drawBurst(ctx,sparks);
 };
 </script>
 </body>

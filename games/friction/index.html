@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>摩擦力实验</title>
 <style>
+/* ART T2-1 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui .iconBtn{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#0a0e1a;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
 #cv{position:fixed;inset:0;display:block}
@@ -496,6 +499,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 'use strict';
 /* ============ 基础框架（勿改） ============ */
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+/* ART T2-1 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
 var W=0,H=0,DPR=1,PANEL_H=0;
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2);
@@ -585,10 +589,16 @@ var FORM='f = μN，tanθ > μ 则下滑';
 var stars=[];
 for(var si=0;si<60;si++){stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.4+0.5});}
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+/* ART T2-1: candy-depth */
+var frBg=null,frBgKey='';
 function drawBG(){
-  ctx.fillStyle='#0a0e1a';ctx.fillRect(0,0,W,H-PANEL_H);
-  ctx.fillStyle='rgba(255,255,255,.35)';
-  for(var i=0;i<stars.length;i++){var s=stars[i];ctx.beginPath();ctx.arc(s.x*W,s.y*(H-PANEL_H),s.r,0,6.283);ctx.fill();}
+  var hh=H-PANEL_H,k=W+'x'+hh;
+  if(!(frBg&&frBgKey===k)){frBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');
+    if(FX)FX.stage(g,W,hh,'#14204a','#060a18');else{g.fillStyle='#0a0e1a';g.fillRect(0,0,W,hh);}
+    g.fillStyle='rgba(255,255,255,.4)';
+    for(var i=0;i<stars.length;i++){var s=stars[i];g.beginPath();g.arc(s.x*W,s.y*hh,s.r,0,6.283);g.fill();}
+    frBg=c;}
+  ctx.drawImage(frBg,0,0);
 }
 function arrow(x,y,dx,dy,color,label){
   var ex=x+dx,ey=y+dy,a=Math.atan2(dy,dx);
@@ -698,10 +708,13 @@ window.onFrame=function(dt){
   ctx.strokeStyle='#3a4358';ctx.lineWidth=3;
   ctx.beginPath();ctx.moveTo(24,yB);ctx.lineTo(W-24,yB);ctx.stroke();
   // 斜面楔体
-  ctx.fillStyle=surf.col;
-  ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(xB,yB);ctx.lineTo(tx,yB);ctx.closePath();ctx.fill();
-  ctx.strokeStyle='#8d9bb5';ctx.lineWidth=6;ctx.lineCap='round';
-  ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(xB,yB);ctx.stroke();
+  if(FX){FX.tile(ctx,Math.min(tx,xB)|0,Math.min(ty,yB)|0,Math.abs(tx-xB)|0||1,Math.abs(yB-ty)|0||1,surf.col,4);
+    /* wedge fill still needed for triangle shape */
+    ctx.fillStyle=surf.col;ctx.globalAlpha=.85;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(xB,yB);ctx.lineTo(tx,yB);ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+    FX.glow(ctx,'#8d9bb5',8);ctx.strokeStyle='#c5d0e8';ctx.lineWidth=6;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(xB,yB);ctx.stroke();FX.noGlow(ctx);}
+  else{ctx.fillStyle=surf.col;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(xB,yB);ctx.lineTo(tx,yB);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#8d9bb5';ctx.lineWidth=6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(xB,yB);ctx.stroke();}
   // 角度弧
   ctx.strokeStyle='#FFD54F';ctx.lineWidth=2;
   ctx.beginPath();ctx.arc(xB,yB,44,-thR,0);ctx.stroke();
@@ -734,11 +747,12 @@ window.onFrame=function(dt){
   }
   // 木块
   ctx.save();ctx.translate(bx+jx,by);ctx.rotate(-thR);
-  ctx.fillStyle='#A1887F';ctx.strokeStyle='#4E342E';ctx.lineWidth=2;
-  rr(-27,-44,54,36,6);ctx.fill();ctx.stroke();
+  if(FX){FX.shadow(ctx,0,0,22,4,.35);FX.tile(ctx,-27,-44,54,36,'#A1887F',8);}
+  else{ctx.fillStyle='#A1887F';ctx.strokeStyle='#4E342E';ctx.lineWidth=2;rr(-27,-44,54,36,6);ctx.fill();ctx.stroke();}
   ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
   ctx.fillText(mBlock.toFixed(1)+'kg',0,-20);
   ctx.restore();
+  if(FX)FX.drawBurst(ctx,sparks);
   // 实时速度
   if(willSlide&&phase!=='quiz'&&phase!=='ready'){
     ctx.fillStyle='#4FC3F7';ctx.font='bold 15px sans-serif';ctx.textAlign='left';

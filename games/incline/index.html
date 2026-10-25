@@ -6,6 +6,10 @@
 <title>斜面实验</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-1 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -609,7 +613,14 @@ function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('sco
 function endLv(won,why){ended=true;if(won){const st=miss===0?3:miss===1?2:1;
     setTimeout(()=>Kit.win(st,score,boss?'击退 '+boss.name+'！剩余 '+Math.ceil(bossT)+' 秒':'准时送达 '+tasks+' 单，失误 '+miss+' 次<br>三星：0 失误 · 二星：1 失误'),500);}
   else setTimeout(()=>Kit.lose(why,score),400);}
-function draw(){FX?FX.stage(ctx,W,H,'#2b1e64','#0c0824'):(ctx.fillStyle='#160e3a',ctx.fillRect(0,0,W,H));if(!L||!task)return;
+
+/* ART T2-1: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+function draw(){ctx.drawImage(ensureLabBg('#2b1e64','#0c0824'),0,0);if(!L||!task)return;
   const x0=14,yb=240,rad=th*Math.PI/180,sc=Math.min(300/(Math.cos(rad)*task.len),190/(Math.sin(rad)*task.len),38),len=task.len*sc;const dx=Math.cos(rad)*len,dy=Math.sin(rad)*len;const xb=x0+dx;
   const ax=xb-dx,ay=yb-dy;const sx=Math.max(ax,4);
   // 斜面
