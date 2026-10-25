@@ -31,11 +31,11 @@ import java.util.concurrent.TimeUnit
 object AppUpdater {
     // 多条线路同时请求，取版本号最大的（见 fetchInfo）
     private val APP_INFO_URLS = listOf(
+        "https://raw.githubusercontent.com/weizeng/game100-games/main/app.json",
         "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main/app.json",
         "https://fastly.jsdelivr.net/gh/weizeng/game100-games@main/app.json",
         "https://gcore.jsdelivr.net/gh/weizeng/game100-games@main/app.json",
         "https://testingcf.jsdelivr.net/gh/weizeng/game100-games@main/app.json",
-        "https://raw.githubusercontent.com/weizeng/game100-games/main/app.json"
     )
     private const val PREFS = "game100"
     private const val KEY_LAST_CHECK = "update_last_check"

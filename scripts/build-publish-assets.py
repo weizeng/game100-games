@@ -19,7 +19,7 @@ import os
 import subprocess
 import zipfile
 
-BASE = "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main"
+BASE = "https://raw.githubusercontent.com/weizeng/game100-games/main"
 FEATURED_LIMIT = int(os.environ.get("FEATURED_LIMIT", "12"))
 
 

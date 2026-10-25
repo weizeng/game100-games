@@ -14,7 +14,7 @@ import java.io.File
 class GameRepository(private val context: Context) {
 
     companion object {
-        const val DEFAULT_MANIFEST_URL = "https://cdn.jsdelivr.net/gh/weizeng/game100-games@main/manifest.json"
+        const val DEFAULT_MANIFEST_URL = "https://raw.githubusercontent.com/weizeng/game100-games/main/manifest.json"
         private const val PREFS = "game100"
         private const val KEY_URL = "manifest_url"
         private const val KEY_SEEN = "seen_games"
