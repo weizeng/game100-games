@@ -10,7 +10,7 @@ import java.io.File
 
 class StudioTest {
     private fun item(id: String, studio: String) =
-        GameItem(id, id, "", "🎮", "#000000", "休闲趣味", 1, null, studio = studio)
+        GameItem(id, id, "", "🎮", "#000000", "休闲模拟", 1, null, studio = studio)
 
     @Test
     fun canonicalNormalizesKnownStudios() {

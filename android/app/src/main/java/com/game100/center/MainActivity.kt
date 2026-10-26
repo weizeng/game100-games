@@ -48,9 +48,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var repo: GameRepository
     private lateinit var adapter: GameRowAdapter
     private lateinit var featAdapter: FeaturedAdapter
+    private lateinit var newAdapter: FeaturedAdapter
     private lateinit var swipe: SwipeRefreshLayout
 
-    private val categories = listOf("全部", "精品", "新上架", "科学实验", "街机动作", "益智解谜", "休闲趣味", "经典重温")
+    private val categories = listOf(
+        "全部", "精品", "新上架",
+        "科学实验", "经典重温", "射击", "跑酷跳跃", "塔防策略", "卡牌构筑",
+        "棋牌对战", "消除合成", "益智解谜", "休闲模拟", "街机动作", "节奏音乐"
+    )
     private var selectedCat = "全部"
     private var searchQuery = ""
     private var allItems: List<GameItem> = emptyList()
@@ -125,6 +130,21 @@ class MainActivity : AppCompatActivity() {
         featRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         featAdapter = FeaturedAdapter(onClick = { onGameClick(it) })
         featRecycler.adapter = featAdapter
+
+        val newRecycler = findViewById<RecyclerView>(R.id.new_recycler)
+        newRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        newAdapter = FeaturedAdapter(onClick = { onGameClick(it) })
+        newRecycler.adapter = newAdapter
+        findViewById<View>(R.id.btn_more_new).setOnClickListener {
+            selectCategory("新上架")
+            findViewById<NestedScrollView>(R.id.home_scroll).post {
+                val title = findViewById<View>(R.id.tv_games_title)
+                findViewById<NestedScrollView>(R.id.home_scroll).smoothScrollTo(
+                    0, title.top + (title.parent as View).top
+                )
+            }
+        }
+        UiMotion.press(findViewById(R.id.btn_more_new))
 
         swipe = findViewById(R.id.swipe)
         swipe.setColorSchemeResources(R.color.pink, R.color.coin, R.color.cyan)
@@ -201,8 +221,12 @@ class MainActivity : AppCompatActivity() {
         refreshChips()
     }
 
-    private val chipEmoji = mapOf("精品" to "🔥", "新上架" to "✨", "科学实验" to "🔬", "街机动作" to "🕹️",
-        "益智解谜" to "🧩", "休闲趣味" to "🎈", "经典重温" to "👾")
+    private val chipEmoji = mapOf(
+        "精品" to "🔥", "新上架" to "✨",
+        "科学实验" to "🔬", "经典重温" to "👾", "射击" to "🎯", "跑酷跳跃" to "🏃",
+        "塔防策略" to "🏰", "卡牌构筑" to "🃏", "棋牌对战" to "♟️", "消除合成" to "💎",
+        "益智解谜" to "🧩", "休闲模拟" to "🎈", "街机动作" to "🕹️", "节奏音乐" to "🎵"
+    )
 
     /** 分类胶囊（皮肤 B）：选中 = 金币立体按钮，未选 = 玻璃胶囊。 */
     private fun chipBg(selected: Boolean): android.graphics.drawable.Drawable {
@@ -387,6 +411,20 @@ class MainActivity : AppCompatActivity() {
         } else {
             featHeader.visibility = View.GONE
             featRecycler.visibility = View.GONE
+        }
+        // 「新游戏」专区：横向滚动，数据 = isNew（升级带来的新增也会标 isNew）
+        val newHeader = findViewById<View>(R.id.new_section_header)
+        val newRecycler = findViewById<RecyclerView>(R.id.new_recycler)
+        val newGames = allItems.filter { it.isNew }
+            .sortedWith(::featuredOrder)
+            .take(20)
+        if (showFeatured && newGames.isNotEmpty()) {
+            newHeader.visibility = View.VISIBLE
+            newRecycler.visibility = View.VISIBLE
+            newAdapter.submit(newGames)
+        } else {
+            newHeader.visibility = View.GONE
+            newRecycler.visibility = View.GONE
         }
     }
 

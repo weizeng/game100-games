@@ -18,6 +18,7 @@ class GameRepository(private val context: Context) {
         private const val PREFS = "game100"
         private const val KEY_URL = "manifest_url"
         private const val KEY_SEEN = "seen_games"
+        private const val KEY_LAST_BUNDLED_APP = "last_bundled_app_version"
         private const val NEW_DAYS = 7L
     }
 
@@ -33,46 +34,88 @@ class GameRepository(private val context: Context) {
     }
 
     fun ensureBundledGames(appVersionCode: Int) {
+        // 升级前先记下已有目录，用于把「本版新增内置游戏」标成 isNew
+        val previouslyInstalled = gamesDir.listFiles()
+            ?.filter { it.isDirectory }
+            ?.map { it.name }
+            ?.toSet()
+            ?: emptySet()
+
         // marker 记录上次解压时的 App versionCode；App 升级后重新比对版本
         val marker = File(gamesDir, ".bundled_v2")
         val marked = try {
             if (marker.exists()) marker.readText().trim().toInt() else 0
         } catch (e: Exception) { 0 }
-        if (marked == appVersionCode) return
 
-        gamesDir.mkdirs()
         val assets = try {
             context.assets.list("bundled") ?: emptyArray()
         } catch (e: Exception) {
             emptyArray()
         }
-        for (name in assets) {
-            if (!name.endsWith(".zip")) continue
-            val id = name.removeSuffix(".zip")
-            // 只有内置版比已安装版新时才覆盖（不降级用户从远端更新的游戏）
-            val bundledMeta = getBundledMeta(name)
-            val bundledVersion = bundledMeta?.optInt("version", 0) ?: 0
-            val installedVersion = getInstalledVersion(id)
-            if (bundledMeta != null && bundledVersion == installedVersion) {
-                // 版本相同：只同步出品方等署名信息，不重新解压（v4.13 起给老游戏补了 studio）
-                syncInstalledMeta(id, bundledMeta)
-            }
-            if (bundledVersion > installedVersion) {
-                val dest = File(gamesDir, id)
-                try {
-                    if (dest.exists()) dest.deleteRecursively()
-                    context.assets.open("bundled/$name").use { ins ->
-                        ZipUtils.unzip(ins, dest)
+        val bundledIds = assets.filter { it.endsWith(".zip") }.map { it.removeSuffix(".zip") }
+
+        if (marked != appVersionCode) {
+            gamesDir.mkdirs()
+            for (name in assets) {
+                if (!name.endsWith(".zip")) continue
+                val id = name.removeSuffix(".zip")
+                // 只有内置版比已安装版新时才覆盖（不降级用户从远端更新的游戏）
+                val bundledMeta = getBundledMeta(name)
+                val bundledVersion = bundledMeta?.optInt("version", 0) ?: 0
+                val installedVersion = getInstalledVersion(id)
+                if (bundledMeta != null && bundledVersion == installedVersion) {
+                    // 版本相同：只同步出品方等署名信息，不重新解压（v4.13 起给老游戏补了 studio）
+                    syncInstalledMeta(id, bundledMeta)
+                }
+                if (bundledVersion > installedVersion) {
+                    val dest = File(gamesDir, id)
+                    try {
+                        if (dest.exists()) dest.deleteRecursively()
+                        context.assets.open("bundled/$name").use { ins ->
+                            ZipUtils.unzip(ins, dest)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                }
+            }
+            try {
+                marker.writeText(appVersionCode.toString())
+            } catch (_: Exception) {
+            }
+        }
+        markBundledNews(appVersionCode, previouslyInstalled, bundledIds)
+    }
+
+    /**
+     * App versionCode 升级时：本版相对上一版新增的内置游戏 id 写入 seen=now，
+     * 这样 cn 离线包覆盖安装后「新游戏」专区 / 新上架能亮出来。
+     * 全新安装：全部记为已见（0），不算新。
+     */
+    private fun markBundledNews(
+        appVersionCode: Int,
+        previouslyInstalled: Set<String>,
+        bundledIds: List<String>
+    ) {
+        val last = prefs.getInt(KEY_LAST_BUNDLED_APP, 0)
+        if (last == appVersionCode) return
+        val seen = getSeenMap().toMutableMap()
+        val now = System.currentTimeMillis()
+        val freshInstall = previouslyInstalled.isEmpty() && last == 0
+        if (freshInstall) {
+            for (id in bundledIds) seen[id] = 0L
+        } else {
+            for (id in bundledIds) {
+                when {
+                    id !in previouslyInstalled -> seen[id] = now
+                    !seen.containsKey(id) -> seen[id] = 0L
                 }
             }
         }
-        try {
-            marker.writeText(appVersionCode.toString())
-        } catch (_: Exception) {
-        }
+        prefs.edit()
+            .putString(KEY_SEEN, JSONObject(seen as Map<*, *>).toString())
+            .putInt(KEY_LAST_BUNDLED_APP, appVersionCode)
+            .apply()
     }
 
     /** 公开：检查游戏是否已安装 */
@@ -216,7 +259,7 @@ class GameRepository(private val context: Context) {
                         desc = r.desc,
                         icon = r.icon,
                         color = r.color,
-                        category = r.category.ifBlank { "休闲趣味" },
+                        category = r.category.ifBlank { "休闲模拟" },
                         installedVersion = 0,
                         remote = r,
                         isNew = isNewGame(r.id),

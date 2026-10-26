@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""输出 {gameId: featuredRank} JSON。供 build-publish-assets / zipBundledGames 共用。"""
+"""输出 {gameId: featuredRank} JSON。供 build-publish-assets / zipBundledGames 共用。
+
+按 games/<id>/index.html 的最近提交时间排序（忽略仅改 meta.json 的分类批处理）。"""
 from __future__ import annotations
 
 import json
@@ -13,7 +15,7 @@ FEATURED_LIMIT = int(os.environ.get("FEATURED_LIMIT", "12"))
 def last_touch_unix(gid: str) -> int:
     try:
         out = subprocess.check_output(
-            ["git", "log", "-1", "--format=%ct", "--", f"games/{gid}"],
+            ["git", "log", "-1", "--format=%ct", "--", f"games/{gid}/index.html"],
             text=True,
             stderr=subprocess.DEVNULL,
         ).strip()

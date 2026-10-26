@@ -1,5 +1,5 @@
 // 新建游戏脚手架：node scripts/new-game.cjs <id> <theme> "<名称>" <分类> <图标> <出品方>
-// 例：node scripts/new-game.cjs starcatch candy "接星星" 休闲趣味 ⭐ Grok
+// 例：node scripts/new-game.cjs starcatch candy "接星星" 休闲模拟 ⭐ Grok
 // 出品方必填：Muse 做的写 Muse，Grok 做的写 Grok；也可用环境变量 GAME100_STUDIO 指定。
 // 复制 scripts/templates/starter → games/<id>，写好 meta.json，并把 id 登记到 catalog 对应主题组。
 const fs = require('node:fs');
@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '..');
 const [id, theme, name, category, icon, studioArg] = process.argv.slice(2);
 const STUDIOS = ['Muse', 'Grok'];
 const studio = STUDIOS.find(s => s.toLowerCase() === String(studioArg || process.env.GAME100_STUDIO || '').trim().toLowerCase());
-const CATS = ['街机动作', '科学实验', '益智解谜', '休闲趣味', '经典重温'];
+const CATS = ['科学实验', '经典重温', '射击', '跑酷跳跃', '塔防策略', '卡牌构筑', '棋牌对战', '消除合成', '益智解谜', '休闲模拟', '街机动作', '节奏音乐'];
 if (!id || !/^[a-z][a-z0-9]{1,19}$/.test(id)) throw new Error('id 需为 2–20 位小写字母/数字，且以字母开头');
 if (fs.existsSync(path.join(root, 'games', id))) throw new Error('games/' + id + ' 已存在');
 if (!CATS.includes(category)) throw new Error('分类必须是：' + CATS.join(' / '));

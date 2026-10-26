@@ -26,7 +26,7 @@ FEATURED_LIMIT = int(os.environ.get("FEATURED_LIMIT", "12"))
 def last_touch_unix(gid: str) -> int:
     try:
         out = subprocess.check_output(
-            ["git", "log", "-1", "--format=%ct", "--", f"games/{gid}"],
+            ["git", "log", "-1", "--format=%ct", "--", f"games/{gid}/index.html"],
             text=True,
             stderr=subprocess.DEVNULL,
         ).strip()

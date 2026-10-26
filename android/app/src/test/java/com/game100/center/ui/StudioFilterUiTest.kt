@@ -63,7 +63,7 @@ class StudioFilterUiTest {
         }
         games.put(extra("zzgrokonline", "Grok", "益智解谜"))
         games.put(extra("zzmuseonline", "muse", "街机动作"))
-        games.put(extra("zzacme", "Acme Lab", "休闲趣味"))
+        games.put(extra("zzacme", "Acme Lab", "休闲模拟"))
         games.put(extra("zznostudio", null, "经典重温"))
         val body = manifest.toString().toByteArray()
         server = ServerSocket(0)
