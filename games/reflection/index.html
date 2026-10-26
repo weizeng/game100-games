@@ -6,6 +6,11 @@
 <title>光的反射</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-2 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -625,7 +630,15 @@ function endLv(won,why){ended=true;if(won){const st=boss?(bossT>L.boss.t*.4?3:bo
     setTimeout(()=>Kit.win(st,score,boss?'击退 '+boss.name+'！剩余 '+Math.ceil(bossT)+' 秒':'用 '+used+' 发激光点亮 '+gems.length+' 颗水晶<br>三星：≤'+L.k+' 发 · 二星：≤'+(L.k+1)+' 发'),600);}
   else setTimeout(()=>Kit.lose(why,score),400);}
 function drawPath(pts,w,col){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);ctx.stroke();}
-function draw(){FX?FX.stage(ctx,W,H,'#2a1660','#0a0620'):(ctx.fillStyle='#140c34',ctx.fillRect(0,0,W,H));if(!L||!mirrors)return;
+
+/* ART T2-2: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+
+function draw(){ctx.drawImage(ensureLabBg('#2a1660','#0a0620'),0,0);if(!L||!mirrors)return;
   if(L.mw){ctx.strokeStyle='rgba(200,230,255,.6)';ctx.lineWidth=4;ctx.strokeRect(2,2,W-4,H-4);}
   for(const o of blocks){if(FX)FX.tile(ctx,o.x|0,o.y|0,o.w|0,o.h|0,'#4a4f6e',6);else{ctx.fillStyle='#4a4f6e';ctx.fillRect(o.x,o.y,o.w,o.h);}}
   for(const m of mirrors){ctx.lineCap='round';ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=9;ctx.beginPath();ctx.moveTo(m[0]+2,m[1]+4);ctx.lineTo(m[2]+2,m[3]+4);ctx.stroke();

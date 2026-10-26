@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>都市天际线</title>
 <style>
+/* ART T2-2 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui .iconBtn,html.game-ui .iconbtn,html.game-ui .icobtn{min-width:44px;min-height:44px}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#0d1420;color:#f5f7fa;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none}
 #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
@@ -455,7 +459,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     🌳🏫 建 <b>公园学校医院</b> 提升幸福度，幸福≥60 才会升级<br>
     💰 每 10 秒收一次税，别破产！<br>
     🖱️ 拖拽移动地图，双指/按钮缩放；点建筑看信息</p>
-    <button class="bigbtn" id="btn_start">开始建造</button>
+    <button class="bigbtn startbtn" id="btn_start">开始建造</button>
     <button class="bigbtn ghost hide" id="btn_continue">继续上次</button>
   </div>
 </div>
@@ -495,6 +499,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 'use strict';
+/* ART T2-2 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+
 /* ================= 配置（按 CITY_SPEC.md） ================= */
 var TW=64, TH=32;               // tile 尺寸
 var MAPW=16, MAPH=16;           // 地图
@@ -1057,10 +1063,16 @@ function drawClouds(){
   ctx.restore();
 }
 
+/* ART T2-2 */var csBg=null,csBgKey='';
+function ensureCsBg(col){var k=DW+'x'+DH+'x'+col;if(csBg&&csBgKey===k)return csBg;csBgKey=k;var c=document.createElement('canvas');c.width=Math.max(1,cv.width);c.height=Math.max(1,cv.height);var g=c.getContext('2d');
+  g.setTransform(DPR,0,0,DPR,0,0);
+  if(FX)FX.stage(g,DW,DH,col,'#0a1220');else{g.fillStyle=col;g.fillRect(0,0,DW,DH);}
+  csBg=c;return csBg;}
 function render(){
   // 天空
-  ctx.fillStyle=skyColor();
-  ctx.fillRect(0,0,DW,DH);
+  var _sky=skyColor();
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.drawImage(ensureCsBg(_sky),0,0,DW,DH);
   drawClouds();
   var n=nightness();
   // 地面阴影（夜晚压暗一点）

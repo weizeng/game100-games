@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>波的传播</title>
 <style>
+/* ART T2-2 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#0d1a22;color:#fff;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;user-select:none;-webkit-user-select:none}
 #app{height:100%;display:flex;flex-direction:column;background:linear-gradient(165deg,#0f2a38 0%,#14313f 45%,#1b1440 100%)}
@@ -521,6 +526,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 
 <script>
 'use strict';
+/* ART T2-2 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+
 /* ===== 通用：音频 ===== */
 let AC=null;
 let soundOn=localStorage.getItem('g100_sound')!=='0';
@@ -563,8 +570,13 @@ function paintCtl(){
 function addLog(html){const log=$('log');if(log.firstChild&&log.firstChild.style)log.innerHTML='';const d=document.createElement('div');d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;}
 
 /* ===== 波形绘制 ===== */
+/* ART T2-2 */let wlBg=null,wlBgKey='';
+function ensureWlBg(){const k=W+'x'+H;if(wlBg&&wlBgKey===k)return wlBg;wlBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,'#0a3040','#041820');else{g.fillStyle='#061820';g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  wlBg=c;return wlBg;}
 function draw(t){
- ctx.clearRect(0,0,W,H);
+ ctx.drawImage(ensureWlBg(),0,0);
  const lamPx=lam()*PXCM,k=2*Math.PI/lamPx,om=2*Math.PI*freq,cy=H/2-6;
  /* 检测区 */
  ctx.fillStyle='rgba(77,208,225,.13)';
@@ -587,7 +599,7 @@ function draw(t){
    for(let i=0;i<7;i++){
      const x=24+i*(W-48)/6;
      const y=cy+amp*Math.sin(k*x-om*t/1000);
-     ctx.fillStyle='#FFD54F';ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fill();
+     if(FX){FX.glow(ctx,'#FFD54F',10);FX.orb(ctx,x|0,y|0,5,'#FFD54F');FX.noGlow(ctx);}else{ctx.fillStyle='#FFD54F';ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fill();}
      ctx.strokeStyle='#FFD54F';ctx.beginPath();ctx.moveTo(x,y-14);ctx.lineTo(x,y+14);ctx.stroke();
    }
    ctx.fillStyle='#b2ebf2';ctx.font='11px sans-serif';ctx.textAlign='left';

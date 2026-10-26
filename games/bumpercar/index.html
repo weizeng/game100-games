@@ -6,6 +6,11 @@
 <title>碰碰车</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-2 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -592,8 +597,16 @@ function hud(){$('lvT').textContent=Kit.lv+1;$('hitT').textContent=hits+'/'+need
 function endLv(won,why){if(ended)return;ended=true;if(won){const st=timeLeft>15?3:timeLeft>5?2:1;setTimeout(()=>Kit.win(st,score,boss?'击败 '+boss.name:'撞晕 '+hits),300);}
   else setTimeout(()=>Kit.lose(why,score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
+
+/* ART T2-2: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#FB8C00','#e65100');else{ctx.fillStyle='#3e2723';ctx.fillRect(0,0,W,H);}
+  ctx.drawImage(ensureLabBg('#FB8C00','#e65100'),0,0);
   ctx.strokeStyle='rgba(255,255,255,.2)';ctx.strokeRect(6,6,W-12,H-12);
   function car(c,glow){if(FX){FX.glow(ctx,c.col,c.stun>0?6:12);FX.orb(ctx,c.x|0,c.y|0,c.r,c.stun>0?'#90a4ae':c.col);FX.noGlow(ctx);}
     else{ctx.fillStyle=c.stun>0?'#90a4ae':c.col;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,7);ctx.fill();}

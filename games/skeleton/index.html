@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>骨骼拼图</title>
 <style>
+/* ART T2-2 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 340px)*1.2));max-width:min(480px,calc((100svh - 340px)*1.2));max-height:calc(100svh - 220px);height:auto}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#12161c;color:#e8eef4;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:440px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -455,6 +460,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 </div>
 
 <script>'use strict';
+/* ART T2-2 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+
 /* ================= 骨骼拼图 ================= */
 function $(id){return document.getElementById(id);}
 function lsGet(k){try{return window.localStorage.getItem(k);}catch(e){return null;}}
@@ -665,15 +672,17 @@ function drawSlots(t){
   }
 }
 function drawTray(){
-  ctx.fillStyle='rgba(255,255,255,0.045)';
-  rr(6,508,388,126,12);ctx.fill();
-  ctx.strokeStyle='#2a3542';ctx.lineWidth=1;
-  rr(6,508,388,126,12);ctx.stroke();
+  if(FX){FX.tile(ctx,6,508,388,126,'#1e2732',12);}
+  else{ctx.fillStyle='rgba(255,255,255,0.045)';rr(6,508,388,126,12);ctx.fill();ctx.strokeStyle='#2a3542';ctx.lineWidth=1;rr(6,508,388,126,12);ctx.stroke();}
   ctx.font='13px sans-serif';ctx.fillStyle='#5f7185';ctx.textAlign='left';ctx.textBaseline='middle';
   ctx.fillText('🔍 骨头托盘（名字保密）',18,522);
 }
+/* ART T2-2 */let skBg=null,skBgKey='';
+function ensureSkBg(){const k=cv.width+'x'+cv.height;if(skBg&&skBgKey===k)return skBg;skBgKey=k;const c=document.createElement('canvas');c.width=cv.width;c.height=cv.height;const g=c.getContext('2d');
+  if(FX)FX.stage(g,cv.width,cv.height,'#1a2430','#0c1218');else{g.fillStyle='#12161c';g.fillRect(0,0,cv.width,cv.height);}
+  skBg=c;return skBg;}
 function draw(now){
-  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.drawImage(ensureSkBg(),0,0);
   drawTray();
   drawSilhouette();
   drawSlots(now);
@@ -685,8 +694,8 @@ function draw(now){
   for(let i=0;i<parts.length;i++){
     const p=parts[i];
     ctx.globalAlpha=Math.max(0,1-p.t/p.life);
-    ctx.fillStyle=p.c;
-    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();
+    if(FX)FX.orb(ctx,p.x|0,p.y|0,Math.max(2,p.r|0),p.c);
+    else{ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();}
   }
   ctx.globalAlpha=1;
   ctx.textAlign='center';ctx.textBaseline='middle';

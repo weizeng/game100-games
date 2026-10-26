@@ -6,6 +6,11 @@
 <title>光的折射</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-2 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -614,7 +619,15 @@ function endLv(won,why){ended=true;if(won){const st=boss?(bossT>L.boss.t*.4?3:bo
   else setTimeout(()=>Kit.lose(why,score),400);}
 function drawPath(p,w,c){ctx.strokeStyle=c;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length;i++)ctx.lineTo(p[i][0],p[i][1]);ctx.stroke();}
 function appY(y){return Y0+(y-Y0)/n;}
-function draw(){FX?FX.stage(ctx,W,H,'#3a2a7a','#120a30'):(ctx.fillStyle='#1a1040',ctx.fillRect(0,0,W,H));if(!L)return;
+
+/* ART T2-2: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+
+function draw(){ctx.drawImage(ensureLabBg('#3a2a7a','#120a30'),0,0);if(!L)return;
   const mc=MED[L.m][2];const wg=ctx.createLinearGradient(0,Y0,0,H);wg.addColorStop(0,FX?FX.rgba(mc,.28):mc);wg.addColorStop(1,FX?FX.rgba(mc,.62):mc);ctx.fillStyle=wg;ctx.fillRect(0,Y0,W,H-Y0);
   ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2;ctx.beginPath();for(let x=0;x<=W;x+=8)ctx.lineTo(x,Y0+Math.sin(x*.08+performance.now()/400)*1.5);ctx.stroke();
   for(const b of bub){ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(b.x,b.y,2.5,0,7);ctx.stroke();}

@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>溶解度实验</title>
 <style>
+/* ART T2-2 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui canvas{max-width:min(480px,calc((100vh - 300px)*1.2));max-width:min(480px,calc((100svh - 300px)*1.2))}
+
+
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;background:#0b1622;color:#e8f4fd;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;touch-action:manipulation;}
 #app{max-width:1080px;margin:0 auto;padding:10px;}
@@ -541,6 +546,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 
 <script>
 'use strict';
+/* ART T2-2 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+
 /* ================= 工具 ================= */
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
@@ -609,9 +616,13 @@ function fit(cv){
 function fitAll(){const a=fit(beakerCv);BG={w:a.w,h:a.h,ctx:a.c};const b=fit(curveCv);CG={w:b.w,h:b.h,ctx:b.c};}
 window.addEventListener('resize',fitAll);
 
+/* ART T2-2 */let solBg=null,solBgKey='';
+function ensureSolBg(w,h){const k=w+'x'+h;if(solBg&&solBgKey===k)return solBg;solBgKey=k;const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');
+  if(FX)FX.stage(g,w,h,'#0f3256','#03101f');else{g.fillStyle='#03101f';g.fillRect(0,0,w,h);}
+  solBg=c;return solBg;}
 function drawBeaker(){
   const c=BG.ctx,w=BG.w,h=BG.h;
-  c.clearRect(0,0,w,h);
+  c.drawImage(ensureSolBg(w,h),0,0);
   const g=beakerGeom(w,h);
   const t01=st.curTemp/100;
   /* 加热台 */
@@ -715,8 +726,7 @@ function drawCurve(){
   /* 数据点 */
   st.points.forEach((pt,idx)=>{
     const px=X(pt.t),py=Y(pt.d);
-    c.fillStyle='#ff7043';c.strokeStyle='#fff';c.lineWidth=2;
-    c.beginPath();c.arc(px,py,7,0,Math.PI*2);c.fill();c.stroke();
+    if(FX){FX.glow(c,'#ff7043',12);FX.orb(c,px|0,py|0,7,'#ff7043');FX.noGlow(c);}else{c.fillStyle='#ff7043';c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.arc(px,py,7,0,Math.PI*2);c.fill();c.stroke();}
     c.fillStyle='#fff';c.font='bold 11px sans-serif';c.textAlign='center';
     c.fillText(String(idx+1),px,py+4);
   });

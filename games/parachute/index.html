@@ -6,6 +6,11 @@
 <title>极限跳伞</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-2 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -593,7 +598,13 @@ function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('lan
   $('infoT').textContent='风 '+(wind|0)+(boss?' 👑'+boss.hp:'')+(boss?' ⏱'+Math.ceil(bossT):'');}
 function endLv(won,why){if(ended)return;ended=true;if(won){const st=miss===0?3:miss<=1?2:1;setTimeout(()=>Kit.win(st,score,boss?'登陆 '+boss.name+'！':'精准着陆 '+landed+' 次'),400);}else setTimeout(()=>Kit.lose(why,score),350);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
-function draw(){const sky=alt/1000;FX?FX.stage(ctx,W,H,`rgb(${30+sky*40},${60+sky*80},${120+sky*80})`,'#0a1a30'):(ctx.fillStyle='#123',ctx.fillRect(0,0,W,H));
+
+/* ART T2-2: cache sky stage by altitude band */
+let paraBg=null,paraBgKey='';
+function ensureParaBg(top,bot){const k=W+'x'+H+top+bot;if(paraBg&&paraBgKey===k)return paraBg;paraBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  paraBg=c;return paraBg;}
+function draw(){const sky=alt/1000;const top=`rgb(${(30+sky*40)|0},${(60+sky*80)|0},${(120+sky*80)|0})`;ctx.drawImage(ensureParaBg(top,'#0a1a30'),0,0);
   // clouds
   for(const c of clouds){ctx.fillStyle='rgba(255,255,255,.35)';ctx.beginPath();ctx.ellipse(c.x,c.y,c.w/2,14,0,0,7);ctx.fill();}
   // target

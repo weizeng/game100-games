@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 <title>烟花 - 游戏100</title>
 <style>
+/* ART T2-2 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui #pz,html.game-ui .iconBtn,html.game-ui .iconbtn,html.game-ui .icobtn,html.game-ui .ib{min-width:44px!important;min-height:44px!important;width:auto;height:auto}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#050508;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#f0f0f5;user-select:none;-webkit-user-select:none}
 #wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#060612 0%,#0a0a18 60%,#0d0d20 100%);overflow:hidden}
@@ -426,6 +430,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 /* GAMEPLAY UPGRADE */
 (function(){
 "use strict";
+/* ART T2-2 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),W=360,H=540;
 var $=function(id){return document.getElementById(id);};
 /* 音频：升空哨音 + 爆炸全部合成 */
@@ -529,21 +535,22 @@ function finish(){
  setTimeout(function(){$('ovEnd').classList.remove('hide');$('timeTag').classList.add('hide');},1200);
 }
 /* 绘制 */
+/* ART T2-2 */var fwBg=null,fwBgKey='';
+function ensureFwBg(){var k=W+'x'+H;if(fwBg&&fwBgKey===k)return fwBg;fwBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,'#0a0a1c','#070714');else{g.fillStyle='#070714';g.fillRect(0,0,W,H);}
+  if(FX){FX.glow(g,'#f0f0dc',16);FX.orb(g,310,70,20,'#f0f0dc');FX.noGlow(g);}
+  else{g.fillStyle='rgba(240,240,220,.9)';g.beginPath();g.arc(310,70,20,0,7);g.fill();}
+  g.fillStyle='rgba(7,7,20,.55)';g.beginPath();g.arc(303,64,17,0,7);g.fill();
+  fwBg=c;return fwBg;}
 function draw(){
- ctx.clearRect(0,0,W,H);
- var g=ctx.createLinearGradient(0,0,0,H);
- g.addColorStop(0,'#070714');g.addColorStop(0.7,'#0a0a1c');g.addColorStop(1,'#101026');
- ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ ctx.drawImage(ensureFwBg(),0,0);
  var i;
- // 星星
+ // 星星（闪烁动态）
  for(i=0;i<stars.length;i++){var s=stars[i];
   ctx.globalAlpha=0.3+0.7*Math.abs(Math.sin(performance.now()/800+s.tw));
   ctx.fillStyle='#fff';ctx.fillRect(s.x,s.y,s.r,s.r);
  }
  ctx.globalAlpha=1;
- // 月亮
- ctx.fillStyle='rgba(240,240,220,.9)';ctx.beginPath();ctx.arc(310,70,20,0,7);ctx.fill();
- ctx.fillStyle='rgba(7,7,20,.55)';ctx.beginPath();ctx.arc(303,64,17,0,7);ctx.fill();
  // 远山剪影
  ctx.fillStyle='rgba(20,24,40,.9)';
  ctx.beginPath();ctx.moveTo(0,H);

@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>多米诺 - 游戏100</title>
 <style>
+/* ART T2-2 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui .iconBtn,html.game-ui .iconbtn,html.game-ui .icobtn{min-width:44px;min-height:44px}
+html.game-ui #cv{max-width:min(400px,calc((100vh - 300px)*0.8));max-width:min(400px,calc((100svh - 300px)*0.8));max-height:calc(100svh - 200px);height:auto}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{background:#14100d;color:#f5e9d7;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;touch-action:manipulation;user-select:none;-webkit-user-select:none}
 #wrap{max-width:400px;margin:0 auto;padding:8px;position:relative}
@@ -436,6 +441,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 </div>
 <script>
 'use strict';
+/* ART T2-2 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+
 /* ===== 基础 ===== */
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 var W=360,H=520,DOM_H=56,REACH=DOM_H*0.8,CONE=75*Math.PI/180;
@@ -658,15 +665,16 @@ function drawDomino(d,ghost){
   ctx.restore();ctx.globalAlpha=1;
 }
 function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+/* ART T2-2 */var dmBg=null,dmBgKey='';
+function ensureDmBg(){var k=W+'x'+H;if(dmBg&&dmBgKey===k)return dmBg;dmBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,'#241a12','#14100d');else{g.fillStyle='#14100d';g.fillRect(0,0,W,H);}
+  if(FX)FX.tile(g,12,48,336,440,'#2b2119',14);else{g.fillStyle='#2b2119';g.beginPath();if(g.roundRect)g.roundRect(12,48,336,440,14);else g.rect(12,48,336,440);g.fill();}
+  dmBg=c;return dmBg;}
 function draw(){
-  ctx.clearRect(0,0,W,H);
-  var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#241a12');g.addColorStop(1,'#14100d');
-  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-  // 场地
-  ctx.fillStyle='#2b2119';roundRect(12,48,336,440,14);ctx.fill();
+  ctx.drawImage(ensureDmBg(),0,0);
   ctx.strokeStyle='#4e342e';ctx.lineWidth=2;roundRect(12,48,336,440,14);ctx.stroke();
   // 顶部彩灯
-  for(var i=0;i<12;i++){var lx=24+i*28;ctx.fillStyle=['#ff5252','#ffeb3b','#69f0ae','#40c4ff'][i%4];ctx.globalAlpha=0.5+0.4*Math.sin(gameTime*3+i);ctx.beginPath();ctx.arc(lx,58,3,0,7);ctx.fill();}
+  for(var i=0;i<12;i++){var lx=24+i*28;var lc=['#ff5252','#ffeb3b','#69f0ae','#40c4ff'][i%4];ctx.globalAlpha=0.5+0.4*Math.sin(gameTime*3+i);if(FX)FX.orb(ctx,lx|0,58,3,lc);else{ctx.fillStyle=lc;ctx.beginPath();ctx.arc(lx,58,3,0,7);ctx.fill();}}
   ctx.globalAlpha=1;
   var L=LEVELS[lv];
   // 台阶装饰

@@ -6,6 +6,11 @@
 <title>串联与并联</title>
 <link rel="icon" href="data:,">
 <style>
+/* ART T2-2 */
+html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
+html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
+
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -610,7 +615,15 @@ function hud(){$('lvT').textContent=Kit.lv+1;$('score').textContent=score;$('tim
 function endLv(won,why){ended=true;if(won){const st=miss===0?3:miss<=2?2:1;
     setTimeout(()=>Kit.win(st,score,boss?'击退 '+boss.name+'！剩余 '+Math.ceil(bossT)+' 秒':'完成 '+rounds+' 套灯光方案，检验失败 '+miss+' 次<br>三星：0 次失败 · 二星：≤2 次'),600);}
   else setTimeout(()=>Kit.lose(why,score),400);}
-function draw(){FX?FX.stage(ctx,W,H,'#1f1650','#0a0720'):(ctx.fillStyle='#130c30',ctx.fillRect(0,0,W,H));if(!L||!bulbs)return;
+
+/* ART T2-2: cache neon stage + faint lab grid */
+let labBg=null,labBgKey='';
+function ensureLabBg(top,bot){const k=W+'x'+H+top+bot;if(labBg&&labBgKey===k)return labBg;labBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
+  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+  labBg=c;return labBg;}
+
+function draw(){ctx.drawImage(ensureLabBg('#1f1650','#0a0720'),0,0);if(!L||!bulbs)return;
   const cur=power>0?calc(bulbs.map(b=>b.br),true):null;const nb=L.b;
   // 电池
   if(FX)FX.tile(ctx,14,RY[0]-20,32,RY[nb-1]-RY[0]+40,'#5dffb0',8);else{ctx.fillStyle='#5dffb0';ctx.fillRect(14,RY[0]-20,32,RY[nb-1]-RY[0]+40);}
