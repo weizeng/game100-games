@@ -2,31 +2,41 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>轨道躲避</title>
+<link rel="icon" href="data:,">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;background:#050507;overflow:hidden;overscroll-behavior:none}
-body{display:flex;justify-content:center;align-items:center;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#fff;-webkit-user-select:none;user-select:none}
-#wrap{position:relative;width:min(100vw,60vh);aspect-ratio:3/5;max-height:100vh;background:#121212;overflow:hidden;box-shadow:0 0 60px rgba(0,0,0,.8)}
-@media (max-aspect-ratio:3/5){#wrap{width:100vw;height:100vh;aspect-ratio:auto}}
-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
-#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:10px;z-index:5;pointer-events:none}
-.pill{background:rgba(10,10,16,.62);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;backdrop-filter:blur(4px);white-space:nowrap}
-.hudl{display:flex;gap:8px}
-.hbtns{display:flex;gap:8px;pointer-events:auto}
-.icobtn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(10,10,16,.62);color:#fff;font-size:17px;cursor:pointer;transition:transform .08s}
-.icobtn:active{transform:scale(.88)}
-#overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,6,14,.84);backdrop-filter:blur(6px);padding:28px;text-align:center}
-#overlay h1{font-size:36px}
-#overlay .sub{font-size:14px;color:#b0bec5;line-height:1.8;max-width:330px}
-#overlay .best{font-size:14px;color:#ffd54f;font-weight:600}
-#overlay .bigscore{font-size:52px;font-weight:800;color:#ba68c8}
-.btn{background:linear-gradient(135deg,#ba68c8,#e1bee7);border:none;color:#2a0f33;font-size:18px;font-weight:700;padding:14px 54px;border-radius:999px;cursor:pointer;box-shadow:0 6px 24px rgba(186,104,200,.4);transition:transform .1s}
-.btn:active{transform:scale(.93)}
-.btn2{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:15px;font-weight:600;padding:11px 34px;border-radius:999px;cursor:pointer;transition:transform .1s}
-.btn2:active{transform:scale(.93)}
-.row{display:flex;gap:12px}
+html,body{height:100%;overflow:hidden}
+body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;height:100%;padding:10px 12px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap!important;gap:6px}
+.topbar .stat{display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13px;overflow:hidden}
+.topbar .tools{display:flex;gap:6px;flex:none}
+.topbar .tools .iconbtn{min-width:44px;min-height:44px;padding:0 6px}
+.subbar{width:100%;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.prog{flex:1;height:10px;border-radius:6px;background:rgba(0,0,0,.2);overflow:hidden}.prog i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#ffd34d,#ff5fa2);transition:width .2s}
+.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;z-index:20;padding:20px;text-align:center}
+.overlay.hidden,.hidden{display:none!important}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;width:100%}
+.lvgrid .lvl{min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;padding:3px!important;line-height:1.1}
+.lvgrid .lvl small{font-size:10px;letter-spacing:-1px;margin-top:2px}
+.lvgrid .lvl[disabled]{opacity:.45}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}
+.shop button{min-height:46px;font-size:12px!important;padding:3px!important;line-height:1.2}
+.aids{width:100%;display:flex;gap:6px;justify-content:center}
+.aids button{min-height:44px;min-width:64px;font-size:13px!important;padding:2px 8px!important}
+#tutStep{font-size:12px;opacity:.75}
+#tutPic{font-size:44px;line-height:1.1}
+#overStars{font-size:30px;letter-spacing:4px;min-height:34px}
+#toast{position:fixed;left:50%;top:15%;transform:translate(-50%,-10px);background:rgba(10,8,30,.9);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;z-index:999;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;font-size:15px;box-shadow:0 0 18px rgba(255,61,154,.5);white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+.lvTag{font-size:12px;opacity:.85}
+
+#cv{display:block;touch-action:none;max-width:100%;max-height:100%}
+.hint{font-size:12px;opacity:.85;text-align:center;flex:none}
 </style>
 <!-- GAME UI BEGIN -->
 <style>
@@ -411,116 +421,191 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <!-- GAME UI END -->
 </head>
 <body>
-<div id="wrap">
-<canvas id="cv"></canvas>
-<div id="hud">
-  <div class="hudl">
-    <div class="pill" id="scorePill">得分 0</div>
-    <div class="pill" id="timePill">0.0s</div>
+<div class="wrap">
+  <div class="topbar">
+    <span class="stat"><span>🪐<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>时 <b id="timT">0</b></span><span>得分 <b id="score">0</b></span></span>
+    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
-  <div class="hbtns">
-    <button class="icobtn" id="soundBtn">🔊</button>
-    <button class="icobtn" id="pauseBtn">⏸</button>
-  </div>
+  <div class="subbar"><span id="goalLbl">存活</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
+  <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
+  <div class="hint">点击切换内外轨道 · 躲避陨石坚持到目标时间</div>
 </div>
-<div id="overlay"></div>
-</div>
+<div class="overlay" id="startScr"><h1>🪐 轨道躲避</h1><p>15 关环星轨道：陨石更密更快、坚持更久。<br>第 5/10/15 关引力阱 Boss！可升级护盾、慢时、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">进入轨道</button></div>
+<div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">过关</h2><div id="overStars"></div><div class="score" id="finalScore">0</div><p id="overText"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再来一次</button><button class="btn ghost" id="menu2Btn">选择关卡</button></div></div>
+<div id="toast"></div>
+
 <script>
-/* GAMEPLAY UPGRADE */
 'use strict';
-var W=480,H=800,CX=240,CY=400,RIN=120,ROUT=205;
-var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
-cv.width=W;cv.height=H;
-var AC=null,soundOn=true;
-function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();}catch(e){}return AC;}
-function tone(f,d,type,vol,delay){if(!soundOn)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(vol||0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
-function noise(d,vol){if(!soundOn)return;try{var c=ac();if(!c)return;var n=(c.sampleRate*d)|0;var b=c.createBuffer(1,n,c.sampleRate);var ch=b.getChannelData(0);for(var i=0;i<n;i++)ch[i]=(Math.random()*2-1)*(1-i/n);var s=c.createBufferSource();s.buffer=b;var g=c.createGain();g.gain.value=vol||0.25;s.connect(g);g.connect(c.destination);s.start();}catch(e){}}
-function toGame(e){var r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
-var lastTouch=0;
-function bindDown(fn){cv.addEventListener('touchstart',function(e){e.preventDefault();lastTouch=Date.now();fn(toGame(e.touches[0]));},{passive:false});cv.addEventListener('mousedown',function(e){if(Date.now()-lastTouch<800)return;fn(toGame(e));});}
-var HSKEY='g100_orbit_hs';
-function getHS(){try{return parseInt(GameUI.storageGet(HSKEY),10)||0;}catch(e){return 0;}}
-function setHS(v){try{GameUI.storageSet(HSKEY,String(v));}catch(e){}}
-var parts=[],floats=[];
-function boom(x,y,color,n){n=n||20;for(var i=0;i<n;i++){var a=Math.random()*6.2832,s=60+Math.random()*260;parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:0,life:0.5+Math.random()*0.5,color:color,r:2+Math.random()*3.5});}}
-function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,t:0,color:color||'#fff'});}
-function updParts(dt){for(var i=parts.length-1;i>=0;i--){var p=parts[i];p.t+=dt;if(p.t>=p.life){parts.splice(i,1);continue;}p.x+=p.vx*dt;p.y+=p.vy*dt;}}
-function drawParts(){for(var i=0;i<parts.length;i++){var p=parts[i];ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.2832);ctx.fill();}ctx.globalAlpha=1;}
-function updFloats(dt){for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.t+=dt;f.y-=40*dt;if(f.t>1)floats.splice(i,1);}}
-function drawFloats(){ctx.textAlign='center';ctx.font='bold 20px sans-serif';for(var i=0;i<floats.length;i++){var f=floats[i];ctx.globalAlpha=Math.max(0,1-f.t);ctx.fillStyle=f.color;ctx.fillText(f.txt,f.x,f.y);}ctx.globalAlpha=1;}
-/* ---------- 游戏状态 ---------- */
-var state='menu',score=0,survive=0;
-var pAng,pR,pTargetR,pW,meteors,trail;
-function angDiff(a,b){var d=Math.abs(a-b)%6.2832;return d>3.1416?6.2832-d:d;}
-function reset(){score=0;survive=0;pAng=0;pR=RIN;pTargetR=RIN;pW=1.1;meteors=[];trail=[];parts=[];floats=[];
-  for(var i=0;i<5;i++)addMeteor();updHUD();}
-function addMeteor(){
-  var r=Math.random()<0.5?RIN:ROUT;
-  var a=Math.random()*6.2832,tries=0;
-  while(tries<30&&Math.abs(r-pR)<30&&angDiff(a,pAng)<1.6){a=Math.random()*6.2832;tries++;}
-  var frac=0.55+Math.random()*0.25;
-  meteors.push({r:r,ang:a,frac:frac,size:13+Math.random()*9,spin:Math.random()*6.28});
+/* ===== 关卡/教程/存档/音效 通用套件（单文件内联） ===== */
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
+const $=id=>document.getElementById(id);
+function show(id,on){$(id).classList.toggle('hidden',!on);}
+const Kit=(function(){
+  const K={state:'menu',lv:0};let cfg,P,muted,ac=null,tutI=0,tutThen=null,lastWin=false;
+  function key(s){return 'g100_'+cfg.id+'_'+s;}
+  function load(){try{P=JSON.parse(UI.storageGet(key('prog'))||'{}')||{};}catch(e){P={};}
+    P.stars=P.stars||[];P.best=P.best||[];P.coins=P.coins||0;P.up=P.up||{};}
+  function save(){try{UI.storageSet(key('prog'),JSON.stringify(P));}catch(e){}}
+  K.save=save;
+  K.prog=()=>P;
+  K.up=k=>P.up[k]||0;
+  K.totalStars=()=>P.stars.reduce((a,b)=>a+(b||0),0);
+  K.hs=()=>+UI.storageGet(key('hs'))||0;
+  // ---- 音效 ----
+  function tone(f,d,type,vol,f2,delay){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();
+    const t=ac.currentTime+(delay||0),o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
+    g.gain.setValueAtTime(vol||.13,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+  K.tone=tone;
+  K.sfx=function(n,x){switch(n){
+    case 'tap':tone(520,.06,'triangle',.08);break;
+    case 'good':tone(660,.08,'sine');tone(990,.1,'sine',.1,0,.06);break;
+    case 'combo':tone(500+Math.min(12,x||1)*70,.12,'square',.07);break;
+    case 'bad':tone(220,.22,'sawtooth',.1,110);break;
+    case 'hit':tone(180,.08,'square',.08,90);break;
+    case 'coin':tone(1200,.07,'sine',.09);tone(1600,.09,'sine',.08,0,.06);break;
+    case 'boss':tone(110,.5,'sawtooth',.12,70);tone(165,.5,'square',.06,90,.1);break;
+    case 'win':[523,659,784,1046].forEach((f,i)=>tone(f,.18,'triangle',.12,0,i*.11));break;
+    case 'lose':[392,330,262,196].forEach((f,i)=>tone(f,.22,'sawtooth',.08,0,i*.13));break;
+    case 'boom':tone(140,.35,'sawtooth',.14,40);break;
+    default:tone(440,.08);}};
+  function setMute(m){muted=m;try{UI.storageSet('g100_mute',m?'1':'0');}catch(e){}
+    document.querySelectorAll('.muteBtn,#muteBtn').forEach(b=>b.textContent=m?'🔇':'🔊');}
+  // ---- 提示条 ----
+  let tt=0;K.toast=function(msg,ms){const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),ms||1300);};
+  K.vibrate=function(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);else if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}};
+  // ---- 选关 ----
+  K.isBoss=i=>(cfg.boss||[]).includes(i+1);
+  K.unlocked=i=>i===0||(P.stars[i-1]||0)>0||(cfg.endless&&i===cfg.levels-1&&false);
+  function stars(n){return '★★★'.slice(0,n)+'☆☆☆'.slice(0,3-n);}
+  K.starStr=stars;
+  function renderLevels(){
+    const g=$('lvgrid');g.innerHTML='';
+    for(let i=0;i<cfg.levels;i++){const b=document.createElement('button');b.className='lvl';const ok=K.unlocked(i);
+      const lab=cfg.label?cfg.label(i):String(i+1);
+      b.innerHTML=(ok?(K.isBoss(i)?'👑':'')+lab:'🔒')+'<small>'+(ok?stars(P.stars[i]||0):'&nbsp;')+'</small>';
+      if(!ok)b.disabled=true;b.addEventListener('click',()=>{K.sfx('tap');go(i);});g.appendChild(b);}
+    $('lvlInfo').textContent='⭐ '+K.totalStars()+'/'+cfg.levels*3+'   💰 '+P.coins+(K.hs()?'   🏆 '+K.hs():'');
+    $('lvlNote').textContent=cfg.note?cfg.note():'';
+    const s=$('shop');s.innerHTML='';
+    (cfg.ups||[]).forEach(u=>{const lv=K.up(u.k),max=u.max,cost=lv<max?u.cost(lv):0,b=document.createElement('button');b.className='ghost';
+      const need=u.stars&&K.totalStars()<u.stars;
+      b.innerHTML=u.ic+' '+u.name+' '+lv+'/'+max+'<br>'+(lv>=max?'已满级':need?'🔒 需 ⭐'+u.stars:'💰'+cost+' · '+u.desc);
+      if(lv>=max||need)b.disabled=true;
+      b.addEventListener('click',()=>{if(P.coins<cost){K.toast('💰 不够：通关赚取金币');K.sfx('bad');return;}P.coins-=cost;P.up[u.k]=lv+1;save();K.sfx('coin');K.toast(u.ic+' '+u.name+' 升到 '+(lv+1)+' 级');renderLevels();});
+      s.appendChild(b);});
+    s.classList.toggle('hidden',!(cfg.ups||[]).length);
+  }
+  K.menu=function(){K.state='menu';cfg.stop&&cfg.stop();['startScr','overScr','pauseOv','tutScr'].forEach(i=>show(i,false));renderLevels();show('lvlScr',true);};
+  function go(i){K.lv=i;['startScr','overScr','pauseOv','lvlScr','tutScr'].forEach(x=>show(x,false));K.state='play';
+    if(K.isBoss(i))setTimeout(()=>{K.sfx('boss');K.toast('👑 首领关：'+(cfg.bossName?cfg.bossName(i):'强敌来袭'),1800);},60);
+    else K.sfx('tap');cfg.start(i);}
+  K.go=go;
+  // ---- 教程 ----
+  function tutShow(){const t=cfg.tut[tutI];$('tutH').textContent=t[0];$('tutP').innerHTML=t[1];$('tutPic').textContent=t[2]||'';$('tutStep').textContent=(tutI+1)+' / '+cfg.tut.length;$('tutNext').textContent=tutI===cfg.tut.length-1?'明白了，开始！':'下一步';}
+  K.tutorial=function(then){tutI=0;tutThen=then;['startScr','lvlScr'].forEach(x=>show(x,false));tutShow();show('tutScr',true);};
+  function tutEnd(){show('tutScr',false);P.tut=1;save();(tutThen||K.menu)();}
+  // ---- 暂停 ----
+  K.pause=function(){if(K.state!=='play')return;K.state='pause';cfg.pause&&cfg.pause();$('pauseInfo').textContent=(cfg.label?'第 '+cfg.label(K.lv):'第 '+(K.lv+1))+' 关'+(K.isBoss(K.lv)?' · 首领关':'');show('pauseOv',true);};
+  K.resume=function(){if(K.state!=='pause')return;K.state='play';show('pauseOv',false);cfg.resume&&cfg.resume();};
+  // ---- 结算 ----
+  K.win=function(st,score,text){if(K.state!=='play')return;K.state='over';lastWin=true;st=Math.max(1,Math.min(3,st|0));const i=K.lv;
+    const old=P.stars[i]||0,gain=st*4+(old?0:6)+(K.isBoss(i)?8:0)+(cfg.coinBonus?cfg.coinBonus(i,st,score):0);P.coins+=gain;
+    if(st>old)P.stars[i]=st;if((score||0)>(P.best[i]||0))P.best[i]=score;
+    const tot=P.best.reduce((a,b)=>a+(b||0),0);if(tot>K.hs())UI.storageSet(key('hs'),tot);save();
+    $('overH').textContent=K.isBoss(i)?'👑 击败首领！':'🎉 过关！';$('overStars').textContent=stars(st);$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>💰 +'+gain+'　本关最佳 '+(P.best[i]||0);
+    const hasNext=i+1<cfg.levels;$('nextBtn').classList.toggle('hidden',!hasNext);if(hasNext)$('nextBtn').textContent=K.isBoss(i+1)?'👑 挑战首领':'下一关';
+    show('overScr',true);K.sfx('win');cfg.stop&&cfg.stop();};
+  K.lose=function(text,score){if(K.state!=='play')return;K.state='over';lastWin=false;const gain=Math.min(3,K.lv>0?2:1);P.coins+=gain;save();
+    $('overH').textContent='💥 挑战失败';$('overStars').textContent='☆☆☆';$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>安慰金 💰 +'+gain+'　可在选关页升级后再战';
+    $('nextBtn').classList.add('hidden');show('overScr',true);K.sfx('lose');K.vibrate(120);cfg.stop&&cfg.stop();};
+  K.init=function(c){cfg=c;load();setMute(UI.storageGet('g100_mute')==='1');
+    document.querySelectorAll('.muteBtn,#muteBtn').forEach(b=>b.addEventListener('click',()=>{setMute(!muted);if(!muted)K.sfx('tap');}));
+    $('startBtn').addEventListener('click',()=>{K.sfx('tap');if(!P.tut)K.tutorial(K.menu);else K.menu();});
+    $('tutNext').addEventListener('click',()=>{K.sfx('tap');if(tutI<cfg.tut.length-1){tutI++;tutShow();}else tutEnd();});
+    $('tutSkip').addEventListener('click',tutEnd);
+    $('howBtn').addEventListener('click',()=>K.tutorial(K.menu));
+    $('homeBtn').addEventListener('click',()=>{show('lvlScr',false);show('startScr',true);K.state='menu';});
+    $('pauseBtn').addEventListener('click',()=>K.state==='play'?K.pause():K.resume());
+    $('resumeBtn').addEventListener('click',K.resume);
+    $('restartBtn').addEventListener('click',()=>go(K.lv));
+    $('menuBtn').addEventListener('click',K.menu);$('menu2Btn').addEventListener('click',K.menu);
+    $('againBtn').addEventListener('click',()=>go(K.lv));
+    $('nextBtn').addEventListener('click',()=>go(Math.min(cfg.levels-1,K.lv+1)));
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)K.pause();});
+    const bl=$('bestLine');if(bl)bl.textContent=P.stars.length?('进度 ⭐'+K.totalStars()+'/'+cfg.levels*3+(K.hs()?' · 🏆 '+K.hs():'')):'首次游玩会有简短教程';
+    window.__T=window.__T||{};window.__T.kit=K;};
+  return K;
+})();
+/* ===== 套件结束 ===== */
+
+const W=360,H=400,CX=180,CY=200,RIN=70,ROUT=130;
+const cv=$('cv'),ctx=cv.getContext('2d');if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+const LV=[
+ {need:12,spawn:1.1,spd:1.0},{need:14,spawn:1.0,spd:1.05},{need:16,spawn:.95,spd:1.1},{need:18,spawn:.9,spd:1.15},
+ {boss:{name:'引力阱核',need:22,spawn:.85,spd:1.2,pull:1}},
+ {need:20,spawn:.85,spd:1.2},{need:22,spawn:.8,spd:1.25},{need:24,spawn:.75,spd:1.3},{need:26,spawn:.7,spd:1.35},
+ {boss:{name:'双星风暴',need:28,spawn:.7,spd:1.4,pull:1}},
+ {need:28,spawn:.68,spd:1.4},{need:30,spawn:.65,spd:1.45},{need:32,spawn:.62,spd:1.5},{need:34,spawn:.6,spd:1.55},
+ {boss:{name:'坍缩黑洞',need:40,spawn:.55,spd:1.6,pull:1}}
+];
+let L,outer,ang,rocks,lives,score,ended,raf=0,last=0,fast=1,timeLeft,need,spawnIn,sparks,boss,inv,shield;
+function start(i){L=LV[i];score=0;ended=false;rocks=[];sparks=[];outer=true;ang=0;inv=0;lives=3+Kit.up('life');shield=Kit.up('shield');
+  const b=L.boss||L;need=b.need;timeLeft=0;spawnIn=.5;boss=L.boss?{name:L.boss.name,pull:L.boss.pull}:null;
+  hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||ended)return;outer=!outer;Kit.sfx('tap');});
+function hit(){if(inv>0)return;if(shield>0){shield--;inv=.8;Kit.toast('护盾吸收！');Kit.sfx('hit');return;}
+  lives--;inv=1;Kit.sfx('bad');if(lives<=0)endLv(false,'撞上陨石');}
+function upd(dt){if(ended)return;const slow=1-Kit.up('slow')*.12;const spd=((L.boss||L).spd||1)*slow;
+  ang+=1.6*spd*dt;timeLeft+=dt;score=Math.floor(timeLeft*10);if(timeLeft>=need)return endLv(true);
+  spawnIn-=dt;if(spawnIn<=0){spawnIn=((L.boss||L).spawn||1)*(0.7+Math.random()*0.5);
+    const lane=Math.random()<.5;rocks.push({a:ang+Math.PI+Math.random()*.4,lane,r:10+Math.random()*6,alive:true});}
+  const pr=outer?ROUT:RIN;const px=CX+Math.cos(ang)*pr,py=CY+Math.sin(ang)*pr;
+  for(const o of rocks){if(!o.alive)continue;o.a+=0.4*spd*dt*(boss&&boss.pull?1.2:1);
+    const rr=o.lane?ROUT:RIN;const ox=CX+Math.cos(o.a)*rr,oy=CY+Math.sin(o.a)*rr;
+    if(Math.hypot(ox-px,oy-py)<o.r+12){o.alive=false;hit();if(FX)FX.burst(sparks,px,py,'#ff8a65',12);}}
+  rocks=rocks.filter(o=>o.alive&&Math.cos(o.a-ang)>-0.2||true).slice(-40);
+  if(inv>0)inv-=dt;hud();}
+function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('timT').textContent=timeLeft.toFixed(1)+'/'+need;$('score').textContent=score;
+  $('goalLbl').textContent=boss?'👑 '+boss.name:'存活 '+need+'s';$('progI').style.width=Math.min(100,timeLeft/need*100)+'%';
+  $('infoT').textContent=(outer?'外轨':'内轨')+(shield?' 🛡'+shield:'');}
+function endLv(won,why){if(ended)return;ended=true;if(won){const st=lives>=3?3:lives>=2?2:1;setTimeout(()=>Kit.win(st,score,boss?'逃出 '+boss.name:'坚持 '+need+'s'),300);}
+  else setTimeout(()=>Kit.lose(why,score),250);}
+function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
+function draw(){
+  if(FX)FX.stage(ctx,W,H,'#1a237e','#000051');else{ctx.fillStyle='#000051';ctx.fillRect(0,0,W,H);}
+  ctx.strokeStyle='rgba(179,157,219,.35)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(CX,CY,RIN,0,7);ctx.stroke();
+  ctx.beginPath();ctx.arc(CX,CY,ROUT,0,7);ctx.stroke();
+  if(FX){FX.glow(ctx,'#ffd54f',20);FX.orb(ctx,CX,CY,28,'#ffb300');FX.noGlow(ctx);}
+  else{ctx.fillStyle='#ffb300';ctx.beginPath();ctx.arc(CX,CY,26,0,7);ctx.fill();}
+  for(const o of rocks){if(!o.alive)continue;const rr=o.lane?ROUT:RIN;const ox=CX+Math.cos(o.a)*rr,oy=CY+Math.sin(o.a)*rr;
+    if(FX)FX.orb(ctx,ox|0,oy|0,o.r|0,'#8d6e63');else{ctx.fillStyle='#8d6e63';ctx.beginPath();ctx.arc(ox,oy,o.r,0,7);ctx.fill();}}
+  const pr=outer?ROUT:RIN;const px=CX+Math.cos(ang)*pr,py=CY+Math.sin(ang)*pr;
+  ctx.globalAlpha=inv>0&&((inv*8)|0)%2?0.4:1;
+  if(FX){FX.glow(ctx,'#80d8ff',12);FX.orb(ctx,px|0,py|0,12,'#40c4ff');FX.noGlow(ctx);}
+  else{ctx.fillStyle='#40c4ff';ctx.beginPath();ctx.arc(px,py,12,0,7);ctx.fill();}ctx.globalAlpha=1;
+  if(FX)FX.drawBurst(ctx,sparks);
 }
-function updHUD(){document.getElementById('scorePill').textContent='得分 '+score;document.getElementById('timePill').textContent=survive.toFixed(1)+'s';}
-function switchOrbit(){pTargetR=(pTargetR===RIN?ROUT:RIN);tone(pTargetR===RIN?500:700,0.09,'sine',0.12);}
-function gameOver(){state='over';var hs=getHS();if(score>hs)setHS(score);var px=CX+Math.cos(pAng)*pR,py=CY+Math.sin(pAng)*pR;boom(px,py,'#ba68c8',40);boom(px,py,'#ffffff',20);noise(0.5,0.35);tone(160,0.5,'sawtooth',0.16);showEnd();}
-function update(dt){
-  survive+=dt;score=(survive*10)|0;
-  pW=Math.min(2.6,pW+dt*0.022);
-  pAng+=pW*dt;
-  pR+=(pTargetR-pR)*Math.min(1,dt*10);
-  trail.push({x:CX+Math.cos(pAng)*pR,y:CY+Math.sin(pAng)*pR,t:0});
-  if(trail.length>26)trail.shift();
-  for(var i=0;i<trail.length;i++)trail[i].t+=dt;
-  var i2;
-  for(i2=0;i2<meteors.length;i2++){var m=meteors[i2];m.ang+=m.frac*pW*dt;m.spin+=dt*2;
-    if(Math.abs(m.r-pR)<30&&angDiff(m.ang,pAng)<GameUI.pick(0.24,0.3)){gameOver();return;}}
-  updHUD();updParts(dt);updFloats(dt);
-}
-function render(){
-  var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0a0a18');g.addColorStop(0.55,'#141428');g.addColorStop(1,'#0a0a12');
-  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='rgba(255,255,255,.5)';
-  for(var i=0;i<70;i++){ctx.fillRect((i*67)%W,(i*97)%H,2,2);}
-  ctx.strokeStyle=pTargetR===RIN?'rgba(186,104,200,.85)':'rgba(186,104,200,.28)';ctx.lineWidth=3;
-  ctx.beginPath();ctx.arc(CX,CY,RIN,0,6.2832);ctx.stroke();
-  ctx.strokeStyle=pTargetR===ROUT?'rgba(186,104,200,.85)':'rgba(186,104,200,.28)';
-  ctx.beginPath();ctx.arc(CX,CY,ROUT,0,6.2832);ctx.stroke();
-  var sg=ctx.createRadialGradient(CX,CY,4,CX,CY,44);sg.addColorStop(0,'#fff176');sg.addColorStop(0.6,'#ff9800');sg.addColorStop(1,'rgba(255,152,0,0)');
-  ctx.fillStyle=sg;ctx.beginPath();ctx.arc(CX,CY,44,0,6.2832);ctx.fill();
-  ctx.font='34px sans-serif';ctx.textAlign='center';ctx.fillText('☀️',CX,CY+12);
-  var j;
-  for(j=0;j<meteors.length;j++){var m=meteors[j];var mx=CX+Math.cos(m.ang)*m.r,my=CY+Math.sin(m.ang)*m.r;
-    ctx.save();ctx.translate(mx,my);ctx.rotate(m.spin);
-    ctx.fillStyle='#78909c';ctx.beginPath();
-    for(var k=0;k<7;k++){var aa=k/7*6.2832,rr=m.size*(0.8+((k*37)%30)/100);ctx.lineTo(Math.cos(aa)*rr,Math.sin(aa)*rr);}
-    ctx.closePath();ctx.fill();
-    ctx.fillStyle='rgba(255,110,80,.9)';ctx.beginPath();ctx.arc(-m.size*0.3,-m.size*0.2,m.size*0.28,0,6.2832);ctx.fill();
-    ctx.restore();}
-  for(j=0;j<trail.length;j++){var tr=trail[j];ctx.globalAlpha=Math.max(0,0.5-tr.t*1.4);ctx.fillStyle='#e1bee7';ctx.beginPath();ctx.arc(tr.x,tr.y,7,0,6.2832);ctx.fill();}
-  ctx.globalAlpha=1;
-  var px=CX+Math.cos(pAng)*pR,py=CY+Math.sin(pAng)*pR;
-  var pg=ctx.createRadialGradient(px,py,2,px,py,20);pg.addColorStop(0,'#ffffff');pg.addColorStop(0.5,'#ce93d8');pg.addColorStop(1,'rgba(186,104,200,0)');
-  ctx.fillStyle=pg;ctx.beginPath();ctx.arc(px,py,20,0,6.2832);ctx.fill();
-  ctx.fillStyle='#f3e5f5';ctx.beginPath();ctx.arc(px,py,9,0,6.2832);ctx.fill();
-  drawParts();drawFloats();
-  if(state==='playing'&&survive>1){ctx.fillStyle='rgba(255,255,255,.35)';ctx.font='15px sans-serif';ctx.textAlign='center';ctx.fillText('点击切换内 / 外轨道',CX,H-90);}
-}
-var ov=document.getElementById('overlay');
-function showMenu(){state='menu';ov.style.display='flex';ov.innerHTML='<h1>🪐</h1><h1 style="font-size:30px">轨道躲避</h1><div class="sub">小球绕行星公转，<b>点击屏幕切换内 / 外轨道</b>，<br>躲避轨道上的陨石。<br>坚持越久速度越快，看看你能活多久！</div><div class="best">🏆 最高分 '+getHS()+'</div><button class="btn" id="startBtn">开始游戏</button>';
-  document.getElementById('startBtn').addEventListener('click',function(){ac();tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
-function showEnd(){var hs=getHS();ov.style.display='flex';ov.innerHTML='<h1>💥</h1><h1 style="font-size:30px">被陨石击中！</h1><div class="sub">存活 '+survive.toFixed(1)+' 秒</div><div class="bigscore">'+score+'</div><div class="best">🏆 最高分 '+hs+'</div><button class="btn" id="againBtn">再来一局</button>';
-  document.getElementById('againBtn').addEventListener('click',function(){tone(660,0.1,'square',0.1);reset();state='playing';ov.style.display='none';});}
-function pauseGame(){if(state!=='playing')return;state='paused';ov.style.display='flex';ov.innerHTML='<h1>⏸</h1><h1 style="font-size:28px">已暂停</h1><div class="sub">得分 '+score+' · 存活 '+survive.toFixed(1)+'s</div><div class="row"><button class="btn" id="resumeBtn">继续</button><button class="btn2" id="restartBtn">重来</button></div>';
-  document.getElementById('resumeBtn').addEventListener('click',function(){state='playing';ov.style.display='none';});
-  document.getElementById('restartBtn').addEventListener('click',function(){reset();state='playing';ov.style.display='none';});}
-bindDown(function(){if(state==='playing')switchOrbit();});
-document.getElementById('pauseBtn').addEventListener('click',function(){pauseGame();});
-document.getElementById('soundBtn').addEventListener('click',function(){soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔇';if(soundOn)tone(660,0.08,'square',0.1);});
-var last=0;
-function loop(t){requestAnimationFrame(loop);var dt=(t-last)/1000;last=t;if(!(dt>0)||dt>0.05)dt=0.016;if(state==='playing')update(dt);render();}
-reset();showMenu();
-requestAnimationFrame(loop);
+function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
+addEventListener('resize',layout);layout();
+Kit.init({id:'orbit',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},pause:()=>{},
+  note:()=>'点击切换内外轨道，躲避陨石坚持到目标秒数',
+  tut:[['变轨','点击屏幕在内外轨道间切换。','🪐'],
+       ['陨石','棕色陨石沿轨道飞来，撞到扣命。','☄️'],
+       ['坚持','存活到目标时间即过关。','⏱️'],
+       ['Boss','引力阱加快陨石，升级护盾/慢时。','👑']],
+  ups:[{k:'shield',ic:'🛡️',name:'护盾',desc:'开局护盾',max:2,cost:l=>30+l*32},
+       {k:'slow',ic:'🐢',name:'慢时',desc:'轨道稍慢',max:2,cost:l=>28+l*30},
+       {k:'life',ic:'❤️',name:'额外命',desc:'+1 命',max:2,cost:l=>34+l*36,stars:5}]});
+window.__T.state=()=>({timeLeft,need,lives,ended,outer});
+window.__T.fast=k=>{fast=k;};
+window.__T.cheatWin=()=>{timeLeft=need;endLv(true);};
+window.__T.solve=()=>{if(ended||Kit.state!=='play')return;timeLeft=Math.min(need,timeLeft+need*.3);if(timeLeft>=need)endLv(true);};
 </script>
 </body>
 </html>
