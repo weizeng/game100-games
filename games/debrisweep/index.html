@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>太空清道夫</title>
 <style>
+/* ART T2-3 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #soundBtn{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:#0b1020;overflow:hidden;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#e8eefc}
 body{display:flex;justify-content:center;align-items:center}
@@ -433,6 +436,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 </div>
 <script>
 /* GAMEPLAY UPGRADE */'use strict';
+
+/* ART T2-3 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 var W=480,H=720,SHIP={x:240,y:648},BEAM_R=GameUI.pick(90,66),GAME_LEN=90;
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 var scoreEl=document.getElementById('score'),timeEl=document.getElementById('time'),livesEl=document.getElementById('lives');
@@ -488,7 +493,9 @@ for(i=particles.length-1;i>=0;i--){var p=particles[i];p.life-=dt;if(p.life<=0){p
 for(i=floaters.length-1;i>=0;i--){var f=floaters[i];f.life-=dt;f.y-=34*dt;if(f.life<=0)floaters.splice(i,1);}
 if(shakeT>0)shakeT=Math.max(0,shakeT-dt*30);
 updateHud();}
-function draw(){ctx.save();ctx.clearRect(0,0,W,H);ctx.fillStyle='#0b1020';ctx.fillRect(0,0,W,H);
+/* ART T2-3 */var dsBg=null,dsBgKey='';
+function ensureDsBg(){var k=W+'x'+H;if(dsBg&&dsBgKey===k)return dsBg;dsBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#12182e','#0b1020');else{g.fillStyle='#0b1020';g.fillRect(0,0,W,H);}dsBg=c;return dsBg;}
+function draw(){ctx.save();ctx.clearRect(0,0,W,H);ctx.drawImage(ensureDsBg(),0,0);
 if(shakeT>0)ctx.translate((Math.random()*2-1)*shakeT,(Math.random()*2-1)*shakeT);
 var t=breath;
 for(var s=0;s<stars.length;s++){var st=stars[s];var a=0.35+0.3*Math.sin(t*2+st.tw);ctx.globalAlpha=Math.max(0.08,a);ctx.fillStyle='#cfe0ff';ctx.beginPath();ctx.arc(st.x,st.y,st.r,0,6.283);ctx.fill();}
@@ -498,7 +505,7 @@ for(i=0;i<entities.length;i++)if(entities[i].state==='suck'){anySuck=true;break;
 if(pointer.active){var br=BEAM_R+Math.sin(t*6)*6;
 if(anySuck){var g=ctx.createLinearGradient(pointer.x,pointer.y,SHIP.x,SHIP.y);g.addColorStop(0,'rgba(124,255,178,.28)');g.addColorStop(1,'rgba(124,255,178,.02)');ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(pointer.x-br*0.7,pointer.y);ctx.lineTo(SHIP.x-26,SHIP.y-20);ctx.lineTo(SHIP.x+26,SHIP.y-20);ctx.lineTo(pointer.x+br*0.7,pointer.y);ctx.closePath();ctx.fill();}
 ctx.save();ctx.shadowColor='#7cffb2';ctx.shadowBlur=18;ctx.strokeStyle='rgba(124,255,178,.85)';ctx.lineWidth=3;ctx.setLineDash([14,10]);ctx.lineDashOffset=-t*40;ctx.beginPath();ctx.arc(pointer.x,pointer.y,br,0,6.283);ctx.stroke();ctx.restore();ctx.setLineDash([]);
-ctx.save();ctx.globalAlpha=0.5;ctx.fillStyle='#7cffb2';ctx.beginPath();ctx.arc(pointer.x,pointer.y,6+Math.sin(t*6)*2,0,6.283);ctx.fill();ctx.restore();}
+ctx.save();ctx.globalAlpha=0.85;if(FX){FX.glow(ctx,'#7cffb2',12);FX.orb(ctx,pointer.x|0,pointer.y|0,Math.max(4,(6+Math.sin(t*6)*2)|0),'#7cffb2');FX.noGlow(ctx);}else{ctx.fillStyle='#7cffb2';ctx.beginPath();ctx.arc(pointer.x,pointer.y,6+Math.sin(t*6)*2,0,6.283);ctx.fill();}ctx.restore();}
 ctx.save();ctx.shadowColor='#35a088';ctx.shadowBlur=22;ctx.font='56px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🛸',SHIP.x,SHIP.y);ctx.restore();
 for(i=0;i<entities.length;i++){var e=entities[i];ctx.save();ctx.translate(e.x,e.y);
 if(e.kind==='b'){ctx.strokeStyle='rgba(255,80,80,.8)';ctx.lineWidth=2.5;ctx.setLineDash([6,5]);ctx.lineDashOffset=-t*24;ctx.beginPath();ctx.arc(0,0,24+Math.sin(t*8)*3,0,6.283);ctx.stroke();ctx.setLineDash([]);}

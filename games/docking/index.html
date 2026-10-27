@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>太空对接</title>
 <style>
+/* ART T2-3 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #soundBtn{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#0b1020;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
 #wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:#0b1020}
@@ -447,6 +450,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 'use strict';
+
+/* ART T2-3 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 var W=480,H=720;
 var THRUST=300,ROT=2.9,DAMP=.22,FUEL_T=15,FUEL_R=7;
@@ -557,19 +562,21 @@ function drawStation(){if(!station)return;var st=station;ctx.save();ctx.translat
  ctx.strokeStyle='#69f0ae';ctx.lineWidth=3;ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(46,0);ctx.stroke();ctx.setLineDash([]);
  ctx.restore();
  ctx.fillStyle='#69f0ae';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText('±'+Math.round(station.tol*180/Math.PI)+'°',pp[0],pp[1]+30);}
+/* ART T2-3 */var dkBg=null,dkBgKey='';
+function ensureDkBg(){var k=W+'x'+H;if(dkBg&&dkBgKey===k)return dkBg;dkBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#0b1020','#101a30');else{g.fillStyle='#101a30';g.fillRect(0,0,W,H);}dkBg=c;return dkBg;}
 function render(){ctx.save();
  if(shake>0)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
- var bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#0b1020');bg.addColorStop(.6,'#0d1430');bg.addColorStop(1,'#101a30');ctx.fillStyle=bg;ctx.fillRect(-20,-20,W+40,H+40);
+ ctx.drawImage(ensureDkBg(),0,0);
  ctx.fillStyle='#fff';for(var i=0;i<stars.length;i++){var st=stars[i];ctx.globalAlpha=.3+.7*Math.abs(Math.sin(st.p+lvlT));ctx.fillRect(st.x,st.y,st.s,st.s);}ctx.globalAlpha=1;
  ctx.fillStyle='#0d2b4d';ctx.beginPath();ctx.arc(80,860,220,0,6.283);ctx.fill();ctx.strokeStyle='#1e6f9f';ctx.lineWidth=2;ctx.stroke();
  drawStation();
  if(ship){ctx.save();ctx.translate(ship.x,ship.y);ctx.rotate(ship.a);
   ctx.fillStyle='#e8f4ff';ctx.beginPath();ctx.moveTo(20,0);ctx.lineTo(-12,-11);ctx.lineTo(-6,0);ctx.lineTo(-12,11);ctx.closePath();ctx.fill();
-  ctx.fillStyle='#4fc3f7';ctx.beginPath();ctx.arc(2,0,5,0,6.283);ctx.fill();
+  if(FX){FX.glow(ctx,'#4fc3f7',10);FX.orb(ctx,2,0,5,'#4fc3f7');FX.noGlow(ctx);}else{ctx.fillStyle='#4fc3f7';ctx.beginPath();ctx.arc(2,0,5,0,6.283);ctx.fill();}
   if(keyT&&fuel>0){ctx.fillStyle='#ffab40';ctx.beginPath();ctx.moveTo(-12,0);ctx.lineTo(-12-14-Math.random()*10,-5);ctx.lineTo(-12-14-Math.random()*10,5);ctx.closePath();ctx.fill();}
   ctx.restore();
   ctx.strokeStyle='#ffffff44';ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.moveTo(ship.x,ship.y);ctx.lineTo(ship.x+Math.cos(ship.a)*40,ship.y+Math.sin(ship.a)*40);ctx.stroke();ctx.setLineDash([]);}
- for(var m=0;m<parts.length;m++){var p=parts[m];ctx.globalAlpha=Math.max(0,p.t/p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.283);ctx.fill();}ctx.globalAlpha=1;
+ for(var m=0;m<parts.length;m++){var p=parts[m];ctx.globalAlpha=Math.max(0,p.t/p.life);if(FX)FX.orb(ctx,p.x|0,p.y|0,Math.max(2,p.r|0),p.color);else{ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.283);ctx.fill();}}ctx.globalAlpha=1;
  ctx.textAlign='center';for(var n=0;n<floats.length;n++){var f=floats[n];ctx.globalAlpha=Math.min(1,f.t/.6);ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';var lines=String(f.text).split('|');for(var q=0;q<lines.length;q++)ctx.fillText(lines[q],f.x,f.y+q*22);}ctx.globalAlpha=1;
  ctx.restore();}
 var lastT=0;

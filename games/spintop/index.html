@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>打陀螺</title>
 <style>
+/* ART T2-3 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #soundBtn{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{width:100%;height:100%;overflow:hidden;background:#120e1c;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;touch-action:none;user-select:none;-webkit-user-select:none}
 #wrap{position:relative;width:100%;max-width:420px;height:100%;max-height:800px;margin:0 auto;background:radial-gradient(circle at 50% 30%,#2b1e44,#120e1c)}
@@ -426,7 +429,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="overlay" id="startOv">
   <h1>🌀</h1><h2>打陀螺</h2>
   <p>点按自己陀螺附近 = 抽一鞭子，转速回升（冷却 0.8 秒）<br>转速随时间衰减，耗尽停转就输了<br>转速高的一方撞人更狠💥<br>把对方撞出圈或撞停即赢一局，三局两胜！</p>
-  <button class="bigbtn" id="startbtn">开始对决</button>
+  <button class="bigbtn" id="startBtn">开始对决</button>
 </div>
 <div class="overlay hid" id="pauseOv">
   <h2>⏸ 已暂停</h2>
@@ -440,6 +443,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 </div>
 <script>
 'use strict';
+
+/* ART T2-3 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 var W=cv.width,H=cv.height;
 var HS_KEY='g100_spintop_hs',SND_KEY='g100_sound';
@@ -607,13 +612,15 @@ function drawTop(t){
   for(var i=0;i<n;i++){var a=i/n*Math.PI*2;var rr=(i%2===0)?t.r:t.r*.55;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}
   ctx.closePath();ctx.fill();
   ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=2;ctx.stroke();
-  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,5,0,7);ctx.fill();
+  if(FX){FX.glow(ctx,'#fff',8);FX.orb(ctx,0,0,5,'#ffffff');FX.noGlow(ctx);}else{ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,5,0,7);ctx.fill();}
   ctx.restore();
   // 眩晕停转标记
   if(t.spin<=0){ctx.font='18px sans-serif';ctx.textAlign='center';ctx.fillText('💤',t.x,t.y-t.r-8)}
 }
+/* ART T2-3 */var stBg=null,stBgKey='';
+function ensureStBg(){var k=W+'x'+H;if(stBg&&stBgKey===k)return stBg;stBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#2c2350','#171226');else{g.fillStyle='#171226';g.fillRect(0,0,W,H);}stBg=c;return stBg;}
 function draw(){
-  ctx.fillStyle='#171226';ctx.fillRect(0,0,W,H);
+  ctx.drawImage(ensureStBg(),0,0);
   // 场地圈
   var g=ctx.createRadialGradient(RING.x,RING.y,20,RING.x,RING.y,RING.r);
   g.addColorStop(0,'#2c2350');g.addColorStop(1,'#1d1740');
@@ -668,7 +675,7 @@ function endMatch(){
   document.getElementById('endOv').classList.remove('hid');
   document.getElementById('topbtns').style.display='none';
 }
-document.getElementById('startbtn').addEventListener('click',startGame);
+document.getElementById('startBtn').addEventListener('click',startGame);
 document.getElementById('restartbtn').addEventListener('click',startGame);
 document.getElementById('pausebtn').addEventListener('click',function(){
   if(state!=='play')return;state='pause';sClick();
