@@ -7,7 +7,7 @@ import com.game100.center.data.UserData
 
 /**
  * 把本机最高分同步到 Supabase；任何异常都吞掉，只打日志。
- * cn 离线包没有网 / 未配置时直接跳过。
+ * ONLINE_CATALOG=false 或未配置时直接跳过。
  */
 object LeaderboardSync {
     private const val TAG = "LeaderboardSync"
@@ -15,7 +15,7 @@ object LeaderboardSync {
     fun submitBest(context: Context, gameId: String, score: Int) {
         if (score <= 0) return
         if (!LeaderboardApi.isConfigured) return
-        if (!BuildConfig.ONLINE_CATALOG) return // cn 离线包不联网
+        if (!BuildConfig.ONLINE_CATALOG) return // 无在线目录渠道不联网
         try {
             val user = UserData(context)
             // 先保证本机纪录

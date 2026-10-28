@@ -8,7 +8,7 @@
 | 渠道 | 用途 | 自升级（下载安装新 APK） | 在线游戏库（CDN 下载新游戏） | 权限 | 内置游戏 |
 |---|---|---|---|---|---|
 | `play` | Google Play、TapTap | ❌ 去掉（“检查更新”改为跳转商店） | ✅ | INTERNET、ACCESS_NETWORK_STATE、VIBRATE | 构建时把仓库 `games/` 下**全部**游戏打进包里 |
-| `cn` | 华为 / 小米 / OPPO / vivo 等国内商店 | ❌ | ❌ 完全离线 | 仅 VIBRATE（**没有联网权限**） | 构建时把仓库 `games/` 下**全部**游戏打进包里 |
+| `cn` | 华为 / 小米 / OPPO / vivo 等国内商店 | ❌ | ✅ 离线保底 + 联网增量新游戏 | INTERNET、ACCESS_NETWORK_STATE、VIBRATE | 构建时把仓库 `games/` 下**全部**游戏打进包里 |
 | `direct` | 官网 / GitHub 直装（原来的行为） | ✅ | ✅ | 另加 REQUEST_INSTALL_PACKAGES + FileProvider | 同上，全部游戏 |
 
 代码层面：
@@ -21,7 +21,7 @@
   - 下载或安装失败时弹框提供“重试”和“用浏览器下载”（打开 app.json 的 apkUrl）。
   - app.json 同时向 jsDelivr 4 个节点 + raw.githubusercontent 请求，取 versionCode 最大的（jsDelivr 的 @main 常缓存旧版本）。
   `play` 和 `cn` 编译 `src/noSelfUpdate/` 里的同名空实现，所以这两个包里**根本没有**下载安装 APK 的代码。
-- `cn` 的 Manifest（`src/cn/AndroidManifest.xml`）用 `tools:node="remove"` 去掉 INTERNET / ACCESS_NETWORK_STATE。
+- `cn` 自 v4.19 起保留 INTERNET（与 play 一样可拉线上 manifest 增量新游戏）；仍编译 `src/noSelfUpdate/`，**不下 APK**。
 - **内置游戏（所有渠道，自 v4.10 起）**：Gradle 任务 `zipBundledGames` 在构建时把仓库 `games/<id>/` 全部打成
   `assets/bundled/<id>.zip`（输出到 `app/build/generated/bundledGames/`，挂在 `main` 的 assets 上），不会改动仓库文件。
   - 以前 play/direct 用的是提交在仓库里的 `src/main/assets/bundled`（停在 10-17 的 206 款旧版），已删除，所以**内置游戏永远等于当前 `games/`**，不会再过期。
@@ -45,7 +45,7 @@ cd android
 ./gradlew assemblePlayRelease -Pgame100.versionCode=23 -Pgame100.versionName=4.6
 # 产物：app/build/outputs/apk/play/release/app-play-release.apk
 
-# 国内商店（完全离线）
+# 国内商店（离线保底 + 联网增量，不自更新 APK）
 ./gradlew assembleCnRelease   -Pgame100.versionCode=23 -Pgame100.versionName=4.6
 # 产物：app/build/outputs/apk/cn/release/app-cn-release.apk
 

@@ -178,7 +178,7 @@ class GameRepository(private val context: Context) {
 
     @Throws(Exception::class)
     fun fetchRemote(): List<RemoteGame> {
-        // cn 渠道为完全离线单机版：不访问在线游戏库（游戏已在构建时全部内置）
+        // ONLINE_CATALOG=false 时不访问在线游戏库；cn/play/direct 现均为 true（离线保底 + 增量）
         if (!com.game100.center.BuildConfig.ONLINE_CATALOG) return emptyList()
         val url = getManifestUrl()
         if (url.isBlank()) return emptyList()

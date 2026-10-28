@@ -32,7 +32,7 @@ scripts/classics/ + build-classic-games.cjs ← 五款经典（connectfour color
 
 **各 App 版本怎么看到推荐**：
 - **direct / play / taptap（有联网）4.14**：下拉刷新拉取 manifest 的 `premium` 即可换「精选推荐」内容；顺序按**中文名**，不是最新在前。
-- **cn 渠道 4.14**：完全离线、不读 manifest，精选只认 APK 内置 meta——**必须发新版 App** 才能换推荐。
+- **cn 渠道 ≥ 4.19**：离线保底 + 联网读 manifest（与 play/direct 同模型）；下拉刷新即可换「精选推荐」并拉新游戏。更早的 cn 离线包仍须发新版 App 才能换推荐。
 - **≥ 4.15**：按 `featured` 最新在前；联网有缓存穿透；cn 内置包也会带上推荐位。
 
 **不要**在 `meta.json` 里手写 `premium` / `featured`。App 对比 `version` 决定是否提示游戏更新。

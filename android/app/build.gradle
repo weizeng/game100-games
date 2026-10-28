@@ -11,8 +11,8 @@ plugins {
 def readProp = { String name ->
     project.findProperty(name)?.toString() ?: System.getenv(name.toUpperCase().replace('.', '_'))
 }
-def appVersionCode = (readProp("game100.versionCode") ?: "35").toInteger()
-def appVersionName = readProp("game100.versionName") ?: "4.18"
+def appVersionCode = (readProp("game100.versionCode") ?: "36").toInteger()
+def appVersionName = readProp("game100.versionName") ?: "4.19"
 
 // 签名：只从 release.properties（不入库）/ -P 参数 / 环境变量读取，绝不写死在仓库里。
 // 缺少任一项时 release 包不签名（可由 muse 或 apksigner/jarsigner 事后签名），不会让同步失败。
@@ -68,11 +68,11 @@ android {
             buildConfigField("boolean", "ONLINE_CATALOG", "true")
             buildConfigField("String", "STORE_CHANNEL", "\"play\"")
         }
-        // 国内应用商店：完全离线（构建时把 games/ 全部打进 APK，无 INTERNET 权限，不自更新）
+        // 国内应用商店：离线保底（构建时把 games/ 全部打进 APK）+ 联网增量拉新游戏；不自更新 APK
         cn {
             dimension = "store"
             buildConfigField("boolean", "SELF_UPDATE", "false")
-            buildConfigField("boolean", "ONLINE_CATALOG", "false")
+            buildConfigField("boolean", "ONLINE_CATALOG", "true")
             buildConfigField("String", "STORE_CHANNEL", "\"cn\"")
         }
         // 官网/GitHub 直装：保持现有行为（在线游戏库 + App 自升级）
@@ -138,7 +138,7 @@ if (!hasReleaseSigning) {
 // （与 publish.yml 的 zip 结构一致：根目录直接是 index.html / meta.json 等文件）。
 // App 启动时 GameRepository.ensureBundledGames() 读取 zip 内 meta.json 的 version，
 // 比已安装版本新才解压，因此内置版本永远等于 games/*/meta.json，不会过期。
-// cn 渠道因此完全离线可玩；play/direct 首次安装也能离线玩全部游戏。
+// 所有渠道内置全部游戏作离线保底；cn/play/direct 联网后均可增量拉新游戏（cn 不自更新 APK）。
 // ---------------------------------------------------------------------------
 def gamesSrcDir = rootProject.file("../games")
 def bundledOut = layout.buildDirectory.dir("generated/bundledGames/bundled")

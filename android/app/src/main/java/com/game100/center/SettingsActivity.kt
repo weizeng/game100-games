@@ -47,7 +47,7 @@ class SettingsActivity : AppCompatActivity() {
         val btnCheck = findViewById<Button>(R.id.btn_check_update)
         // 应用商店渠道（play / cn）不自更新，按钮改为"去商店更新"
         if (!BuildConfig.SELF_UPDATE) btnCheck.text = "去商店更新"
-        // cn 离线版没有在线游戏库，隐藏"游戏内容来源"设置
+        // ONLINE_CATALOG=false 时隐藏"游戏内容来源"；cn 现已开启在线目录，与 play 一致可改 manifest URL
         if (!BuildConfig.ONLINE_CATALOG) {
             (etUrl.parent as? android.view.View)?.visibility = android.view.View.GONE
         }
