@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '..');
 const [id, theme, name, category, icon, studioArg] = process.argv.slice(2);
 const STUDIOS = ['Muse', 'Grok'];
 const studio = STUDIOS.find(s => s.toLowerCase() === String(studioArg || process.env.GAME100_STUDIO || '').trim().toLowerCase());
-const CATS = ['科学实验', '经典重温', '射击', '跑酷跳跃', '塔防策略', '卡牌构筑', '棋牌对战', '消除合成', '益智解谜', '休闲模拟', '街机动作', '节奏音乐'];
+const CATS = ['科学实验', '经典重温', '射击', '跑酷跳跃', '塔防策略', '卡牌构筑', '棋牌对战', '消除合成', '益智解谜', '休闲模拟', '街机动作', '节奏音乐', '金融益智'];
 if (!id || !/^[a-z][a-z0-9]{1,19}$/.test(id)) throw new Error('id 需为 2–20 位小写字母/数字，且以字母开头');
 if (fs.existsSync(path.join(root, 'games', id))) throw new Error('games/' + id + ' 已存在');
 if (!CATS.includes(category)) throw new Error('分类必须是：' + CATS.join(' / '));

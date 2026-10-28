@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 把 games/<id>/meta.json 的 category 从旧 5 类扩到 12 类。
+ * 把 games/<id>/meta.json 的 category 分类允许列表（含金融益智，共 13 类）。
  * 用法：node scripts/retarget-categories.cjs [--dry]
  * 规则：科学实验/经典重温默认不动；其余按 OVERRIDE 表 + 启发式 + 旧类回退。
  */
@@ -11,7 +11,7 @@ const ROOT = path.resolve(__dirname, '..');
 const GAMES = path.join(ROOT, 'games');
 const ALLOWED = [
   '科学实验', '经典重温', '射击', '跑酷跳跃', '塔防策略', '卡牌构筑',
-  '棋牌对战', '消除合成', '益智解谜', '休闲模拟', '街机动作', '节奏音乐',
+  '棋牌对战', '消除合成', '益智解谜', '休闲模拟', '街机动作', '节奏音乐', '金融益智',
 ];
 const KEEP = new Set(['科学实验', '经典重温']);
 const OLD_FALLBACK = {
