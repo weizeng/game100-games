@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>扫帚夜行</title>
 <style>
+/* ART T2-4 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #soundBtn{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{background:linear-gradient(165deg,#0a1230 0%,#0d1b4c 45%,#05081a 100%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none;overflow-x:hidden}
@@ -460,6 +463,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="ov" id="pauseov"><div class="pausecard"><h2>⏸ 中场休息</h2><button class="bigbtn" id="resumeBtn">继续飞行</button><button class="ghostbtn" id="quitBtn">重开一局</button></div></div>
 <script>
 'use strict';
+/* ART T2-4 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
+
 const $=id=>document.getElementById(id);
 /* ===== 音效 ===== */
 let AC=null;
@@ -545,12 +550,14 @@ window.addEventListener('keydown',e=>{
   if(e.key==='ArrowRight')tx=Math.min(W-24,tx+46);
 });
 /* ===== 绘制 ===== */
+/* ART T2-4 */var brBg=null,brBgKey='';
+function ensureBrBg(){var k=W+'x'+H;if(brBg&&brBgKey===k)return brBg;brBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#0a1230','#05081a');else{g.fillStyle='#05081a';g.fillRect(0,0,W,H);}brBg=c;return brBg;}
 function draw(dt){
-  ctx.clearRect(0,0,W,H);
+  ctx.drawImage(ensureBrBg(),0,0);
   // 月亮
   const mg=ctx.createRadialGradient(292,84,6,292,84,44);
   mg.addColorStop(0,'rgba(255,249,196,.95)');mg.addColorStop(0.35,'rgba(255,249,196,.25)');mg.addColorStop(1,'rgba(255,249,196,0)');
-  ctx.fillStyle=mg;ctx.beginPath();ctx.arc(292,84,44,0,7);ctx.fill();
+  if(FX){FX.glow(ctx,'#fff9c4',18);FX.orb(ctx,292,84,22,'#fff9c4');FX.noGlow(ctx);}else{ctx.fillStyle=mg;ctx.beginPath();ctx.arc(292,84,44,0,7);ctx.fill();}
   ctx.font='40px serif';ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillText('🌕',292,84);
   // 星星背景
@@ -558,7 +565,7 @@ function draw(dt){
     s.y+=speed*s.s*dt;s.tw+=dt*3;
     if(s.y>H+6){s.y=-6;s.x=Math.random()*W;}
     ctx.globalAlpha=0.4+0.35*Math.sin(s.tw);
-    ctx.fillStyle='#e3ecff';ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();
+    if(FX)FX.orb(ctx,s.x|0,s.y|0,Math.max(1,s.r|0),'#e3ecff');else{ctx.fillStyle='#e3ecff';ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();}
   }
   ctx.globalAlpha=1;
   // 云
