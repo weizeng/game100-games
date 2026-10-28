@@ -234,6 +234,36 @@
 - **数据**：累计 120 万安装、评分 4.6、Recent 约 2.3 万（AppBrain 美国区 Top Free Card 第 79 名，榜单更新 2026-10-26）；同机制 Tripledot 新作 You Know: Associations（51 万 / 4.8 / Recent 17 万，第 7 名）把数字换成类别，证明舍牌机制仍在出新品。
 - **状态**：已完成（Grok · 2026-10-28 · 每日新游戏）
 
+### 23. agewar 时代远征 — 策略模拟 · 主题 paper · 复杂度：低
+
+- **参考原作**：We Are Warriors!（Lessmore GmbH）。核心循环：基地自动产「食物」，点兵种卡花食物出兵，部队沿单线自动行军、接敌自动交战，推倒敌方基地即胜；食物产速固定，贵兵与群兵的取舍就是全部策略——一把梭哈贵兵会被敌方小兵海淹没，食物花光的空窗期最危险。
+- **好玩在哪**：「攒钱出大怪还是爆小兵压线」的时机抉择每 10 秒就要做一次；时代跃迁是天然的大奖——石器骑龙、铁器斯巴达、工业坦克，兵种池整套换新，等于每 6 关换一个新游戏；单局 2–4 分钟，失败立刻重开。
+- **落地方案**：时代制 5 时代 × 6 关 + 每时代末 Boss 关（敌方巨兽 / 精英军团），共 35 关；兵种 3 系克制环（近战克远程、远程克重装、重装克近战），每时代 3 兵（共 15 兵，数值递进）；难度曲线 = 敌方食物产速、兵种解锁速度与 Boss 血量；特殊机制：「时代跃迁」（胜 6 关后兵种池整套升级，旧兵保留 1 个作纪念位）、「战场技能」（每局限 1 次三选一：推进 / 冻结 / 回粮，冷却贯穿整局）；成长线：胜场金币升级食物产速 / 兵种攻击 / 基地血量，存档 `g100_agewar_prog`。
+- **触控**：点兵种卡出兵（热区 ≥44px），战场技能点按释放，无需拖动。
+- **防重复**：库内 mergelegion 是拖拽合成 + 布阵自动对战、autochess 是买子布阵回合制、mobgate 是人流穿算术闸门；本款是「食物经济 + 单线行军自动交战 + 时代换兵种池」，经济与推进节奏均不同。
+- **数据**：累计 3000 万安装、评分 4.5、Recent 约 40 万（AppBrain 美国区 Top Free Strategy 第 24 名，榜单更新 2026-10-27）；商店自述与玩家攻略站均确认食物出兵 + 时代进化核心（厂商自述部分已与攻略站玩法描述交叉验证）。
+- **状态**：待开发（2026-10-28 侦察）
+
+### 24. kinggrid 王格争霸 — 策略模拟 · 主题 paper · 复杂度：中
+
+- **参考原作**：9 Kings（Sad Socket / Hooded Horse，移动版 Playdigious）。核心循环：每「年」打 1 张牌到王国棋盘上——单位、建筑或法术，摆完即自动打一波来袭敌军；守住 6 年后挑战敌王（Boss 年），胜则三选一掠夺敌王的卡牌进自己牌库，牌库越打越「离谱」就是本作的驱动力。
+- **好玩在哪**：一回合只做一个决定（打哪张、放哪格），但相邻加成与掠夺构筑让每个决定都有长尾；「这局能不能偷到敌王那张核心牌」是比胜负本身更强的重开理由；一局 7 回合约 3 分钟，节奏比原作整局远征短得多。
+- **落地方案**：一局 = 6 年守城 + 1 个 Boss 年（约 3 分钟）；通关后解锁下一位敌王，共 3 位（难度与卡池递增）；卡池精简为 18 张（单位 8 / 建筑 5 / 法术 5）；难度曲线 = 敌军波次强度、敌王技能；特殊机制：「相邻加成」（同类建筑相邻 + 攻击）、「王座投石」（每局 1 次，点选落点砸一波敌军）；成长线：掠夺卡牌进收藏、解锁 3 位开局国王（各带不同开局卡组），存档 `g100_kinggrid_prog`。
+- **触控**：点手牌、点棋盘格落牌、点选投石落点（热区 ≥44px）。
+- **防重复**：库内 autochess 是买子布阵 + 羁绊回合战（无建筑 / 法术牌、无掠夺构筑）、islelord 是种田伐木 + 建塔守岛的实时经营（无卡牌回合制）；本款是「卡牌扩格建国 + 逐年自动战斗 + 胜后掠夺组牌」，结构不同。
+- **数据**：累计 66 万安装、评分 4.5、全部安装均在 Recent 列（AppBrain 美国区 Top Free Strategy 第 56 名、Top New Free Strategy 第 3 名，榜单更新 2026-10-27；2026-10-12 移动版上线，属上线两周内的新品爬升）。
+- **状态**：待开发（2026-10-28 侦察）
+
+### 25. draftduel 选秀对决 — 策略模拟 · 主题 candy · 复杂度：低
+
+- **参考原作**：Draft Showdown（VOODOO）。核心循环：开战前 3 轮选秀，每轮三选一挑一张牌组军（箭雨、爆破、骑兵群等），选完双方军队即实时自动交战；基地血量落后的一方触发「第 4 抽」翻盘选秀——落后时才有的补强机会让每局不到最后一秒都不好说。
+- **好玩在哪**：决策全部压缩在选秀 30 秒里（猜对手、凑克制、留后手），战斗本身是「看自己选得对不对」的揭晓时刻；落后方的第 4 抽是天然的翻盘剧本，优势方也不能提前开香槟；单场 2–3 分钟。
+- **落地方案**：阶梯赛 20 场（AI 选秀强度与牌池递增）；每场 = 3 轮选秀 + 自动交战，落后方触发第 4 抽（再三选一补强后加赛一轮）；牌池 24 张分 3 档解锁（箭雨克群攻、爆破克建筑、骑兵克远程的克制环）；难度曲线 = AI 选秀针对性（后期 AI 会针对玩家上一场胜牌选克制牌）；特殊机制：「第 4 抽」（仅落后方触发）、「连胜加成」（连胜 3 场后下一场开局多 1 张随机牌）；成长线：胜场解锁新牌与 AI 难度档，存档 `g100_draftduel_prog`。
+- **触控**：点卡牌选秀、点确认开战（热区 ≥44px），战斗阶段无需操作（可 2 倍速观看）。
+- **防重复**：库内 autochess 是买子 + 棋盘布阵 + 羁绊回合战、mergelegion 是拖拽合成布阵；本款无棋盘布阵、无经济购买，决策点只有选秀本身（且有落后方专属第 4 抽），机制不同。
+- **数据**：累计 320 万安装、评分 4.0、Recent 约 80 万（AppBrain 美国区 Top Free Strategy 第 20 名，榜单更新 2026-10-27）。
+- **状态**：待开发（2026-10-28 侦察）
+
 ## 观察区
 
 - Domino Dreams（SuperPlay）：Tripeaks 式多米诺配对（金字塔布局逐层翻牌配数字清版）+ 王国建设 meta；机制已核实，库内 domino 是连锁推倒故不重复；4.7 分 / 2000 万安装（AppBrain，2026-10-23）。暂不推：王国 meta 内容重，核心配对与纸牌 Tripeaks 同源，可作次轮备选。
@@ -255,6 +285,10 @@
 - Color Solitaire: Sort Cards（People Lovin Games）：Top New Free Card 美国区第 2 名，2.1 万 / 4.9（AppBrain，2026-10-26）。暂不推：除榜单数据外未核实到可靠玩法描述（疑似按色分堆排序），机制未核实、量级太小。
 - Monster Collector: Card Battle（brain）：62 万且几乎全在 Recent 列（Top Free Card 第 69 名，2026-10-26）。暂不推：怪兽收集对战，与库内 bagbrawl / fatespire / kingcard 卡牌构筑主干重叠。
 - Solitaire - Puzzle Images（MTAG）/ Solitaire Spellbook（SpadeThree）等接龙换皮：32 万 / 4.0、18 万 / 4.8（Top Free Card 第 77 / 41 名，2026-10-26）。暂不推：核心仍是克朗代克接龙（库内 solitaire 已有），仅加拼图 / 法术 meta，不另推。
+- Forge Master（Lessmore GmbH）：Top Free Strategy 第 75 名，140 万 / 4.4 / Recent 14 万（AppBrain，榜单更新 2026-10-27）。暂不推：除榜单数据外未核实到可靠玩法来源（检索命中均为同名无关内容），机制未核实。
+- Rock Paper Kingdoms（TapHub Games）：Top Free Strategy 第 91 名，2.5 万 / 4.5 / Recent 7000（AppBrain，榜单更新 2026-10-27；AppBrain verdict 称「增长快、评分好」）。暂不推：塔防 + 三选一升级结构，塔防主干库内 neontd / towerdef / frostpath / surgetd 已覆盖，三选一升级是增量而非新机制，可作塔防后续变体。
+- Dice of Kalma: Dice Roguelike（Pepperbox Studios）：Top Free Strategy 第 57 名，74 万 / 4.7 / Recent 10 万（AppBrain，榜单更新 2026-10-27）。暂不推：除榜单数据外未核实到可靠玩法描述（疑似骰子构筑自动战斗），机制未核实。
+- Auto Drill: Galaxy（LAVA LABS）：Top Free Strategy 第 2 名，38 万 / 4.3 / Recent 31 万（AppBrain，榜单更新 2026-10-27）。暂不推：除榜单数据外未核实到可靠玩法描述，机制未核实，量级尚小。
 
 ## 已排除
 
@@ -278,11 +312,16 @@
 - 接龙 / 蜘蛛 / 空当接龙换皮（与库内 solitaire 重复）：Solitaire - Classic Card Games（Guru，8000 万 / 4.9）、Spider Solitaire（MobilityWare，5600 万 / 4.6）、FreeCell Solitaire（MobilityWare，2300 万 / 4.6），均为 Top Free Card 前 100（AppBrain，2026-10-26）。
 - 扑克 / 21 点换皮（与库内 blackjack / drawpoker 重叠）：WSOP Poker（Playtika，8300 万 / 4.2）、Zynga Poker（9600 万 / 4.3）、Blackjack（Tripledot，730 万 / 4.5），均为 Top Free Card 前 100（AppBrain，2026-10-26）。
 - 叙事滑动抉择：不再单列新条目——清单第 6 条 reigns 王国抉择已在等用户事件卡，同机制新品不再重复评估。
+- 实时领地派兵征服（与库内 starconquest 星域征服重复）：State.io — Conquer the World（CASUAL AZUR，Top Free Strategy 第 35 名，1.1 亿 / 4.1 / Recent 95 万，AppBrain 榜单更新 2026-10-27）。原作核心是「领地随时间产兵、点选拖拽派兵、兵力大者夺地、多 AI 争夺整图」；库内 starconquest 已是同一循环（点选星球派兵扩张、星球越大产兵越快、可拖拽派兵、多 AI 争夺星域），仅把领地换成星球，故不另推。
+- 车道植物守路（与库内 gardenguard 花园保卫战重复）：Plants vs. Zombies™（ELECTRONIC ARTS，Top Free Strategy 第 17 名，6.5 亿 / 3.5 / Recent 290 万，AppBrain 榜单更新 2026-10-27）。库内 gardenguard 已是「种植物守 5 条路挡虫潮」同机制，不另推。
+- 塔防主干（库内 neontd / towerdef / frostpath / surgetd 已覆盖）：Stick Hero: Tower Defense（Unicorn Studio，Top Free Strategy 第 29 名，9300 万 / 4.6 / Recent 150 万）、Rush Royale: Tower Defense TD（MYGAMES，第 92 名，6600 万 / 4.3）、Sector Defense: Roguelike TD（NOXGAMES，第 100 名 / Top New Free 第 4 名，14 万且全在 Recent 列）——三者均为布塔守波次，Sector Defense 的 roguelike 三选一可作 neontd 后续变体，不另立条目。
+- 重运营联网城建 / 4X（单文件无法复刻，且 cityskyline / islelord 已有经营线）：Whiteout Survival（Century Games，第 4 名，1.1 亿）、Kingshot（Century Games，第 5 名，6100 万）、Clash of Clans（Supercell，第 34 名，8.8 亿）、Lords Mobile（IGG，第 25 名，6.3 亿）、Rise of Kingdoms（LilithGames，第 48 名，9600 万）等——联盟、养成、长周期付费 meta 均超出单文件离线口径。
 
 > **侦察日志**：2026-10-24 首轮（益智解谜）：扫 AppBrain 美国区 Top Free / Top New Free Puzzle 前 100（榜单数据日期 2026-10-23，「近 30 天增量」即榜单 Recent 列）+ 6 篇离线解谜榜单文章交叉验证；看候选约 40 款，逐款核实核心玩法（商店描述 + 评测 / 攻略站两源交叉为主）；推荐 5、观察 6、排除 10 组；数据均为第三方统计并注日期，厂商自报已标注。
 > **侦察日志**：2026-10-25（休闲排序）：扫 AppBrain 休闲 / 解谜榜（榜单数据日期 2026-10-21～24）+ 定向核查排序子类（六边形叠放、像素沙、列车、收纳归位、花绳等约 20 款）；推荐 3、观察 4、排除 4 组；库内现况 292 个目录（含未提交的 5 款新目录），逐款核对防重复；数据均为第三方统计并注日期，厂商自报已标注。
 > **侦察日志**：2026-10-26（街机动作）：扫 AppBrain 美国区 Top Free Arcade 前 100 + Top New Free Arcade 前 65（榜单更新 2026-10-25）+ AppBrain 热门街机榜交叉验证；逐款核实核心玩法（商店描述 + 评测 / 攻略站两源交叉为主，约 20 款）；推荐 4、观察 3、排除 3 组；库内现况 302 个目录（含未提交的 5 款新目录：bakelab / faircut / foodbingo / kittyfeed / piping），逐款核对防重复（本轮发现 snake / breakout 均已在库，相关换皮直接排除）；数据均为第三方统计并注日期，厂商自报已标注；BALL x PIT 原作未明示离线模式，已在条目内注明并改为纯单机方案。
 > **侦察日志**：2026-10-27（叙事 / 卡牌）：扫 AppBrain 美国区 Top Free Card 前 100 + Top New Free Card 前 25（榜单更新 2026-10-26）+ 离线卡牌榜单文章交叉验证；逐款核实核心玩法（商店描述 + 规则 / 攻略站两源交叉为主，约 20 款）；推荐 3、观察 6、排除 3 组；库内现况 312 个目录（含未提交的 5 款新目录：bakelab / faircut / foodbingo / kittyfeed / piping），逐款核对防重复（本轮发现 solitaire / blackjack / drawpoker / landlord 均已在库，相关换皮直接排除；叙事滑动抉择不再新推，因清单第 6 条 reigns 已在等用户事件卡）；卡牌榜头部多为接龙 / 吃墩 / 扑克换皮，够格的 3 款均来自经典规则的短局化改造（Phase 10 整局 60–90 分钟、Spades / Skip-Bo 整局偏长，均在条目或观察区内注明截短前提）；数据均为第三方统计并注日期，厂商自报已标注。
+> **侦察日志**：2026-10-28（策略模拟）：扫 AppBrain 美国区 Top Free Strategy 前 100 + Top New Free Strategy 前 78（榜单更新 2026-10-27）+ 离线策略榜单文章交叉验证；逐款核实核心玩法（商店描述 + 玩法 / 攻略站两源交叉为主，约 20 款）；推荐 3、观察 4、排除 4 组；本地库内现况 322 个目录（含未提交的 7 款新目录：bakelab / faircut / foodbingo / kittyfeed / piping / recipe / weighit），逐款核对防重复（本轮关键发现：State.io 与库内 starconquest 同属实时领地派兵征服循环、Plants vs. Zombies 与库内 gardenguard 同属车道植物守路、塔防主干已被 neontd / towerdef / frostpath / surgetd 覆盖，三组均直接排除；原作含在线对战的条目均已改为纯单机 AI 方案）；策略榜头部多为重运营联网 4X 城建，够格的 3 款均来自可短局化的核心循环（单线行军经济、卡牌扩格建国、选秀自动对战）；数据均为第三方统计并注日期，厂商自报已标注。同步说明：本轮初版以 6075a003 为基提交后核验发现远端已推进至 2f2b0220（Grok 于 2026-10-28 把第 13–22 条全部标为已完成并列入已完成区），初版未落地；已改以远端最新版为基重贴本轮新增，远端内容无丢失。
 
 ---
 
