@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>戳泡泡</title>
 <style>
+/* ART T2-5 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -414,7 +417,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="overlay" id="startScr"><h1>💥 戳泡泡</h1><p>彩色泡泡不断从底部上浮<br>👆 点击泡泡即可戳破<br>🔥 1 秒内连续戳破可累积连击<br>连击越高，每次得分越多<br>✨ 金色泡泡 = 5 倍分<br>漏掉 5 个泡泡则游戏结束<br>泡泡会越来越快、越来越多</p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
 <div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><p id="overText"></p><button class="btn" id="restartBtn">再来一局</button></div>
-<script>
+<script>/* ART T2-5 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
+
 /* GAMEPLAY UPGRADE */
 'use strict';
 const $=id=>document.getElementById(id);
@@ -450,10 +454,13 @@ cv.addEventListener('mousedown',onTap);
 
 function spawn(){const gold=Math.random()<0.1;const r=gold?26:20+Math.random()*14;
 bubbles.push({x:30+Math.random()*(W-60),y:H+30,r:r,vy:-(1.1+Math.random()*1.2+elapsed/3600*1.4),wob:Math.random()*6.28,wobS:0.02+Math.random()*0.03,gold:gold,col:BCOL[(Math.random()*BCOL.length)|0]});}
-function drawBubble(b){const g=ctx.createRadialGradient(b.x-6,b.y-8,3,b.x,b.y,b.r);const col=b.gold?'#ffd740':b.col;g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(0.3,col);g.addColorStop(1,col);ctx.fillStyle=g;ctx.globalAlpha=0.92;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();ctx.globalAlpha=1;
+function drawBubble(b){const col=b.gold?'#ffd740':b.col;/* ART T2-5 */if(FX){FX.orb(ctx,b.x|0,b.y|0,Math.max(4,b.r|0),col);}else{const g=ctx.createRadialGradient(b.x-6,b.y-8,3,b.x,b.y,b.r);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(0.3,col);g.addColorStop(1,col);ctx.fillStyle=g;ctx.globalAlpha=0.92;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();ctx.globalAlpha=1;}
 ctx.fillStyle='rgba(255,255,255,.7)';ctx.beginPath();ctx.arc(b.x-b.r*0.35,b.y-b.r*0.4,b.r*0.22,0,7);ctx.fill();
 if(b.gold){ctx.fillStyle='#fff8e1';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText('★',b.x,b.y+5);ctx.textAlign='left';}}
+/* ART T2-5 */var ppBg=null,ppBgKey='';
+function ensurePpBg(){var k=W+'x'+H;if(ppBg&&ppBgKey===k)return ppBg;ppBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#1a1030','#0a0618');else{g.fillStyle='#0a0618';g.fillRect(0,0,W,H);}ppBg=c;return ppBg;}
 function draw(){ctx.clearRect(0,0,W,H);
+ctx.drawImage(ensurePpBg(),0,0);
 ctx.strokeStyle='rgba(244,67,54,.6)';ctx.lineWidth=2;ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(0,34);ctx.lineTo(W,34);ctx.stroke();ctx.setLineDash([]);
 ctx.fillStyle='rgba(244,67,54,.8)';ctx.font='12px sans-serif';ctx.fillText('漏掉警戒线',10,28);
 for(const b of bubbles)drawBubble(b);

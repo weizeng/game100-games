@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>画线救援</title>
 <style>
+/* ART T2-5 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -417,7 +420,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="overlay" id="startScr"><h1>✏️ 画线救援</h1><p>😊 小球在底部，尖刺从天而降<br>👆 手指在屏幕上画一条线<br>画完点击「开始防御」<br>线会挡住尖刺，保护小球坚持 10 秒<br>⚠️ 墨水有限，线越长耗墨越多<br>⚠️ 每人只有一次画线机会<br>共 6 关，越往后越难</p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
 <div class="overlay hidden" id="overScr"><h1 id="overTitle"></h1><p id="overText"></p><div class="rowbtns"><button class="btn" id="restartBtn">重试本关</button><button class="btn ghost" id="nextBtn">下一关</button></div></div>
-<script>
+<script>/* ART T2-5 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
+
 /* GAMEPLAY UPGRADE */
 'use strict';
 const $=id=>document.getElementById(id);
@@ -467,9 +471,12 @@ window.addEventListener('mouseup',onUp);
 
 function spawnObs(){const L=LEVELS[level-1];const bx=BALL.x+(Math.random()-0.5)*260;obs.push({x:Math.max(20,Math.min(W-20,bx)),y:-24,r:13+Math.random()*8,vy:L.spd*(0.85+Math.random()*0.4),vx:(Math.random()-0.5)*0.8,rot:Math.random()*6});}
 function drawSpike(o){ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.rot);ctx.fillStyle='#ef5350';ctx.beginPath();for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const rr=i%2?o.r*0.55:o.r;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}ctx.closePath();ctx.fill();ctx.fillStyle='#b71c1c';ctx.beginPath();ctx.arc(0,0,o.r*0.35,0,7);ctx.fill();ctx.restore();}
+/* ART T2-5 */var drBg=null,drBgKey='';
+function ensureDrBg(){var k=W+'x'+H;if(drBg&&drBgKey===k)return drBg;drBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#1a1030','#0d0818');else{g.fillStyle='#0d0818';g.fillRect(0,0,W,H);}drBg=c;return drBg;}
 function draw(){ctx.clearRect(0,0,W,H);
-ctx.fillStyle='#262030';ctx.fillRect(0,GROUNDY,W,H-GROUNDY);
-ctx.fillStyle='rgba(186,104,200,.12)';for(let i=0;i<5;i++){ctx.beginPath();ctx.arc(50+i*80,100,26,0,7);ctx.fill();}
+ctx.drawImage(ensureDrBg(),0,0);
+if(FX)FX.tile(ctx,0,GROUNDY|0,W|0,(H-GROUNDY)|0,'#262030',4);else{ctx.fillStyle='#262030';ctx.fillRect(0,GROUNDY,W,H-GROUNDY);}
+ctx.fillStyle='rgba(186,104,200,.12)';for(let i=0;i<5;i++){if(FX){ctx.globalAlpha=.35;FX.orb(ctx,(50+i*80)|0,100,26,'#ba68c8');ctx.globalAlpha=1;}else{ctx.beginPath();ctx.arc(50+i*80,100,26,0,7);ctx.fill();}}
 if(linePts.length>1){ctx.strokeStyle='#ce93d8';ctx.lineWidth=9;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(linePts[0].x,linePts[0].y);for(const p of linePts)ctx.lineTo(p.x,p.y);ctx.stroke();ctx.lineCap='butt';}
 for(const o of obs)drawSpike(o);
 const g=ctx.createRadialGradient(BALL.x-5,BALL.y-6,2,BALL.x,BALL.y,BALL.r);g.addColorStop(0,'#fff9c4');g.addColorStop(0.4,'#ffee58');g.addColorStop(1,'#f9a825');ctx.fillStyle=g;ctx.beginPath();ctx.arc(BALL.x,BALL.y,BALL.r,0,7);ctx.fill();

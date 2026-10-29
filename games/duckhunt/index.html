@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>打鸭子</title>
 <style>
+/* ART T2-5 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:#0d0d16;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
 #wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:linear-gradient(180deg,#1a2332 0%,#0d0d16 55%,#0f1a12 100%)}
@@ -435,6 +438,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 "use strict";
+
+/* ART T2-5 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),wrap=document.getElementById('wrap');
 var W,H,DPR;
 function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=wrap.clientWidth;H=wrap.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
@@ -508,12 +513,15 @@ ctx.restore();}
 function draw(){
 if(state==='start')return; // No scene objects exist until startGame initializes them.
 
+/* ART T2-5 */var dhBg=null,dhBgKey='';
+function ensureDhBg(){var k=W+'x'+H;if(dhBg&&dhBgKey===k)return dhBg;dhBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#87CEEB','#4fc3f7');else{g.fillStyle='#4fc3f7';g.fillRect(0,0,W,H);}dhBg=c;return dhBg;}
 ctx.clearRect(0,0,W,H);
+ctx.drawImage(ensureDhBg(),0,0);
 ctx.fillStyle='rgba(255,255,255,.08)';
 clouds.forEach(function(c){ctx.beginPath();ctx.ellipse(c.x,c.y,40*c.s,13*c.s,0,0,6.28);ctx.fill();});
 ducks.forEach(drawDuck);
 // 草地
-ctx.fillStyle='#1b2f1b';ctx.fillRect(0,H-46,W,46);
+if(FX)FX.tile(ctx,0,(H-46)|0,W|0,46,'#1b2f1b',4);else{ctx.fillStyle='#1b2f1b';ctx.fillRect(0,H-46,W,46);}
 ctx.strokeStyle='#2e7d32';ctx.lineWidth=2;
 grass.forEach(function(g){ctx.beginPath();ctx.moveTo(g.x,H);ctx.quadraticCurveTo(g.x+4,H-g.h,g.x-2,H-g.h*1.2);ctx.stroke();});
 parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/40);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,6.28);ctx.fill();});ctx.globalAlpha=1;
