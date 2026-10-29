@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 把 games/<id>/meta.json 的 category 分类允许列表（含金融益智，共 13 类）。
+ * 把 games/<id>/meta.json 的 category 分类允许列表（含金融益智、3D 空间，共 14 类）。
  * 用法：node scripts/retarget-categories.cjs [--dry]
  * 规则：科学实验/经典重温默认不动；其余按 OVERRIDE 表 + 启发式 + 旧类回退。
  */
@@ -11,7 +11,7 @@ const ROOT = path.resolve(__dirname, '..');
 const GAMES = path.join(ROOT, 'games');
 const ALLOWED = [
   '科学实验', '经典重温', '射击', '跑酷跳跃', '塔防策略', '卡牌构筑',
-  '棋牌对战', '消除合成', '益智解谜', '休闲模拟', '街机动作', '节奏音乐', '金融益智',
+  '棋牌对战', '消除合成', '益智解谜', '休闲模拟', '街机动作', '节奏音乐', '金融益智', '3D 空间',
 ];
 const KEEP = new Set(['科学实验', '经典重温']);
 const OLD_FALLBACK = {
@@ -20,6 +20,8 @@ const OLD_FALLBACK = {
   '休闲趣味': '休闲模拟',
   '科学实验': '科学实验',
   '经典重温': '经典重温',
+  '金融益智': '金融益智',
+  '3D 空间': '3D 空间',
 };
 
 /** 手写覆盖：题材明确的优先 */
@@ -102,6 +104,8 @@ const OVERRIDE = {
   docking: '街机动作', deepdive: '街机动作', orbit: '街机动作',
   magrail: '街机动作', snowplow: '街机动作', laser: '街机动作',
   lasso: '街机动作', hexduel_keep: '塔防策略',
+  // 3D 空间（Three.js）
+  gravmaze: '3D 空间', beamscale: '3D 空间', tiltorbit: '3D 空间',
 };
 
 function heuristic(id, name, desc, oldCat) {

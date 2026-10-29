@@ -16,7 +16,7 @@ const SEL = '#startBtn,#btnStart,.startbtn,#bStart,#playBtn,#btnPlay';
   for (const id of ids) for (const [w, h] of [[390, 844], [360, 640]]) {
     const problems = [];
     const meta = JSON.parse(fs.readFileSync(path.join(root, 'games', id, 'meta.json'), 'utf8'));
-    if (!['科学实验', '经典重温', '射击', '跑酷跳跃', '塔防策略', '卡牌构筑', '棋牌对战', '消除合成', '益智解谜', '休闲模拟', '街机动作', '节奏音乐', '金融益智'].includes(meta.category)) problems.push('meta.category 非法');
+    if (!['科学实验', '经典重温', '射击', '跑酷跳跃', '塔防策略', '卡牌构筑', '棋牌对战', '消除合成', '益智解谜', '休闲模拟', '街机动作', '节奏音乐', '金融益智', '3D 空间'].includes(meta.category)) problems.push('meta.category 非法');
     if (!Number.isInteger(meta.version) || meta.version < 1) problems.push('meta.version 必须是正整数');
     if (meta.id !== id) problems.push('meta.id 与目录名不一致');
     // 出品方必填：Muse 做的写 "Muse"，Grok 做的写 "Grok"（新增出品方时把名字加进 STUDIOS）

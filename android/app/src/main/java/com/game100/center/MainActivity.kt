@@ -54,7 +54,7 @@ class MainActivity : AppCompatActivity() {
     private val categories = listOf(
         "全部", "精品", "新上架",
         "科学实验", "经典重温", "射击", "跑酷跳跃", "塔防策略", "卡牌构筑",
-        "棋牌对战", "消除合成", "益智解谜", "休闲模拟", "街机动作", "节奏音乐", "金融益智"
+        "棋牌对战", "消除合成", "益智解谜", "休闲模拟", "街机动作", "节奏音乐", "金融益智", "3D 空间"
     )
     private var selectedCat = "全部"
     private var searchQuery = ""
@@ -226,7 +226,7 @@ class MainActivity : AppCompatActivity() {
         "科学实验" to "🔬", "经典重温" to "👾", "射击" to "🎯", "跑酷跳跃" to "🏃",
         "塔防策略" to "🏰", "卡牌构筑" to "🃏", "棋牌对战" to "♟️", "消除合成" to "💎",
         "益智解谜" to "🧩", "休闲模拟" to "🎈", "街机动作" to "🕹️", "节奏音乐" to "🎵",
-        "金融益智" to "📈"
+        "金融益智" to "📈", "3D 空间" to "🌐"
     )
 
     /** 分类胶囊（皮肤 B）：选中 = 金币立体按钮，未选 = 玻璃胶囊。 */

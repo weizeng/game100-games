@@ -62,7 +62,7 @@ scripts/classics/ + build-classic-games.cjs ← 五款经典（connectfour color
 | `icon` | 单个 emoji（开始面板徽章、列表图标都用它） |
 | `color` | 列表卡片主色，`#RRGGBB` |
 | `desc` | 18–40 字：一句玩法 + 一句卖点 |
-| `category` | **只能是** `科学实验` / `经典重温` / `射击` / `跑酷跳跃` / `塔防策略` / `卡牌构筑` / `棋牌对战` / `消除合成` / `益智解谜` / `休闲模拟` / `街机动作` / `节奏音乐` / `金融益智` 之一 |
+| `category` | **只能是** `科学实验` / `经典重温` / `射击` / `跑酷跳跃` / `塔防策略` / `卡牌构筑` / `棋牌对战` / `消除合成` / `益智解谜` / `休闲模拟` / `街机动作` / `节奏音乐` / `金融益智` / `3D 空间` 之一 |
 | `version` | **正整数**。新游戏为 1；`index.html` 或 `meta.json` 只要有任何改动（包括 sync 带来的改动）就 +1。不 +1，App 不会更新 |
 | `studio` | **必填，出品方**。**Muse 做的游戏写 `"Muse"`，Grok 做的写 `"Grok"`**（大小写照写）。以**最初创作者**为准：升级、换皮、修 bug 别人的游戏时**不要改** studio。App 首页卡片左上角显示出品方角标（Muse 紫色 ✦、Grok 橙色 ◆，其他出品方灰色 ●），首页有“出品方”筛选栏，详情页有出品方胶囊。`node scripts/check-game.cjs` 缺少或写错会报错。以后有新的出品方：先把名字加进 `scripts/check-game.cjs` 和 `scripts/new-game.cjs` 的 `STUDIOS`，App 会自动用中性样式显示。历史归属见 `docs/studio-audit-2026-10-21.md` |
 
