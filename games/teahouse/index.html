@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>茶馆小二</title>
 <style>
+/* ART T2-6 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{background:linear-gradient(160deg,#1e2a1a 0%,#101418 55%,#080a08 100%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none;overflow-x:hidden}
@@ -458,6 +461,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 'use strict';
+/* ART T2-6 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 const $=id=>document.getElementById(id);
 /* ===== 音效 ===== */
 let AC=null;
@@ -606,15 +610,19 @@ function frame(now){
   draw(now);
 }
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+/* ART T2-6 */var thBg=null,thBgKey='';
+function ensureThBg(){var k=360+'x'+500;if(thBg&&thBgKey===k)return thBg;thBgKey=k;var c=document.createElement('canvas');c.width=360;c.height=500;var g=c.getContext('2d');if(FX)FX.stage(g,360,500,'#1a2e1a','#0d1a0d');else{g.fillStyle='#0d1a0d';g.fillRect(0,0,360,500);}thBg=c;return thBg;}
 function draw(now){
   ctx.clearRect(0,0,360,500);
+  ctx.drawImage(ensureThBg(),0,0);
   // 地板纹
   ctx.fillStyle='rgba(165,214,167,.05)';
   for(let y=20;y<380;y+=44)ctx.fillRect(0,y,360,2);
   // 桌子 & 客人
   TABLES.forEach((t,ti)=>{
-    ctx.fillStyle='#4a3428';rr(t.x-58,t.y-34,116,68,14);ctx.fill();
-    ctx.fillStyle='#6d4c41';rr(t.x-52,t.y-28,104,56,11);ctx.fill();
+    /* ART T2-6 */if(FX){FX.tile(ctx,(t.x-58)|0,(t.y-34)|0,116,68,'#4a3428',14);FX.tile(ctx,(t.x-52)|0,(t.y-28)|0,104,56,'#6d4c41',11);}
+    else{ctx.fillStyle='#4a3428';rr(t.x-58,t.y-34,116,68,14);ctx.fill();
+    ctx.fillStyle='#6d4c41';rr(t.x-52,t.y-28,104,56,11);ctx.fill();}
     const c=customers.find(k=>k.table===ti);
     if(c){
       const fade=c.state==='leave'?Math.max(0,c.leaveT/0.6):1;
@@ -624,7 +632,7 @@ function draw(now){
       ctx.fillText(c.face,t.x,t.y-64);
       if(c.state==='wait'||c.state==='drink'){
         // 点单气泡
-        ctx.beginPath();ctx.arc(t.x+44,t.y-96,19,0,7);ctx.fillStyle=TEA[c.tea].c;ctx.fill();
+        /* ART T2-6 */if(FX){FX.orb(ctx,(t.x+44)|0,(t.y-96)|0,19,TEA[c.tea].c);}else{ctx.beginPath();ctx.arc(t.x+44,t.y-96,19,0,7);ctx.fillStyle=TEA[c.tea].c;ctx.fill();}
         ctx.fillStyle='#1a1a1a';ctx.font='bold 17px sans-serif';ctx.fillText(TEA[c.tea].n,t.x+44,t.y-96);
         if(c.state==='wait'){
           const w=64,k=c.patience/c.maxP;

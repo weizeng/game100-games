@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>点格棋 · 游戏100</title>
 <style>
+/* ART T2-6 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;justify-content:center;overscroll-behavior:none}
@@ -466,6 +469,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 'use strict';
+/* ART T2-6 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 let ACTX=null, soundOn=true;
 try{ soundOn=GameUI.storageGet('g100_sound')!=='0'; }catch(e){}
 function audio(){ if(!ACTX){ try{ ACTX=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } } if(ACTX&&ACTX.state==='suspended'){ ACTX.resume().catch(function(){}); } return ACTX; }
@@ -641,14 +645,18 @@ function edgeMid(t,r,c){
   return [M+c*SP, M+(r+0.5)*SP];
 }
 function dotXY(r,c){ return [M+c*SP, M+r*SP]; }
+/* ART T2-6 */var dbBg=null,dbBgKey='';
+function ensureDbBg(){var k=W+'x'+W;if(dbBg&&dbBgKey===k)return dbBg;dbBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=W;var g=c.getContext('2d');if(FX)FX.stage(g,W,W,'#12182a','#0a0e18');else{g.fillStyle='#0a0e18';g.fillRect(0,0,W,W);}dbBg=c;return dbBg;}
 function render(){
   ctx.clearRect(0,0,W,W);
+  ctx.drawImage(ensureDbBg(),0,0);
   // 已占格子
   for(let r=0;r<BOX;r++) for(let c=0;c<BOX;c++){
     if(!boxes[r][c]) continue;
     const x0=M+c*SP, y0=M+r*SP;
-    ctx.fillStyle=boxes[r][c]===1?'rgba(91,141,239,.30)':'rgba(245,166,35,.30)';
-    ctx.fillRect(x0+4,y0+4,SP-8,SP-8);
+    /* ART T2-6 */if(FX){FX.tile(ctx,(x0+4)|0,(y0+4)|0,(SP-8)|0,(SP-8)|0,boxes[r][c]===1?'#5b8def':'#f5a623',6);}
+    else{ctx.fillStyle=boxes[r][c]===1?'rgba(91,141,239,.30)':'rgba(245,166,35,.30)';
+    ctx.fillRect(x0+4,y0+4,SP-8,SP-8);}
     ctx.fillStyle=boxes[r][c]===1?'#9fc2ff':'#ffd76a';
     ctx.font='bold '+Math.round(SP*0.34)+'px sans-serif';
     ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -677,8 +685,8 @@ function render(){
   // 点
   for(let r=0;r<DOT;r++) for(let c=0;c<DOT;c++){
     const p=dotXY(r,c);
-    ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.arc(p[0],p[1],5,0,7); ctx.fill();
+    /* ART T2-6 */if(FX){FX.orb(ctx,p[0]|0,p[1]|0,5,'#ffffff');}
+    else{ctx.fillStyle='#fff';ctx.beginPath(); ctx.arc(p[0],p[1],5,0,7); ctx.fill();}
   }
   // 提示高亮
   if(hintEdge&&hintOn){

@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>汉诺塔</title>
 <style>
+/* ART T2-6 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{background:linear-gradient(160deg,#4d1f2b 0%,#121212 55%,#0a0a0a 100%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none;overflow-x:hidden}
@@ -461,6 +464,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 "use strict";
+/* ART T2-6 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 var $=function(id){return document.getElementById(id)};
 var store={get:function(k,d){try{var v=GameUI.storageGet("hanoi_"+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set:function(k,v){try{GameUI.storageSet("hanoi_"+k,JSON.stringify(v))}catch(e){}}};
 var AC=null,soundOn=store.get("sound",true);
@@ -480,10 +484,14 @@ function show(id){["s-start","s-game","s-end"].forEach(function(s){$(s).classLis
 function startGame(){pegs=[[],[],[]];for(var i=nDisc;i>=1;i--)pegs[0].push(i);sel=-1;moves=0;minMoves=Math.pow(2,nDisc)-1;$("minm").textContent=minMoves;$("moves").textContent=0;$("hint").textContent="点选一根柱子开始";sizeCv();show("s-game")}
 function sizeCv(){CW=Math.min(440,innerWidth-24);CH=Math.max(300,Math.min(420,innerWidth*.9));cv.width=CW;cv.height=CH;draw()}
 function pegX(i){return CW*(i+.5)/3}
+/* ART T2-6 */var hnBg=null,hnBgKey='';
+function ensureHnBg(){var k=CW+'x'+CH;if(hnBg&&hnBgKey===k)return hnBg;hnBgKey=k;var c=document.createElement('canvas');c.width=CW;c.height=CH;var g=c.getContext('2d');if(FX)FX.stage(g,CW,CH,'#1a1030','#0a0618');else{g.fillStyle='#0a0618';g.fillRect(0,0,CW,CH);}hnBg=c;return hnBg;}
 function draw(){ctx.clearRect(0,0,CW,CH);t+=.05;
+ ctx.drawImage(ensureHnBg(),0,0);
  var base=CH-36,discH=Math.min(34,(CH-120)/nDisc);
  // 底座
- ctx.fillStyle="rgba(255,255,255,.14)";roundRect(16,base,CW-32,10,5);ctx.fill();
+ /* ART T2-6 */if(FX){FX.tile(ctx,16,base|0,(CW-32)|0,10,'#6a5acd',5);}
+ else{ctx.fillStyle="rgba(255,255,255,.14)";roundRect(16,base,CW-32,10,5);ctx.fill();}
  for(var i=0;i<3;i++){var x=pegX(i);
   ctx.fillStyle=i===sel?"rgba(251,113,133,.9)":"rgba(255,255,255,.35)";
   roundRect(x-5,60,10,base-60,5);ctx.fill();
@@ -494,8 +502,9 @@ function draw(){ctx.clearRect(0,0,CW,CH);t+=.05;
    var selected=(i===sel&&j===stack.length-1);
    var y=base-(j+1)*discH;
    var yy=selected?y-14+Math.sin(t*2)*3:y;
-   var g=ctx.createLinearGradient(x-w/2,0,x+w/2,0);g.addColorStop(0,COLORS[(d-1)%5]);g.addColorStop(1,"#ffffff88");
-   ctx.fillStyle=g;roundRect(x-w/2,yy,w,discH-5,8);ctx.fill();
+   /* ART T2-6 */if(FX){FX.tile(ctx,(x-w/2)|0,yy|0,w|0,(discH-5)|0,COLORS[(d-1)%5],8);}
+   else{var g=ctx.createLinearGradient(x-w/2,0,x+w/2,0);g.addColorStop(0,COLORS[(d-1)%5]);g.addColorStop(1,"#ffffff88");
+   ctx.fillStyle=g;roundRect(x-w/2,yy,w,discH-5,8);ctx.fill();}
    if(hintMove&&hintMove.d===d&&Date.now()<hintMove.until){ctx.save();ctx.shadowColor="#ffd76a";ctx.shadowBlur=12+10*Math.abs(Math.sin(t*5));ctx.strokeStyle="#ffd76a";ctx.lineWidth=3;roundRect(x-w/2-3,yy-3,w+6,discH+1,10);ctx.stroke();ctx.restore()}
    ctx.fillStyle="rgba(0,0,0,.35)";ctx.font="bold "+Math.floor(discH*.42)+"px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(d,x,yy+(discH-5)/2)}
   ctx.fillStyle="rgba(255,255,255,.5)";ctx.font="13px sans-serif";ctx.textAlign="center";ctx.fillText(["起点","中转","目标"][i],x,CH-12)}

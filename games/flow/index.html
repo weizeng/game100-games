@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>连连线</title>
 <style>
+/* ART T2-6 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{background:linear-gradient(160deg,#0e2a4d 0%,#121212 55%,#0a0a0a 100%);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none;overflow-x:hidden}
@@ -465,6 +468,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 "use strict";
+/* ART T2-6 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 var $=function(id){return document.getElementById(id)};
 var store={get:function(k,d){try{var v=GameUI.storageGet("flow_"+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set:function(k,v){try{GameUI.storageSet("flow_"+k,JSON.stringify(v))}catch(e){}}};
 var AC=null,soundOn=store.get("sound",true);
@@ -502,7 +506,10 @@ function renderLvls(){var g=$("lvlGrid");g.innerHTML="";LEVELS.forEach(function(
 function startLevel(i){li=i;L=LEVELS[i];paths=L.terms.map(function(){return[]});owner=[];for(var r=0;r<L.n;r++){owner.push([]);for(var c=0;c<L.n;c++)owner[r].push(-1)}strokes=0;$("lvl").textContent=i+1;$("strokes").textContent=0;sizeCv();show("s-game")}
 function sizeCv(){var s=Math.min(440,innerWidth-24);cv.width=s;cv.height=s;CS=s/L.n;draw()}
 function cellCenter(r,c){return[(c+.5)*CS,(r+.5)*CS]}
+/* ART T2-6 */var flBg=null,flBgKey='';
+function ensureFlBg(){var k=cv.width+'x'+cv.height;if(flBg&&flBgKey===k)return flBg;flBgKey=k;var c=document.createElement('canvas');c.width=cv.width;c.height=cv.height;var g=c.getContext('2d');if(FX)FX.stage(g,cv.width,cv.height,'#0e2a4d','#121228');else{g.fillStyle='#121228';g.fillRect(0,0,cv.width,cv.height);}flBg=c;return flBg;}
 function draw(){var n=L.n;ctx.clearRect(0,0,cv.width,cv.height);
+ ctx.drawImage(ensureFlBg(),0,0);
  // 网格
  ctx.strokeStyle="rgba(255,255,255,.1)";ctx.lineWidth=1;
  for(var i=0;i<=n;i++){ctx.beginPath();ctx.moveTo(i*CS,0);ctx.lineTo(i*CS,n*CS);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*CS);ctx.lineTo(n*CS,i*CS);ctx.stroke()}
@@ -513,7 +520,7 @@ function draw(){var n=L.n;ctx.clearRect(0,0,cv.width,cv.height);
   p.forEach(function(cell,i){var xy=cellCenter(cell[0],cell[1]);if(i===0)ctx.moveTo(xy[0],xy[1]);else ctx.lineTo(xy[0],xy[1])});
   ctx.stroke();ctx.globalAlpha=1}
  // 端点
- for(var k2=0;k2<L.terms.length;k2++){L.terms[k2].forEach(function(t){var xy=cellCenter(t[0],t[1]);ctx.fillStyle=FCOLORS[k2];ctx.beginPath();ctx.arc(xy[0],xy[1],CS*.3,0,7);ctx.fill();ctx.fillStyle="rgba(255,255,255,.85)";ctx.beginPath();ctx.arc(xy[0],xy[1],CS*.13,0,7);ctx.fill()})}}
+ for(var k2=0;k2<L.terms.length;k2++){L.terms[k2].forEach(function(t){var xy=cellCenter(t[0],t[1]);/* ART T2-6 */if(FX){FX.orb(ctx,xy[0]|0,xy[1]|0,Math.max(4,(CS*.3)|0),FCOLORS[k2]);}else{ctx.fillStyle=FCOLORS[k2];ctx.beginPath();ctx.arc(xy[0],xy[1],CS*.3,0,7);ctx.fill();ctx.fillStyle="rgba(255,255,255,.85)";ctx.beginPath();ctx.arc(xy[0],xy[1],CS*.13,0,7);ctx.fill();}})}}
 function termOf(r,c){for(var k=0;k<L.terms.length;k++)for(var e=0;e<2;e++)if(L.terms[k][e][0]===r&&L.terms[k][e][1]===c)return k;return -1}
 function erasePath(k){paths[k].forEach(function(cell){owner[cell[0]][cell[1]]=-1});paths[k]=[]}
 function extendTo(r,c){var p=paths[dragK],last=p[p.length-1];

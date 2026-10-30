@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>挪车让路</title>
 <style>
+/* ART T2-6 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:linear-gradient(160deg,#241207 0%,#3d1f0e 55%,#200f06 100%);color:#f7efe8;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px 14px 22px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -482,6 +485,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 'use strict';
+/* ART T2-6 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 /* ============ 工具 ============ */
 const $=id=>document.getElementById(id);
 function lsGet(k,d){try{const v=GameUI.storageGet(k);return v==null?d:JSON.parse(v);}catch(e){return d;}}
@@ -717,11 +721,15 @@ function shade(hex,amt){
   r=Math.max(0,Math.min(255,r));gc=Math.max(0,Math.min(255,gc));b=Math.max(0,Math.min(255,b));
   return '#'+((r<<16)|(gc<<8)|b).toString(16).padStart(6,'0');
 }
+/* ART T2-6 */var ubBg=null,ubBgKey='';
+function ensureUbBg(){var k=SZ+'x'+SZ;if(ubBg&&ubBgKey===k)return ubBg;ubBgKey=k;var c=document.createElement('canvas');c.width=SZ;c.height=SZ;var g=c.getContext('2d');if(FX)FX.stage(g,SZ,SZ,'#3d2818','#1a1008');else{g.fillStyle='#1a1008';g.fillRect(0,0,SZ,SZ);}ubBg=c;return ubBg;}
 function render(){
   g.clearRect(0,0,SZ,SZ);
+  g.drawImage(ensureUbBg(),0,0);
   const ox=(SZ-6*P)/2,oy=(SZ-6*P)/2;
-  g.fillStyle='#312013';rr(2,2,SZ-4,SZ-4,14);g.fill();
-  g.fillStyle='#241708';rr(ox-4,oy-4,6*P+8,6*P+8,12);g.fill();
+  /* ART T2-6 */if(FX){FX.tile(g,2,2,(SZ-4)|0,(SZ-4)|0,'#312013',14);FX.tile(g,(ox-4)|0,(oy-4)|0,(6*P+8)|0,(6*P+8)|0,'#241708',12);}
+  else{g.fillStyle='#312013';rr(2,2,SZ-4,SZ-4,14);g.fill();
+  g.fillStyle='#241708';rr(ox-4,oy-4,6*P+8,6*P+8,12);g.fill();}
   for(let y=0;y<6;y++)for(let x=0;x<6;x++){
     if((x+y)%2===0){g.fillStyle='rgba(255,255,255,0.03)';g.fillRect(ox+x*P,oy+y*P,P,P);}
   }
@@ -745,9 +753,10 @@ function render(){
     const x=ox+c.fx*P+4,y=oy+c.fy*P+4;
     g.save();
     if(i===di){g.shadowColor='rgba(0,0,0,0.6)';g.shadowBlur=14;g.shadowOffsetY=5;}
-    const gr=g.createLinearGradient(x,y,x,y+h);
+    /* ART T2-6 */if(FX){FX.tile(g,x|0,y|0,w|0,h|0,c.color,13);}
+    else{const gr=g.createLinearGradient(x,y,x,y+h);
     gr.addColorStop(0,shade(c.color,30));gr.addColorStop(0.5,c.color);gr.addColorStop(1,shade(c.color,-32));
-    g.fillStyle=gr;rr(x,y,w,h,13);g.fill();
+    g.fillStyle=gr;rr(x,y,w,h,13);g.fill();}
     g.strokeStyle='rgba(0,0,0,0.35)';g.lineWidth=2;rr(x,y,w,h,13);g.stroke();
     g.fillStyle='rgba(255,255,255,0.26)';
     if(c.h){rr(x+w*0.16,y+h*0.2,w*0.68,h*0.6,8);g.fill();}

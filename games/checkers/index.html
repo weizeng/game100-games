@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>西洋跳棋</title>
 <style>
+/* ART T2-6 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -443,6 +446,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 'use strict';
+/* ART T2-6 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 // ============ 音效 ============
 let AC=null, soundOn=true;
 function tone(f,d,type,v,slide){ if(!soundOn)return; try{
@@ -657,10 +661,11 @@ function finishGame(winner,reason){
 // ============ 绘制 ============
 function drawPiece(x,y,r,v,selected){
   const red=owner(v)===1;
-  const g=ctx.createRadialGradient(x-r*0.3,y-r*0.3,r*0.2,x,y,r);
+  /* ART T2-6 */if(FX){FX.shadow(ctx,x,y+3,r,5,.3);FX.orb(ctx,x|0,y|0,r|0,red?'#c62828':'#1a2229');}
+  else{const g=ctx.createRadialGradient(x-r*0.3,y-r*0.3,r*0.2,x,y,r);
   if(red){g.addColorStop(0,'#ff8a80');g.addColorStop(1,'#c62828');}
   else{g.addColorStop(0,'#78909c');g.addColorStop(1,'#1a2229');}
-  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
   ctx.strokeStyle=selected?'#69F0AE':'rgba(0,0,0,.4)';ctx.lineWidth=selected?4:2;
   ctx.beginPath();ctx.arc(x,y,r-2,0,7);ctx.stroke();
   if(v===3||v===4){
@@ -668,11 +673,14 @@ function drawPiece(x,y,r,v,selected){
     ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('♛',x,y+1);
   }
 }
+/* ART T2-6 */var ckBg=null,ckBgKey='';
+function ensureCkBg(){var k=440+'x'+440;if(ckBg&&ckBgKey===k)return ckBg;ckBgKey=k;var c=document.createElement('canvas');c.width=440;c.height=440;var g=c.getContext('2d');if(FX)FX.stage(g,440,440,'#2a1a10','#140d08');else{g.fillStyle='#140d08';g.fillRect(0,0,440,440);}ckBg=c;return ckBg;}
 function draw(){
   ctx.clearRect(0,0,440,440);
+  ctx.drawImage(ensureCkBg(),0,0);
   for(let r=0;r<8;r++)for(let c=0;c<8;c++){
-    ctx.fillStyle=(r+c)%2?'#4E342E':'#8D6E63';
-    ctx.fillRect(c*CELL+1,r*CELL+1,CELL-2,CELL-2);
+    /* ART T2-6 */if(FX){FX.tile(ctx,(c*CELL+1)|0,(r*CELL+1)|0,(CELL-2)|0,(CELL-2)|0,(r+c)%2?'#4E342E':'#8D6E63',4);}
+    else{ctx.fillStyle=(r+c)%2?'#4E342E':'#8D6E63';ctx.fillRect(c*CELL+1,r*CELL+1,CELL-2,CELL-2);}
   }
   // 选中棋子高亮
   if(sel){

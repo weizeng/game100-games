@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>飞行棋</title>
 <style>
+/* ART T2-6 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
@@ -451,6 +454,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 'use strict';
+/* ART T2-6 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 // ============ 音效 ============
 let AC=null, soundOn=true;
 function tone(f,d,type,v,slide){ if(!soundOn)return; try{
@@ -689,14 +693,18 @@ function finishGame(w){
   },800);
 }
 // ============ 绘制 ============
+/* ART T2-6 */var ldBg=null,ldBgKey='';
+function ensureLdBg(){var k=400+'x'+400;if(ldBg&&ldBgKey===k)return ldBg;ldBgKey=k;var c=document.createElement('canvas');c.width=400;c.height=400;var g=c.getContext('2d');if(FX)FX.stage(g,400,400,'#1a1028','#0c0818');else{g.fillStyle='#0c0818';g.fillRect(0,0,400,400);}ldBg=c;return ldBg;}
 function draw(){
   ctx.clearRect(0,0,400,400);
+  ctx.drawImage(ensureLdBg(),0,0);
   // 基地
   const bases=[[28,28,0],[252,28,1],[252,252,2],[28,252,3]];
   for(const [bx,by,p] of bases){
-    ctx.fillStyle=PCOLORS[p]+'33';
+    /* ART T2-6 */if(FX){FX.tile(ctx,bx|0,by|0,120,120,PCOLORS[p],14);}
+    else{ctx.fillStyle=PCOLORS[p]+'33';
     if(ctx.roundRect){ctx.beginPath();ctx.roundRect(bx,by,120,120,14);ctx.fill();}
-    else ctx.fillRect(bx,by,120,120);
+    else ctx.fillRect(bx,by,120,120);}
     ctx.strokeStyle=PCOLORS[p];ctx.lineWidth=3;
     if(ctx.roundRect){ctx.beginPath();ctx.roundRect(bx,by,120,120,14);ctx.stroke();}
   }
@@ -733,9 +741,10 @@ function draw(){
         ctx.strokeStyle='rgba(255,213,79,'+(0.6+0.4*Math.sin(t+s))+')';
         ctx.lineWidth=4;ctx.beginPath();ctx.arc(x,y,13,0,7);ctx.stroke();
       }
-      const g=ctx.createRadialGradient(x-3,y-3,2,x,y,11);
+      /* ART T2-6 */if(FX){FX.shadow(ctx,x,y+2,10,4,.28);FX.orb(ctx,x|0,y|0,11,PCOLORS[p]);}
+      else{const g=ctx.createRadialGradient(x-3,y-3,2,x,y,11);
       g.addColorStop(0,'#fff');g.addColorStop(0.35,PCOLORS[p]);g.addColorStop(1,'#111');
-      ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,10.5,0,7);ctx.fill();
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,10.5,0,7);ctx.fill();}
       ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,10.5,0,7);ctx.stroke();
       if(p===0){ctx.fillStyle='#fff';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('我',x,y+0.5);}
     }

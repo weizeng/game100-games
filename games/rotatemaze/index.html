@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>旋转迷宫 · 游戏100</title>
 <style>
+/* ART T2-6 */
+html.game-ui #muteBtn,html.game-ui #pauseBtn,html.game-ui #soundBtn,html.game-ui #sndBtn,html.game-ui #snd,html.game-ui .muteBtn,html.game-ui .iconbtn,html.game-ui .iconBtn,html.game-ui .icobtn,html.game-ui .ibtn,html.game-ui #pausebtn,html.game-ui #mutebtn,html.game-ui #btnMute,html.game-ui #btnPause,html.game-ui .tbtn,html.game-ui #pz,html.game-ui .ib{min-width:44px;min-height:44px}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 body{background:#121212;color:#f2f2f2;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;justify-content:center;overscroll-behavior:none}
@@ -475,6 +478,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <script>
 /* GAMEPLAY UPGRADE */
 'use strict';
+/* ART T2-6 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;
 /* ===== 通用：音频 ===== */
 let ACTX=null, soundOn=true;
 try{ soundOn=GameUI.storageGet('g100_sound')!=='0'; }catch(e){}
@@ -600,16 +604,18 @@ function draw(t){
   ctx.clearRect(0,0,w,w);
   ctx.save();
   ctx.translate(w/2,w/2); ctx.rotate(drawAng); ctx.translate(-w/2,-bh/2);
+/* ART T2-6 */var rmBg=null,rmBgKey='';
+function ensureRmBg(w,bh){var k=w+'x'+bh;if(rmBg&&rmBgKey===k)return rmBg;rmBgKey=k;var c=document.createElement('canvas');c.width=w;c.height=bh;var g=c.getContext('2d');if(FX)FX.stage(g,w,bh,'#252a40','#1b1f2e');else{g.fillStyle='#1b1f2e';g.fillRect(0,0,w,bh);}rmBg=c;return rmBg;}
   // 路面
-  ctx.fillStyle='#1b1f2e';
-  ctx.fillRect(0,0,w,bh);
+  ctx.drawImage(ensureRmBg(w,bh),0,0);
   // 墙
   for(let r=0;r<R;r++) for(let c=0;c<C;c++){
     if(!wall[r][c]) continue;
-    const g=ctx.createLinearGradient(c*cell,r*cell,c*cell,(r+1)*cell);
+    /* ART T2-6 */if(FX){FX.tile(ctx,(c*cell+0.5)|0,(r*cell+0.5)|0,(cell-1)|0,(cell-1)|0,'#3a4a6b',4);}
+    else{const g=ctx.createLinearGradient(c*cell,r*cell,c*cell,(r+1)*cell);
     g.addColorStop(0,'#3a4a6b'); g.addColorStop(1,'#2a3550');
     ctx.fillStyle=g;
-    ctx.fillRect(c*cell+0.5,r*cell+0.5,cell-1,cell-1);
+    ctx.fillRect(c*cell+0.5,r*cell+0.5,cell-1,cell-1);}
   }
   // 起点
   ctx.fillStyle='rgba(255,215,106,.35)';
@@ -624,12 +630,13 @@ function draw(t){
   ctx.beginPath(); ctx.arc((Gpos[1]+0.5)*cell,(Gpos[0]+0.5)*cell,cell*0.22,0,7); ctx.fill();
   // 小球
   const bx=ball.x*cell, by=ball.y*cell, br=cell*0.3;
-  ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
+  /* ART T2-6 */if(FX){FX.shadow(ctx,bx,by+3,br,6,.35);FX.orb(ctx,bx|0,by|0,Math.max(4,br|0),'#ffd76a');}
+  else{ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
   const bg=ctx.createRadialGradient(bx-br*0.4,by-br*0.4,br*0.2,bx,by,br);
   bg.addColorStop(0,'#ffffff'); bg.addColorStop(0.6,'#ffd76a'); bg.addColorStop(1,'#ff8a5c');
   ctx.fillStyle=bg;
   ctx.beginPath(); ctx.arc(bx,by,br,0,7); ctx.fill();
-  ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+  ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0;}
   // 提示路径（BFS）
   if(hintPath&&t<hintUntil){
     const pu2=0.5+0.5*Math.sin(t/150);
