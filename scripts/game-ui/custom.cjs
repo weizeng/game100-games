@@ -52,4 +52,11 @@ css('mastermind', '& .pin.b{background:#243952;border-color:#243952;box-shadow:n
 css('unblock', '& .stats{background:var(--surface);color:var(--muted);box-shadow:0 4px 0 var(--soft)}& .stats b{color:var(--accent)}');
 // 2026-10-20 皮肤 B：新登记游戏保持原有顶栏尺寸，避免页面出现滚动
 css('phtest', '& #screen-game>.topbar{padding:0;min-height:0}');
+
+
+css('dungeonkey shellgame spelldraw', '& #cv{max-width:100%;height:auto}& #cvwrap{min-width:0}@media(max-height:700px){& #cv{max-height:calc(100svh - 270px);width:auto;max-width:100%}& body>.wrap{gap:6px}}');
+css('combustion', '@media(max-height:700px){& #app{padding-bottom:10px}& #gameScreen h2{font-size:18px;margin:4px 0}& .hint{margin:4px 0}}');
+
+css('starmail', '@media(max-height:700px){& #cv{max-width:100%;max-height:calc(100svh - 290px);width:auto;height:auto}& body>.wrap{gap:6px}}');
+css('sudoku', '& #pad{gap:2px}& #pad .nbtn{min-width:34px}@media(max-width:360px){& #s-game{padding-left:0;padding-right:0}}@media(max-width:340px){& body>.wrap{padding-left:3px;padding-right:3px}& #pad{gap:1px}}');
 module.exports = c;

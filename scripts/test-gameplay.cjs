@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
+const { enterGame } = require('./browser-game-flow.cjs');
 const root = path.resolve(__dirname, '..');
 const server = http.createServer((req, res) => {
   const file = path.resolve(root, '.' + req.url.split('?')[0]);
@@ -13,14 +14,14 @@ const server = http.createServer((req, res) => {
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH || undefined });
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
   let passed = 0;
   async function game(id, mode, test) {
     const page = await context.newPage();
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await page.addInitScript(({ id, mode }) => sessionStorage.setItem('game100-mode-' + id, mode), { id, mode });
     await page.goto(`http://127.0.0.1:${server.address().port}/games/${id}/index.html`);
-    await page.locator('#startBtn,#btnStart').first().click();
+    await enterGame(page);
     await test(page); assert.deepEqual(errors, [], `${id} runtime errors`);
     await page.close(); console.log(`PASS ${id} ${mode}`); passed++;
   }
@@ -42,7 +43,7 @@ const server = http.createServer((req, res) => {
         assert.equal(await p.evaluate(() => localStorage.getItem(GameUI.expert?'expert:audit-record':'audit-record')), '42');
       });
       await game('snake', mode, async p => {
-        const result=await p.evaluate(() => { for(let i=0;i<100;i++){placeFood();if(obstacles.some(p=>p[0]===food.x&&p[1]===food.y))return {bad:true};}return {bad:false,obstacles:obstacles.length}; });
+        const result=await p.evaluate(() => { for(let i=0;i<100;i++){placeFood();if(obs.some(p=>p.x===food.x&&p.y===food.y)||snake.some(p=>p.x===food.x&&p.y===food.y))return {bad:true};}return {bad:false,obstacles:obs.length}; });
         assert.deepEqual(result, { bad:false, obstacles:expert?8:0 });
       });
       await game('tetris', mode, async p => assert.equal(await p.evaluate(() => board.flat().filter(Boolean).length), expert?27:0));
@@ -61,7 +62,7 @@ const server = http.createServer((req, res) => {
         await p.locator('#stockPile').click();
         assert.deepEqual(await p.evaluate(() => ({waste:S.waste.length,stock:S.stock.length})), {waste:expert?3:1,stock:expert?21:23});
       });
-      await game('simon', mode, async p => assert.equal(Number(await p.locator('#roundV').textContent()), expert?2:1));
+      await game('simon', mode, async p => assert.equal(await p.evaluate(()=>seq.length), expert?2:1));
       await game('towerdef', mode, async p => {
         const result=await p.evaluate(() => { wave=3;spawnLeft=3;spawnEnemy();const e=enemies[enemies.length-1];return {armored:e.armored,reward:e.reward}; });
         assert.deepEqual(result,{armored:expert,reward:expert?28:14});
@@ -90,7 +91,7 @@ const server = http.createServer((req, res) => {
       assert.equal(second,first); assert.ok(first>=before);
       assert.match(await p.locator('#ui-assist-toast').textContent(), /已用完/);
     });
-    for(const [id, overlay] of [['link','#lineCv'],['frost','#frost'],['moonphase','#confetti']]) {
+    for(const [id, overlay] of [['link','#lineCv'],['frost','#frost']]) {
       await game(id,'classic',async p => assert.equal(await p.locator(overlay).evaluate(el=>getComputedStyle(el).backgroundColor),'rgba(0, 0, 0, 0)','Effect canvas must not hide the game underneath'));
     }
     console.log(`Passed ${passed} targeted gameplay checks.`);

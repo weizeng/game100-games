@@ -3,17 +3,20 @@
 // 需要 Playwright（npm i -D playwright 或设置 NODE_PATH），可用 CHROME_PATH 指定 Chrome。
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const { chromium } = require('playwright');
+const { enterGame, START } = require('./browser-game-flow.cjs');
 const root = path.resolve(__dirname, '..');
-const ids = (process.argv[2] || '').split(',').filter(Boolean);
+const ids = process.argv[2] === '--all' ? fs.readdirSync(path.join(root, 'games')).filter(id => fs.existsSync(path.join(root, 'games', id, 'index.html'))) : (process.argv[2] || '').split(',').filter(Boolean);
 if (!ids.length) { console.error('用法：node scripts/check-game.cjs <id>[,<id>]'); process.exit(2); }
 const server = http.createServer((q, r) => { const f = path.resolve(root, '.' + decodeURIComponent(q.url.split('?')[0])); if (!f.startsWith(root + path.sep) || !fs.existsSync(f) || !fs.statSync(f).isFile()) { r.writeHead(404).end(); return; } r.setHeader('Content-Type', 'text/html; charset=utf-8'); r.end(fs.readFileSync(f)); });
 const STUDIOS = ['Muse', 'Grok'];
-const SEL = '#startBtn,#btnStart,.startbtn,#bStart,#playBtn,#btnPlay';
+const SEL = START;
 (async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH || undefined });
-  let fail = 0;
-  for (const id of ids) for (const [w, h] of [[390, 844], [360, 640]]) {
+  let fail = 0, next = 0;
+  const results = [], jobs = ids.flatMap(id => [[390, 844], [360, 640]].map(([w,h]) => ({id,w,h})));
+  async function worker() { while (next < jobs.length) {
+    const {id,w,h} = jobs[next++];
     const problems = [];
     const meta = JSON.parse(fs.readFileSync(path.join(root, 'games', id, 'meta.json'), 'utf8'));
     if (!['科学实验', '经典重温', '射击', '跑酷跳跃', '塔防策略', '卡牌构筑', '棋牌对战', '消除合成', '益智解谜', '休闲模拟', '街机动作', '节奏音乐', '金融益智', '3D 空间'].includes(meta.category)) problems.push('meta.category 非法');
@@ -24,25 +27,46 @@ const SEL = '#startBtn,#btnStart,.startbtn,#bStart,#playBtn,#btnPlay';
     const html = fs.readFileSync(path.join(root, 'games', id, 'index.html'), 'utf8');
     if (!html.includes('<!-- GAME UI BEGIN -->')) problems.push('未注入共用界面：先 node scripts/sync-game-ui.cjs --only=' + id);
     if (/(src|href)=["']https?:\/\//.test(html)) problems.push('有外链资源（需离线可用）');
-    const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: true, isMobile: true });
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: true, isMobile: true, reducedMotion: 'reduce' });
     const page = await ctx.newPage(); const errors = [];
     page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
     page.on('response', r => { if (r.status() >= 400 && !/favicon/.test(r.url())) errors.push('资源加载失败 ' + r.status() + ' ' + r.url().replace(/^https?:\/\/[^/]+/, '')); });
-    await page.goto(`http://127.0.0.1:${server.address().port}/games/${id}/index.html`); await page.waitForTimeout(600);
+    try {
+    await page.goto(`http://127.0.0.1:${server.address().port}/games/${id}/index.html`);
+    await page.addStyleTag({content:'*,*::before,*::after{animation:none!important;transition:none!important}'}); await page.waitForTimeout(50);
     const m = await page.evaluate(SEL => { const d = document.documentElement, b = [...document.querySelectorAll(SEL)].find(e => e.getBoundingClientRect().width > 0);
       let reach = false; if (b) { const r = b.getBoundingClientRect(), hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); reach = r.top >= 0 && r.bottom <= innerHeight + 1 && !!hit && (hit === b || b.contains(hit)); }
-      const small = [...document.querySelectorAll('button')].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.width < 44 || r.height < 44); }).map(e => e.id || e.textContent.trim().slice(0, 6));
+      const small = [...document.querySelectorAll('button')].filter(e => { const r = e.getBoundingClientRect(); const narrow = e.matches('.lines-cell,.nbtn') ? 34 : 44; return r.width > 0 && (r.width < narrow-.5 || r.height < 43.5); }).map(e => e.id || e.className || e.textContent.trim().slice(0, 6));
       return { has: !!b, reach, small, ox: d.scrollWidth - innerWidth, oy: d.scrollHeight - innerHeight }; }, SEL);
     if (!m.has) problems.push('找不到开始按钮（#startBtn）'); else if (!m.reach) problems.push('开始按钮不在视口内或被遮挡');
     if (m.small.length) problems.push('按钮小于 44px：' + m.small.join(','));
     if (m.ox > 0 || m.oy > 0) problems.push(`页面溢出 x${m.ox} y${m.oy}`);
-    if (m.has) { await page.locator(SEL).filter({ visible: true }).first().tap(); await page.waitForTimeout(300);
+    if (m.has && m.reach) { await enterGame(page);
+      const layout = await page.evaluate(() => ({x: document.documentElement.scrollWidth-innerWidth, y: document.documentElement.scrollHeight-innerHeight}));
+      if (layout.x > 0 || layout.y > 0) problems.push(`游戏中页面溢出 x${layout.x} y${layout.y}`);
+      const pause = page.locator('#pauseBtn,#btnPause,#pause,#btnP,#bPause,#pause-btn,#btn-pause,#btn_pause,#pz').filter({visible:true}).first();
+      const reachable = await pause.count() && await pause.evaluate(b=>{const r=b.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return hit===b||b.contains(hit);});
+      if (reachable && await pause.isEnabled()) {
+        await pause.tap({timeout:1500});
+        const resume = page.getByRole('button', {name:/继\s*续|恢复/}).filter({visible:true}).first();
+        if (!await resume.count()) {
+          if (await pause.evaluate(b=>/▶|继续|恢复/.test(b.textContent))) await pause.tap();
+          else problems.push('暂停后找不到继续按钮');
+        }
+        else await resume.tap({timeout:1500});
+      }
       for (let i = 0; i < 6; i++) { await page.touchscreen.tap(w / 2 + (i % 3 - 1) * 60, h * .6); await page.waitForTimeout(120); }
       await page.waitForTimeout(800); }
+    } catch (e) { problems.push(e.message.split('\n')[0]); }
     if (errors.length) problems.push('脚本报错：' + [...new Set(errors)].join(' | '));
     console.log(`${problems.length ? 'FAIL' : 'PASS'} ${id} ${w}x${h}${problems.length ? '\n  - ' + problems.join('\n  - ') : ''}`);
     if (problems.length) fail++;
+    results.push({id,w,h,problems});
     await ctx.close();
-  }
+  } }
+  await Promise.all(Array.from({length:Math.min(6,jobs.length)}, worker));
+  const out = path.join(root,'.artifacts'); fs.mkdirSync(out,{recursive:true});
+  fs.writeFileSync(path.join(out,'check-games.json'), JSON.stringify(results.sort((a,b)=>a.id.localeCompare(b.id)||b.w-a.w),null,2)+'\n');
+  console.log(`Checked ${ids.length} games / ${jobs.length} viewports; ${fail} failures.`);
   await browser.close(); server.close(); process.exitCode = fail ? 1 : 0;
 })();

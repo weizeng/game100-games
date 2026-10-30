@@ -284,3 +284,9 @@ git add games scripts docs README.md && git commit -m "每日新游戏 YYYY-MM-D
 | 新游戏不登记 catalog | 没有统一外观，`--check` 形同虚设 | `new-game.cjs` 自动登记；推送前跑 `--check --strict` |
 | 改了 index.html 没升 version | App 不更新 | 见第 2 节的批量 +1 |
 | 手改 zip / manifest | 与 Actions 冲突 | 永远交给 Actions |
+
+### 浏览器回归（2026-10-31）
+
+`check-game.cjs --all` 会逐款经过首次教程和选关，再验证暂停/继续及触屏输入。`scripts/browser-game-flow.cjs` 共用这段真实开局流程；不要用测试后门跳过初始化。`node scripts/test-game-ui.cjs` 覆盖存储被禁用、后台暂停、进阶提示限额、开局前输入和游戏中缩放等故障。测试脚本用 `CHROME_PATH` 指定本机浏览器，`NODE_PATH` 指向已安装的 Playwright。
+
+旧游戏没有自己的 `visibilitychange` 处理时，可在游戏脚本之后调用 `GameUI.autoPause()`；暂停控制只监听 `pointerdown` 的游戏用 `GameUI.autoPause('pointerdown')`。它复用原暂停按钮，并避开菜单、测验和已有暂停面板。已有后台处理的游戏不要重复接入。存储统一使用 `GameUI.storageGet/Set/Remove`；浏览器拒绝持久化时，本次页面中的记录和静音设置仍可使用，重新打开后可能丢失。

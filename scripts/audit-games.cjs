@@ -4,6 +4,7 @@ const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
 const sharp = require('sharp');
+const {enterGame, START} = require('./browser-game-flow.cjs');
 const root = path.resolve(__dirname, '..');
 const out = path.resolve(process.argv[2] || '.artifacts/audit');
 const filter = process.argv[3];
@@ -38,24 +39,23 @@ const server = http.createServer((req, res) => {
         await page.waitForTimeout(100);
         record.modeControls = await page.locator('.ui-mode').filter({ visible: true }).count();
         await page.screenshot({ path: path.join(out, `${id}-start.png`) });
-        const start = page.locator('#startBtn, #btnStart, #start, #startGame, #goBtn, .startbtn').filter({ visible: true }).first();
+        const start = page.locator(START).filter({ visible: true }).first();
         let button = start;
         if (!await button.count()) button = page.getByRole('button', { name: /开始|开局|开张|开战|起飞|出发|开球|开弓|开吃|点燃|出海|开砍|折好|进入发射台|保卫|升空/ }).first();
         record.started = await button.count() > 0;
-        if (record.started) await button.click({ timeout: 1500 });
-        const level = page.locator('button.lvl:not(.locked)').filter({ visible: true }).first();
-        if (await level.count()) { await level.click({ timeout: 1500 }); record.started = true; }
+        if (record.started) await enterGame(page);
+
         await page.waitForTimeout(180);
         record.mobile = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight, mode: document.documentElement.dataset.mode }));
         await page.screenshot({ path: path.join(out, `${id}-play.png`) });
         // Pause before arbitrary play gestures: some games correctly end on a wrong click.
-        const pause = page.locator('#pauseBtn, #btnPause, #pause, #btnP').filter({ visible: true }).first();
+        const pause = page.locator('#pauseBtn,#btnPause,#bPause,#pause-btn,#btn-pause,#btn_pause,#pz').filter({visible:true}).first();
         record.pause = await pause.count() > 0;
         if (record.pause) {
           try {
             await pause.click({ trial: true, timeout: 200 });
             await pause.click({ timeout: 1000 });
-            const resume = page.getByRole('button', { name: /继续|恢复/ }).filter({ visible: true }).first();
+            const resume = page.getByRole('button', { name: /继\s*续|恢复/ }).filter({ visible: true }).first();
             record.resumed = await resume.count() > 0;
             if (record.resumed) await resume.click({ timeout: 1000 });
           } catch (_) { record.pauseCovered = true; }
@@ -70,6 +70,14 @@ const server = http.createServer((req, res) => {
           await page.mouse.up();
         }
         await page.keyboard.press('ArrowRight');
+        if (await page.evaluate(()=>!!document.querySelector('script') && [...document.scripts].some(s=>s.textContent.includes('GameUI.autoPause(')))) {
+          const reachable=await pause.count() && await pause.evaluate(b=>{const r=b.getBoundingClientRect(),h=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return h===b||b.contains(h);});
+          if(reachable && !/▶/.test(await pause.textContent())) {
+            await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
+            record.backgroundPaused=await page.locator('#resumeBtn,#btnResume,#bResume,#resume-btn,#btn-resume').filter({visible:true}).count()>0 || /▶/.test(await pause.textContent());
+            if(!record.backgroundPaused)record.errors.push('Background pause did not expose resume');
+          }
+        }
         await page.waitForTimeout(80);
         await page.setViewportSize({ width: 320, height: 640 });
         await page.waitForTimeout(80);
@@ -84,7 +92,7 @@ const server = http.createServer((req, res) => {
     }
     await context.close();
   }
-  await Promise.all([worker(), worker(), worker()]);
+  await Promise.all(Array.from({length: 4}, worker));
   results.sort((a,b) => a.id.localeCompare(b.id));
   fs.writeFileSync(path.join(out, 'results.json'), JSON.stringify(results, null, 2));
   for (const state of ['start', 'play']) {
@@ -102,5 +110,6 @@ const server = http.createServer((req, res) => {
     }
   }
   console.log(JSON.stringify({ total: results.length, notStarted: results.filter(r => !r.started).map(r => r.id), errors: results.filter(r => r.errors.length || r.failure), overflow: results.filter(r => r.mobile?.scroll > 390 || r.small?.scroll > 320) }, null, 2));
+  process.exitCode=results.some(r=>r.errors.length||r.failure||!r.started)?1:0;
   await browser.close(); server.close();
 })().catch(e => { console.error(e); server.close(); process.exitCode = 1; });

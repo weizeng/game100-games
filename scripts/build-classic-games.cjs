@@ -1,14 +1,14 @@
 // Source for these five standalone packages lives in scripts/classics/.
 // Embed every asset: the Android downloader only needs index.html and meta.json.
 const fs = require('node:fs');
-const CLASSIC_VERSION = 5;
+const CLASSIC_VERSION = 6;
 const path = require('node:path');
 const vm = require('node:vm');
 const catalog = require('./game-ui/catalog.cjs');
 const challenges = require('./game-ui/challenges.cjs');
 const { uiBlock } = require('./game-ui/block.cjs');
 const root = path.resolve(__dirname, '..');
-const read = file => fs.readFileSync(path.join(__dirname, file), 'utf8');
+const read = file => fs.readFileSync(path.join(__dirname, file), 'utf8').replace(/\r\n/g, '\n');
 const css = read('classics/shell.css');
 const common = read('classics/shell.js');
 const uiCss = read('game-ui/base.css');
@@ -43,7 +43,7 @@ ${common}
 ${g.script}
 ui.init();
 </script></body></html>
-`;
+`.replace(/\r\n/g, '\n');
   for (const m of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)) new vm.Script(m[1], {filename:id});
   const dir = path.join(root,'games',id);
   // 发布已有经典游戏的改动时递增此版本号（2026-10-20 热修：共用界面遮罩修复 → 2；同日皮肤 B 霓虹糖果 → 3）

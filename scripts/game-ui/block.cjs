@@ -19,6 +19,6 @@ function uiBlock(id, meta, skinArg) {
   const config = { id, name: meta.name, theme, icon: meta.icon, challenge: challenges[id] ? challenges[id].text : null };
   if (skin) config.skin = skin;
   const script = runtime.replace('__GAME_UI_CONFIG__', () => JSON.stringify(config)) + (skin ? '\n' + skins.fx() : '');
-  return `\n<!-- GAME UI BEGIN -->\n<style>\n:root{${vars}}\n${css}\n${custom[id] || ''}\n${skin ? skins.css(skin) + '\n' : ''}</style>\n<script>\n${script}\n</script>\n<!-- GAME UI END -->\n`;
+  return `\n<!-- GAME UI BEGIN -->\n<style>\n:root{${vars}}\n${css}\n${custom[id] || ''}\n${skin ? skins.css(skin) + '\n' : ''}</style>\n<script>\n${script}\n</script>\n<!-- GAME UI END -->\n`.replace(/\r\n/g, '\n');
 }
 module.exports = { uiBlock, DEFAULT_SKIN };

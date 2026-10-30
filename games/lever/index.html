@@ -109,7 +109,7 @@ html.game-ui:is([data-theme="space"],[data-theme="arcade"],[data-theme="lab"],[d
 .game-ui button:disabled{cursor:default;opacity:.45;box-shadow:none}
 .game-ui .ui-panel .ui-assist-note{color:var(--accent);font-weight:700}
 @media(min-width:700px){.game-ui body>.wrap{padding-top:32px}.game-ui .ui-panel{padding:36px 30px}}
-@media(max-width:360px){.game-ui body>.wrap{padding:10px;gap:10px}.game-ui .ui-panel{padding:22px 18px;gap:13px}.game-ui .ui-panel h1{font-size:26px}.game-ui .ui-emblem{width:70px;height:70px;font-size:38px}.game-ui :is(.topbar,#topbar){gap:5px;padding:8px}.game-ui :is(.iconbtn,.icobtn,.ibtn,.tbtn,.ib){min-width:40px;min-height:44px}}
+@media(max-width:360px){.game-ui body>.wrap{padding:10px;gap:10px}.game-ui .ui-panel{padding:22px 18px;gap:13px}.game-ui .ui-panel h1{font-size:26px}.game-ui .ui-emblem{width:70px;height:70px;font-size:38px}.game-ui :is(.topbar,#topbar){gap:5px;padding:8px}.game-ui :is(.iconbtn,.icobtn,.ibtn,.tbtn,.ib){min-width:44px;min-height:44px}}
 @media(max-height:650px){.game-ui .ui-panel{padding:18px;gap:12px}.game-ui .ui-emblem{width:60px;height:60px;font-size:32px}.game-ui .ui-panel h1{font-size:25px}.game-ui .ui-panel :is(p,.howto,.sub,.rule){font-size:13px}}
 @media(prefers-reduced-motion:reduce){.game-ui *, .game-ui *::before,.game-ui *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 /* 2026-10-20 热修：开局/结算遮罩铺满整屏，主按钮固定在面板底部，避免被画布尺寸裁切（#10） */
@@ -211,12 +211,39 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   var used = { hint: 0, undo: 0 };
   var limits = { hint: 1, undo: 3 };
   function storageKey(key) { return expert && !/sound|mute/i.test(key) ? 'expert:' + key : key; }
+  var sessionRecords = Object.create(null);
   window.GameUI = {
     expert: expert,
     pick: function (classic, advanced) { return expert ? advanced : classic; },
-    storageGet: function (key) { return localStorage.getItem(storageKey(key)); },
-    storageSet: function (key, value) { localStorage.setItem(storageKey(key), value); },
-    storageRemove: function (key) { localStorage.removeItem(storageKey(key)); }
+    storageGet: function (key) {
+      key = storageKey(key);
+      if (Object.prototype.hasOwnProperty.call(sessionRecords, key)) return sessionRecords[key];
+      try { return localStorage.getItem(key); } catch (_) { return null; }
+    },
+    storageSet: function (key, value) {
+      key = storageKey(key); value = String(value); sessionRecords[key] = value;
+      try { localStorage.setItem(key, value); } catch (_) {}
+    },
+    storageRemove: function (key) {
+      key = storageKey(key); sessionRecords[key] = null;
+      try { localStorage.removeItem(key); } catch (_) {}
+    },
+    // Opt in only in games without their own visibility handler. Reuse their pause
+    // action so physics, timers and overlays enter the same state as a manual pause.
+    autoPause: function (eventType) {
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) return;
+        var button = document.querySelector('#pauseBtn,#btnPause,#bPause,#pause-btn,#btn-pause,#btn_pause,#pz');
+        if (!button || button.disabled || /▶|继续|恢复/.test(button.textContent)) return;
+        var r = button.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        var hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        // Menus, quizzes and an existing pause sheet must never be toggled away.
+        if (hit !== button && !button.contains(hit)) return;
+        if (eventType === 'pointerdown') button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'touch' }));
+        else button.click();
+      });
+    }
   };
   var root = document.documentElement;
   root.classList.add('game-ui');
@@ -287,16 +314,24 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     var kind = /^(hintBtn|hintTopBtn|btnHint)$/i.test(b.id) ? 'hint' : /^(undoBtn|undoTopBtn|btnUndo)$/i.test(b.id) || /悔一步|撤销/.test(b.textContent) ? 'undo' : '';
     if (!kind) return;
     var prev = gesture.get(b), blocked;
-    if (event.type === 'click' && prev && performance.now() - prev.at < 1000) blocked = prev.blocked;
-    else { blocked = used[kind] >= limits[kind]; if (!blocked) used[kind]++; gesture.set(b, { at: performance.now(), blocked: blocked }); }
+    if (event.type === 'click' && event.detail > 0 && prev && performance.now() - prev.at < 1000) {
+      blocked = prev.blocked; gesture.delete(b);
+    } else {
+      blocked = used[kind] >= limits[kind]; if (!blocked) used[kind]++;
+      if (event.type === 'pointerdown') gesture.set(b, { at: performance.now(), blocked: blocked });
+    }
     if (blocked) { event.preventDefault(); event.stopImmediatePropagation(); notify(kind === 'hint' ? '本次挑战的 1 次提示已用完' : '本次挑战的 3 次撤销已用完'); }
   }
   document.addEventListener('pointerdown', assistEvent, true);
   document.addEventListener('click', assistEvent, true);
-  document.addEventListener('click', function (event) {
+  function resetAssist(event) {
     var b = event.target.closest('button');
-    if (b && /^(startBtn|btnStart|restartBtn|againBtn|retryBtn|btnAgain|btnRestart|playAgain)$/i.test(b.id)) used = { hint: 0, undo: 0 };
-  }, true);
+    if (b && /^(startBtn|btnStart|restartBtn|againBtn|retryBtn|btnAgain|btnRestart|playAgain)$/i.test(b.id)) {
+      used = { hint: 0, undo: 0 }; gesture = new WeakMap();
+    }
+  }
+  document.addEventListener('pointerdown', resetAssist, true);
+  document.addEventListener('click', resetAssist, true);
   document.addEventListener('DOMContentLoaded', function () {
     var selector = '.overlay,.ov,#ov,#overlay,#pauseOv,.screen';
     document.querySelectorAll(selector).forEach(function (container) {
@@ -508,7 +543,7 @@ function resize(){
   if(window.onResize)window.onResize();
 }
 window.addEventListener('resize',resize);
-var AC=null,muted=localStorage.getItem('g100_mute')==='1';
+var AC=null,muted=GameUI.storageGet('g100_mute')==='1';
 function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended'){AC.resume();}return AC;}
 function tone(f,d,type,v,delay){if(muted)return;try{var c=ac();if(!c)return;var t=c.currentTime+(delay||0);var o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v||0.15,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.05);}catch(e){}}
 function sClick(){tone(600,0.06,'square',0.08);}
@@ -521,13 +556,13 @@ var floats=[];
 function floatText(x,y,txt,color){floats.push({x:x,y:y,txt:txt,color:color||'#FFD54F',life:1});}
 function drawFloats(dt){ctx.textAlign='center';for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.life-=dt*0.7;f.y-=34*dt;if(f.life<=0){floats.splice(i,1);continue;}ctx.globalAlpha=Math.max(0,Math.min(1,f.life));ctx.fillStyle=f.color;ctx.font='bold 17px sans-serif';ctx.fillText(f.txt,f.x,f.y);ctx.globalAlpha=1;}}
 var HSKEY='g100_lever_hs';
-function getBest(){return parseInt(localStorage.getItem(HSKEY)||'0',10)||0;}
-function setBest(v){if(v>getBest()){localStorage.setItem(HSKEY,String(v));}}
+function getBest(){return parseInt(GameUI.storageGet(HSKEY)||'0',10)||0;}
+function setBest(v){if(v>getBest()){GameUI.storageSet(HSKEY,String(v));}}
 function $(id){return document.getElementById(id);}
 function show(id){$(id).classList.remove('hidden');}
 function hide(id){$(id).classList.add('hidden');}
 function setMuteBtn(){$('muteBtn').textContent=muted?'🔇':'🔊';}
-$('muteBtn').addEventListener('click',function(){muted=!muted;localStorage.setItem('g100_mute',muted?'1':'0');setMuteBtn();if(!muted){sClick();}});
+$('muteBtn').addEventListener('click',function(){muted=!muted;GameUI.storageSet('g100_mute',muted?'1':'0');setMuteBtn();if(!muted){sClick();}});
 setMuteBtn();
 /* ============ 游戏状态（按需改） ============ */
 var state='start',paused=false,round=1,score=0,lastT=0;
@@ -691,5 +726,6 @@ window.onFrame=function(dt){
   if(FX)FX.drawBurst(ctx,sparks);
 };
 </script>
+<script>GameUI.autoPause();</script>
 </body>
 </html>

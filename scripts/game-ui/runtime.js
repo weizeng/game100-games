@@ -8,12 +8,39 @@
   var used = { hint: 0, undo: 0 };
   var limits = { hint: 1, undo: 3 };
   function storageKey(key) { return expert && !/sound|mute/i.test(key) ? 'expert:' + key : key; }
+  var sessionRecords = Object.create(null);
   window.GameUI = {
     expert: expert,
     pick: function (classic, advanced) { return expert ? advanced : classic; },
-    storageGet: function (key) { return localStorage.getItem(storageKey(key)); },
-    storageSet: function (key, value) { localStorage.setItem(storageKey(key), value); },
-    storageRemove: function (key) { localStorage.removeItem(storageKey(key)); }
+    storageGet: function (key) {
+      key = storageKey(key);
+      if (Object.prototype.hasOwnProperty.call(sessionRecords, key)) return sessionRecords[key];
+      try { return localStorage.getItem(key); } catch (_) { return null; }
+    },
+    storageSet: function (key, value) {
+      key = storageKey(key); value = String(value); sessionRecords[key] = value;
+      try { localStorage.setItem(key, value); } catch (_) {}
+    },
+    storageRemove: function (key) {
+      key = storageKey(key); sessionRecords[key] = null;
+      try { localStorage.removeItem(key); } catch (_) {}
+    },
+    // Opt in only in games without their own visibility handler. Reuse their pause
+    // action so physics, timers and overlays enter the same state as a manual pause.
+    autoPause: function (eventType) {
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) return;
+        var button = document.querySelector('#pauseBtn,#btnPause,#bPause,#pause-btn,#btn-pause,#btn_pause,#pz');
+        if (!button || button.disabled || /▶|继续|恢复/.test(button.textContent)) return;
+        var r = button.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        var hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        // Menus, quizzes and an existing pause sheet must never be toggled away.
+        if (hit !== button && !button.contains(hit)) return;
+        if (eventType === 'pointerdown') button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'touch' }));
+        else button.click();
+      });
+    }
   };
   var root = document.documentElement;
   root.classList.add('game-ui');
@@ -84,16 +111,24 @@
     var kind = /^(hintBtn|hintTopBtn|btnHint)$/i.test(b.id) ? 'hint' : /^(undoBtn|undoTopBtn|btnUndo)$/i.test(b.id) || /悔一步|撤销/.test(b.textContent) ? 'undo' : '';
     if (!kind) return;
     var prev = gesture.get(b), blocked;
-    if (event.type === 'click' && prev && performance.now() - prev.at < 1000) blocked = prev.blocked;
-    else { blocked = used[kind] >= limits[kind]; if (!blocked) used[kind]++; gesture.set(b, { at: performance.now(), blocked: blocked }); }
+    if (event.type === 'click' && event.detail > 0 && prev && performance.now() - prev.at < 1000) {
+      blocked = prev.blocked; gesture.delete(b);
+    } else {
+      blocked = used[kind] >= limits[kind]; if (!blocked) used[kind]++;
+      if (event.type === 'pointerdown') gesture.set(b, { at: performance.now(), blocked: blocked });
+    }
     if (blocked) { event.preventDefault(); event.stopImmediatePropagation(); notify(kind === 'hint' ? '本次挑战的 1 次提示已用完' : '本次挑战的 3 次撤销已用完'); }
   }
   document.addEventListener('pointerdown', assistEvent, true);
   document.addEventListener('click', assistEvent, true);
-  document.addEventListener('click', function (event) {
+  function resetAssist(event) {
     var b = event.target.closest('button');
-    if (b && /^(startBtn|btnStart|restartBtn|againBtn|retryBtn|btnAgain|btnRestart|playAgain)$/i.test(b.id)) used = { hint: 0, undo: 0 };
-  }, true);
+    if (b && /^(startBtn|btnStart|restartBtn|againBtn|retryBtn|btnAgain|btnRestart|playAgain)$/i.test(b.id)) {
+      used = { hint: 0, undo: 0 }; gesture = new WeakMap();
+    }
+  }
+  document.addEventListener('pointerdown', resetAssist, true);
+  document.addEventListener('click', resetAssist, true);
   document.addEventListener('DOMContentLoaded', function () {
     var selector = '.overlay,.ov,#ov,#overlay,#pauseOv,.screen';
     document.querySelectorAll(selector).forEach(function (container) {
