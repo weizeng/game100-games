@@ -662,7 +662,7 @@ function mat4World(obj){const p=obj.position,e=obj.rotation,s=obj.scale;
 const VS=`attribute vec3 aPos;attribute vec3 aNor;uniform mat4 uMVP;uniform mat4 uModel;uniform mat3 uNMat;varying vec3 vN;varying vec3 vW;
 void main(){vec4 w=uModel*vec4(aPos,1.0);vW=w.xyz;vN=normalize(uNMat*aNor);gl_Position=uMVP*vec4(aPos,1.0);}`;
 const FS=`precision mediump float;varying vec3 vN;varying vec3 vW;uniform vec3 uColor;uniform vec3 uEmi;uniform vec3 uAmb;uniform vec3 uLDir;uniform vec3 uLCol;uniform float uOp;
-void main(){vec3 n=normalize(vN);float diff=max(dot(n,normalize(-uLDir)),0.0);vec3 col=uColor*(uAmb+uLCol*diff)+uEmi;gl_FragColor=vec4(col,uOp);}`;
+void main(){vec3 n=normalize(vN);float diff=max(dot(n,normalize(uLDir)),0.0);vec3 col=uColor*(uAmb+uLCol*diff)+uEmi;gl_FragColor=vec4(col,uOp);}`;
 
 function WebGLRenderer(opts){opts=opts||{};this.domElement=opts.canvas||document.createElement('canvas');
   this.setSize=function(w,h,updateStyle){const d=Math.min(2,window.devicePixelRatio||1);
@@ -790,17 +790,17 @@ function recycleProps(){
 function makeLevel(i){
   clearWorld();bossMode=[4,9,14].includes(i)?(i===4?1:i===9?2:3):0;
   scene=new THREE.Scene();
-  scene.background=bossMode===2?0x0a1220:0x1a0a28;
-  scene.add(new THREE.AmbientLight(0xaabbdd,.7));
-  const d=new THREE.DirectionalLight(0xffe6c8,1.05);d.position.set(6,14,4);scene.add(d);
-  scene.add(new THREE.HemisphereLight(bossMode===2?0x4a6aaa:0xff88bb,0x1a1028,.55));
+  scene.background=bossMode===2?0x152438:0x2a1840;
+  scene.add(new THREE.AmbientLight(0xc8d6f0,.95));
+  const d=new THREE.DirectionalLight(0xfff0dd,1.25);d.position.set(6,14,4);scene.add(d);
+  scene.add(new THREE.HemisphereLight(bossMode===2?0x6a8acc:0xffa0cc,0x2a1838,.65));
   const segLen=24;
   for(let k=0;k<5;k++){
-    const road=new THREE.Mesh(new THREE.BoxGeometry(9,.08,segLen),new THREE.MeshStandardMaterial({color:0x2a2a38,roughness:.95}));
+    const road=new THREE.Mesh(new THREE.BoxGeometry(9,.08,segLen),new THREE.MeshStandardMaterial({color:0x5a6278,emissive:0x222838,roughness:.92}));
     road.position.set(0,0,CAR_Z-10+k*segLen);scene.add(road);roadSegs.push(road);
   }
   for(let z=CAR_Z-12;z<CAR_Z+VIEW_AHEAD+10;z+=6){
-    const stripe=new THREE.Mesh(new THREE.BoxGeometry(.18,.09,2.2),new THREE.MeshStandardMaterial({color:0xffe08a,emissive:0x443300}));
+    const stripe=new THREE.Mesh(new THREE.BoxGeometry(.18,.09,2.2),new THREE.MeshStandardMaterial({color:0xffe8a0,emissive:0x665018}));
     stripe.position.set(0,.05,z);scene.add(stripe);stripes.push(stripe);
   }
   let seed=200+i*97;
@@ -859,7 +859,7 @@ function scrollWorld(dz){
 }
 function step(dt){
   if(ended||Kit.state!=='play'||!car)return;
-  const steer=Steer.get()*slip;
+  const steer=-Steer.get()*slip; // pad right = screen right (cam looks +Z)
   laneX=Math.max(-3.2,Math.min(3.2,laneX+steer*(9+Kit.up('spd'))*dt));
   speed+=(targetSpeed-speed)*Math.min(1,dt*2.2);
   const dz=speed*dt;

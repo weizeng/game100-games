@@ -660,7 +660,7 @@ function mat4World(obj){const p=obj.position,e=obj.rotation,s=obj.scale;
 const VS=`attribute vec3 aPos;attribute vec3 aNor;uniform mat4 uMVP;uniform mat4 uModel;uniform mat3 uNMat;varying vec3 vN;varying vec3 vW;
 void main(){vec4 w=uModel*vec4(aPos,1.0);vW=w.xyz;vN=normalize(uNMat*aNor);gl_Position=uMVP*vec4(aPos,1.0);}`;
 const FS=`precision mediump float;varying vec3 vN;varying vec3 vW;uniform vec3 uColor;uniform vec3 uEmi;uniform vec3 uAmb;uniform vec3 uLDir;uniform vec3 uLCol;uniform float uOp;
-void main(){vec3 n=normalize(vN);float diff=max(dot(n,normalize(-uLDir)),0.0);vec3 col=uColor*(uAmb+uLCol*diff)+uEmi;gl_FragColor=vec4(col,uOp);}`;
+void main(){vec3 n=normalize(vN);float diff=max(dot(n,normalize(uLDir)),0.0);vec3 col=uColor*(uAmb+uLCol*diff)+uEmi;gl_FragColor=vec4(col,uOp);}`;
 
 function WebGLRenderer(opts){opts=opts||{};this.domElement=opts.canvas||document.createElement('canvas');
   this.setSize=function(w,h,updateStyle){const d=Math.min(2,window.devicePixelRatio||1);
@@ -790,24 +790,24 @@ function makeLevel(i){
   let cols=4+Math.floor(i/3)+(boss?1:0),rows=cols;cols=Math.min(7,cols);rows=Math.min(7,rows);
   const grid=genMaze(cols,rows,200+i*31+(boss?77:0));
   const ox=-(cols-1)*cell/2,oz=-(rows-1)*cell/2;
-  const floor=new THREE.Mesh(new THREE.BoxGeometry(cols*cell+.5,.1,rows*cell+.5),new THREE.MeshStandardMaterial({color:0x0f2742,roughness:.8}));
+  const floor=new THREE.Mesh(new THREE.BoxGeometry(cols*cell+.5,.1,rows*cell+.5),new THREE.MeshStandardMaterial({color:0x2a5070,emissive:0x102030,roughness:.75}));
   floor.position.y=-.05;scene.add(floor);solids.push(floor);
   for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
     const cx=ox+x*cell,cz=oz+y*cell,bits=grid[y][x];
-    const tile=new THREE.Mesh(new THREE.BoxGeometry(cell*.9,.03,cell*.9),new THREE.MeshStandardMaterial({color:(x+y)%2?0x1c3350:0x16304c}));
+    const tile=new THREE.Mesh(new THREE.BoxGeometry(cell*.9,.03,cell*.9),new THREE.MeshStandardMaterial({color:(x+y)%2?0x3a6a90:0x2f5a80,emissive:0x0c2030}));
     tile.position.set(cx,.02,cz);scene.add(tile);solids.push(tile);
-    const mk=(dx,dz,sx,sz)=>addSolid(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(sx,.55,sz),new THREE.MeshStandardMaterial({color:boss?0xff6b8a:0x4fc3f7,emissive:boss?0x300810:0x082438})),{position:new THREE.Vector3(cx+dx,.28,cz+dz)}));
+    const mk=(dx,dz,sx,sz)=>addSolid(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(sx,.55,sz),new THREE.MeshStandardMaterial({color:boss?0xff6b8a:0x4fc3f7,emissive:boss?0x501020:0x145060})),{position:new THREE.Vector3(cx+dx,.28,cz+dz)}));
     // fix: Mesh position set after
   }
   // rebuild walls properly
   clearWorld();
-  const floor2=new THREE.Mesh(new THREE.BoxGeometry(cols*cell+.5,.1,rows*cell+.5),new THREE.MeshStandardMaterial({color:0x0f2742,roughness:.8}));
+  const floor2=new THREE.Mesh(new THREE.BoxGeometry(cols*cell+.5,.1,rows*cell+.5),new THREE.MeshStandardMaterial({color:0x2a5070,emissive:0x102030,roughness:.75}));
   floor2.position.y=-.05;scene.add(floor2);solids.push(floor2);
   for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
     const cx=ox+x*cell,cz=oz+y*cell,bits=grid[y][x];
-    const tile=new THREE.Mesh(new THREE.BoxGeometry(cell*.9,.03,cell*.9),new THREE.MeshStandardMaterial({color:(x+y)%2?0x1c3350:0x16304c}));
+    const tile=new THREE.Mesh(new THREE.BoxGeometry(cell*.9,.03,cell*.9),new THREE.MeshStandardMaterial({color:(x+y)%2?0x3a6a90:0x2f5a80,emissive:0x0c2030}));
     tile.position.set(cx,.02,cz);scene.add(tile);solids.push(tile);
-    function wall(dx,dz,sx,sz){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,.55,sz),new THREE.MeshStandardMaterial({color:boss?0xff6b8a:0x4fc3f7,emissive:boss?0x300810:0x082438,roughness:.45}));m.position.set(cx+dx,.28,cz+dz);addSolid(m);}
+    function wall(dx,dz,sx,sz){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,.55,sz),new THREE.MeshStandardMaterial({color:boss?0xff6b8a:0x4fc3f7,emissive:boss?0x501020:0x145060,roughness:.45}));m.position.set(cx+dx,.28,cz+dz);addSolid(m);}
     if(!(bits&1))wall(0,-cell/2,cell,.1);if(!(bits&2))wall(0,cell/2,cell,.1);
     if(!(bits&4))wall(cell/2,0,.1,cell);if(!(bits&8))wall(-cell/2,0,.1,cell);
   }
@@ -821,9 +821,9 @@ function makeLevel(i){
   const span=Math.max(cols,rows)*cell;camera.position.set(0,span*1.2,span*.9);camera.lookAt(0,0,0);
   timeLeft=30+i*2+(boss?10:0)+Kit.up('time')*4;hits=0;ended=false;
 }
-function init3(){renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});scene=new THREE.Scene();scene.background=0x03101f;
-  camera=new THREE.PerspectiveCamera(42,W/H,.1,80);scene.add(new THREE.AmbientLight(0x88bbff,.55));
-  const d=new THREE.DirectionalLight(0xffffff,.9);d.position.set(4,10,5);scene.add(d);scene.add(new THREE.HemisphereLight(0x4fc3f7,0x0a1828,.4));
+function init3(){renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});scene=new THREE.Scene();scene.background=0x0a2038;
+  camera=new THREE.PerspectiveCamera(42,W/H,.1,80);scene.add(new THREE.AmbientLight(0xaad4ff,.9));
+  const d=new THREE.DirectionalLight(0xffffff,1.15);d.position.set(4,10,5);scene.add(d);scene.add(new THREE.HemisphereLight(0x7ad4ff,0x143048,.55));
   Tilt.bindPad($('tiltPad'));layout();}
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);const cw=Math.floor(W*s),ch=Math.floor(H*s);
   cv.style.width=cw+'px';cv.style.height=ch+'px';if(renderer){renderer.setSize(cw,ch,false);if(camera)camera.aspect=W/H;}}
