@@ -59,4 +59,36 @@ css('combustion', '@media(max-height:700px){& #app{padding-bottom:10px}& #gameSc
 
 css('starmail', '@media(max-height:700px){& #cv{max-width:100%;max-height:calc(100svh - 290px);width:auto;height:auto}& body>.wrap{gap:6px}}');
 css('sudoku', '& #pad{gap:2px}& #pad .nbtn{min-width:34px}@media(max-width:360px){& #s-game{padding-left:0;padding-right:0}}@media(max-width:340px){& body>.wrap{padding-left:3px;padding-right:3px}& #pad{gap:1px}}');
+
+// === ART DOM-1 neon-candy surface polish (2026-10-31) ===
+/* Lab canvas chrome (shared template): bevelled stage frame + neon tools */
+css('densitylab digestion ecobottle fruitbattery indicator periodic photosynthesis phtest punnett rocketlab staticlab pearlcatch dig', '& .wrap{gap:8px}& .stagebox{background:linear-gradient(180deg,#143552,#0a1c30);border:2px solid var(--line);border-radius:18px;box-shadow:0 6px 0 #061018,0 0 18px rgba(79,195,247,.28);padding:6px}& #cv{border-radius:12px;box-shadow:inset 0 0 0 1px #ffffff14}& .iconbtn{background:linear-gradient(180deg,#1c3f5e,#102a42);border:1px solid var(--line);border-radius:12px;box-shadow:0 3px 0 #061018;color:var(--ink);min-width:44px;min-height:44px}& .iconbtn:active{transform:translateY(2px);box-shadow:0 1px 0 #061018}& .lvgrid .lvTag,& .lvgrid button{background:linear-gradient(180deg,#1a3a56,#102838);border:1px solid var(--line);border-radius:12px;box-shadow:0 3px 0 #061018;color:var(--ink);min-height:44px}& .shop button,& .tools button{background:linear-gradient(180deg,#1c405c,#123048);border:1px solid var(--line);box-shadow:0 3px 0 #061018;border-radius:12px;min-height:44px}& .overlay .btn,& .rowbtns .btn{box-shadow:0 4px 0 var(--b-edge)}& .subbar{background:rgba(15,39,66,.72);border:1px solid #1e4a68;border-radius:12px;padding:6px 10px}');
+
+/* chemreact — beaker lab */
+css('chemreact', '& .panel{background:linear-gradient(180deg,#16324c,#0d2136);border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 0 #061018,0 0 16px #33e1a033}& .iconbtn{background:linear-gradient(180deg,#1c3f5e,#102a42);border:1px solid var(--line);box-shadow:0 3px 0 #061018;min-width:44px;min-height:44px}& .beaker{border-color:#4fc3f7;box-shadow:inset 0 -6px 0 #00000033,0 0 14px #4fc3f744;background:linear-gradient(180deg,#ffffff10,#ffffff04)}& .flask{filter:drop-shadow(0 3px 0 #061018)}& #shelf,& .shelf{background:linear-gradient(180deg,#1a3550,#102638);border:1px solid var(--line);border-radius:16px;box-shadow:0 5px 0 #061018;padding:10px}& .btn{box-shadow:0 4px 0 #0a3a78}');
+
+/* electrolysis */
+css('electrolysis', '& .card{background:linear-gradient(180deg,#16324c,#0d2136);border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 0 #061018,0 0 14px #4fc3f733}& .iconbtn{background:linear-gradient(180deg,#1c3f5e,#102a42);border:1px solid var(--line);box-shadow:0 3px 0 #061018;min-width:44px;min-height:44px}& .tube{border-color:#7af5ff;box-shadow:inset 0 0 12px #7af5ff22,0 0 10px #2ee6d633;background:linear-gradient(180deg,#ffffff12,#ffffff05)}& #tank,& .tank{background:linear-gradient(180deg,#0f2742,#071522);border:2px solid var(--line);border-radius:16px;box-shadow:0 5px 0 #061018}& .btn{box-shadow:0 4px 0 #0c6a72}');
+
+/* expansion / heattransfer / pressurelab — warm lab DOM */
+css('expansion heattransfer pressurelab', '& #hud{background:linear-gradient(180deg,#3a2014,#24140c);border-bottom:2px solid #ff8a65;box-shadow:0 4px 0 #140a06}& #hud .ibtn,& #hud button,& .iconbtn,& #pauseBtn,& #muteBtn,& #soundBtn{min-width:44px;min-height:44px;border-radius:12px;box-shadow:0 3px 0 #140a06}& #controls,& .controls,& #logPanel{background:linear-gradient(180deg,#2a1a12,#1a100a);border:1px solid #ff8a6588;border-radius:16px;box-shadow:0 5px 0 #140a06}& #ball,& .heater,& #bar,& #cylB,& #cylS{box-shadow:0 4px 0 #0006,0 0 12px #ff8a6544}');
+
+/* foodchain */
+css('foodchain', '& .card{background:linear-gradient(180deg,#243a28,#15251a);border:2px solid #4caf78;border-radius:14px;box-shadow:0 4px 0 #0a1810}& .card:active{transform:translateY(2px);box-shadow:0 2px 0 #0a1810}& .iconbtn{background:linear-gradient(180deg,#2a4630,#1a2e20);border:1px solid #4caf78;box-shadow:0 3px 0 #0a1810;min-width:44px;min-height:44px}& .slot{background:linear-gradient(180deg,#1c3022,#122018);border:2px dashed #66bb6a;border-radius:12px;box-shadow:inset 0 -3px 0 #0004}');
+
+/* metalreact */
+css('metalreact', '& .card,& #metals,& #order{background:linear-gradient(180deg,#16324c,#0d2136);border:1px solid var(--line);border-radius:16px;box-shadow:0 5px 0 #061018}& #metals button,& #order .chip,& .metal,& [data-metal]{border-radius:12px;box-shadow:0 3px 0 #061018;border:1px solid var(--line);min-height:44px}& .iconbtn,& #btn-mute,& #btn-pause{background:linear-gradient(180deg,#1c3f5e,#102a42);border:1px solid var(--line);box-shadow:0 3px 0 #061018;min-width:44px;min-height:44px}');
+
+/* colormix — arcade candy */
+css('colormix', '& .card{background:linear-gradient(160deg,#4a2068,#2a1040);border:2px solid #ff3d9a;border-radius:20px;box-shadow:0 6px 0 #5a1240,0 0 18px #ff3d9a44}& .ibtn{background:linear-gradient(180deg,#ff5eb0,#e53975);border:1px solid #ff9fd0;box-shadow:0 3px 0 #8a1848;min-width:44px;min-height:44px}& .tube{border-radius:16px;box-shadow:0 5px 0 #2a1038,inset 0 -4px 0 #00000033;border:2px solid #ffffff22}& .sw,& .blk{border-radius:14px;box-shadow:0 4px 0 #2a1038;border:2px solid #ffffff33}& .abtn,& .bbtn{box-shadow:0 4px 0 #5a1240;border-radius:14px;min-height:44px}');
+
+/* seahorse — ocean */
+css('seahorse', '& .iconbtn,& #btnL,& #btnR{background:radial-gradient(circle at 35% 30%,#2ee6d6,#0c4a5c);border:2px solid #7af5ff;box-shadow:0 4px 0 #03121f,0 0 12px #2ee6d666;color:#e8fbff;min-width:44px;min-height:44px}& #btnRow{gap:10px}& #endOv,& .overlay{backdrop-filter:blur(2px)}');
+
+/* alchemy / potion / wandshop — magic */
+css('alchemy potion wandshop', '& .card{background:linear-gradient(180deg,#2e1848,#1a0c30);border:1px solid #b26bff;border-radius:18px;box-shadow:0 6px 0 #0d0620,0 0 16px #b26bff44}& .tbtn{background:linear-gradient(180deg,#3a2260,#241040);border:1px solid #b26bff;box-shadow:0 3px 0 #0d0620;color:#f6eeff;min-width:44px;min-height:44px}& .slot{background:linear-gradient(180deg,#3a2860,#241848);border:2px dashed #ffd54f;border-radius:14px;box-shadow:inset 0 -3px 0 #0005,0 0 10px #ffd54f33}& .inv,& .target,& .cauldronwrap,& #cores,& .rules{background:linear-gradient(180deg,#281440,#160a28);border:1px solid #b26bff88;border-radius:16px;box-shadow:0 5px 0 #0d0620}& #cauldron,& .cauldron{box-shadow:0 0 18px #ff8af066,0 6px 0 #0d0620;border:2px solid #ff8af0}& .bigbtn{box-shadow:0 5px 0 #5a22a8}');
+
+/* shadowmatch — magic silhouettes */
+css('shadowmatch', '& .card{background:linear-gradient(160deg,#2a2a68,#16163a);border:2px solid #7c8cff;border-radius:20px;box-shadow:0 6px 0 #0d0d28,0 0 16px #7c8cff44}& .ibtn{background:linear-gradient(180deg,#5c6bc0,#3949ab);border:1px solid #9fa8ff;box-shadow:0 3px 0 #1a1a48;min-width:44px;min-height:44px}& .slot{background:linear-gradient(180deg,#22225a,#161640);border:2px dashed #7c8cff;border-radius:14px;box-shadow:inset 0 -3px 0 #0005}& #board,& #silzone,& #itemzone{background:linear-gradient(180deg,#1c1c48,#12122e);border:1px solid #5c6bc0;border-radius:16px;box-shadow:0 5px 0 #0d0d28;padding:8px}');
+
 module.exports = c;
