@@ -499,33 +499,92 @@ const TUT=[
 ];
 if(prog.rotLv==null)prog.rotLv=0;if(prog.hintLv==null)prog.hintLv=0;if(prog.stepLv==null)prog.stepLv=0;
 const SHOP=[
-  {k:'rotLv',name:'快转',max:2,cost:()=>28+prog.rotLv*22,desc:()=>'双倍旋转 ('+prog.rotLv+'/2)'},
+  {k:'rotLv',name:'巧转',max:2,cost:()=>28+prog.rotLv*22,desc:()=>'旋转省步 ('+prog.rotLv+'/2)'},
   {k:'hintLv',name:'光迹',max:2,cost:()=>40+prog.hintLv*30,desc:()=>'显示光路 ('+prog.hintLv+'/2)'},
   {k:'stepLv',name:'余量',max:3,cost:()=>30+prog.stepLv*18,desc:()=>'额外步数 ('+prog.stepLv+'/3)'}
 ];
 let grid=[],GW=6,GH=7,laser={x:0,y:0,dir:0},crystal={x:0,y:0},steps=0,stepMax=0,blocks=[],btnRects=[];
 const DIRS=[[1,0],[0,1],[-1,0],[0,-1]]; // E S W N
 
-function startLevel(n){
-  lvl=n;boss=n%5===0;score=0;btnRects=[];
+function levelSolvable(){
+  const mirrors=[];
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++)if(grid[y][x]&&grid[y][x].type==='mirror')mirrors.push(grid[y][x]);
+  if(mirrors.length>12)return false;
+  const saved=mirrors.map(m=>m.rot);
+  let ok=false;
+  const n=mirrors.length;
+  for(let mask=0;mask<(1<<n);mask++){
+    for(let i=0;i<n;i++)mirrors[i].rot=mask&(1<<i)?1:0;
+    if(cast().hit){ok=true;break;}
+  }
+  for(let i=0;i<n;i++)mirrors[i].rot=saved[i];
+  return ok;
+}
+function buildLevel(n,attempt){
   GW=Math.min(7,5+Math.floor(n/5));GH=Math.min(8,5+Math.floor(n/4));
-  const rnd=mulberry32(n*111+9);
+  const rnd=mulberry32(n*111+9+attempt*97);
   grid=Array.from({length:GH},()=>Array(GW).fill(null));
   laser={x:0,y:((GH/2)|0),dir:0};crystal={x:GW-1,y:((GH/2)|0)};
-  // place mirrors
-  const mCount=Math.min(10,3+Math.floor(n/2)+(boss?2:0));
+  blocks=[];
+  const my=laser.y, cy=my+1<GH?my+1:my-1;
+  // Guaranteed bounce path: block corridor → down/up → along → into crystal
+  const bx=1+((rnd()*Math.max(1,GW-3))|0); // 1..GW-3 so path has room
+  grid[my][bx]={type:'mirror',rot:0};           // \ : E→S (or adjust if cy<my)
+  if(cy>my){
+    grid[cy][bx]={type:'mirror',rot:0};         // \ : S→E
+    grid[cy][crystal.x]={type:'mirror',rot:1};  // / : E→N into crystal
+  }else{
+    grid[my][bx].rot=1;                         // / : E→N
+    grid[cy][bx]={type:'mirror',rot:1};         // / : N→E
+    grid[cy][crystal.x]={type:'mirror',rot:0};  // \ : E→S into crystal
+  }
+  // decoy mirrors
+  const decoys=Math.min(5,1+Math.floor(n/3)+(boss?1:0));
   let placed=0,guard=0;
-  while(placed<mCount&&guard++<200){
+  while(placed<decoys&&guard++<200){
     const x=(rnd()*GW)|0,y=(rnd()*GH)|0;
     if((x===laser.x&&y===laser.y)||(x===crystal.x&&y===crystal.y)||grid[y][x])continue;
     grid[y][x]={type:'mirror',rot:(rnd()*4)|0};placed++;
   }
-  blocks=[];
-  if(boss){for(let k=0;k<2;k++){const x=1+((rnd()*(GW-2))|0),y=1+((rnd()*(GH-2))|0);if(!grid[y][x]){grid[y][x]={type:'block'};blocks.push({x,y});}}}
-  stepMax=(n===1?20:Math.max(8,18-Math.floor(n/3)))+prog.stepLv*3;steps=stepMax;
+  if(boss){
+    for(let k=0;k<2;k++){
+      const x=1+((rnd()*(GW-2))|0),y=1+((rnd()*(GH-2))|0);
+      if(!grid[y][x]&&!(x===laser.x&&y===laser.y)&&!(x===crystal.x&&y===crystal.y)&&y!==my&&y!==cy)
+        {grid[y][x]={type:'block'};blocks.push({x,y});}
+    }
+  }
+}
+function startLevel(n){
+  lvl=n;boss=n%5===0;score=0;btnRects=[];
+  let built=false;
+  for(let attempt=0;attempt<40;attempt++){
+    buildLevel(n,attempt);
+    if(levelSolvable()){built=true;break;}
+  }
+  if(!built){
+    GW=Math.min(7,5+Math.floor(n/5));GH=Math.min(8,5+Math.floor(n/4));
+    grid=Array.from({length:GH},()=>Array(GW).fill(null));
+    laser={x:0,y:((GH/2)|0),dir:0};crystal={x:GW-1,y:((GH/2)|0)};
+    const my=laser.y, cy=my+1<GH?my+1:my-1, bx=1;
+    if(cy>my){grid[my][bx]={type:'mirror',rot:0};grid[cy][bx]={type:'mirror',rot:0};grid[cy][crystal.x]={type:'mirror',rot:1};}
+    else{grid[my][bx]={type:'mirror',rot:1};grid[cy][bx]={type:'mirror',rot:1};grid[cy][crystal.x]={type:'mirror',rot:0};}
+    blocks=[];
+  }
+  stepMax=(n===1?24:Math.max(12,22-Math.floor(n/3)))+prog.stepLv*3;steps=stepMax;
+  // scramble opening rotations so beam is NOT already on crystal
+  {
+    const mirrors=[];
+    for(let y=0;y<GH;y++)for(let x=0;x<GW;x++)if(grid[y][x]&&grid[y][x].type==='mirror')mirrors.push(grid[y][x]);
+    const rnd2=mulberry32(n*911+7);
+    for(let g=0;g<80;g++){
+      if(!mirrors.length) break;
+      if(!cast().hit && g>=3) break;
+      mirrors[(rnd2()*mirrors.length)|0].rot=(rnd2()*4)|0;
+    }
+  }
   state='play';last=performance.now();
   show('startScr',false);show('lvlScr',false);show('shopScr',false);show('tutScr',false);show('pauseOv',false);show('overScr',false);
-  $('hint').textContent=boss?'👑 避开遮光石，引导光束到水晶':'点镜子旋转 · 照亮水晶';
+  $('hint').textContent=boss?'👑 点镜子旋转，避开遮光石照到水晶':'点镜子旋转 90° · 光束照到水晶过关';
   $('score').textContent=score;beep(660,.08);
 }
 function bounce(dir,rot){
@@ -555,8 +614,12 @@ function tapCell(cx,cy){
   if(state!=='play')return;
   const c=grid[cy]&&grid[cy][cx];
   if(!c||c.type!=='mirror')return;
-  const step=prog.rotLv>0?2:1;
-  c.rot=(c.rot+step)%4;steps--;score+=2;$('score').textContent=score;beep(700,.05);
+  // always +1 so / and \ alternate (rotLv used to skip by 2 and freeze reflection)
+  c.rot=(c.rot+1)%4;
+  if(prog.rotLv<=0)steps--;
+  else if(prog.rotLv===1){ /* half cost */ if(!tapCell._f)steps--; tapCell._f=!tapCell._f; }
+  // rotLv>=2: free rotates
+  score+=2;$('score').textContent=score;beep(700,.05);
   const r=cast();if(r.hit)return win();
   if(steps<=0)return lose('步数耗尽');
 }
@@ -592,8 +655,14 @@ function draw(){
     const c=grid[y][x];
     if(c&&c.type==='block'){if(FX)FX.tile(ctx,px+4,py+4,cw-8,ch-8,'#555',4);else{ctx.fillStyle='#555';ctx.fillRect(px+4,py+4,cw-8,ch-8);}}
     if(c&&c.type==='mirror'){
-      ctx.save();ctx.translate(px+cw/2,py+ch/2);ctx.rotate(c.rot*Math.PI/2);
-      ctx.strokeStyle='#c0e8ff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-cw*.3,-ch*.3);ctx.lineTo(cw*.3,ch*.3);ctx.stroke();ctx.restore();
+      ctx.save();ctx.translate(px+cw/2,py+ch/2);
+      ctx.strokeStyle='#c0e8ff';ctx.lineWidth=4;ctx.lineCap='round';
+      ctx.beginPath();
+      if(c.rot%2===0){ctx.moveTo(-cw*.32,-ch*.32);ctx.lineTo(cw*.32,ch*.32);} // \
+      else{ctx.moveTo(-cw*.32,ch*.32);ctx.lineTo(cw*.32,-ch*.32);} // /
+      ctx.stroke();
+      ctx.fillStyle='rgba(192,232,255,.15)';ctx.fillRect(-cw*.4,-ch*.4,cw*.8,ch*.8);
+      ctx.restore();
     }
   }
   // beam

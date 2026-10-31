@@ -492,22 +492,41 @@ const TUT=[["攀爬","按住左/右移动，踩到枝条会弹升。"],["荆棘"
 const SHOP=[{k:'stamLv',name:'耐力强化',max:4,cost(){return 40+(prog.stamLv|0)*30;},desc(){return '体力上限提升';}},{k:'gripLv',name:'抓握加宽',max:3,cost(){return 45+(prog.gripLv|0)*35;},desc(){return '枝条判定加宽';}},{k:'spdLv',name:'侧移加速',max:3,cost(){return 50+(prog.spdLv|0)*35;},desc(){return '左右移动更快';}}];
 
 
-let py=H-40,vx=0,vy=0,hold=0,branches=[],thorns=[],goalY=40,climb=0,fuel=100;
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];py=H-40;vx=0;vy=0;hold=0;climb=0;fuel=100+(prog.stamLv|0)*15;goalY=40;branches=[];thorns=[];const rng=mulberry32(lvl*401);for(let y=H-80;y>60;y-=28-Math.min(10,lvl)){branches.push({x:60+rng()*240,y,w:50+rng()*40+(prog.gripLv|0)*8});if(rng()<0.25+lvl*0.02||(boss&&rng()<0.4))thorns.push({x:40+rng()*280,y:y-10,r:10});}show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='按住左右攀藤 · 避刺';}
+let px=W/2,py=H-40,vx=0,vy=0,hold=0,branches=[],thorns=[],goalY=40,fuel=100;
+function startLevel(n){
+  lvl=n|0;boss=lvl%5===0;score=0;sparks=[];vx=0;vy=0;hold=0;fuel=100+(prog.stamLv|0)*15;goalY=40;branches=[];thorns=[];
+  const rng=mulberry32(lvl*401);
+  const gap=Math.max(18,28-Math.min(10,lvl));
+  const startY=H-70;
+  // guaranteed starter branch under spawn so player does not fall immediately
+  const startW=110+(prog.gripLv|0)*8;
+  branches.push({x:W/2-startW/2,y:startY,w:startW});
+  for(let y=startY-gap;y>60;y-=gap){
+    const bw=50+rng()*40+(prog.gripLv|0)*8;
+    const bx=Math.max(20,Math.min(W-20-bw,40+rng()*(W-80-bw)));
+    branches.push({x:bx,y,w:bw});
+    if(rng()<0.22+lvl*0.02||(boss&&rng()<0.35)){
+      let tx=40+rng()*280;
+      // keep thorns off the starter branch
+      if(Math.abs(y-startY)<12) continue;
+      thorns.push({x:tx,y:y-10,r:10});
+    }
+  }
+  px=W/2;py=startY-8;
+  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);
+  state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='按住左右攀藤 · 避刺';
+}
 function update(dt){fuel-=dt*(2.2+lvl*0.1);if(fuel<=0){lose('体力耗尽');return;}
   if(hold<0)vx=-140-(prog.spdLv|0)*20;else if(hold>0)vx=140+(prog.spdLv|0)*20;else vx*=0.85;
-  py+=vy*dt; const on=branches.find(b=>Math.abs(b.y-py)<14&&Math.abs((b.x+b.w/2)- (W/2+climb))<b.w/2+20);
-  // use screen x via climb offset
-  let px=W/2;px+=vx*dt;if(px<20)px=20;if(px>W-20)px=W-20;
-  vineclimb_px=px;
+  px+=vx*dt;if(px<20)px=20;if(px>W-20)px=W-20;
+  py+=vy*dt;
   const br=branches.find(b=>Math.abs(b.y-py)<16&&px>b.x-5&&px<b.x+b.w+5);
-  if(br){vy=-90-lvl*2;py=br.y-8;score+=2;climb+=1;}else{vy+=220*dt;if(vy>220)vy=220;}
+  if(br){vy=-90-lvl*2;py=br.y-8;score+=2;}else{vy+=220*dt;if(vy>220)vy=220;}
   for(const t of thorns){if(Math.hypot(px-t.x,py-t.y)<t.r+8){lose('扎到荆棘');return;}}
   if(py<goalY+20)win();
   if(py>H+20)lose('跌落');
   $('score').textContent=score|0;
 }
-let vineclimb_px=W/2;
 function win(){if(state!=='play')return;const stars=fuel>50?3:fuel>25?2:1;const gain=30+stars*15+(boss?60:0)+Math.floor(score/5);finishWin(stars,gain,'登顶成功！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);hold=p.x<W/2?-1:1;});
@@ -517,7 +536,7 @@ function draw(){if(FX)FX.stage(ctx,W,H,'#93e46c','#16a37a');else{ctx.fillStyle='
   ctx.strokeStyle='#2d6a4f';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(W/2,H);ctx.lineTo(W/2,40);ctx.stroke();
   for(const b of branches){ctx.fillStyle='#8b5a2b';ctx.fillRect(b.x,b.y,b.w,10);if(FX)FX.shadow(ctx,b.x+b.w/2,b.y+12,b.w/3,4);}
   for(const t of thorns){ctx.fillStyle='#c1121f';ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,7);ctx.fill();}
-  const px=vineclimb_px;if(FX){FX.shadow(ctx,px,py+12,12,5);FX.orb(ctx,px,py,12,'#ffcf33');}else{ctx.fillStyle='#ffcf33';ctx.beginPath();ctx.arc(px,py,12,0,7);ctx.fill();}
+  if(FX){FX.shadow(ctx,px,py+12,12,5);FX.orb(ctx,px,py,12,'#ffcf33');}else{ctx.fillStyle='#ffcf33';ctx.beginPath();ctx.arc(px,py,12,0,7);ctx.fill();}
   ctx.fillStyle='#ffe08a';ctx.fillRect(20,goalY,W-40,6);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);py=goalY;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,fuel:fuel|0,py:py|0}}};

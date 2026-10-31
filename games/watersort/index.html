@@ -506,22 +506,38 @@ function genLevel(n){
   const tubes=[];
   for(let c=0;c<sp.colors;c++) tubes.push({layers:[c,c,c,c],blind:false,freeze:0,sealed:true});
   for(let e=0;e<sp.empties;e++) tubes.push({layers:[],blind:false,freeze:0,sealed:false});
-  // reverse scramble
+  // reverse scramble — pour PARTIAL same-color tops so tubes mix (full-stack pours only permute sealed tubes)
   let moves=0,guard=0;
-  while(moves<sp.scramble && guard++<5000){
+  while(moves<sp.scramble && guard++<8000){
     const src=Math.floor(rnd()*tubes.length), dst=Math.floor(rnd()*tubes.length);
     if(src===dst) continue;
     const A=tubes[src],B=tubes[dst];
     if(!A.layers.length||B.layers.length>=4) continue;
     const col=A.layers[A.layers.length-1];
-    // reverse pour: from completed/same into anything with space — allow breaking sealed
     let k=0; while(A.layers.length-k>0 && A.layers[A.layers.length-1-k]===col) k++;
-    const space=4-B.layers.length; const take=Math.min(k,space);
+    const space=4-B.layers.length; let take=Math.min(k,space);
     if(take<=0) continue;
+    take=1+Math.floor(rnd()*take); // 1..take — break monochrome stacks
     for(let i=0;i<take;i++){B.layers.push(A.layers.pop());}
     moves++;
   }
   for(const t of tubes){ t.sealed=t.layers.length===4 && t.layers.every(x=>x===t.layers[0]); }
+  // ensure playable (not already solved)
+  if(tubes.every(t=>!t.layers.length||t.sealed)){
+    for(let extra=0;extra<40;extra++){
+      const src=Math.floor(rnd()*tubes.length), dst=Math.floor(rnd()*tubes.length);
+      if(src===dst) continue;
+      const A=tubes[src],B=tubes[dst];
+      if(!A.layers.length||B.layers.length>=4) continue;
+      const col=A.layers[A.layers.length-1];
+      let k=0; while(A.layers.length-k>0 && A.layers[A.layers.length-1-k]===col) k++;
+      const space=4-B.layers.length; let take=Math.min(k,space);
+      if(take<=0) continue;
+      take=1+Math.floor(rnd()*take);
+      for(let i=0;i<take;i++){B.layers.push(A.layers.pop());}
+    }
+    for(const t of tubes){ t.sealed=t.layers.length===4 && t.layers.every(x=>x===t.layers[0]); }
+  }
   if(sp.blind){
     const cands=tubes.map((t,i)=>i).filter(i=>tubes[i].layers.length>=2 && !tubes[i].sealed);
     if(cands.length){ tubes[cands[Math.floor(rnd()*cands.length)]].blind=true; }
@@ -656,7 +672,7 @@ function hitTube(p){
   if(!game||state!=='play'||anim) return;
   for(let i=0;i<game.tubes.length;i++){
     const t=game.tubes[i];
-    if(Math.abs(p.x-t.x)<t.w*.7 && p.y>t.y-t.h/2-10 && p.y<t.y+t.h/2+20){
+    if(Math.abs(p.x-t.x)<Math.max(t.w*.85,28) && p.y>t.y-t.h/2-16 && p.y<t.y+t.h/2+24){
       if(sel<0){ if(!t.layers.length||t.sealed){beep(200,.05);return;} sel=i; beep(440,.05); return; }
       if(sel===i){ sel=-1; return; }
       if(pour(sel,i)){ /* ok */ }

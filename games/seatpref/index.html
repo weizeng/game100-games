@@ -495,6 +495,7 @@ $('bestLine').textContent='解锁 '+prog.unlock+'/30 · 币 '+prog.coins;
 
 const TOTAL=30;
 const GUEST_ICONS=['🧑','👩','🧔','👵','👨','👱','🧒','👴'];
+const GUEST_COLORS=['#5B8CFF','#FF6B9D','#FFB84D','#6BCB77','#A66CFF','#4ECDC4','#FF8A65','#F7C948'];
 const RULE_LABEL={window:'靠窗',pair:'并排好友',quiet:'远离噪音',vip:'VIP邻座',away:'远离某人'};
 
 let state='menu',lvl=1,score=0,seats=[],guests=[],rules=[],drag=null,rot=0,blocked=new Set(),hintsLeft=0,boss=false,sparks=[],last=0,moves=0;
@@ -504,8 +505,8 @@ function seatLayout(n,rnd){
   const cols=n<=5?3:(n<=15?4:5);
   const rows=n<=10?2:(n<=20?3:3);
   const list=[];
-  const gapX=(W-40)/cols,gapY=70;
-  const startY=200;
+  const gapX=(W-40)/cols,gapY=72;
+  const startY=210;
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
     list.push({id:r*cols+c,x:20+c*gapX+gapX/2,y:startY+r*gapY,r,c,guest:null,window:c===0||c===cols-1,noise:r===rows-1&&c===Math.floor(cols/2)});
   }
@@ -520,7 +521,8 @@ function buildLevel(n){
   const gCount=Math.min(seats.length-blocked.size,2+Math.floor(n/3)+(boss?1:0));
   guests=[];
   for(let i=0;i<gCount;i++){
-    guests.push({id:i,icon:GUEST_ICONS[i%GUEST_ICONS.length],name:'客'+(i+1),seat:null,vip:boss&&i===0,x:40+i*40,y:110});
+    const spacing=Math.min(56,(W-60)/Math.max(1,gCount));
+    guests.push({id:i,icon:GUEST_ICONS[i%GUEST_ICONS.length],color:GUEST_COLORS[i%GUEST_COLORS.length],name:'客'+(i+1),seat:null,vip:boss&&i===0,x:36+i*spacing+spacing/2,y:128});
   }
   // rules
   rules=[];
@@ -567,7 +569,7 @@ function rotateTable(){
   }
   // recompute xy
   const maxC=Math.max(...seats.map(s=>s.c))+1,maxR=Math.max(...seats.map(s=>s.r))+1;
-  const gapX=(W-40)/maxC,gapY=70,startY=200;
+  const gapX=(W-40)/maxC,gapY=72,startY=210;
   for(const s of seats){s.x=20+s.c*gapX+gapX/2;s.y=startY+s.r*gapY;s.window=s.c===0||s.c===maxC-1;s.noise=s.r===maxR-1&&s.c===Math.floor(maxC/2);}
   toast('餐桌旋转');
 }
@@ -603,7 +605,7 @@ function useHint(){
   if(hintsLeft<=0){toast('提示已用尽');beep(200,.06,'square');return;}
   const unsat=rules.find(r=>!checkRule(r));
   if(!unsat){toast('已全部满足');return;}
-  hintsLeft--;toast('提示：'+GUEST_ICONS[unsat.g%GUEST_ICONS.length]+' 需要 '+RULE_LABEL[unsat.type]);beep(700,.08);
+  hintsLeft--;const gg=guests[unsat.g];toast('提示：'+(gg?gg.name+gg.icon:'客')+' → '+RULE_LABEL[unsat.type]);beep(700,.08);
 }
 
 let dragging=null;
@@ -615,7 +617,7 @@ cv.addEventListener('pointerdown',e=>{
   for(const g of guests){
     const gx=g.seat!=null?seats.find(s=>s.id===g.seat).x:g.x;
     const gy=g.seat!=null?seats.find(s=>s.id===g.seat).y:g.y;
-    if(Math.hypot(p.x-gx,p.y-gy)<28){dragging={g,ox:p.x-gx,oy:p.y-gy};cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);beep(400,.04);return;}
+    if(Math.hypot(p.x-gx,p.y-gy)<36){dragging={g,ox:p.x-gx,oy:p.y-gy};cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);beep(400,.04);return;}
   }
   // tap rotate / hint zones drawn as buttons
   if(p.x>20&&p.x<120&&p.y>470&&p.y<520){rotateTable();return;}
@@ -644,43 +646,61 @@ cv.addEventListener('pointerup',e=>{
 });
 cv.addEventListener('pointercancel',()=>{dragging=null;});
 
+function drawGuestFace(x,y,g,r){
+  const col=g.vip?'#FFD34D':(g.color||'#5B8CFF');
+  if(FX){FX.shadow(ctx,x,y+r*0.9,r*0.9,r*0.35);FX.orb(ctx,x,y,r,col);}
+  else{ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2;ctx.stroke();}
+  ctx.font=(r>=20?'28':'22')+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.icon,x,y+1);
+  ctx.font='bold 11px sans-serif';ctx.fillStyle='#1a1a2e';ctx.fillText(g.name+(g.vip?'★':''),x,y+r+12);
+}
 function draw(){
   if(FX)FX.stage(ctx,W,H,'#dbe6ff','#6b8cff');else{ctx.fillStyle='#6b8cff';ctx.fillRect(0,0,W,H);}
-  // rule panel
-  ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(10,10,W-20,70);
-  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';
-  ctx.fillText((boss?'👑 ':'')+'关'+lvl+' · 约束 '+(rules.filter(checkRule).length)+'/'+rules.length+' · 步'+moves,16,28);
-  ctx.font='11px sans-serif';
+  // Larger rule/hint panel with clear guest↔constraint correspondence (#37/#38)
+  const ruleRows=Math.max(1,Math.ceil(rules.length/3));
+  const panelH=36+ruleRows*48;
+  ctx.fillStyle='rgba(0,0,0,.32)';ctx.beginPath();
+  if(ctx.roundRect)ctx.roundRect(8,6,W-16,panelH,12);else ctx.rect(8,6,W-16,panelH);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillText((boss?'👑 ':'')+'关'+lvl+' · 约束 '+(rules.filter(checkRule).length)+'/'+rules.length+' · 步'+moves,16,24);
   rules.forEach((r,i)=>{
+    const col=i%3,row=(i/3)|0;
+    const x=16+col*114,y=34+row*48;
     const ok=checkRule(r);
-    ctx.fillStyle=ok?'#b6ffb0':'#ffe08a';
     const g=guests[r.g];
-    let t=(g?g.icon:'?')+' '+RULE_LABEL[r.type];
-    if(r.g2!=null)t+=' '+guests[r.g2].icon;
-    ctx.fillText(t,16+i*110,52);
+    ctx.fillStyle=ok?'rgba(80,200,100,.35)':'rgba(255,200,80,.28)';
+    if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,108,42,8);ctx.fill();}else ctx.fillRect(x,y,108,42);
+    if(g){
+      const gc=g.vip?'#FFD34D':(g.color||'#5B8CFF');
+      ctx.fillStyle=gc;ctx.beginPath();ctx.arc(x+20,y+21,16,0,7);ctx.fill();
+      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+      ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.icon,x+20,y+22);
+      ctx.font='bold 10px sans-serif';ctx.fillStyle='#fff';ctx.textAlign='left';
+      ctx.fillText(g.name+(ok?' ✓':''),x+40,y+14);
+      ctx.font='11px sans-serif';ctx.fillStyle=ok?'#b6ffb0':'#ffe08a';
+      let lab=RULE_LABEL[r.type]||r.type;
+      if(r.g2!=null&&guests[r.g2])lab+=' '+guests[r.g2].icon;
+      ctx.fillText(lab,x+40,y+30);
+    }
   });
   // table
-  ctx.fillStyle='rgba(255,255,255,.35)';
-  const tableH=seats.length?Math.max(80,Math.max(...seats.map(s=>s.y))-140):220;
-  if(FX)FX.tile(ctx,40,160,W-80,tableH,'#c9a66b',16);
-  else{ctx.fillStyle='rgba(255,255,255,.35)';ctx.fillRect(40,160,W-80,tableH);}
+  const tableTop=Math.max(panelH+14,155);
+  const tableH=seats.length?Math.max(80,Math.max(...seats.map(s=>s.y))-tableTop+40):220;
+  if(FX)FX.tile(ctx,40,tableTop,W-80,tableH,'#c9a66b',16);
+  else{ctx.fillStyle='rgba(255,255,255,.35)';ctx.fillRect(40,tableTop,W-80,tableH);}
   for(const s of seats){
     const blockedS=blocked.has(s.id);
     const col=blockedS?'#666':(s.window?'#9ad0ff':(s.noise?'#ffb090':'#fff6e8'));
     if(FX)FX.tile(ctx,s.x-26,s.y-22,52,44,col,10);else{ctx.fillStyle=col;ctx.fillRect(s.x-26,s.y-22,52,44);}
-    ctx.fillStyle='#333';ctx.font='10px sans-serif';ctx.textAlign='center';
+    ctx.fillStyle='#333';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';
     ctx.fillText(blockedS?'封':(s.window?'窗':(s.noise?'噪':'座')),s.x,s.y+18);
   }
-  // waiting guests / seated
+  // waiting guests / seated — larger faces
   for(const g of guests){
     let x,y;
     if(dragging&&dragging.g===g){x=dragging.gx;y=dragging.gy;}
-    else if(g.seat!=null){const s=seats.find(s=>s.id===g.seat);x=s.x;y=s.y-6;}
+    else if(g.seat!=null){const s=seats.find(s=>s.id===g.seat);x=s.x;y=s.y-8;}
     else{x=g.x;y=g.y;}
-    if(FX){FX.shadow(ctx,x,y+16,16,6);FX.orb(ctx,x,y,18,g.vip?'#FFD34D':'#5B8CFF');}
-    else{ctx.fillStyle=g.vip?'#FFD34D':'#5B8CFF';ctx.beginPath();ctx.arc(x,y,18,0,7);ctx.fill();}
-    ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.icon,x,y);
-    if(g.vip){ctx.font='10px sans-serif';ctx.fillStyle='#5a3a00';ctx.fillText('VIP',x,y+20);}
+    drawGuestFace(x,y,g,g.seat!=null?20:24);
   }
   // action buttons
   if(FX){FX.tile(ctx,20,475,100,44,'#FFE08A',10);FX.tile(ctx,130,475,100,44,'#B6F0FF',10);}
@@ -701,7 +721,7 @@ function openLevels(){
     b.innerHTML=locked?'🔒':((i%5===0?'👑':'')+i+'<small>'+'★'.repeat(st)+'</small>');b.disabled=locked;
     if(!locked)b.onclick=()=>enter(i);g.appendChild(b);}
 }
-function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;saveProg(prog);tutorial([['入座礼仪','拖客人放到座位；满足顶部约束即可过关。'],['约束','靠窗、并排好友、远离噪音、VIP 双约束。'],['成长','商店解锁提示次数与餐桌旋转，应对封座 Boss。']],go);}else go();}
+function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;saveProg(prog);tutorial([['入座礼仪','拖客人放到座位；满足顶部约束即可过关。<br>每位客人有彩色头像与「客1/客2」名字，顶部提醒同色对应。'],['约束','靠窗、并排好友、远离噪音、VIP 双约束。<br>顶部卡片放大显示头像+名字+需求，对照入座。'],['成长','商店解锁提示次数与餐桌旋转，应对封座 Boss。']],go);}else go();}
 function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').textContent='金币：'+prog.coins;
   const items=[
     {k:'hintLv',name:'礼仪提示',desc:'每关提示次数 ('+prog.hintLv+'/3)',cost:25+prog.hintLv*20,max:3},

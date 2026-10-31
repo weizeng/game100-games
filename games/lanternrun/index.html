@@ -487,24 +487,28 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 
 const TUT=[["跳跃","点屏幕从当前灯笼跳向下一个。"],["时机","跳早或跳晚会落空。"],["护符","路过护符自动收集加分。"],["Boss","Boss 灯笼会左右摇摆。"]];
 const SHOP=[{k:'bufLv',name:'跳跃容错',max:3,cost(){return 40+(prog.bufLv|0)*30;},desc(){return '落地判定更宽';}},{k:'lifeLv',name:'额外生命',max:3,cost(){return 50+(prog.lifeLv|0)*35;},desc(){return '开局多一条命';}},{k:'magLv',name:'护符磁铁',max:3,cost(){return 45+(prog.magLv|0)*30;},desc(){return '护符吸附范围';}}];
-let plats=[],px=0,py=0,vx=0,vy=0,on=-1,lives=0,goal=0,dist=0,charms=[],jumping=false,tAir=0;
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];plats=[];const gap=70+lvl*3;let y=H-80;for(let i=0;i<12+lvl;i++){const swing=boss&&i>2;plats.push({x:60+Math.random()*(W-120),y:y,w:50+Math.max(0,20-lvl),swing,base:0,ph:Math.random()*6});y-=gap*(0.85+Math.random()*0.3);}plats[0].x=W/2;px=plats[0].x;py=plats[0].y-16;vx=0;vy=0;on=0;lives=2+(prog.lifeLv|0);goal=8+((lvl/2)|0);dist=0;charms=[];for(let i=2;i<plats.length;i+=2)charms.push({x:plats[i].x,y:plats[i].y-30,got:false});jumping=false;tAir=0;
+let plats=[],px=0,py=0,vx=0,vy=0,on=-1,lives=0,goal=0,dist=0,charms=[],jumping=false,tAir=0,camY=0;
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];plats=[];const gap=70+lvl*3;let y=H-80;for(let i=0;i<12+lvl;i++){const swing=boss&&i>2;plats.push({x:60+Math.random()*(W-120),y:y,w:50+Math.max(0,20-lvl),swing,base:0,ph:Math.random()*6});y-=gap*(0.85+Math.random()*0.3);}plats[0].x=W/2;px=plats[0].x;py=plats[0].y-16;vx=0;vy=0;on=0;lives=2+(prog.lifeLv|0);goal=8+((lvl/2)|0);dist=0;charms=[];for(let i=2;i<plats.length;i+=2)charms.push({x:plats[i].x,y:plats[i].y-30,got:false});jumping=false;tAir=0;camY=py-H*0.55;
   show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点按跳跃 · 落稳灯笼';}
 function win(){if(state!=='play')return;const stars=lives>=2?3:lives>=1?2:1;finishWin(stars,35+stars*15+(boss?50:0)+score,'夜奔抵达！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
 function update(dt){for(const p of plats){if(p.swing){p.ph+=dt*1.5;if(!p.base)p.base=p.x;p.x=Math.max(40,Math.min(W-40,p.base+Math.sin(p.ph)*40));}}
   if(jumping){tAir+=dt;px+=vx*dt;py+=vy*dt;vy+=520*dt;let landed=false;const buf=10+(prog.bufLv|0)*6;for(let i=0;i<plats.length;i++){const p=plats[i];if(vy>0&&Math.abs(px-p.x)<p.w/2+buf&&py>=p.y-18&&py<=p.y+8){on=i;py=p.y-16;vx=0;vy=0;jumping=false;dist=Math.max(dist,i);score+=5;beep(700,.05);landed=true;if(i>=goal)win();break;}}
-  if(!landed&&py>H+40){lives--;jumping=false;if(lives<=0){lose('坠落');return;}toast('坠落 -1');beep(200,.1,'triangle');on=Math.max(0,on);px=plats[on].x;py=plats[on].y-16;}}
+  if(!landed&&py>camY+H+40){lives--;jumping=false;if(lives<=0){lose('坠落');return;}toast('坠落 -1');beep(200,.1,'triangle');on=Math.max(0,on);px=plats[on].x;py=plats[on].y-16;camY=py-H*0.55;}}
   else if(on>=0){const p=plats[on];px=p.x;py=p.y-16;}
   const mag=20+(prog.magLv|0)*15;for(const c of charms){if(!c.got&&Math.hypot(c.x-px,c.y-py)<mag){c.got=true;score+=12;beep(990,.06);if(FX)FX.burst(sparks,c.x,c.y,'#ffe08a',8);}}
+  // Camera follows player so high jumps stay on screen (#40)
+  const camTarget=py-H*0.55;camY+=(camTarget-camY)*Math.min(1,dt*10);
   $('score').textContent=score|0;}
 cv.addEventListener('pointerdown',e=>{if(state!=='play'||jumping||on<0)return;e.preventDefault();const target=Math.min(plats.length-1,on+1);const p=plats[target];const dx=p.x-px,dy=p.y-16-py;vx=dx*1.6;vy=Math.min(-220,dy*1.2-180);jumping=true;tAir=0;beep(640,.04);});
 function draw(){if(FX)FX.stage(ctx,W,H,'#ff9ec8','#5b2a6b');else{ctx.fillStyle='#5b2a6b';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('命'+lives+' 台'+dist+'/'+goal+(boss?' 👑':''),10,22);
+  ctx.save();ctx.translate(0,-camY);
   for(const p of plats){ctx.fillStyle='#ffb703';ctx.beginPath();ctx.ellipse(p.x,p.y,p.w/2,10,0,0,7);ctx.fill();ctx.fillStyle='#ff6b6b';ctx.fillRect(p.x-3,p.y-28,6,28);}
   for(const c of charms){if(c.got)continue;if(FX)FX.orb(ctx,c.x,c.y,7,'#ffe08a');else{ctx.fillStyle='#ffe08a';ctx.beginPath();ctx.arc(c.x,c.y,7,0,7);ctx.fill();}}
   ctx.fillStyle='#7df9ff';ctx.beginPath();ctx.arc(px,py,12,0,7);ctx.fill();
-  if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
+  if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
+  ctx.restore();}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);dist=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,lives,dist,goal}}};
 
 function finishWin(stars,gain,title){state='over';const prev=prog.stars[lvl]|0;if(stars>prev)prog.stars[lvl]=stars;prog.coins+=gain;if(lvl>=prog.unlock&&lvl<TOTAL)prog.unlock=lvl+1;saveProg(prog);if(score>best){best=score;UI.storageSet(HK,best);$('best').textContent=best;}$('overH').textContent=title||'过关！';$('finalScore').textContent='★'.repeat(stars);$('overText').textContent='关卡 '+lvl+' · +'+gain+'币';show('overScr',true);beep(880,.2);}
