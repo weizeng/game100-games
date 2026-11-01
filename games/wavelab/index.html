@@ -1,60 +1,47 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>波的传播</title>
+<link rel="icon" href="data:,">
 <style>
-/* ART T2-2 */
-html.game-ui #pauseBtn,html.game-ui .muteBtn,html.game-ui .iconbtn.muteBtn,html.game-ui #muteBtn{min-width:44px;min-height:44px;width:44px;height:44px}
-html.game-ui #cv{max-width:min(480px,calc((100vh - 280px)*1.2));max-width:min(480px,calc((100svh - 280px)*1.2))}
-
-
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden;background:#0d1a22;color:#fff;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;user-select:none;-webkit-user-select:none}
-#app{height:100%;display:flex;flex-direction:column;background:linear-gradient(165deg,#0f2a38 0%,#14313f 45%,#1b1440 100%)}
-#hud{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(6,16,22,.88);border-bottom:2px solid #4DD0E1;z-index:30}
-#hud .ttl{font-size:17px;font-weight:bold}
-#hud .score{font-size:14px;color:#b2ebf2}
-#hud .score b{font-size:19px;color:#ffd54f;margin:0 2px}
-.hbtns{display:flex;gap:8px}
-.ibtn{width:44px;height:44px;font-size:20px;border:none;border-radius:12px;background:#1e4a5c;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
-.ibtn:active{transform:scale(.9)}
-#main{flex:1;display:flex;flex-direction:column;overflow-y:auto;padding:10px 12px 14px;gap:10px}
-#stage{position:relative;border-radius:16px;background:rgba(4,10,16,.6);border:1px solid rgba(77,208,225,.35);padding:8px;flex:none}
-#cv{width:100%;height:230px;display:block;touch-action:none;border-radius:10px}
-#waveInfo{display:flex;justify-content:space-between;font-size:13px;color:#b2ebf2;margin-top:6px}
-#waveInfo b{color:#ffd54f;font-size:16px}
-.panel{background:rgba(8,20,28,.78);border:1px solid rgba(77,208,225,.3);border-radius:14px;padding:10px 12px}
-.panel .pt{font-size:14px;font-weight:bold;color:#4DD0E1;margin-bottom:8px}
-.row{display:flex;gap:8px;align-items:center}
-.btn{flex:1;min-height:48px;border:none;border-radius:12px;font-size:15px;font-weight:bold;color:#04303a;background:#4DD0E1;cursor:pointer;touch-action:manipulation}
-.btn:active{transform:scale(.96)}
-.btn.sel{background:#ffd54f;color:#4a3200;box-shadow:0 0 0 2px #fff inset}
-.btn.dim{background:#1e4a5c;color:#b2ebf2}
-.btn.go{background:#66bb6a;color:#063006;font-size:17px}
-input[type=range]{flex:1;height:44px;accent-color:#4DD0E1;touch-action:pan-x}
-.ctl-lab{font-size:14px;color:#b2ebf2;min-width:118px}
-.ctl-lab b{color:#ffd54f}
-#taskPanel .q{font-size:15px;line-height:1.7}
-#taskPanel .q b{color:#ffd54f}
-#taskPanel .hint{font-size:13px;color:#80deea;margin-top:6px;min-height:18px}
-#logPanel{max-height:150px;display:flex;flex-direction:column}
-#log{overflow-y:auto;font-size:13px;line-height:1.8;color:#cfd8dc}
-#log .ok{color:#a5d6a7}
-#log .no{color:#ef9a9a}
-.ov{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(3,8,12,.87);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
-.ov.hide{display:none}
-.card{width:100%;max-width:380px;background:linear-gradient(170deg,#17394a,#0d1a24);border:2px solid #4DD0E1;border-radius:20px;padding:22px 18px;text-align:center;max-height:92%;overflow-y:auto}
-.card h1{font-size:24px;margin-bottom:6px}
-.card h2{font-size:20px;margin-bottom:10px}
-.card p{font-size:14px;line-height:1.8;color:#cbe7ee;text-align:left;margin:8px 0}
-.card .sec{font-size:15px;font-weight:bold;color:#4DD0E1;margin:12px 0 4px;text-align:left}
-.card .big{font-size:16px;color:#fff;text-align:center}
-.card .big b{color:#ffd54f;font-size:24px}
-.card .row{display:flex;gap:10px;margin-top:14px}
-.formula{background:rgba(77,208,225,.12);border:1px dashed #4DD0E1;border-radius:10px;padding:8px;font-size:16px;color:#fff;margin:6px 0;text-align:center}
-.pt2{position:fixed;width:9px;height:9px;border-radius:50%;z-index:999;pointer-events:none;transition:transform .65s ease-out,opacity .65s}
+html,body{height:100%;overflow:hidden}
+body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;height:100%;padding:10px 12px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap!important;gap:6px}
+.topbar .stat{display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13px;overflow:hidden}
+.topbar .tools{display:flex;gap:6px;flex:none}
+.topbar .tools .iconbtn{min-width:44px;min-height:44px;padding:0 6px}
+.subbar{width:100%;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.prog{flex:1;height:10px;border-radius:6px;background:rgba(0,0,0,.2);overflow:hidden}.prog i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#ffd34d,#ff5fa2);transition:width .2s}
+.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;z-index:20;padding:20px;text-align:center}
+.overlay.hidden,.hidden{display:none!important}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;width:100%}
+.lvgrid .lvl{min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;padding:3px!important;line-height:1.1}
+.lvgrid .lvl small{font-size:10px;letter-spacing:-1px;margin-top:2px}
+.lvgrid .lvl[disabled]{opacity:.45}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}
+.shop button{min-height:46px;font-size:12px!important;padding:3px!important;line-height:1.2}
+.aids{width:100%;display:flex;gap:6px;justify-content:center}
+.aids button{min-height:44px;min-width:64px;font-size:13px!important;padding:2px 8px!important}
+#tutStep{font-size:12px;opacity:.75}
+#tutPic{font-size:44px;line-height:1.1}
+#overStars{font-size:30px;letter-spacing:4px;min-height:34px}
+#toast{position:fixed;left:50%;top:15%;transform:translate(-50%,-10px);background:rgba(10,8,30,.9);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;z-index:999;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;font-size:15px;box-shadow:0 0 18px rgba(255,61,154,.5);white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+.lvTag{font-size:12px;opacity:.85}
+
+#cv{display:block;touch-action:none;max-width:100%;max-height:100%}
+.hint{font-size:12px;opacity:.85;text-align:center;flex:none}
+.sliders{width:100%;display:flex;flex-direction:column;gap:4px;padding:4px 0;flex:none}
+.sliders label{font-size:12px;font-weight:700;display:flex;justify-content:space-between}
+.sliders input[type=range]{width:100%;height:28px}
+.row2{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.row2 button{min-height:48px;min-width:90px}
 </style>
 <!-- GAME UI BEGIN -->
 <style>
@@ -474,269 +461,201 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <!-- GAME UI END -->
 </head>
 <body>
-<div id="app">
-  <header id="hud">
-    <div class="ttl">🌊 波的传播</div>
-    <div class="score">得分 <b id="score">0</b></div>
-    <div class="hbtns">
-      <button class="ibtn" id="pauseBtn" aria-label="暂停">⏸</button>
-      <button class="ibtn" id="soundBtn" aria-label="声音">🔊</button>
-    </div>
-  </header>
-  <div id="main">
-    <div id="stage">
-      <canvas id="cv"></canvas>
-      <div id="waveInfo">
-        <span>波速 v = <b>20</b> cm/s（固定）</span>
-        <span>波长 λ = v/f = <b id="lamV">10.0</b> cm</span>
-      </div>
-    </div>
-    <div class="panel" id="controls">
-      <div class="pt">🔧 调节波参数</div>
-      <div class="row" style="margin-bottom:6px">
-        <div class="ctl-lab">频率 f<br><b id="fLab">2.0 Hz</b></div>
-        <input type="range" id="fRange" min="1" max="5" step="0.5" value="2">
-      </div>
-      <div class="row" style="margin-bottom:8px">
-        <div class="ctl-lab">振幅 A<br><b id="aLab">30 px</b></div>
-        <input type="range" id="aRange" min="10" max="50" step="5" value="30">
-      </div>
-      <div class="row" id="typeBtns">
-        <button class="btn sel" data-t="0">〰️ 横波</button>
-        <button class="btn dim" data-t="1">⋮⋮ 纵波（疏密）</button>
-      </div>
-    </div>
-    <div class="panel" id="taskPanel">
-      <div class="pt">🎯 实验任务</div>
-      <div class="q" id="taskQ">准备开始…</div>
-      <div class="row" id="goRow" style="display:none;margin-top:8px">
-        <button class="btn go" id="fireBtn">📡 发射验证</button>
-      </div>
-      <div class="row" id="nextRow" style="display:none;margin-top:8px">
-        <button class="btn" id="nextBtn">下一轮 ▶</button>
-      </div>
-      <div class="hint" id="taskHint"></div>
-    </div>
-    <div class="panel" id="logPanel">
-      <div class="pt">📋 实验记录</div>
-      <div id="log"><div style="color:#78909c">暂无记录，完成一轮实验后显示</div></div>
-    </div>
+<div class="wrap">
+  <div class="topbar">
+    <span class="stat"><span id="iconT"></span><span>❤️<b id="lifeT">3</b></span><span id="hitLbl">击 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
+    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
+  <div class="subbar"><span id="goalLbl">目标</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
+  <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
+  <div class="sliders">
+  <label>频率 f <b id="fT">2</b> Hz</label>
+  <input type="range" id="freq" min="1" max="10" step="0.1" value="2">
+  <label>振幅 A <b id="aT">20</b></label>
+  <input type="range" id="amp" min="5" max="40" value="20">
 </div>
-
-<div class="ov" id="startOv">
-  <div class="card">
-    <h1>🌊 波的传播</h1>
-    <div class="sec">玩法说明</div>
-    <p>1. 共 3 轮，每轮给出一个<b>目标波长</b>（如 10cm、5cm、8cm）。<br>2. 调节<b>频率 f</b>（1~5Hz），使波长 λ = v/f 达标（误差 &lt; 0.5cm）。波速 v = 20cm/s 固定。<br>3. 点「📡 发射验证」：看一列波穿过检测区，达标 +30 分。<br>4. 可切换<b>横波 / 纵波</b>（纵波用质点疏密表示），观察振动方向与传播方向的关系。</p>
-    <div class="sec">原理简介</div>
-    <p>波传播的是<b>振动形式与能量</b>，质点只在原地振动。横波振动方向与传播方向垂直，纵波平行。</p>
-    <div class="row"><button class="btn" id="startBtn" style="font-size:18px">开始实验</button></div>
-  </div>
+<div class="row2"><button class="btn ghost" id="btnMode">横波</button><button class="btn" id="btnFire">发射验证</button></div>
+  <div class="aids" id="aids"></div>
+  <div class="hint" id="hint"></div>
 </div>
-
-<div class="ov hide" id="pauseOv">
-  <div class="card">
-    <h2>⏸ 实验暂停</h2>
-    <p class="big">当前得分 <b id="pScore">0</b></p>
-    <div class="row">
-      <button class="btn" id="resumeBtn">继续</button>
-      <button class="btn dim" id="restartBtn">重来</button>
-    </div>
-  </div>
-</div>
-
-<div class="ov hide" id="endOv">
-  <div class="card">
-    <h2>🎉 实验完成</h2>
-    <div class="sec">实验结论</div>
-    <p>波速一定时，频率越高波长越短（λ = v/f）。波向前传播的是<b>振动形式与能量</b>，质点并不随波迁移——横波质点上下振动，纵波质点左右振动形成疏密相间的图样。</p>
-    <div class="sec">知识点</div>
-    <div class="formula">v = λ f</div>
-    <p>横波：振动方向 ⊥ 传播方向；纵波：振动方向 ∥ 传播方向。</p>
-    <p class="big">本轮得分 <b id="fScore">0</b>　最高分 <b id="fHs">0</b></p>
-    <div class="row"><button class="btn" id="againBtn" style="font-size:18px">再做一次</button></div>
-  </div>
-</div>
+<div class="overlay" id="startScr"><h1 id="startH"></h1><p id="startP"></p><p id="bestLine"></p><button class="btn" id="startBtn">开始</button></div>
+<div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">过关</h2><div id="overStars"></div><div class="score" id="finalScore">0</div><p id="overText"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再来一次</button><button class="btn ghost" id="menu2Btn">选择关卡</button></div></div>
+<div id="toast"></div>
 
 <script>
 'use strict';
-/* ART T2-2 */var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;var sparks=[];
+/* ===== 关卡/教程/存档/音效 通用套件（单文件内联） ===== */
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
+const $=id=>document.getElementById(id);
+function show(id,on){$(id).classList.toggle('hidden',!on);}
+const Kit=(function(){
+  const K={state:'menu',lv:0};let cfg,P,muted,ac=null,tutI=0,tutThen=null,lastWin=false;
+  function key(s){return 'g100_'+cfg.id+'_'+s;}
+  function load(){try{P=JSON.parse(UI.storageGet(key('prog'))||'{}')||{};}catch(e){P={};}
+    P.stars=P.stars||[];P.best=P.best||[];P.coins=P.coins||0;P.up=P.up||{};}
+  function save(){try{UI.storageSet(key('prog'),JSON.stringify(P));}catch(e){}}
+  K.save=save;
+  K.prog=()=>P;
+  K.up=k=>P.up[k]||0;
+  K.totalStars=()=>P.stars.reduce((a,b)=>a+(b||0),0);
+  K.hs=()=>+UI.storageGet(key('hs'))||0;
+  // ---- 音效 ----
+  function tone(f,d,type,vol,f2,delay){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();
+    const t=ac.currentTime+(delay||0),o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
+    g.gain.setValueAtTime(vol||.13,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+  K.tone=tone;
+  K.sfx=function(n,x){switch(n){
+    case 'tap':tone(520,.06,'triangle',.08);break;
+    case 'good':tone(660,.08,'sine');tone(990,.1,'sine',.1,0,.06);break;
+    case 'combo':tone(500+Math.min(12,x||1)*70,.12,'square',.07);break;
+    case 'bad':tone(220,.22,'sawtooth',.1,110);break;
+    case 'hit':tone(180,.08,'square',.08,90);break;
+    case 'coin':tone(1200,.07,'sine',.09);tone(1600,.09,'sine',.08,0,.06);break;
+    case 'boss':tone(110,.5,'sawtooth',.12,70);tone(165,.5,'square',.06,90,.1);break;
+    case 'win':[523,659,784,1046].forEach((f,i)=>tone(f,.18,'triangle',.12,0,i*.11));break;
+    case 'lose':[392,330,262,196].forEach((f,i)=>tone(f,.22,'sawtooth',.08,0,i*.13));break;
+    case 'boom':tone(140,.35,'sawtooth',.14,40);break;
+    default:tone(440,.08);}};
+  function setMute(m){muted=m;try{UI.storageSet('g100_mute',m?'1':'0');}catch(e){}
+    document.querySelectorAll('.muteBtn,#muteBtn').forEach(b=>b.textContent=m?'🔇':'🔊');}
+  // ---- 提示条 ----
+  let tt=0;K.toast=function(msg,ms){const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),ms||1300);};
+  K.vibrate=function(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);else if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}};
+  // ---- 选关 ----
+  K.isBoss=i=>(cfg.boss||[]).includes(i+1);
+  K.unlocked=i=>i===0||(P.stars[i-1]||0)>0||(cfg.endless&&i===cfg.levels-1&&false);
+  function stars(n){return '★★★'.slice(0,n)+'☆☆☆'.slice(0,3-n);}
+  K.starStr=stars;
+  function renderLevels(){
+    const g=$('lvgrid');g.innerHTML='';
+    for(let i=0;i<cfg.levels;i++){const b=document.createElement('button');b.className='lvl';const ok=K.unlocked(i);
+      const lab=cfg.label?cfg.label(i):String(i+1);
+      b.innerHTML=(ok?(K.isBoss(i)?'👑':'')+lab:'🔒')+'<small>'+(ok?stars(P.stars[i]||0):'&nbsp;')+'</small>';
+      if(!ok)b.disabled=true;b.addEventListener('click',()=>{K.sfx('tap');go(i);});g.appendChild(b);}
+    $('lvlInfo').textContent='⭐ '+K.totalStars()+'/'+cfg.levels*3+'   💰 '+P.coins+(K.hs()?'   🏆 '+K.hs():'');
+    $('lvlNote').textContent=cfg.note?cfg.note():'';
+    const s=$('shop');s.innerHTML='';
+    (cfg.ups||[]).forEach(u=>{const lv=K.up(u.k),max=u.max,cost=lv<max?u.cost(lv):0,b=document.createElement('button');b.className='ghost';
+      const need=u.stars&&K.totalStars()<u.stars;
+      b.innerHTML=u.ic+' '+u.name+' '+lv+'/'+max+'<br>'+(lv>=max?'已满级':need?'🔒 需 ⭐'+u.stars:'💰'+cost+' · '+u.desc);
+      if(lv>=max||need)b.disabled=true;
+      b.addEventListener('click',()=>{if(P.coins<cost){K.toast('💰 不够：通关赚取金币');K.sfx('bad');return;}P.coins-=cost;P.up[u.k]=lv+1;save();K.sfx('coin');K.toast(u.ic+' '+u.name+' 升到 '+(lv+1)+' 级');renderLevels();});
+      s.appendChild(b);});
+    s.classList.toggle('hidden',!(cfg.ups||[]).length);
+  }
+  K.menu=function(){K.state='menu';cfg.stop&&cfg.stop();['startScr','overScr','pauseOv','tutScr'].forEach(i=>show(i,false));renderLevels();show('lvlScr',true);};
+  function go(i){K.lv=i;['startScr','overScr','pauseOv','lvlScr','tutScr'].forEach(x=>show(x,false));K.state='play';
+    if(K.isBoss(i))setTimeout(()=>{K.sfx('boss');K.toast('👑 首领关：'+(cfg.bossName?cfg.bossName(i):'强敌来袭'),1800);},60);
+    else K.sfx('tap');cfg.start(i);}
+  K.go=go;
+  // ---- 教程 ----
+  function tutShow(){const t=cfg.tut[tutI];$('tutH').textContent=t[0];$('tutP').innerHTML=t[1];$('tutPic').textContent=t[2]||'';$('tutStep').textContent=(tutI+1)+' / '+cfg.tut.length;$('tutNext').textContent=tutI===cfg.tut.length-1?'明白了，开始！':'下一步';}
+  K.tutorial=function(then){tutI=0;tutThen=then;['startScr','lvlScr'].forEach(x=>show(x,false));tutShow();show('tutScr',true);};
+  function tutEnd(){show('tutScr',false);P.tut=1;save();(tutThen||K.menu)();}
+  // ---- 暂停 ----
+  K.pause=function(){if(K.state!=='play')return;K.state='pause';cfg.pause&&cfg.pause();$('pauseInfo').textContent=(cfg.label?'第 '+cfg.label(K.lv):'第 '+(K.lv+1))+' 关'+(K.isBoss(K.lv)?' · 首领关':'');show('pauseOv',true);};
+  K.resume=function(){if(K.state!=='pause')return;K.state='play';show('pauseOv',false);cfg.resume&&cfg.resume();};
+  // ---- 结算 ----
+  K.win=function(st,score,text){if(K.state!=='play')return;K.state='over';lastWin=true;st=Math.max(1,Math.min(3,st|0));const i=K.lv;
+    const old=P.stars[i]||0,gain=st*4+(old?0:6)+(K.isBoss(i)?8:0)+(cfg.coinBonus?cfg.coinBonus(i,st,score):0);P.coins+=gain;
+    if(st>old)P.stars[i]=st;if((score||0)>(P.best[i]||0))P.best[i]=score;
+    const tot=P.best.reduce((a,b)=>a+(b||0),0);if(tot>K.hs())UI.storageSet(key('hs'),tot);save();
+    $('overH').textContent=K.isBoss(i)?'👑 击败首领！':'🎉 过关！';$('overStars').textContent=stars(st);$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>💰 +'+gain+'　本关最佳 '+(P.best[i]||0);
+    const hasNext=i+1<cfg.levels;$('nextBtn').classList.toggle('hidden',!hasNext);if(hasNext)$('nextBtn').textContent=K.isBoss(i+1)?'👑 挑战首领':'下一关';
+    show('overScr',true);K.sfx('win');cfg.stop&&cfg.stop();};
+  K.lose=function(text,score){if(K.state!=='play')return;K.state='over';lastWin=false;const gain=Math.min(3,K.lv>0?2:1);P.coins+=gain;save();
+    $('overH').textContent='💥 挑战失败';$('overStars').textContent='☆☆☆';$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>安慰金 💰 +'+gain+'　可在选关页升级后再战';
+    $('nextBtn').classList.add('hidden');show('overScr',true);K.sfx('lose');K.vibrate(120);cfg.stop&&cfg.stop();};
+  K.init=function(c){cfg=c;load();setMute(UI.storageGet('g100_mute')==='1');
+    document.querySelectorAll('.muteBtn,#muteBtn').forEach(b=>b.addEventListener('click',()=>{setMute(!muted);if(!muted)K.sfx('tap');}));
+    $('startBtn').addEventListener('click',()=>{K.sfx('tap');if(!P.tut)K.tutorial(K.menu);else K.menu();});
+    $('tutNext').addEventListener('click',()=>{K.sfx('tap');if(tutI<cfg.tut.length-1){tutI++;tutShow();}else tutEnd();});
+    $('tutSkip').addEventListener('click',tutEnd);
+    $('howBtn').addEventListener('click',()=>K.tutorial(K.menu));
+    $('homeBtn').addEventListener('click',()=>{show('lvlScr',false);show('startScr',true);K.state='menu';});
+    $('pauseBtn').addEventListener('click',()=>K.state==='play'?K.pause():K.resume());
+    $('resumeBtn').addEventListener('click',K.resume);
+    $('restartBtn').addEventListener('click',()=>go(K.lv));
+    $('menuBtn').addEventListener('click',K.menu);$('menu2Btn').addEventListener('click',K.menu);
+    $('againBtn').addEventListener('click',()=>go(K.lv));
+    $('nextBtn').addEventListener('click',()=>go(Math.min(cfg.levels-1,K.lv+1)));
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)K.pause();});
+    const bl=$('bestLine');if(bl)bl.textContent=P.stars.length?('进度 ⭐'+K.totalStars()+'/'+cfg.levels*3+(K.hs()?' · 🏆 '+K.hs():'')):'首次游玩会有简短教程';
+    window.__T=window.__T||{};window.__T.kit=K;};
+  return K;
+})();
+/* ===== 套件结束 ===== */
 
-/* ===== 通用：音频 ===== */
-let AC=null;
-let soundOn=GameUI.storageGet('g100_sound')!=='0';
-function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){AC=null;}}if(AC&&AC.state==='suspended'){try{AC.resume();}catch(e){}}return AC;}
-function tone(f,d,type,delay){if(!soundOn)return;const c=ac();if(!c)return;try{const t=c.currentTime+(delay||0);const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d+0.02);}catch(e){}}
-function beep(){tone(600,0.08,'sine',0);}
-function sGood(){tone(880,0.12,'sine',0);tone(1320,0.18,'sine',0.1);}
-function sBad(){tone(200,0.28,'sawtooth',0);}
-function sWin(){const fs=[523,659,784,1047];for(let i=0;i<fs.length;i++)tone(fs[i],0.2,'sine',i*0.14);}
-function burst(x,y,color){try{for(let i=0;i<14;i++){const d=document.createElement('div');d.className='pt2';d.style.background=color||'#FFD54F';d.style.left=x+'px';d.style.top=y+'px';document.body.appendChild(d);const a=Math.random()*Math.PI*2,r=40+Math.random()*70;requestAnimationFrame(function(){d.style.transform='translate('+(Math.cos(a)*r)+'px,'+(Math.sin(a)*r)+'px)';d.style.opacity='0';});setTimeout(function(){d.remove();},750);}}catch(e){}}
-function buzz(){try{if(navigator.vibrate)navigator.vibrate(50);}catch(e){}}
-function on(el,fn){el.addEventListener('pointerdown',function(e){e.preventDefault();fn(e);});}
 
-/* ===== 数据 ===== */
-const V=20,TARGETS=[10,5,8];
-const HS_KEY='g100_wavelab_hs';
+const W=360,H=300;
+const cv=$('cv'),ctx=cv.getContext('2d');if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+const V=20; // cm/s wave speed
+const LV=[
+ {need:2,tol:0.6,targets:[10,8]},{need:2,tol:0.55,targets:[12,6]},{need:3,tol:0.5,targets:[10,5,8]},{need:3,tol:0.45,targets:[4,16,7]},
+ {boss:{name:'变频潮',need:3,tol:0.4,targets:[5,9,15],drift:1}},
+ {need:3,tol:0.42,targets:[6,11,4]},{need:4,tol:0.4,targets:[5,8,12,3]},{need:4,tol:0.38,targets:[7,14,4,9]},{need:4,tol:0.35,targets:[3,6,10,15]},
+ {boss:{name:'纵波迷阵',need:4,tol:0.32,targets:[5,8,11,16],long:1}},
+ {need:4,tol:0.32,targets:[4,7,13,9]},{need:5,tol:0.3,targets:[3,5,8,12,16]},{need:5,tol:0.28,targets:[4,6,9,11,14]},{need:5,tol:0.25,targets:[3,7,10,13,17]},
+ {boss:{name:'终末波魔',need:5,tol:0.22,targets:[2.5,5,8,12,18],drift:1,long:1}}
+];
+let L,lives,score,ended,raf=0,last=0,fast=1,boss,ok,need,target,phase,t,mode,sparks,f=2,A=20,lam=10;
+function start(i){L=LV[i];score=0;ended=false;ok=0;sparks=[];lives=3+Kit.up('life');phase='set';t=0;mode=(L.boss&&L.boss.long)?'long':'trans';
+  const b=L.boss||L;need=b.need;boss=L.boss?{name:L.boss.name}:null;nextT();sync();
+  last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
+function nextT(){const b=L.boss||L;target=b.targets[ok%b.targets.length];if(b.drift&&!Kit.up('lock'))target+=(Math.random()-0.5)*1.2;phase='set';Kit.sfx('tap');hud();}
+function sync(){f=+$('freq').value;A=+$('amp').value;lam=V/f;$('fT').textContent=f.toFixed(1);$('aT').textContent=A;hud();}
+$('freq').oninput=sync;$('amp').oninput=sync;
+$('btnMode').onclick=()=>{mode=mode==='trans'?'long':'trans';$('btnMode').textContent=mode==='trans'?'横波':'纵波';Kit.sfx('tap');};
+$('btnFire').onclick=()=>{if(Kit.state!=='play'||ended||phase!=='set')return;sync();phase='fire';t=0;
+  const tol=(L.boss||L).tol*(1+Kit.up('prec')*.1);
+  if(Math.abs(lam-target)<=tol){ok++;score+=35;Kit.sfx('good');if(FX)FX.burst(sparks,W/2,H/2,'#4dd0e1',10);}
+  else{lives--;Kit.sfx('bad');if(lives<=0){phase='done';return endLv(false,'波长偏差过大');}}
+  setTimeout(()=>{if(ended)return;phase='set';if(ok>=need)endLv(true);else nextT();},800);};
+function hud(){$('iconT').innerHTML='🌊<b id="lvT">'+(Kit.lv+1)+'</b>';$('lifeT').textContent=lives;$('hitT').textContent=ok+'/'+need;
+  $('hitLbl').innerHTML='验 <b id="hitT">'+ok+'/'+need+'</b>';$('score').textContent=score;
+  $('goalLbl').textContent=boss?'👑 '+boss.name:'目标λ='+target.toFixed(1)+'cm';
+  $('progI').style.width=(ok/need*100)+'%';$('infoT').textContent='λ='+(lam||0).toFixed(2);
+  $('hint').textContent='λ=v/f，v=20cm/s · 调频率使波长达标'+(Kit.up('hint')?' · 建议f≈'+(V/target).toFixed(2):'');}
+function endLv(won,why){if(ended)return;ended=true;
+  if(won){const st=lives>=3?3:lives>=2?2:1;setTimeout(()=>Kit.win(st,score,boss?'击败 '+boss.name:'波长达标'),280);}
+  else setTimeout(()=>Kit.lose(why||'实验失败',score),250);}
+function frame(tt){const dt=Math.min(.033,(tt-last)/1000)*fast;last=tt;t+=dt;draw();raf=requestAnimationFrame(frame);}
+function draw(){
+  if(FX)FX.stage(ctx,W,H,'#00838f','#004d40');else{ctx.fillStyle='#004d40';ctx.fillRect(0,0,W,H);}
+  ctx.strokeStyle='#4dd0e1';ctx.lineWidth=2;ctx.beginPath();
+  const mid=H/2;
+  if(mode==='trans'){for(let x=0;x<W;x++){const y=mid+Math.sin((x/W*8*Math.PI)-(t*f*4))*A;if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();}
+  else{for(let i=0;i<24;i++){const x=20+i*14+Math.sin(t*f*4+i*.5)*A*.15;ctx.fillStyle='#80deea';ctx.beginPath();ctx.arc(x,mid,4,0,7);ctx.fill();}}
+  ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.textAlign='left';ctx.fillText('目标 λ='+target.toFixed(1)+'  当前 '+(lam||0).toFixed(2),12,20);
+  // detector zone
+  ctx.strokeStyle='#ffd54f';ctx.strokeRect(W-70,40,50,H-80);
+  if(FX)FX.drawBurst(ctx,sparks);
+}
+function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
+addEventListener('resize',layout);layout();
+$('startH').textContent='🌊 波的传播';
+$('startP').innerHTML='15 关调频率命中目标波长：容差更紧、目标更刁。<br>第 5/10/15 关变频/纵波首领！可升级提示、精密、锁定。';
+Kit.init({id:'wavelab',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start,stop:()=>{ended=true;},pause:()=>{},
+  note:()=>'λ=v/f（v=20），调 f 使波长落入目标容差',
+  tut:[['公式','波长 λ = 波速 v / 频率 f。','🌊'],
+       ['调节','拖动频率滑杆改变波长。','🎚'],
+       ['验证','点发射看波列是否达标。','📡'],
+       ['Boss','目标漂移更难，可升级锁定。','👑']],
+  ups:[{k:'hint',ic:'💡',name:'提示',desc:'建议频率',max:2,cost:l=>26+l*28},
+       {k:'prec',ic:'🎯',name:'精密',desc:'容差更宽',max:2,cost:l=>28+l*30},
+       {k:'lock',ic:'🔒',name:'锁定',desc:'抗漂移',max:1,cost:l=>36,stars:5},
+       {k:'life',ic:'❤️',name:'额外命',desc:'+1 命',max:2,cost:l=>32+l*34,stars:8}]});
+window.__T.state=()=>({ok,need,lam,target,lives,ended});
+window.__T.fast=k=>{fast=k;};
+window.__T.cheatWin=()=>{ok=need;endLv(true);};
+window.__T.solve=()=>{if(ended||Kit.state!=='play'||phase!=='set')return;$('freq').value=Math.max(1,Math.min(10,V/target));sync();$('btnFire').click();};
 
-/* ===== 状态 ===== */
-let score=0,round=0,phase='idle',paused=false;
-let freq=2,amp=30,wtype=0,target=10;
-let rafId=0,verifying=false,vt0=0;
-let seq=[];
-const $=function(id){return document.getElementById(id);};
-const cv=$('cv'),ctx=cv.getContext('2d');
-const W=360,H=230,PXCM=W/40;
-
-function fitCanvas(){
- const dpr=Math.min(2,window.devicePixelRatio||1);
- cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
-}
-function lam(){return V/freq;}
-function setScore(v){score=v;$('score').textContent=v;}
-function paintCtl(){
- $('fLab').textContent=freq.toFixed(1)+' Hz';
- $('aLab').textContent=amp+' px';
- $('lamV').textContent=lam().toFixed(1);
- const bs=$('typeBtns').children;
- for(let k=0;k<bs.length;k++){bs[k].className='btn'+(parseInt(bs[k].getAttribute('data-t'),10)===wtype?' sel':' dim');}
-}
-function addLog(html){const log=$('log');if(log.firstChild&&log.firstChild.style)log.innerHTML='';const d=document.createElement('div');d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;}
-
-/* ===== 波形绘制 ===== */
-/* ART T2-2 */let wlBg=null,wlBgKey='';
-function ensureWlBg(){const k=W+'x'+H;if(wlBg&&wlBgKey===k)return wlBg;wlBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
-  if(FX)FX.stage(g,W,H,'#0a3040','#041820');else{g.fillStyle='#061820';g.fillRect(0,0,W,H);}
-  g.strokeStyle='rgba(255,255,255,.04)';g.lineWidth=1;for(let x=0;x<W;x+=24){g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}for(let y=0;y<H;y+=24){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
-  wlBg=c;return wlBg;}
-function draw(t){
- ctx.drawImage(ensureWlBg(),0,0);
- const lamPx=lam()*PXCM,k=2*Math.PI/lamPx,om=2*Math.PI*freq,cy=H/2-6;
- /* 检测区 */
- ctx.fillStyle='rgba(77,208,225,.13)';
- ctx.fillRect(W*0.55,14,W*0.2,H-56);
- ctx.strokeStyle='rgba(77,208,225,.5)';ctx.setLineDash([5,4]);
- ctx.strokeRect(W*0.55,14,W*0.2,H-56);ctx.setLineDash([]);
- ctx.fillStyle='#80deea';ctx.font='11px sans-serif';ctx.textAlign='center';
- ctx.fillText('检测区',W*0.65,28);
- /* 中线 */
- ctx.strokeStyle='rgba(255,255,255,.18)';ctx.beginPath();ctx.moveTo(8,cy);ctx.lineTo(W-8,cy);ctx.stroke();
- if(wtype===0){
-   /* 横波 */
-   ctx.strokeStyle='#4DD0E1';ctx.lineWidth=3;ctx.beginPath();
-   for(let x=8;x<=W-8;x+=3){
-     const y=cy+amp*Math.sin(k*x-om*t/1000);
-     if(x===8)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-   }
-   ctx.stroke();ctx.lineWidth=1;
-   /* 几个质点：上下振动 */
-   for(let i=0;i<7;i++){
-     const x=24+i*(W-48)/6;
-     const y=cy+amp*Math.sin(k*x-om*t/1000);
-     if(FX){FX.glow(ctx,'#FFD54F',10);FX.orb(ctx,x|0,y|0,5,'#FFD54F');FX.noGlow(ctx);}else{ctx.fillStyle='#FFD54F';ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fill();}
-     ctx.strokeStyle='#FFD54F';ctx.beginPath();ctx.moveTo(x,y-14);ctx.lineTo(x,y+14);ctx.stroke();
-   }
-   ctx.fillStyle='#b2ebf2';ctx.font='11px sans-serif';ctx.textAlign='left';
-   ctx.fillText('质点振动 ↕ ⊥ 传播 →',10,H-10);
- }else{
-   /* 纵波：疏密点阵 */
-   const N=64;
-   for(let i=0;i<N;i++){
-     const xe=14+i*(W-28)/(N-1);
-     const dx=amp*0.8*Math.sin(k*xe-om*t/1000);
-     const dens=0.5+0.5*Math.cos(k*xe-om*t/1000);
-     ctx.fillStyle='rgba(77,208,225,'+(0.35+0.65*dens)+')';
-     ctx.beginPath();ctx.arc(xe+dx,cy,4.5,0,7);ctx.fill();
-   }
-   ctx.fillStyle='#b2ebf2';ctx.font='11px sans-serif';ctx.textAlign='left';
-   ctx.fillText('质点振动 ⇄ ∥ 传播 →（密部/疏部）',10,H-10);
- }
- /* 波长标注 */
- const x0=14,x1=x0+lamPx;
- if(x1<W-8){
-   ctx.strokeStyle='#ffd54f';ctx.beginPath();
-   ctx.moveTo(x0,cy+amp+26);ctx.lineTo(x1,cy+amp+26);
-   ctx.moveTo(x0,cy+amp+21);ctx.lineTo(x0,cy+amp+31);
-   ctx.moveTo(x1,cy+amp+21);ctx.lineTo(x1,cy+amp+31);ctx.stroke();
-   ctx.fillStyle='#ffd54f';ctx.font='12px sans-serif';ctx.textAlign='center';
-   ctx.fillText('λ='+lam().toFixed(1)+'cm',(x0+x1)/2,cy+amp+42);
- }
- /* 发射验证：脉冲扫过 */
- if(verifying){
-   const p=Math.min(1,(t-vt0)/2200);
-   const px=8+p*(W-16);
-   const g=ctx.createRadialGradient(px,cy,2,px,cy,26);
-   g.addColorStop(0,'rgba(255,213,79,.95)');g.addColorStop(1,'rgba(255,213,79,0)');
-   ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,cy,26,0,7);ctx.fill();
-   ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
-   ctx.fillText('发射中…',px,cy-32);
-   if(p>=1){verifying=false;finishVerify();}
- }
-}
-function loop(t){
- if(!paused){draw(t||0);}
- rafId=requestAnimationFrame(loop);
-}
-
-/* ===== 流程 ===== */
-function startRound(){
- round++;target=seq[round-1];phase='ready';
- $('taskQ').innerHTML='第 <b>'+round+'</b> / 3 轮：目标波长 <b>λ = '+target+' cm</b><br>调节频率 f，使 λ = 20/f 达标（误差 &lt; 0.5cm），再点「发射验证」。';
- $('taskHint').textContent='提示：f = v/λ，目标 '+target+'cm 对应 f = '+(V/target).toFixed(1)+'Hz';
- $('goRow').style.display='flex';$('nextRow').style.display='none';
- beep();
-}
-function fire(){
- if(phase!=='ready'||paused||verifying)return;
- beep();phase='verify';verifying=true;vt0=performance.now();
- $('goRow').style.display='none';
- $('taskHint').textContent='波列正在穿过检测区…';
-}
-function finishVerify(){
- const L=lam(),ok=Math.abs(L-target)<0.5;
- if(ok){setScore(score+30);sGood();buzz();const r=cv.getBoundingClientRect();burst(r.left+r.width*0.65,r.top+80,'#4DD0E1');}
- else{sBad();}
- $('taskHint').innerHTML='实测 λ=<b>'+L.toFixed(1)+'cm</b>，目标 '+target+'cm，误差 '+Math.abs(L-target).toFixed(1)+'cm '+(ok?'✅ 达标 +30':'❌ 未达标（需<0.5cm）');
- addLog('第'+round+'轮 目标λ='+target+'cm｜f='+freq.toFixed(1)+'Hz｜实际λ=<b>'+L.toFixed(1)+'cm</b>｜<b class="'+(ok?'ok':'no')+'">'+(ok?'达标 ✓ +30':'未达标 ✗')+'</b>');
- phase='result';
- $('nextBtn').textContent=round>=3?'查看结论 🎉':'下一轮 ▶';
- $('nextRow').style.display='flex';
-}
-function resetGame(){
- cancelAnimationFrame(rafId);setScore(0);round=0;phase='idle';paused=false;verifying=false;
- $('log').innerHTML='<div style="color:#78909c">暂无记录，完成一轮实验后显示</div>';
- seq=TARGETS.slice();for(let i=seq.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=seq[i];seq[i]=seq[j];seq[j]=t;}
- freq=2;amp=30;wtype=0;
- $('fRange').value=2;$('aRange').value=30;paintCtl();
- $('goRow').style.display='none';$('nextRow').style.display='none';
- $('taskQ').textContent='准备开始…';$('taskHint').textContent='';
- rafId=requestAnimationFrame(loop);
-}
-function endGame(){
- let hs=0;try{hs=parseInt(GameUI.storageGet(HS_KEY)||'0',10)||0;}catch(e){}
- if(score>hs){hs=score;try{GameUI.storageSet(HS_KEY,String(hs));}catch(e){}}
- $('fScore').textContent=score;$('fHs').textContent=hs;
- $('endOv').classList.remove('hide');sWin();
-}
-
-/* ===== 绑定 ===== */
-on($('startBtn'),function(){$('startOv').classList.add('hide');ac();resetGame();startRound();});
-on($('fireBtn'),fire);
-on($('nextBtn'),function(){beep();if(round>=3){endGame();}else{startRound();}});
-on($('againBtn'),function(){$('endOv').classList.add('hide');resetGame();startRound();});
-$('fRange').addEventListener('input',function(){freq=parseFloat(this.value);paintCtl();});
-$('aRange').addEventListener('input',function(){amp=parseInt(this.value,10);paintCtl();});
-const tb=$('typeBtns').children;
-for(let i=0;i<tb.length;i++)(function(i){on(tb[i],function(){wtype=parseInt(tb[i].getAttribute('data-t'),10);paintCtl();beep();});})(i);
-on($('pauseBtn'),function(){if(!$('startOv').classList.contains('hide')||phase==='idle')return;beep();paused=true;$('pScore').textContent=score;$('pauseOv').classList.remove('hide');});
-on($('resumeBtn'),function(){beep();paused=false;$('pauseOv').classList.add('hide');});
-on($('restartBtn'),function(){beep();$('pauseOv').classList.add('hide');resetGame();startRound();});
-function paintSound(){$('soundBtn').textContent=soundOn?'🔊':'🔇';}
-on($('soundBtn'),function(){soundOn=!soundOn;try{GameUI.storageSet('g100_sound',soundOn?'1':'0');}catch(e){}paintSound();beep();});
-paintSound();fitCanvas();paintCtl();
-rafId=requestAnimationFrame(loop);
 </script>
-<script>GameUI.autoPause('pointerdown');</script>
 </body>
 </html>
