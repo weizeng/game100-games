@@ -39,6 +39,22 @@ class UserData(context: Context) {
         return false
     }
 
+
+    // ===== 最近游玩（首页「继续玩」） =====
+    fun recordRecentPlay(gameId: String) {
+        if (gameId.isBlank()) return
+        val list = getRecentPlayIds().toMutableList()
+        list.remove(gameId)
+        list.add(0, gameId)
+        while (list.size > RECENT_CAP) list.removeAt(list.lastIndex)
+        prefs.edit().putString(KEY_RECENT, list.joinToString(",")).apply()
+    }
+
+    fun getRecentPlayIds(): List<String> {
+        val raw = prefs.getString(KEY_RECENT, null) ?: return emptyList()
+        return raw.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
     // ===== 排行榜身份 =====
     /** 稳定设备 ID，用于云端排行；卸载重装会变。 */
     fun getDeviceId(): String {
@@ -64,6 +80,8 @@ class UserData(context: Context) {
     companion object {
         private const val KEY_DEVICE_ID = "leaderboard_device_id"
         private const val KEY_NICKNAME = "leaderboard_nickname"
+        private const val KEY_RECENT = "recent_plays"
+        private const val RECENT_CAP = 20
         const val DEFAULT_NICKNAME = "玩家"
     }
 }

@@ -9,6 +9,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.GridLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -22,6 +23,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.game100.center.data.GameRepository
+import com.game100.center.data.HomeRecommend
+import com.game100.center.data.UserData
 import com.game100.center.model.GameItem
 import com.game100.center.model.RemoteGame
 import com.game100.center.model.Studio
@@ -49,6 +52,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: GameRowAdapter
     private lateinit var featAdapter: FeaturedAdapter
     private lateinit var newAdapter: FeaturedAdapter
+    private lateinit var continueAdapter: FeaturedAdapter
+    private lateinit var userData: UserData
     private lateinit var swipe: SwipeRefreshLayout
 
     private val categories = listOf(
@@ -71,6 +76,7 @@ class MainActivity : AppCompatActivity() {
         // 换筛选时卡片被回收，NestedScrollView 重新布局就会崩（parameter must be a descendant of this view）。
         findViewById<View>(R.id.home_scroll).isFocusable = false
         repo = GameRepository(this)
+        userData = UserData(this)
         selectedCat = savedInstanceState?.getString("selectedCat") ?: "全部"
         searchQuery = savedInstanceState?.getString("searchQuery") ?: ""
         selectedStudio = savedInstanceState?.getString("selectedStudio")
@@ -128,13 +134,35 @@ class MainActivity : AppCompatActivity() {
 
         val featRecycler = findViewById<RecyclerView>(R.id.feat_recycler)
         featRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        featAdapter = FeaturedAdapter(onClick = { onGameClick(it) })
+        featAdapter = FeaturedAdapter(
+            onClick = { onGameClick(it) },
+            kickerOf = { g ->
+                when {
+                    g.id in userData.getFavoriteIds() -> "你的收藏"
+                    g.hasUpdate -> "刚升级"
+                    g.isNew -> "今日新鲜"
+                    g.isPremium -> "精选"
+                    else -> g.category
+                }
+            },
+        )
         featRecycler.adapter = featAdapter
 
         val newRecycler = findViewById<RecyclerView>(R.id.new_recycler)
         newRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        newAdapter = FeaturedAdapter(onClick = { onGameClick(it) })
+        newAdapter = FeaturedAdapter(
+            onClick = { onGameClick(it) },
+            kickerOf = { g -> if (g.isNew) "NEW" else if (g.hasUpdate) "升级" else "上新" },
+        )
         newRecycler.adapter = newAdapter
+
+        val continueRecycler = findViewById<RecyclerView>(R.id.continue_recycler)
+        continueRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        continueAdapter = FeaturedAdapter(
+            onClick = { onGameClick(it) },
+            kickerOf = { "接着玩" },
+        )
+        continueRecycler.adapter = continueAdapter
         findViewById<View>(R.id.btn_more_new).setOnClickListener {
             selectCategory("新上架")
             findViewById<NestedScrollView>(R.id.home_scroll).post {
@@ -195,13 +223,39 @@ class MainActivity : AppCompatActivity() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
+    private fun categoryCount(cat: String): Int = when (cat) {
+        "全部" -> allItems.size
+        "精品" -> allItems.count { it.isPremium }
+        "新上架" -> allItems.count { it.isNew }
+        else -> allItems.count { it.category == cat }
+    }
+
+    /** 可见分类：固定入口 + 库里实际有游戏的白名单分类（带数量）。 */
+    private fun visibleCategories(): List<String> {
+        return categories.filter { cat ->
+            when (cat) {
+                "全部", "精品", "新上架" -> true
+                else -> allItems.any { it.category == cat }
+            }
+        }
+    }
+
     private fun buildCategoryChips() {
         val row = findViewById<LinearLayout>(R.id.cat_row)
         row.removeAllViews()
         chipViews.clear()
-        for (cat in categories) {
+        val visible = visibleCategories()
+        // 当前选中被隐藏时退回全部
+        if (selectedCat !in visible) selectedCat = "全部"
+        for (cat in visible) {
+            val count = categoryCount(cat)
+            val label = buildString {
+                chipEmoji[cat]?.let { append(it).append(' ') }
+                append(cat)
+                if (allItems.isNotEmpty()) append(' ').append(count)
+            }
             val tv = TextView(this).apply {
-                text = (chipEmoji[cat]?.let { "$it " } ?: "") + cat
+                text = label
                 textSize = 13.5f
                 minHeight = dp(44)
                 gravity = Gravity.CENTER
@@ -286,8 +340,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshChips() {
-        for (i in categories.indices) {
-            val sel = categories[i] == selectedCat
+        val visible = visibleCategories()
+        for (i in chipViews.indices) {
+            val cat = visible.getOrNull(i) ?: continue
+            val sel = cat == selectedCat
             chipViews[i].background = RippleDrawable(
                 ColorStateList.valueOf(getColor(R.color.ripple)), chipBg(sel), null
             )
@@ -302,7 +358,8 @@ class MainActivity : AppCompatActivity() {
         selectedCat = cat
         refreshChips()
         applyFilter()
-        UiMotion.pop(chipViews[categories.indexOf(cat)])
+        val idx = visibleCategories().indexOf(cat)
+        if (idx in chipViews.indices) UiMotion.pop(chipViews[idx])
         UiMotion.enter(findViewById(R.id.recycler))
         UiMotion.enter(findViewById(R.id.empty_state))
     }
@@ -332,7 +389,7 @@ class MainActivity : AppCompatActivity() {
     private fun releaseListFocus() {
         val rv = findViewById<View?>(R.id.recycler) ?: return
         if (!rv.hasFocus()) return
-        val target = chipViews.getOrNull(categories.indexOf(selectedCat))
+        val target = chipViews.getOrNull(visibleCategories().indexOf(selectedCat))
         if (target == null || !target.requestFocus()) rv.findFocus()?.clearFocus()
     }
 
@@ -381,6 +438,7 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.subtitle_games, items.size)
         // 当前筛选的出品方已不存在时回到全部
         if (selectedStudio != null && Studio.counts(items).none { it.first == selectedStudio }) selectedStudio = null
+        buildCategoryChips()
         buildStudioChips()
         applyFilter()
     }
@@ -393,39 +451,124 @@ class MainActivity : AppCompatActivity() {
         return a.name.compareTo(b.name)
     }
 
+    private fun recommendSignals(): HomeRecommend.Signals {
+        return HomeRecommend.Signals(
+            favoriteIds = userData.getFavoriteIds(),
+            recentIds = userData.getRecentPlayIds(),
+            ratingOf = { userData.getRating(it) },
+            scoreOf = { userData.getBestScore(it) },
+            seenAtOf = { repo.getSeenAt(it) },
+            daySeed = HomeRecommend.defaultDaySeed(),
+        )
+    }
+
     private fun refreshFeatured() {
         // Keep discovery out of the way while the user searches or browses a category.
         val showFeatured = selectedCat == "全部" && searchQuery.isBlank() && selectedStudio == null
-        val featGames = (allItems.filter { it.isPremium } + allItems.filter { it.isNew && !it.isPremium })
-            .distinctBy { it.id }
-            .sortedWith(::featuredOrder)
-            .take(8)
         findViewById<View>(R.id.science_banner).visibility = if (showFeatured) View.VISIBLE else View.GONE
+
+        val signals = recommendSignals()
+
+        // 「接着玩」
+        val continueHeader = findViewById<View>(R.id.continue_section_header)
+        val continueRecycler = findViewById<RecyclerView>(R.id.continue_recycler)
+        val continueGames = HomeRecommend.pickContinue(allItems, signals.recentIds)
+        if (showFeatured && continueGames.isNotEmpty()) {
+            continueHeader.visibility = View.VISIBLE
+            continueRecycler.visibility = View.VISIBLE
+            findViewById<TextView>(R.id.continue_title).text = "▶ 接着玩"
+            findViewById<TextView>(R.id.continue_subtitle).text =
+                "最近 ${continueGames.size} 款 · 点开就续"
+            continueAdapter.submit(continueGames)
+        } else {
+            continueHeader.visibility = View.GONE
+            continueRecycler.visibility = View.GONE
+        }
+
         val featHeader = findViewById<View>(R.id.feat_section_header)
         val featTitle = findViewById<TextView>(R.id.feat_title)
         val featRecycler = findViewById<RecyclerView>(R.id.feat_recycler)
+        val featGames = HomeRecommend.pickFeatured(allItems, signals)
         if (showFeatured && featGames.isNotEmpty()) {
             featHeader.visibility = View.VISIBLE
-            featTitle.text = if (allItems.any { it.isPremium }) "精选推荐" else "新鲜上架"
+            featTitle.text = "✦ 为你推荐"
+            val cats = featGames.map { it.category }.distinct().size
+            val hasTaste = signals.favoriteIds.isNotEmpty() || signals.recentIds.isNotEmpty()
+            findViewById<TextView>(R.id.feat_subtitle).text = when {
+                hasTaste -> "按你的口味混搭 · ${cats} 个品类"
+                else -> "今日新鲜混搭 · ${cats} 个品类"
+            }
             featRecycler.visibility = View.VISIBLE
             featAdapter.submit(featGames)
         } else {
             featHeader.visibility = View.GONE
             featRecycler.visibility = View.GONE
         }
-        // 「新游戏」专区：横向滚动，数据 = isNew（升级带来的新增也会标 isNew）
+
+        // 「新游戏」专区：真正新出现 / 回退到最近 featured
         val newHeader = findViewById<View>(R.id.new_section_header)
+        val newTitle = findViewById<TextView>(R.id.new_title)
         val newRecycler = findViewById<RecyclerView>(R.id.new_recycler)
-        val newGames = allItems.filter { it.isNew }
-            .sortedWith(::featuredOrder)
-            .take(20)
+        val newGames = HomeRecommend.pickNew(allItems, signals)
         if (showFeatured && newGames.isNotEmpty()) {
             newHeader.visibility = View.VISIBLE
             newRecycler.visibility = View.VISIBLE
+            val brandNew = newGames.count { it.isNew }
+            newTitle.text = if (brandNew > 0) "✨ 新游戏 · $brandNew" else "✨ 新鲜上架 · ${newGames.size}"
+            findViewById<TextView>(R.id.new_subtitle).text =
+                if (brandNew > 0) "刚上线 / 刚升级 · 下拉刷新会变" else "精选上新 · 下拉刷新会变"
             newAdapter.submit(newGames)
         } else {
             newHeader.visibility = View.GONE
             newRecycler.visibility = View.GONE
+        }
+
+        refreshCategoryBrowse(showFeatured)
+    }
+
+    /** 首页分类宫格：只展示库里有货的白名单品类，点一下跳进该分类。 */
+    private fun refreshCategoryBrowse(show: Boolean) {
+        val header = findViewById<View>(R.id.cat_browse_header)
+        val grid = findViewById<GridLayout>(R.id.cat_browse_grid)
+        val browseCats = categories.filter { cat ->
+            cat !in setOf("全部", "精品", "新上架") && allItems.any { it.category == cat }
+        }
+        if (!show || browseCats.isEmpty()) {
+            header.visibility = View.GONE
+            grid.visibility = View.GONE
+            return
+        }
+        header.visibility = View.VISIBLE
+        grid.visibility = View.VISIBLE
+        findViewById<TextView>(R.id.cat_browse_subtitle).text =
+            "${browseCats.size} 个品类 · 想玩啥点啥"
+        grid.removeAllViews()
+        val cols = 4
+        grid.columnCount = cols
+        val gap = dp(8)
+        browseCats.forEachIndexed { index, cat ->
+            val tile = LayoutInflater.from(this).inflate(R.layout.item_cat_tile, grid, false)
+            tile.findViewById<TextView>(R.id.cat_tile_emoji).text = chipEmoji[cat] ?: "🎮"
+            tile.findViewById<TextView>(R.id.cat_tile_name).text = cat
+            tile.findViewById<TextView>(R.id.cat_tile_count).text = categoryCount(cat).toString()
+            tile.setOnClickListener {
+                selectCategory(cat)
+                findViewById<NestedScrollView>(R.id.home_scroll).post {
+                    val title = findViewById<View>(R.id.tv_games_title)
+                    findViewById<NestedScrollView>(R.id.home_scroll).smoothScrollTo(
+                        0, title.top + (title.parent as View).top
+                    )
+                }
+            }
+            UiMotion.press(tile, 0.96f)
+            val lp = GridLayout.LayoutParams().apply {
+                width = 0
+                height = GridLayout.LayoutParams.WRAP_CONTENT
+                columnSpec = GridLayout.spec(index % cols, 1f)
+                rowSpec = GridLayout.spec(index / cols)
+                setMargins(gap / 2, gap / 2, gap / 2, gap / 2)
+            }
+            grid.addView(tile, lp)
         }
     }
 

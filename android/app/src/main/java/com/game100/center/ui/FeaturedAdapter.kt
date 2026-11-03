@@ -9,9 +9,17 @@ import androidx.recyclerview.widget.RecyclerView
 import com.game100.center.R
 import com.game100.center.model.GameItem
 
-/** 顶部大横幅轮播（新上架游戏） */
+/** 顶部大横幅轮播（推荐 / 新上架 / 继续玩） */
 class FeaturedAdapter(
-    private val onClick: (GameItem) -> Unit
+    private val onClick: (GameItem) -> Unit,
+    private val kickerOf: (GameItem) -> String = { g ->
+        when {
+            g.hasUpdate -> "刚升级"
+            g.isNew -> "今日新鲜"
+            g.isPremium -> "精选"
+            else -> g.category
+        }
+    },
 ) : ListAdapter<GameItem, FeaturedAdapter.VH>(GameAdapter.DIFF) {
 
     fun submit(items: List<GameItem>) = submitList(items)
@@ -35,11 +43,7 @@ class FeaturedAdapter(
         val item = getItem(position)
         val ctx = h.itemView.context
         h.bg.background = GameAdapter.featuredBackground(ctx, item.color)
-        h.kicker.text = when {
-            item.isPremium -> "精选推荐"
-            item.isNew -> "新鲜上架"
-            else -> item.category
-        }
+        h.kicker.text = kickerOf(item)
         h.kicker.visibility = View.VISIBLE
         h.name.text = item.name
         h.desc.text = item.desc.ifBlank { item.category }

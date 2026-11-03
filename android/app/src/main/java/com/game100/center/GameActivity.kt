@@ -50,6 +50,8 @@ class GameActivity : AppCompatActivity() {
             finish()
             return
         }
+        // 首页「继续玩」：一进游戏就算最近游玩
+        UserData(this).recordRecentPlay(gameId)
         val indexFile = File(filesDir, "games/$gameId/index.html")
         if (!indexFile.exists()) {
             Toast.makeText(this, "游戏文件缺失", Toast.LENGTH_SHORT).show()

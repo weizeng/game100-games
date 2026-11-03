@@ -46,10 +46,10 @@ visit(homeTree, node => {
     });
   }
 });
-for (const id of ['science_banner','search_bar','cat_scroll','feat_section_header','recycler']) {
+for (const id of ['science_banner','search_bar','cat_scroll','continue_section_header','feat_section_header','new_section_header','cat_browse_header','cat_browse_grid','recycler']) {
   assert.ok(homeScrollIds.has(id), `${id} must scroll with the homepage content`);
 }
-const activities = { MainActivity:['activity_main','dialog_download'], ScienceLabActivity:['activity_science_lab','item_science_card'], GameDetailActivity:['activity_game_detail'], SettingsActivity:['activity_settings'], GameActivity:['activity_game'] };
+const activities = { MainActivity:['activity_main','dialog_download','item_cat_tile'], ScienceLabActivity:['activity_science_lab','item_science_card'], GameDetailActivity:['activity_game_detail'], SettingsActivity:['activity_settings'], GameActivity:['activity_game'] };
 for(const [activity,layouts] of Object.entries(activities)) {
   const source=fs.readFileSync(path.join(root,'java/com/game100/center',activity+'.kt'),'utf8');
   const ids=new Set(layouts.flatMap(l=>[...idsByLayout.get(l)]));

@@ -209,6 +209,9 @@ class GameRepository(private val context: Context) {
         return System.currentTimeMillis() - ts < NEW_DAYS * 24 * 3600 * 1000L
     }
 
+    /** 首次看见时间；0 = 老游戏或未知（不参与「新」排序加权）。 */
+    fun getSeenAt(id: String): Long = getSeenMap()[id] ?: 0L
+
     private fun getSeenMap(): Map<String, Long> {
         return try {
             val s = prefs.getString(KEY_SEEN, null) ?: return emptyMap()

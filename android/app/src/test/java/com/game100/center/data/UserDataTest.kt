@@ -35,4 +35,16 @@ class UserDataTest {
         assertTrue(!a.reportScore("flappy", 5))
         assertNotEquals("", id1)
     }
+
+    @Test
+    fun recentPlaysMostRecentFirstAndCapped() {
+        val ud = UserData(RuntimeEnvironment.getApplication())
+        repeat(25) { ud.recordRecentPlay("g$it") }
+        val ids = ud.getRecentPlayIds()
+        assertEquals("g24", ids.first())
+        assertEquals(20, ids.size)
+        ud.recordRecentPlay("g10")
+        assertEquals("g10", ud.getRecentPlayIds().first())
+        assertEquals(1, ud.getRecentPlayIds().count { it == "g10" })
+    }
 }
