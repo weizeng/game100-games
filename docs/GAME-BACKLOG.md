@@ -329,6 +329,17 @@
 
 （Grok 开发完成后把条目移到这里，格式：`id 名称 — YYYY-MM-DD · studio Grok · commit <sha>`）
 
+- voidkeep 虚空堡垒 — 2026-11-03 · studio Grok · 每日新游戏批次
+- spellraid 咒术突袭 — 2026-11-03 · studio Grok · 每日新游戏批次
+- crystalgrid 晶阵推演 — 2026-11-03 · studio Grok · 每日新游戏批次
+- fogforge 雾锻工坊 — 2026-11-03 · studio Grok · 每日新游戏批次
+- railstorm 铁轨风暴 — 2026-11-03 · studio Grok · 每日新游戏批次
+- inkpath 墨迹寻踪 — 2026-11-03 · studio Grok · 每日新游戏批次
+- drumforge 鼓锻节奏 — 2026-11-03 · studio Grok · 每日新游戏批次
+- hexforge 六角熔炉 — 2026-11-03 · studio Grok · 每日新游戏批次
+- shadowraid 影袭突围 — 2026-11-03 · studio Grok · 每日新游戏批次
+- frostvault 霜窟远征 — 2026-11-03 · studio Grok · 每日新游戏批次
+
 - hexasort 六边叠塔 — 2026-10-28 · studio Grok · 每日新游戏批次
 - sanddrop 落沙成画 — 2026-10-28 · studio Grok · 每日新游戏批次
 - tidyroom 归位小家 — 2026-10-28 · studio Grok · 每日新游戏批次
