@@ -69,3 +69,7 @@ bash scripts/leaderboard/verify.sh
 ## 版本
 
 逻辑在 **4.16**（versionCode 33）。本轮默认只推代码；要体验全服排行请再发 4.16 安装包。direct / play 升到 4.16 即可；cn 包即使升级也因无网不上云。
+
+## 相关
+
+应用内问题反馈见 [`docs/supabase-feedback.md`](supabase-feedback.md)（表 `feedbacks`，App ≥ 4.23）。

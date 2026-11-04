@@ -1,9 +1,6 @@
 package com.game100.center
 
 import android.annotation.SuppressLint
-import android.app.AlertDialog
-import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
@@ -11,7 +8,6 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
-import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -22,7 +18,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 import org.json.JSONObject
-import java.net.URLEncoder
 
 class GameActivity : AppCompatActivity() {
 
@@ -177,34 +172,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun showBugDialog(gameId: String) {
-        val input = EditText(this)
-        input.hint = "描述一下哪里不对（比如：点开始没反应）"
-        val pad = (16 * resources.displayMetrics.density).toInt()
-        input.setPadding(pad, pad, pad, pad)
-        AlertDialog.Builder(this)
-            .setTitle("🐛 提交 bug")
-            .setMessage("描述会和游戏名（$gameId）、App 版本一起发到 GitHub，每日自动修复任务会处理它。")
-            .setView(input)
-            .setPositiveButton("提交") { _, _ ->
-                val desc = input.text.toString().trim().ifEmpty { "（用户没有填写描述）" }
-                openBugIssue(gameId, desc)
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
-
-    private fun openBugIssue(gameId: String, desc: String) {
-        val title = URLEncoder.encode("🐛 [$gameId] bug 反馈", "UTF-8")
-        val body = URLEncoder.encode(
-            "游戏：$gameId\nApp 版本：${BuildConfig.VERSION_NAME}\n\n问题描述：\n$desc",
-            "UTF-8"
-        )
-        val url = "https://github.com/weizeng/game100-games/issues/new?title=$title&body=$body"
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        } catch (e: Exception) {
-            Toast.makeText(this, "打不开浏览器，没法提交", Toast.LENGTH_SHORT).show()
-        }
+        com.game100.center.ui.FeedbackDialog.show(this, gameId)
     }
 
     @Deprecated("back press")

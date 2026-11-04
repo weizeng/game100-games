@@ -13,6 +13,7 @@ import androidx.lifecycle.lifecycleScope
 import com.game100.center.data.GameRepository
 import com.game100.center.data.UserData
 import com.game100.center.net.AppUpdater
+import com.game100.center.ui.FeedbackDialog
 import com.game100.center.ui.UiMotion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -39,6 +40,10 @@ class SettingsActivity : AppCompatActivity() {
             userData.setNickname(etNick.text.toString())
             etNick.setText(userData.getNickname())
             Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
+        }
+
+        findViewById<Button>(R.id.btn_feedback).setOnClickListener {
+            FeedbackDialog.show(this, gameId = null)
         }
 
         findViewById<TextView>(R.id.tv_version).text =
