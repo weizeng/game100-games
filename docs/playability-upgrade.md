@@ -27,11 +27,11 @@
 
 ## 进度
 
-- 一共 **399** 款（相对此前文档的 389：11-03 每日新增 10 款 voidkeep/spellraid/crystalgrid/fogforge/railstorm/inkpath/drumforge/hexforge/shadowraid/frostvault；目录现 399）。
-- 已完成 **304** 款：
+- 一共 **409** 款（相对此前文档的 399：11-04 每日新增 10 款 crownduel/tideforge/scrapmech/vaultcrawl/pulsearena/gritfarm/inkclash/orbitwar/runechain/nightmarket；目录现 409）。
+- 已完成 **324** 款：
   - Grok 出品 20 款；
   - 10-21 升级的 11 款；
-  - 每日任务升级的 140 款（10-21～11-03 各 10 款）；
+  - 每日任务升级的 150 款（10-21～11-04 各 10 款）；
   - 10-22 每日新游戏 2 款（gunslinger、lasso）；
   - 10-23 记入的新复杂游戏 8 款（cactus、drawpoker、goldrush、horseshoe、minetrack、safecrack、saltpan、steamlab）；
   - 10-24 每日新游戏 10 款（arrowescape、catrealm、colorgate、yarnloop、sandfill、parkexit、busqueue、ropetangle、gravityflip、cookrush，按新游戏标准，不进队列）；
@@ -46,10 +46,29 @@
   - 10-31 每日新游戏 10 款（hexcastle、inkduel、rainlane、pulsegrid、riftbrew、frostforge、drumraid、pathweave、astralraft、loomwar，按新游戏标准，不进队列）；
   - 11-01 每日新游戏 10 款（stormkeep、runecrawl、autobrawl、tombcrawl、surgeborn、weightforge、milltycoon、matchquest、beatstage、warfront，按新游戏标准，不进队列）；
   - 11-02 每日新游戏 10 款（tidalguards、dicequest、chaincut、neonvein、citytune、fogharbor、bladeflash、maggrid、alchescale、bullettrain，按新游戏标准，不进队列）；
-  - 11-03 每日新游戏 10 款（voidkeep、spellraid、crystalgrid、fogforge、railstorm、inkpath、drumforge、hexforge、shadowraid、frostvault，按新游戏标准，不进队列）。
-- 还剩 **95** 款。
+  - 11-03 每日新游戏 10 款（voidkeep、spellraid、crystalgrid、fogforge、railstorm、inkpath、drumforge、hexforge、shadowraid、frostvault，按新游戏标准，不进队列）；
+  - 11-04 每日新游戏 10 款（crownduel、tideforge、scrapmech、vaultcrawl、pulsearena、gritfarm、inkclash、orbitwar、runechain、nightmarket，按新游戏标准，不进队列）。
+- 还剩 **85** 款。
 
 
+
+### 2026-11-04（第 15 批）
+
+| id | 名称 | 主要改进 |
+|---|---|---|
+| slice | 切水果 | 15 关滑动切果：目标更高、炸弹更多、速度更快；第 5/10/15 关炸弹潮首领；可升级避弹、加时、额外命 |
+| spelldraw | 符文施法 | 15 关描摹符文击退怪物：容差更紧、符形更复杂；第 5/10/15 关幻影首领；可升级洞察、精密、加时 |
+| takuzu | 二进制 | 15 关 Takuzu：棋盘更大、已知更少、时限更紧；第 5/10/15 关对称首领；可升级提示、加时、额外命 |
+| chemreact | 化学反应 | 15 关混合试剂：池更大、轮次更多、干扰更强；第 5/10/15 关错配首领；可升级提示、加时、额外命 |
+| plane | 打飞机 | 15 关纵版射击：敌机更快更密、弹幕更凶；第 5/10/15 关机群首领；可升级火力、加时、额外命 |
+| battleship | 海战棋 | 15 关海战：棋盘更大、弹药更紧、AI 更准；第 5/10/15 关雷达首领；可升级弹药、加时、额外命 |
+| draw | 画线救援 | 15 关画线托人：守时更长、尖刺更多更快；第 5/10/15 关坠落首领；可升级线宽、加时、额外命 |
+| firework | 烟花 | 15 关点空放花：目标更多、风力更大、光圈会动；第 5/10/15 关礼花首领；可升级火花、稳风、加时 |
+| math24 | 24点 | 15 关四则凑24：题量更多、时限更紧、牌更难；第 5/10/15 关算潮首领；可升级提示、加时、额外命 |
+| riddle | 灯谜 | 15 关猜灯谜：题量更多、时限更紧、谜面可能遮掩；第 5/10/15 关谜潮首领；可升级提示、加时、额外命 |
+
+- 都是 15 关，含首玩教程、选关星级、金币升级、第 5/10/15 关首领、暂停/重开/最佳纪录、音效、切后台自动暂停；进度存在 `g100_<id>_prog`。
+- 今日无画面批次跳过（画面升级例程均已完成）；11-04 新游戏 10 款按新游戏标准记入已完成、不进队列。
 
 ### 2026-11-03（第 14 批）
 
@@ -332,90 +351,80 @@
 
 括号里是代码扫描分数。标了批次的游戏，在那个画面批次当天会被跳过。
 
-（已去掉 11-03 第 14 批升级的 10 款 yahtzee/alchemy/collision/domino/dotsboxes/friction/icecurl/lungcap/pyramid/seacannon，以及 11-03 新游戏 voidkeep/spellraid/crystalgrid/fogforge/railstorm/inkpath/drumforge/hexforge/shadowraid/frostvault；今日无画面批次跳过。进度「还剩 95」含队列外差额，下列为待升级清单。）
+（已去掉 11-04 第 15 批升级的 10 款 slice/spelldraw/takuzu/chemreact/plane/battleship/draw/firework/math24/riddle，以及 11-04 新游戏 crownduel/tideforge/scrapmech/vaultcrawl/pulsearena/gritfarm/inkclash/orbitwar/runechain/nightmarket；今日无画面批次跳过。进度「还剩 85」含队列外差额，下列为待升级清单。）
 
-1. slice 切水果（9.5） · 画面批次 T1-3
-2. spelldraw 符文施法（9.5） · 画面批次 T2-4
-3. takuzu 二进制（9.5） · 画面批次 DOM-2
-4. chemreact 化学反应（9.8） · 画面批次 DOM-1
-5. plane 打飞机（9.8） · 画面批次 T1-3
-6. battleship 海战棋（10） · 画面批次 DOM-2
-7. draw 画线救援（10） · 画面批次 T2-5
-8. firework 烟花（10） · 画面批次 T2-2
-9. math24 24点（10） · 画面批次 DOM-2
-10. riddle 灯谜（10） · 画面批次 DOM-2
-11. shadowmatch 影子魔术（10） · 画面批次 DOM-1
-12. shieldguard 星球护盾（10） · 画面批次 T2-3
-13. sudoku 数独（10） · 画面批次 DOM-2
-14. tugwar 江湖拔河（10） · 画面批次 T2-3
-15. aurora 极光（10.3） · 画面批次 T2-3
-16. billiards 桌球（10.3）
-17. bubble 泡泡龙（10.3） · 画面批次 T1-1
-18. debrisweep 太空清道夫（10.3） · 画面批次 T2-3
-19. rocket 火箭（10.3） · 画面批次 T2-3
-20. swordlane 剑守三关（10.3） · 画面批次 T2-3
-21. teahouse 茶馆小二（10.3） · 画面批次 T2-6
-22. xiangqi 象棋（10.3） · 画面批次 T1-3
-23. bomber 轰炸机（10.5） · 画面批次 T2-2
-24. combustion 燃烧条件（10.5） · 画面批次 T2-1
-25. hanoi 汉诺塔（10.5） · 画面批次 T2-6
-26. ninja 忍者（10.5） · 画面批次 T2-2
-27. snowflake 雪花剪（10.5） · 画面批次 T2-5
-28. solubility 溶解度（10.5） · 画面批次 T2-2
-29. waiter 平稳托盘（10.5） · 画面批次 T2-4
-30. farm 开心农场（10.8） · 画面批次 DOM-2
-31. noodle 拉面王（10.8） · 画面批次 T2-6
-32. tangram 七巧板（10.8） · 画面批次 T2-6
-33. wandshop 魔杖店（10.8） · 画面批次 DOM-1
-34. alienlang 外星密语（11） · 画面批次 DOM-2
-35. colorlines 彩色连珠（11） · 画面批次 DOM-2
-36. crystal 晶体生长（11） · 画面批次 T2-1
-37. digdug 挖地（11） · 画面批次 T2-5
-38. donkeykong 金刚（11） · 画面批次 T1-2
-39. electrolysis 电解水（11） · 画面批次 DOM-1
-40. ludo 飞行棋（11） · 画面批次 T2-6
-41. missile 导弹拦截（11） · 画面批次 T2-3
-42. pacman 吃豆人（11） · 画面批次 T1-1
-43. shuttle 踢毽子（11） · 画面批次 T2-4
-44. sleigh 雪橇（11） · 画面批次 T2-5
-45. stack 叠叠乐（11） · 画面批次 T1-2
-46. bomberman 炸弹人（11.3） · 画面批次 T1-2
-47. cannon 炮击堡垒（11.3） · 画面批次 T2-2
-48. hotpot 火锅涮（11.3） · 画面批次 T2-6
-49. rotatemaze 旋转迷宫（11.3） · 画面批次 T2-6
-50. snowbros 雪人兄弟（11.3） · 画面批次 T2-5
-51. ballroll 滚珠入洞（11.5） · 画面批次 T2-4
-52. columns 宝石列柱（11.5） · 画面批次 T1-3
-53. dungeonkey 地牢钥匙（11.5） · 画面批次 T2-4
-54. onestroke 一笔画（11.5） · 画面批次 T2-6
-55. pizzacut 披萨刀（11.5） · 画面批次 T2-6
-56. bagua 八卦转轮（11.8） · 画面批次 T2-6
-57. cubhop 魔块跳跳（11.8） · 画面批次 T2-2
-58. iceslide 冰滑块（11.8） · 画面批次 T2-5
-59. jewel 消消乐（11.8） · 画面批次 T1-2
-60. link 连连看（11.8） · 画面批次 T2-5
-61. colormix 小丑调色（12） · 画面批次 DOM-1
-62. eyevision 眼睛成像（12） · 画面批次 T2-1
-63. cutrope 割绳子（12.3） · 画面批次 T1-2
-64. frost 冰窗花（12.3） · 画面批次 T2-4
-65. yeti 雪怪（12.3） · 画面批次 T2-5
-66. snowplow 铲雪车（12.5） · 画面批次 T2-5
-67. lunarlander 登月舱（12.8） · 画面批次 T2-3
-68. mooncrawl 月球车（12.8） · 画面批次 T2-3
-69. slingshot 引力弹射（12.8） · 画面批次 T2-3
-70. spacelevator 太空电梯（12.8） · 画面批次 T2-4
-71. towerdef 简易塔防（12.8） · 画面批次 T2-3
-72. docking 太空对接（13） · 画面批次 T2-3
-73. laser 激光反射（13） · 画面批次 T2-2
-74. asteroid 小行星（13.3） · 画面批次 T1-1
-75. flow 连连线（13.8） · 画面批次 T2-6
-76. sortcandy 糖果分拣（13.8） · 画面批次 DOM-2
-77. starmail 星际快递（13.8） · 画面批次 T2-4
-78. pipes 水管工（14） · 画面批次 T2-6
-79. nonogram 数织（14.5） · 画面批次 DOM-2
-80. sokoban 推箱子（14.5） · 画面批次 DOM-2
-81. touhu 投壶（14.8） · 画面批次 T2-6
-82. bento 便当拼装（15.3） · 画面批次 DOM-2
-83. unblock 挪车让路（15.3） · 画面批次 T2-6
-84. icebridge 铺冰桥（16） · 画面批次 T2-5
-85. cityskyline 都市天际线（16.5） · 画面批次 T2-2
+1. shadowmatch 影子魔术（10） · 画面批次 DOM-1
+2. shieldguard 星球护盾（10） · 画面批次 T2-3
+3. sudoku 数独（10） · 画面批次 DOM-2
+4. tugwar 江湖拔河（10） · 画面批次 T2-3
+5. aurora 极光（10.3） · 画面批次 T2-3
+6. billiards 桌球（10.3）
+7. bubble 泡泡龙（10.3） · 画面批次 T1-1
+8. debrisweep 太空清道夫（10.3） · 画面批次 T2-3
+9. rocket 火箭（10.3） · 画面批次 T2-3
+10. swordlane 剑守三关（10.3） · 画面批次 T2-3
+11. teahouse 茶馆小二（10.3） · 画面批次 T2-6
+12. xiangqi 象棋（10.3） · 画面批次 T1-3
+13. bomber 轰炸机（10.5） · 画面批次 T2-2
+14. combustion 燃烧条件（10.5） · 画面批次 T2-1
+15. hanoi 汉诺塔（10.5） · 画面批次 T2-6
+16. ninja 忍者（10.5） · 画面批次 T2-2
+17. snowflake 雪花剪（10.5） · 画面批次 T2-5
+18. solubility 溶解度（10.5） · 画面批次 T2-2
+19. waiter 平稳托盘（10.5） · 画面批次 T2-4
+20. farm 开心农场（10.8） · 画面批次 DOM-2
+21. noodle 拉面王（10.8） · 画面批次 T2-6
+22. tangram 七巧板（10.8） · 画面批次 T2-6
+23. wandshop 魔杖店（10.8） · 画面批次 DOM-1
+24. alienlang 外星密语（11） · 画面批次 DOM-2
+25. colorlines 彩色连珠（11） · 画面批次 DOM-2
+26. crystal 晶体生长（11） · 画面批次 T2-1
+27. digdug 挖地（11） · 画面批次 T2-5
+28. donkeykong 金刚（11） · 画面批次 T1-2
+29. electrolysis 电解水（11） · 画面批次 DOM-1
+30. ludo 飞行棋（11） · 画面批次 T2-6
+31. missile 导弹拦截（11） · 画面批次 T2-3
+32. pacman 吃豆人（11） · 画面批次 T1-1
+33. shuttle 踢毽子（11） · 画面批次 T2-4
+34. sleigh 雪橇（11） · 画面批次 T2-5
+35. stack 叠叠乐（11） · 画面批次 T1-2
+36. bomberman 炸弹人（11.3） · 画面批次 T1-2
+37. cannon 炮击堡垒（11.3） · 画面批次 T2-2
+38. hotpot 火锅涮（11.3） · 画面批次 T2-6
+39. rotatemaze 旋转迷宫（11.3） · 画面批次 T2-6
+40. snowbros 雪人兄弟（11.3） · 画面批次 T2-5
+41. ballroll 滚珠入洞（11.5） · 画面批次 T2-4
+42. columns 宝石列柱（11.5） · 画面批次 T1-3
+43. dungeonkey 地牢钥匙（11.5） · 画面批次 T2-4
+44. onestroke 一笔画（11.5） · 画面批次 T2-6
+45. pizzacut 披萨刀（11.5） · 画面批次 T2-6
+46. bagua 八卦转轮（11.8） · 画面批次 T2-6
+47. cubhop 魔块跳跳（11.8） · 画面批次 T2-2
+48. iceslide 冰滑块（11.8） · 画面批次 T2-5
+49. jewel 消消乐（11.8） · 画面批次 T1-2
+50. link 连连看（11.8） · 画面批次 T2-5
+51. colormix 小丑调色（12） · 画面批次 DOM-1
+52. eyevision 眼睛成像（12） · 画面批次 T2-1
+53. cutrope 割绳子（12.3） · 画面批次 T1-2
+54. frost 冰窗花（12.3） · 画面批次 T2-4
+55. yeti 雪怪（12.3） · 画面批次 T2-5
+56. snowplow 铲雪车（12.5） · 画面批次 T2-5
+57. lunarlander 登月舱（12.8） · 画面批次 T2-3
+58. mooncrawl 月球车（12.8） · 画面批次 T2-3
+59. slingshot 引力弹射（12.8） · 画面批次 T2-3
+60. spacelevator 太空电梯（12.8） · 画面批次 T2-4
+61. towerdef 简易塔防（12.8） · 画面批次 T2-3
+62. docking 太空对接（13） · 画面批次 T2-3
+63. laser 激光反射（13） · 画面批次 T2-2
+64. asteroid 小行星（13.3） · 画面批次 T1-1
+65. flow 连连线（13.8） · 画面批次 T2-6
+66. sortcandy 糖果分拣（13.8） · 画面批次 DOM-2
+67. starmail 星际快递（13.8） · 画面批次 T2-4
+68. pipes 水管工（14） · 画面批次 T2-6
+69. nonogram 数织（14.5） · 画面批次 DOM-2
+70. sokoban 推箱子（14.5） · 画面批次 DOM-2
+71. touhu 投壶（14.8） · 画面批次 T2-6
+72. bento 便当拼装（15.3） · 画面批次 DOM-2
+73. unblock 挪车让路（15.3） · 画面批次 T2-6
+74. icebridge 铺冰桥（16） · 画面批次 T2-5
+75. cityskyline 都市天际线（16.5） · 画面批次 T2-2
