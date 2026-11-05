@@ -35,7 +35,7 @@ body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-
 #toast.on{opacity:1;transform:translate(-50%,0)}
 .lvTag{font-size:12px;opacity:.85}
 
-#cv{display:block;touch-action:none;max-width:100%;max-height:100%}
+#cv{display:block;touch-action:none;max-width:100%;max-height:100%;touch-action:none;-ms-touch-action:none}
 .hint{font-size:12px;opacity:.85;text-align:center;flex:none}
 .row2{display:flex;gap:6px;justify-content:center;padding:4px;flex-wrap:wrap}.row2 button{min-height:48px;min-width:100px}
 </style>
@@ -602,13 +602,19 @@ function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');sparks=[];l
 function hitLine(x,y){if(line.length<2)return false;for(let i=1;i<line.length;i++){const a=line[i-1],b=line[i];
   const dx=b.x-a.x,dy=b.y-a.y,len2=dx*dx+dy*dy||1;let t=((x-a.x)*dx+(y-a.y)*dy)/len2;t=Math.max(0,Math.min(1,t));
   if(Math.hypot(x-(a.x+t*dx),y-(a.y+t*dy))<16+Kit.up('hint')*4)return true;}return false;}
-cv.addEventListener('pointerdown',e=>{if(Kit.state!=='play'||ended||phase!=='draw')return;drawing=true;const r=cv.getBoundingClientRect();line=[{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}];});
-cv.addEventListener('pointermove',e=>{if(!drawing||phase!=='draw')return;const r=cv.getBoundingClientRect();const p={x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};
-  const lastp=line[line.length-1];if(Math.hypot(p.x-lastp.x,p.y-lastp.y)>4){line.push(p);ink-=0.002;}if(ink<=0){drawing=false;startFall();}});
-addEventListener('pointerup',()=>{if(!drawing)return;drawing=false;if(phase==='draw'&&line.length>3)startFall();});
+function pt(e){const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*W/Math.max(1,r.width),y:(e.clientY-r.top)*H/Math.max(1,r.height)};}
+function endStroke(){if(!drawing)return;drawing=false;if(phase==='draw'&&line.length>=2)startFall();}
+cv.addEventListener('pointerdown',e=>{if(Kit.state!=='play'||ended||phase!=='draw')return;e.preventDefault();
+  try{cv.setPointerCapture(e.pointerId);}catch(err){}
+  drawing=true;line=[pt(e)];});
+cv.addEventListener('pointermove',e=>{if(!drawing||phase!=='draw')return;const p=pt(e);
+  const lastp=line[line.length-1];if(Math.hypot(p.x-lastp.x,p.y-lastp.y)>3){line.push(p);ink-=0.002;}if(ink<=0){drawing=false;startFall();}});
+cv.addEventListener('pointerup',endStroke);
+cv.addEventListener('pointercancel',endStroke);
+addEventListener('pointerup',endStroke);
 function startFall(){phase='fall';hero.vy=0;Kit.sfx('tap');Kit.toast('守住 '+holdNeed+' 秒！');}
 $('btnClear').onclick=()=>{if(phase!=='draw'||ended)return;line=[];ink=1;Kit.sfx('tap');};
-$('btnHint').onclick=()=>{Kit.toast('画一条托住小人的线，躲开尖刺');Kit.sfx('coin');};
+$('btnHint').onclick=()=>{Kit.toast(phase==='draw'?'在画布上按住滑动画线，松手后小人落下':'守住托盘别掉下去');Kit.sfx('coin');};
 function upd(dt){if(ended)return;timeLeft-=dt;if(timeLeft<=0){timeLeft=0;return endLv(false,'时间到');}
   const b=L.boss||L;
   if(phase==='fall'){hero.vy+=280*dt;hero.y+=hero.vy*dt;

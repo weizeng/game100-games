@@ -805,37 +805,43 @@ function mat(c,e,r,m){return new THREE.MeshStandardMaterial({color:c,emissive:e|
 
 function makeHumanoid(){
   const g=new THREE.Group();
-  const skin=0xf1c27d,skinE=0x3a2810,shirt=0x2ec4b6,shirtE=0x0a4038,pants=0x2d3a5c,pantsE=0x101828,hair=0x2b1a12,shoe=0x1a1420;
-  // pelvis
-  const pelvis=new THREE.Mesh(new THREE.BoxGeometry(.42,.22,.28),mat(pants,pantsE,.6,.1));pelvis.position.y=.95;g.add(pelvis);
-  // torso
-  const torso=new THREE.Mesh(new THREE.BoxGeometry(.48,.55,.3),mat(shirt,shirtE,.5,.15));torso.position.y=1.35;g.add(torso);g.userData.torso=torso;
-  // neck
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.07,.08,.12,8),mat(skin,skinE));neck.position.y=1.68;g.add(neck);
-  // head
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.18,12,10),mat(skin,skinE,.45));head.position.y=1.9;g.add(head);g.userData.head=head;
-  // hair cap
-  const cap=new THREE.Mesh(new THREE.SphereGeometry(.185,12,8),mat(hair,0x100808,.8));cap.position.y=1.96;cap.scale.set(1,.7,1);g.add(cap);
-  // eyes (simple)
-  const eyeM=mat(0x1a1020,0x050308);const eL=new THREE.Mesh(new THREE.BoxGeometry(.05,.04,.04),eyeM);eL.position.set(-.07,1.92,.16);g.add(eL);
-  const eR=new THREE.Mesh(new THREE.BoxGeometry(.05,.04,.04),eyeM);eR.position.set(.07,1.92,.16);g.add(eR);
+  // Brighter neon-candy runner: warmer skin, vivid jacket, friendlier face
+  const skin=0xffd3a6,skinE=0x5a3018,shirt=0xff4fd8,shirtE=0x5a1048,pants=0x3d4f7c,pantsE=0x152038,hair=0x3a2418,shoe=0x221830,accent=0x00e5ff;
+  const pelvis=new THREE.Mesh(new THREE.BoxGeometry(.4,.2,.26),mat(pants,pantsE,.55,.08));pelvis.position.y=.95;g.add(pelvis);
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(.46,.52,.28),mat(shirt,shirtE,.42,.18));torso.position.y=1.34;g.add(torso);g.userData.torso=torso;
+  // jacket stripe
+  const stripe=new THREE.Mesh(new THREE.BoxGeometry(.12,.5,.29),mat(accent,0x004050,.35,.25));stripe.position.y=1.34;g.add(stripe);
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.065,.075,.11,10),mat(skin,skinE));neck.position.y=1.66;g.add(neck);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.2,14,12),mat(skin,skinE,.4));head.position.y=1.9;g.add(head);g.userData.head=head;
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(.205,12,8),mat(hair,0x140a08,.75));cap.position.y=1.98;cap.scale.set(1.02,.72,1.05);g.add(cap);
+  // bangs
+  const bang=new THREE.Mesh(new THREE.BoxGeometry(.22,.06,.08),mat(hair,0x140a08,.8));bang.position.set(0,1.98,.14);g.add(bang);
+  // eyes with white + pupil
+  const whiteM=mat(0xfff8f0,0x222);const pupilM=mat(0x1a1028,0x050308);
+  [[-.07,.07],[.07,-.07]].forEach(function(xy){
+    const w=new THREE.Mesh(new THREE.SphereGeometry(.035,8,6),whiteM);w.position.set(xy[0],1.92,.165);g.add(w);
+    const pu=new THREE.Mesh(new THREE.SphereGeometry(.018,6,5),pupilM);pu.position.set(xy[0],1.92,.195);g.add(pu);
+  });
+  // soft smile (mini-three has no partial torus)
+  const smile=new THREE.Mesh(new THREE.BoxGeometry(.1,.018,.03),mat(0xe86a5c,0x4a1810));
+  smile.position.set(0,1.835,.185);smile.scale.set(1,.7,1);g.add(smile);
+  const cheekL=new THREE.Mesh(new THREE.SphereGeometry(.025,6,5),mat(0xffb0a8,0x502020));cheekL.position.set(-.1,1.86,.15);g.add(cheekL);
+  const cheekR=new THREE.Mesh(new THREE.SphereGeometry(.025,6,5),mat(0xffb0a8,0x502020));cheekR.position.set(.1,1.86,.15);g.add(cheekR);
 
   function limb(w,h,d,col,emi){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(col,emi));}
-  // arms as groups for swing
   function makeArm(side){
-    const arm=new THREE.Group();arm.position.set(side*.32,1.52,0);
-    const u=limb(.12,.32,.12,shirt,shirtE);u.position.y=-.16;arm.add(u);
-    const lo=limb(.1,.3,.1,skin,skinE);lo.position.y=-.46;arm.add(lo);arm.userData.lower=lo;
-    const hand=new THREE.Mesh(new THREE.SphereGeometry(.07,8,6),mat(skin,skinE));hand.position.y=-.64;arm.add(hand);
+    const arm=new THREE.Group();arm.position.set(side*.30,1.52,0);
+    const u=limb(.11,.3,.11,shirt,shirtE);u.position.y=-.15;arm.add(u);
+    const lo=limb(.09,.28,.09,skin,skinE);lo.position.y=-.43;arm.add(lo);arm.userData.lower=lo;
+    const hand=new THREE.Mesh(new THREE.SphereGeometry(.065,8,6),mat(skin,skinE));hand.position.y=-.6;arm.add(hand);
     return arm;
   }
   const armL=makeArm(-1),armR=makeArm(1);g.add(armL);g.add(armR);g.userData.armL=armL;g.userData.armR=armR;
-  // legs
   function makeLeg(side){
-    const leg=new THREE.Group();leg.position.set(side*.14,.95,0);
-    const u=limb(.14,.38,.16,pants,pantsE);u.position.y=-.19;leg.add(u);
-    const lo=limb(.12,.36,.14,pants,pantsE);lo.position.y=-.55;leg.add(lo);leg.userData.lower=lo;
-    const foot=limb(.14,.08,.26,shoe,0x08060c);foot.position.set(0,-.76,.04);leg.add(foot);
+    const leg=new THREE.Group();leg.position.set(side*.13,.95,0);
+    const u=limb(.13,.36,.15,pants,pantsE);u.position.y=-.18;leg.add(u);
+    const lo=limb(.11,.34,.13,pants,pantsE);lo.position.y=-.52;leg.add(lo);leg.userData.lower=lo;
+    const foot=limb(.13,.07,.24,shoe,0x0c0814);foot.position.set(0,-.72,.04);leg.add(foot);
     return leg;
   }
   const legL=makeLeg(-1),legR=makeLeg(1);g.add(legL);g.add(legR);g.userData.legL=legL;g.userData.legR=legR;

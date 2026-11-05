@@ -16,7 +16,10 @@ body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-
 .topbar .tools .iconbtn{min-width:44px;min-height:44px;padding:0 6px}
 .subbar{width:100%;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
 .prog{flex:1;height:10px;border-radius:6px;background:rgba(0,0,0,.2);overflow:hidden}.prog i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#ffd34d,#ff5fa2);transition:width .2s}
-.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.stagebox{flex:none;height:0;min-height:0;width:100%;overflow:hidden;padding:0;margin:0;opacity:0;pointer-events:none}
+.wrap{padding-bottom:max(8px,env(safe-area-inset-bottom,0px))}
+.grids{flex:1;min-height:0;overflow:auto;align-content:center;-webkit-overflow-scrolling:touch}
+.row2{flex-shrink:0;position:relative;z-index:5}
 .overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;z-index:20;padding:20px;text-align:center}
 .overlay.hidden,.hidden{display:none!important}
 .lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;width:100%}
@@ -616,17 +619,39 @@ function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');sparks=[];p
   const b=L.boss||L;boss=L.boss?{name:L.boss.name}:null;N=b.n;shotsLeft=b.shots+Kit.up('hint')*3;timeLeft=b.time+Kit.up('time')*12;
   const me=placeShips(N),en=placeShips(N);myShips=me;enShips=en;myFog=empty(N);enFog=empty(N);
   render();hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);Kit.sfx('tap');}
+function cellSize(){
+  const grids=document.querySelector('.grids');
+  const row2=document.querySelector('.row2');
+  const hint=$('hint');
+  const top=document.querySelector('.topbar');
+  const sub=document.querySelector('.subbar');
+  const used=(top?top.getBoundingClientRect().height:0)+(sub?sub.getBoundingClientRect().height:0)+(row2?row2.getBoundingClientRect().height:58)+(hint?hint.getBoundingClientRect().height:18)+36;
+  const availH=Math.max(140, window.innerHeight-used);
+  const availW=Math.max(200,(grids?grids.getBoundingClientRect().width:window.innerWidth-32));
+  // Prefer side-by-side so 开战 stays on screen
+  const side=availW>=260;
+  if(side){
+    const maxW=Math.floor((availW-12)/(2*N));
+    const maxH=Math.floor((availH-22)/N);
+    return Math.max(12,Math.min(30,maxW,maxH));
+  }
+  const maxH=Math.floor((availH/2-22)/N);
+  const maxW=Math.floor(availW/N);
+  return Math.max(12,Math.min(28,maxW,maxH));
+}
+let _goLock=0;function goBattle(){if(phase!=='deploy'||ended)return;const now=performance.now();if(now-_goLock<400)return;_goLock=now;phase='battle';Kit.sfx('boss');Kit.toast('开战！点击敌方格子开火');render();hud();}
 function render(){const mk=(id,fog,ships,clickable)=>{const el=$(id);el.style.gridTemplateColumns='repeat('+N+',1fr)';el.innerHTML='';
-  const size=Math.max(22,Math.min(32,Math.floor(300/N)));
-  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const btn=document.createElement('div');btn.style.width=btn.style.height=btn.style.minWidth=btn.style.minHeight=size+'px';btn.style.display='flex';btn.style.alignItems='center';btn.style.justifyContent='center';btn.style.cursor='pointer';
+  const size=cellSize();
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const btn=document.createElement('div');btn.style.width=btn.style.height=btn.style.minWidth=btn.style.minHeight=size+'px';btn.style.display='flex';btn.style.alignItems='center';btn.style.justifyContent='center';btn.style.cursor='pointer';btn.style.touchAction='manipulation';
     const f=fog[r][c];if(f===1){btn.className='hit';btn.textContent='💥';}else if(f===2){btn.className='miss';btn.textContent='·';}
     else if(id==='mine'&&ships.g[r][c]){btn.className='ship';btn.textContent='🚢';}
-    if(clickable)btn.onclick=()=>shoot(r,c);el.appendChild(btn);}};
+    if(clickable){const rr=r,cc=c;let last=0;const fire=e=>{const now=performance.now();if(now-last<250)return;last=now;e.preventDefault();shoot(rr,cc);};btn.addEventListener('pointerup',fire);btn.addEventListener('click',fire);}
+    el.appendChild(btn);}};
   mk('enemy',enFog,enShips,phase==='battle'&&turn==='p'&&!ended);
   mk('mine',myFog,myShips,false);
   $('btnRand').style.display=phase==='deploy'?'':'none';
   $('btnGo').style.display=phase==='deploy'?'':'none';
-  $('btnGo').onclick=()=>{if(phase!=='deploy'||ended)return;phase='battle';Kit.sfx('boss');Kit.toast('开战！');render();hud();};}
+  $('btnGo').onclick=goBattle;}
 function shoot(r,c){if(phase!=='battle'||turn!=='p'||ended||enFog[r][c])return;
   shotsLeft--;const hit=enShips.g[r][c];enFog[r][c]=hit?1:2;Kit.sfx(hit?'hit':'tap');
   if(hit){score+=15;const sh=enShips.ships.find(s=>s.cells.some(([rr,cc])=>rr===r&&cc===c));sh.hits++;if(sh.hits>=sh.len){score+=25;Kit.toast('击沉！');Kit.sfx('boom');}
@@ -643,8 +668,10 @@ function aiTurn(){if(ended)return;const b=L.boss||L;let r,c;
   if(shotsLeft<=0&&!enShips.ships.every(s=>s.hits>=s.len))return endLv(false,'弹药耗尽');
   turn='p';render();hud();}
 $('btnRand').onclick=()=>{if(phase!=='deploy')return;const me=placeShips(N);myShips=me;myFog=empty(N);Kit.sfx('tap');render();};
+$('btnGo').addEventListener('pointerup',e=>{e.preventDefault();goBattle();});
 $('btnHint').onclick=()=>{Kit.toast(phase==='deploy'?'点随机布阵后开战':'优先打邻近命中格');Kit.sfx('coin');};
-function upd(dt){if(ended)return;timeLeft-=dt;if(timeLeft<=0){timeLeft=0;return endLv(false,'时间到');}hud();}
+addEventListener('resize',()=>{if(Kit.state==='play'&&!ended)render();});
+function upd(dt){if(ended)return;if(phase==='deploy'){hud();return;}timeLeft-=dt;if(timeLeft<=0){timeLeft=0;return endLv(false,'时间到');}hud();}
 function hud(){$('iconT').innerHTML='🚢<b id="lvT">'+(Kit.lv+1)+'</b>';$('lifeT').textContent=lives;
   const sunk=enShips.ships.filter(s=>s.hits>=s.len).length;$('hitT').textContent=sunk+'/'+enShips.ships.length;
   $('hitLbl').innerHTML='沉 <b id="hitT">'+sunk+'/'+enShips.ships.length+'</b>';$('score').textContent=score;
