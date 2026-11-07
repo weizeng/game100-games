@@ -2,28 +2,40 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>割绳子</title>
+<link rel="icon" href="data:,">
 <style>
-html.game-ui #pauseBtn,html.game-ui #soundBtn{min-width:44px;min-height:44px}
-html.game-ui canvas{max-width:min(400px,calc((100vh - 160px)*.71));max-width:min(400px,calc((100svh - 160px)*.71))}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{background:#121212;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;justify-content:center;min-height:100vh;touch-action:manipulation;-webkit-user-select:none;user-select:none}
-.wrap{width:100%;max-width:480px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
-.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:15px}
-.topbar b{color:#FF8A65;font-size:22px}
-.iconbtn{background:#1e1e1e;border:1px solid #333;color:#fff;font-size:18px;min-width:40px;height:40px;border-radius:10px;cursor:pointer}
-.iconbtn:active{transform:scale(.92)}
-canvas{background:linear-gradient(180deg,#1a1410 0%,#121212 70%);border-radius:12px;touch-action:none;width:100%;height:auto;max-width:400px;border:1px solid #222}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
-.overlay.hidden{display:none}
-.overlay h1{font-size:30px}
-.overlay p{color:#bbb;font-size:15px;line-height:1.9}
-.btn{background:linear-gradient(135deg,#FF8A65,#D84315);border:none;color:#fff;font-size:19px;font-weight:700;padding:13px 52px;border-radius:14px;cursor:pointer;box-shadow:0 4px 14px rgba(255,138,101,.35)}
-.btn:active{transform:scale(.95)}
-.btn.ghost{background:#2a2a2a;box-shadow:none}
-.hint{color:#888;font-size:13px;text-align:center;line-height:1.7}
-.rowbtns{display:flex;gap:12px}
+html,body{height:100%;overflow:hidden}
+body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;height:100%;padding:8px 12px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap!important;gap:6px}
+.topbar .stat{display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13px;overflow:hidden}
+.topbar .tools{display:flex;gap:6px;flex:none}
+.topbar .tools .iconbtn{min-width:44px;min-height:44px;padding:0 6px}
+.subbar{width:100%;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.prog{flex:1;height:10px;border-radius:6px;background:rgba(0,0,0,.2);overflow:hidden}.prog i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#ffd54f,#ff8a65);transition:width .2s}
+.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;z-index:20;padding:20px;text-align:center}
+.overlay.hidden,.hidden{display:none!important}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;width:100%}
+.lvgrid .lvl{min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;padding:3px!important;line-height:1.1}
+.lvgrid .lvl small{font-size:10px;letter-spacing:-1px;margin-top:2px}
+.lvgrid .lvl[disabled]{opacity:.45}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}
+.shop button{min-height:46px;font-size:12px!important;padding:3px!important;line-height:1.2}
+.labctl{width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;flex:none}
+.labctl button{min-height:44px;min-width:44px;font-size:12px!important;padding:2px 4px!important;line-height:1.15}
+#tutStep{font-size:12px;opacity:.75}
+#tutPic{font-size:44px;line-height:1.1}
+#overStars{font-size:30px;letter-spacing:4px;min-height:34px}
+#toast{position:fixed;left:50%;top:15%;transform:translate(-50%,-10px);background:rgba(40,18,38,.94);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;z-index:999;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;font-size:14px;box-shadow:0 0 18px rgba(255,138,101,.55);white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+.lvTag{font-size:12px;opacity:.85}
+#cv{display:block;touch-action:none;max-width:100%;max-height:100%}
+.hint{font-size:12px;opacity:.88;text-align:center;flex:none}
 </style>
 <!-- GAME UI BEGIN -->
 <style>
@@ -444,166 +456,788 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 </head>
 <body>
 <div class="wrap">
-<div class="topbar"><span>🍬 割绳子</span><span>第 <b id="level">1</b>/8 关</span><span>得分 <b id="score">0</b></span><span><button class="iconbtn" id="pauseBtn">⏸</button> <button class="iconbtn" id="soundBtn">🔊</button></span></div>
-<canvas id="cv" width="400" height="560"></canvas>
-<p class="hint">手指滑动割断绳子，让糖果荡进怪兽嘴里<br>⭐ 收集星星加分，⚠️ 别碰到尖刺</p>
+  <div class="topbar">
+    <span class="stat"><span id="iconT">🍬<b>1</b></span><span>⭐<b id="starT">0/3</b></span><span id="ropeLbl">绳索 <b id="ropeT">2</b></span><span>得分 <b id="score">0</b></span></span>
+    <span class="tools"><button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="mapBtn" aria-label="选择关卡">🗺️</button><button class="iconbtn" id="shopBtn" aria-label="道具商店">🛒</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+  </div>
+  <div class="subbar"><span id="goalLbl">割绳喂糖</span><div class="prog"><i id="progI"></i></div><span id="infoT">🐸待喂</span></div>
+  <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
+  <div class="labctl">
+    <button class="btn ghost" id="btnCut" type="button">✂️ 智割主绳</button>
+    <button class="btn ghost" id="btnPuff" type="button">💨 气垫吹风</button>
+    <button class="btn ghost" id="btnBubble" type="button">🫧 泡泡浮力</button>
+    <button class="btn" id="btnFeed" type="button">🧲 吸星喂糖</button>
+  </div>
+  <div class="hint" id="hint">滑动手指或点击锚点割断绳子 · 点击💨气垫吹风、🫧戳破泡泡喂饱小怪兽！</div>
 </div>
-<div class="overlay" id="startScr"><h1>🍬 割绳子</h1><p>糖果被绳子吊在半空<br>👆 手指在绳子上滑动即可割断<br>利用摆动把糖送进绿色怪兽嘴里<br>⭐ 吃到星星每颗 +50 分<br>⚠️ 碰到尖刺或掉出屏幕则失败<br>共 8 关，一关比一关巧妙</p><button class="btn" id="startBtn">开始游戏</button></div>
-<div class="overlay hidden" id="pauseScr"><h1>⏸ 已暂停</h1><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn2">重来</button></div></div>
-<div class="overlay hidden" id="overScr"><h1 id="overTitle"></h1><p id="overText"></p><div class="rowbtns"><button class="btn" id="restartBtn">重试本关</button><button class="btn ghost" id="nextBtn">下一关</button></div></div>
+<div class="overlay" id="startScr"><h1 id="startH">🍬 割绳子</h1><p id="startP"></p><p id="bestLine"></p><button class="btn" id="startBtn">开始闯关</button></div>
+<div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续游戏</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">过关</h2><div id="overStars"></div><div class="score" id="finalScore">0</div><p id="overText"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再来一次</button><button class="btn ghost" id="menu2Btn">选择关卡</button></div></div>
+<div id="toast"></div>
+
 <script>
-/* GAMEPLAY UPGRADE */
 'use strict';
+/* ===== 关卡/教程/存档/音效 通用套件（单文件内联） ===== */
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
 const $=id=>document.getElementById(id);
-const cv=$('cv'),ctx=cv.getContext('2d'),W=400,H=560;
-let AC=null,soundOn=true;try{soundOn=GameUI.storageGet('g100_sound')!=='0';}catch(e){}
-function ac(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
-function tone(f,d,type,vol,when){if(!soundOn)return;const a=ac();if(!a)return;type=type||'sine';vol=vol||0.13;when=when||0;const t=a.currentTime+when;const o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+0.05);}
-function sCut(){tone(900,0.08,'sawtooth',0.08);tone(1400,0.06,'sawtooth',0.06,0.04);}
-function sStar(){tone(1175,0.12,'triangle',0.13);tone(1568,0.15,'triangle',0.12,0.08);}
-function sYum(){[392,523,659,784].forEach((f,i)=>tone(f,0.14,'triangle',0.14,i*0.07));}
-function sSpike(){tone(200,0.4,'sawtooth',0.14);tone(140,0.5,'sawtooth',0.12,0.1);}
-function getBest(k){try{return parseInt(GameUI.storageGet(k)||'0',10)||0;}catch(e){return 0;}}
-function setBest(k,v){try{GameUI.storageSet(k,v);}catch(e){}}
-const BESTK='g100_cutrope_best';
-const LEVELS=[
-// L1:单绳教学:割断即直落入口
-{anchors:[[200,60]],candy:[200,200],mouth:[200,470],spikes:[],stars:[[200,335]]},
-// L2:双绳二选一:割左绳,糖绕右锚摆动经星星落入其正下方怪兽嘴;割右绳则够不着
-{anchors:[[140,60],[260,60]],candy:[200,260],mouth:[260,295],spikes:[],stars:[[224,266],[249,269]]},
-// L3:单绳直落:尖刺在两侧,别被吓到,直接割
-{anchors:[[200,60]],candy:[200,200],mouth:[200,470],spikes:[[110,360,15],[290,360,15]],stars:[[200,300],[200,400]]},
-// L4:双绳:两根全割断,糖直落入口(割一根会荡开够不着)
-{anchors:[[100,60],[300,60]],candy:[200,180],mouth:[200,470],spikes:[[140,375,15],[260,375,15]],stars:[[200,320]]},
-// L5:双绳二选一:割右绳绕左锚摆动入左下嘴;割左绳会撞尖刺
-{anchors:[[120,60],[280,60]],candy:[200,280],mouth:[120,320],spikes:[[321,291,15]],stars:[[161,291],[136,294]]},
-// L6:三绳:按任意顺序割断三根,糖直落入口
-{anchors:[[80,60],[200,60],[320,60]],candy:[200,250],mouth:[200,470],spikes:[[120,380,14],[280,380,14]],stars:[[200,350]]},
-// L7:双绳二选一:割右绳绕左锚摆动入左下嘴;割左绳撞尖刺
-{anchors:[[140,60],[260,60]],candy:[200,260],mouth:[140,295],spikes:[[296,266,15]],stars:[[176,266]]},
-// L8:终局:只能割左绳绕右锚摆动入嘴;全割会撞中央尖刺,割右绳撞侧尖刺
-{anchors:[[120,60],[280,60]],candy:[200,260],mouth:[280,300],spikes:[[200,380,15],[139,275,15]],stars:[[224,268],[254,274]]}];
-const MAXLV=LEVELS.length,GRAV=GameUI.pick(0.42,0.5),ITER=6;
-let level,score,state,paused,ropes,candy,mouth,spikes,stars,parts,floats,raf,lvTimer,lastP,trail;
+function show(id,on){$(id).classList.toggle('hidden',!on);}
+const Kit=(function(){
+  const K={state:'menu',lv:0};let cfg,P,muted,ac=null,tutI=0,tutThen=null;
+  function key(s){return 'g100_'+cfg.id+'_'+s;}
+  function load(){try{P=JSON.parse(UI.storageGet(key('prog'))||'{}')||{};}catch(e){P={};}
+    P.stars=P.stars||[];P.best=P.best||[];P.coins=P.coins||0;P.up=P.up||{};}
+  function save(){try{UI.storageSet(key('prog'),JSON.stringify(P));}catch(e){}}
+  K.save=save;K.prog=()=>P;K.up=k=>P.up[k]||0;
+  K.totalStars=()=>P.stars.reduce((a,b)=>a+(b||0),0);
+  K.hs=()=>+UI.storageGet(key('hs'))||0;
+  function tone(f,d,type,vol,f2,delay){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();
+    const t=ac.currentTime+(delay||0),o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
+    g.gain.setValueAtTime(vol||.13,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+  K.tone=tone;
+  K.sfx=function(n,x){switch(n){
+    case 'tap':tone(540,.05,'triangle',.08);break;
+    case 'cut':tone(780,.07,'sawtooth',.09,320);break;
+    case 'good':tone(660,.08,'sine',.11);tone(990,.1,'sine',.1,0,.06);break;
+    case 'combo':tone(520+Math.min(12,x||1)*70,.11,'sine',.09);break;
+    case 'bad':tone(210,.22,'sawtooth',.1,110);break;
+    case 'hit':tone(420,.06,'triangle',.09,620);break;
+    case 'coin':tone(1200,.07,'sine',.09);tone(1600,.09,'sine',.08,0,.06);break;
+    case 'boss':tone(120,.45,'sawtooth',.11,75);tone(180,.45,'square',.06,95,.09);break;
+    case 'win':[523,659,784,1046].forEach((f,i)=>tone(f,.18,'triangle',.12,0,i*.11));break;
+    case 'lose':[392,330,262,196].forEach((f,i)=>tone(f,.22,'sawtooth',.08,0,i*.13));break;
+    default:tone(440,.08);}};
+  function setMute(m){muted=m;try{UI.storageSet('g100_mute',m?'1':'0');}catch(e){}
+    document.querySelectorAll('.muteBtn,#muteBtn,#soundBtn').forEach(b=>b.textContent=m?'🔇':'🔊');}
+  let tt=0;K.toast=function(msg,ms){const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),ms||1300);};
+  K.vibrate=function(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);else if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}};
+  K.isBoss=i=>(cfg.boss||[]).includes(i+1);
+  K.unlocked=i=>i===0||(P.stars[i-1]||0)>0;
+  function stars(n){return '★★★'.slice(0,n)+'☆☆☆'.slice(0,3-n);}
+  K.starStr=stars;
+  function renderLevels(){
+    const g=$('lvgrid');g.innerHTML='';
+    for(let i=0;i<cfg.levels;i++){const b=document.createElement('button');b.className='lvl';const ok=K.unlocked(i);
+      const lab=cfg.label?cfg.label(i):String(i+1);
+      b.innerHTML=(ok?(K.isBoss(i)?'👑':'')+lab:'🔒')+'<small>'+(ok?stars(P.stars[i]||0):'&nbsp;')+'</small>';
+      if(!ok)b.disabled=true;b.addEventListener('click',()=>{K.sfx('tap');go(i);});g.appendChild(b);}
+    $('lvlInfo').textContent='⭐ '+K.totalStars()+'/'+cfg.levels*3+'   💰 '+P.coins+(K.hs()?'   🏆 '+K.hs():'');
+    $('lvlNote').textContent=cfg.note?cfg.note():'';
+    const s=$('shop');s.innerHTML='';
+    (cfg.ups||[]).forEach(u=>{const lv=K.up(u.k),max=u.max,cost=lv<max?u.cost(lv):0,b=document.createElement('button');b.className='ghost';
+      const need=u.stars&&K.totalStars()<u.stars;
+      b.innerHTML=u.ic+' '+u.name+' '+lv+'/'+max+'<br>'+(lv>=max?'已满级':need?'🔒 需 ⭐'+u.stars:'💰'+cost+' · '+u.desc);
+      if(lv>=max||need)b.disabled=true;
+      b.addEventListener('click',()=>{if(P.coins<cost){K.toast('💰 不够：通关赚取金币');K.sfx('bad');return;}P.coins-=cost;P.up[u.k]=lv+1;save();K.sfx('coin');K.toast(u.ic+' '+u.name+' 升到 '+(lv+1)+' 级');renderLevels();});
+      s.appendChild(b);});
+    s.classList.toggle('hidden',!(cfg.ups||[]).length);
+  }
+  K.menu=function(){K.state='menu';cfg.stop&&cfg.stop();['startScr','overScr','pauseOv','tutScr'].forEach(i=>show(i,false));renderLevels();show('lvlScr',true);};
+  function go(i){K.lv=i;['startScr','overScr','pauseOv','lvlScr','tutScr'].forEach(x=>show(x,false));K.state='play';
+    if(K.isBoss(i))setTimeout(()=>{K.sfx('boss');K.toast('👑 首领关：'+(cfg.bossName?cfg.bossName(i):'强敌来袭'),1800);},60);
+    else K.sfx('tap');cfg.start(i);}
+  K.go=go;
+  function tutShow(){const t=cfg.tut[tutI];$('tutH').textContent=t[0];$('tutP').innerHTML=t[1];$('tutPic').textContent=t[2]||'';$('tutStep').textContent=(tutI+1)+' / '+cfg.tut.length;$('tutNext').textContent=tutI===cfg.tut.length-1?'明白了，开始！':'下一步';}
+  K.tutorial=function(then){tutI=0;tutThen=then;['startScr','lvlScr'].forEach(x=>show(x,false));tutShow();show('tutScr',true);};
+  function tutEnd(){show('tutScr',false);P.tut=1;save();(tutThen||K.menu)();}
+  K.pause=function(){if(K.state!=='play')return;K.state='pause';cfg.pause&&cfg.pause();$('pauseInfo').textContent=(cfg.label?'第 '+cfg.label(K.lv):'第 '+(K.lv+1))+' 关'+(K.isBoss(K.lv)?' · 首领关':'');show('pauseOv',true);};
+  K.resume=function(){if(K.state!=='pause')return;K.state='play';show('pauseOv',false);cfg.resume&&cfg.resume();};
+  K.win=function(st,score,text){if(K.state!=='play')return;K.state='over';st=Math.max(1,Math.min(3,st|0));const i=K.lv;
+    const old=P.stars[i]||0,gain=st*4+(old?0:6)+(K.isBoss(i)?8:0)+(cfg.coinBonus?cfg.coinBonus(i,st,score):0);P.coins+=gain;
+    if(st>old)P.stars[i]=st;if((score||0)>(P.best[i]||0))P.best[i]=score;
+    const tot=P.best.reduce((a,b)=>a+(b||0),0);if(tot>K.hs())UI.storageSet(key('hs'),tot);save();
+    $('overH').textContent=K.isBoss(i)?'👑 征服糖果机关盒！':'🎉 小怪兽吃饱啦！';$('overStars').textContent=stars(st);$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>💰 +'+gain+'　本关最佳 '+(P.best[i]||0);
+    const hasNext=i+1<cfg.levels;$('nextBtn').classList.toggle('hidden',!hasNext);if(hasNext)$('nextBtn').textContent=K.isBoss(i+1)?'👑 挑战首领':'下一关';
+    show('overScr',true);K.sfx('win');cfg.stop&&cfg.stop();};
+  K.lose=function(text,score){if(K.state!=='play')return;K.state='over';const gain=Math.min(3,K.lv>0?2:1);P.coins+=gain;save();
+    $('overH').textContent='😢 糖果掉丢啦';$('overStars').textContent='☆☆☆';$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>安慰金 💰 +'+gain+'　可在选关页升级磁力星冠或护盾再战';
+    $('nextBtn').classList.add('hidden');show('overScr',true);K.sfx('lose');K.vibrate(120);cfg.stop&&cfg.stop();};
+  K.init=function(c){cfg=c;load();setMute(UI.storageGet('g100_mute')==='1');
+    document.querySelectorAll('.muteBtn,#muteBtn,#soundBtn').forEach(b=>b.addEventListener('click',()=>{setMute(!muted);if(!muted)K.sfx('tap');}));
+    $('startBtn').addEventListener('click',()=>{K.sfx('tap');if(!P.tut)K.tutorial(K.menu);else K.menu();});
+    $('tutNext').addEventListener('click',()=>{K.sfx('tap');if(tutI<cfg.tut.length-1){tutI++;tutShow();}else tutEnd();});
+    $('tutSkip').addEventListener('click',tutEnd);
+    $('howBtn').addEventListener('click',()=>K.tutorial(K.menu));
+    $('homeBtn').addEventListener('click',()=>{show('lvlScr',false);show('startScr',true);K.state='menu';});
+    $('pauseBtn').addEventListener('click',()=>K.state==='play'?K.pause():K.resume());
+    if($('mapBtn'))$('mapBtn').addEventListener('click',()=>K.menu());
+    if($('shopBtn'))$('shopBtn').addEventListener('click',()=>K.menu());
+    $('resumeBtn').addEventListener('click',K.resume);
+    $('restartBtn').addEventListener('click',()=>go(K.lv));
+    $('menuBtn').addEventListener('click',K.menu);$('menu2Btn').addEventListener('click',K.menu);
+    $('againBtn').addEventListener('click',()=>go(K.lv));
+    $('nextBtn').addEventListener('click',()=>go(Math.min(cfg.levels-1,K.lv+1)));
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)K.pause();});
+    const bl=$('bestLine');if(bl)bl.textContent=P.stars.length?('进度 ⭐'+K.totalStars()+'/'+cfg.levels*3+(K.hs()?' · 🏆 '+K.hs():'')):'首次游玩会有简短教程';
+    window.__T=window.__T||{};window.__T.kit=K;};
+  return K;
+})();
+/* ===== 套件结束 ===== */
 
-function makeRope(ax,ay){const d=Math.hypot(candy.x-ax,candy.y-ay);const n=Math.max(3,Math.ceil(d/15));const pts=[{x:ax,y:ay,px:ax,py:ay}];for(let i=1;i<n;i++){const t=i/n;const x=ax+(candy.x-ax)*t,y=ay+(candy.y-ay)*t;pts.push({x:x,y:y,px:x,py:y});}pts.push(candy);return{ax,ay,pts,seg:d/n,cut:false};}
-function resetLevel(){const L=LEVELS[level-1];candy={x:L.candy[0],y:L.candy[1],px:L.candy[0],py:L.candy[1],r:14};ropes=L.anchors.map(a=>makeRope(a[0],a[1]));mouth={x:L.mouth[0],y:L.mouth[1]};spikes=L.spikes.map(s=>({x:s[0],y:s[1],r:s[2]}));stars=L.stars.map(s=>({x:s[0],y:s[1],got:false}));parts=[];floats=[];trail=[];lastP=null;lvTimer=1500;paused=false;$('level').textContent=level;$('score').textContent=score;}
-function startGame(){level=1;score=0;resetLevel();state='play';hide('startScr');hide('overScr');hide('pauseScr');}
-function show(id){$(id).classList.remove('hidden');}
-function hide(id){$(id).classList.add('hidden');}
-function burst(x,y,color,n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=1+Math.random()*3;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:26+Math.random()*16,color});}}
-function levelWin(){state='over';sYum();const gain=100+stars.filter(s=>s.got).length*50;score+=gain;burst(mouth.x,mouth.y,'#aed581',18);floats.push({x:mouth.x,y:mouth.y-50,t:'+'+gain,life:60,color:'#ffd740'});$('score').textContent=score;
-const b=getBest(BESTK);if(score>b)setBest(BESTK,score);
-$('overTitle').textContent=level>=MAXLV?'🏆 全部通关！':'😋 吃到糖果！';
-$('overText').innerHTML='第 '+level+' 关完成，得分 '+score+(level>=MAXLV?'<br>最高分：'+getBest(BESTK):'');
-$('restartBtn').textContent='重玩本关';$('nextBtn').style.display=level>=MAXLV?'none':'';$('nextBtn').textContent='下一关';show('overScr');}
-function levelFail(msg){state='over';sSpike();$('overTitle').textContent='💥 失败';$('overText').innerHTML=msg||'糖果没了，再试一次';$('restartBtn').textContent='重试本关';$('nextBtn').style.display='none';show('overScr');}
-function ppos(e){const r=cv.getBoundingClientRect();const p=e.touches&&e.touches[0]?e.touches[0]:e;return{x:(p.clientX-r.left)/r.width*W,y:(p.clientY-r.top)/r.height*H};}
-function segDist2(px,py,ax,ay,bx,by){const dx=bx-ax,dy=by-ay;const l2=dx*dx+dy*dy;let t=l2?((px-ax)*dx+(py-ay)*dy)/l2:0;t=Math.max(0,Math.min(1,t));const cx=ax+dx*t,cy=ay+dy*t;return(px-cx)*(px-cx)+(py-cy)*(py-cy);}
-function tryCut(a,b){let cutAny=false;for(const rp of ropes){if(rp.cut)continue;for(let i=0;i<rp.pts.length-1;i++){const p0=rp.pts[i],p1=rp.pts[i+1];if(segDist2((a.x+b.x)/2,(a.y+b.y)/2,p0.x,p0.y,p1.x,p1.y)<144){rp.cut=true;cutAny=true;burst((p0.x+p1.x)/2,(p0.y+p1.y)/2,'#fff',6);break;}}}
-if(cutAny){ropes=ropes.filter(r=>!r.cut);sCut();}}
-function onMove(e){if(state!=='play'||paused)return;ac();const p=ppos(e);
-if(lastP)tryCut(lastP,p);lastP=p;trail.push({x:p.x,y:p.y,life:14});if(e.cancelable)e.preventDefault();}
-function onUp(){lastP=null;}
-cv.addEventListener('touchstart',e=>{ac();lastP=ppos(e);if(e.cancelable)e.preventDefault();},{passive:false});
-cv.addEventListener('touchmove',onMove,{passive:false});
-cv.addEventListener('touchend',onUp,{passive:false});
-cv.addEventListener('mousedown',e=>{ac();lastP=ppos(e);md=true;});
-cv.addEventListener('mousemove',e=>{if(md)onMove(e);});
-window.addEventListener('mouseup',()=>{md=false;onUp();});
-let md=false;
+const W=360,H=420;
+const cv=$('cv'),ctx=cv.getContext('2d');
+if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
 
-function physics(){const c=candy;
-const cvx=(c.x-c.px)*0.985,cvy=(c.y-c.py)*0.985+GRAV;c.px=c.x;c.py=c.y;c.x+=cvx;c.y+=cvy;
-for(const rp of ropes){const pts=rp.pts;for(let i=1;i<pts.length-1;i++){const p=pts[i];const tx=p.x+(p.x-p.px)*0.985,ty=p.y+(p.y-p.py)*0.985+GRAV;p.px=p.x;p.py=p.y;p.x=tx;p.y=ty;}}
-for(let k=0;k<ITER;k++){for(const rp of ropes){const pts=rp.pts;pts[0].x=rp.ax;pts[0].y=rp.ay;pts[0].px=rp.ax;pts[0].py=rp.ay;
-for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1];const dx=b.x-a.x,dy=b.y-a.y;const d=Math.hypot(dx,dy)||0.0001;const diff=(d-rp.seg)/d;
-if(i===0){b.x-=dx*diff;b.y-=dy*diff;}
-else{a.x+=dx*diff*0.5;a.y+=dy*diff*0.5;b.x-=dx*diff*0.5;b.y-=dy*diff*0.5;}}}}
-if(Math.hypot(c.x-mouth.x,c.y-mouth.y)<32){levelWin();return;}
-for(const s of spikes)if(Math.hypot(c.x-s.x,c.y-s.y)<s.r+c.r-4){levelFail('糖果碰到了尖刺！');return;}
-for(const st of stars)if(!st.got&&Math.hypot(c.x-st.x,c.y-st.y)<26){st.got=true;score+=50;$('score').textContent=score;floats.push({x:st.x,y:st.y,t:'+50',life:45,color:'#ffd740'});burst(st.x,st.y,'#ffd740',10);sStar();}
-if(c.y>H+40){levelFail('糖果掉出屏幕了！');return;}
-lvTimer--;if(lvTimer<=0){levelFail('超时了，糖果化掉了！');return;}}
-function drawMonster(){const m=mouth;const g=ctx.createRadialGradient(m.x-10,m.y-16,4,m.x,m.y,34);g.addColorStop(0,'#aed581');g.addColorStop(1,'#558b2f');ctx.fillStyle=g;ctx.beginPath();ctx.arc(m.x,m.y,32,0,7);ctx.fill();
-ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(m.x-10,m.y-14,8,0,7);ctx.arc(m.x+10,m.y-14,8,0,7);ctx.fill();
-ctx.fillStyle='#212121';ctx.beginPath();ctx.arc(m.x-10,m.y-14,3.5,0,7);ctx.arc(m.x+10,m.y-14,3.5,0,7);ctx.fill();
-ctx.fillStyle='#1b2b12';ctx.beginPath();ctx.ellipse(m.x,m.y+8,15,11,0,0,7);ctx.fill();
-ctx.fillStyle='#7cb342';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('喂我!',m.x,m.y+34);ctx.textAlign='left';}
-function draw(){if(FX)return drawFx();ctx.clearRect(0,0,W,H);
-ctx.fillStyle='rgba(255,138,101,.07)';for(let i=0;i<4;i++){ctx.beginPath();ctx.arc(60+i*100,90,24,0,7);ctx.fill();}
-for(const rp of ropes){ctx.strokeStyle='#d7ccc8';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(rp.pts[0].x,rp.pts[0].y);for(const p of rp.pts)ctx.lineTo(p.x,p.y);ctx.stroke();
-ctx.fillStyle='#8d6e63';ctx.beginPath();ctx.arc(rp.ax,rp.ay,7,0,7);ctx.fill();ctx.fillStyle='#5d4037';ctx.beginPath();ctx.arc(rp.ax,rp.ay,3,0,7);ctx.fill();}
-for(const s of spikes){ctx.save();ctx.translate(s.x,s.y);ctx.fillStyle='#ef5350';ctx.beginPath();for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const rr=i%2?s.r*0.55:s.r;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}ctx.closePath();ctx.fill();ctx.restore();}
-for(const st of stars)if(!st.got){ctx.save();ctx.translate(st.x,st.y);ctx.rotate(Date.now()/900);ctx.fillStyle='#ffd740';ctx.beginPath();for(let i=0;i<10;i++){const a=i/10*Math.PI*2-Math.PI/2;const rr=i%2?5:11;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}ctx.closePath();ctx.fill();ctx.restore();}
-drawMonster();
-const c=candy;ctx.font='30px sans-serif';ctx.textAlign='center';ctx.fillText('🍬',c.x,c.y+10);ctx.textAlign='left';
-for(const t of trail){ctx.globalAlpha=Math.max(0,t.life/14)*0.7;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(t.x,t.y,4,0,7);ctx.fill();}ctx.globalAlpha=1;
-for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/42);ctx.fillStyle=p.color;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
-ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/60);ctx.fillStyle=f.color||'#fff';ctx.font='bold 19px sans-serif';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
-ctx.fillStyle='#888';ctx.font='12px sans-serif';ctx.fillText('⏱ '+Math.ceil(lvTimer/60)+'s',10,20);
+// 15 关物理割绳机关设计
+// candy:[x,y], target:[x,y], ropes:[[x,y,len],...], stars:[[x,y],...], spikes:[[x,y],...], blowers:[[x,y,dirX,dirY],...], bubbles:[[x,y],...]
+const LV=[
+  {name:'初次喂糖',candy:[180,82],target:[180,350],ropes:[[180,34,70]],stars:[[180,155],[180,220],[180,285]],spikes:[],blowers:[],bubbles:[]},
+  {name:'钟摆荡秋千',candy:[105,86],target:[240,345],ropes:[[105,36,65],[220,36,125]],stars:[[155,145],[220,165],[240,255]],spikes:[],blowers:[],bubbles:[]},
+  {name:'对称双绳',candy:[180,100],target:[180,350],ropes:[[105,40,105],[255,40,105]],stars:[[140,150],[220,150],[180,255]],spikes:[[100,260]],blowers:[[80,150,1,0]],bubbles:[]},
+  {name:'浮力泡泡初体验',candy:[180,180],target:[180,72],ropes:[[180,115,65]],stars:[[180,245],[180,145],[180,105]],spikes:[],blowers:[],bubbles:[[180,250]]},
+  {boss:'旋转尖刺迷阵',name:'旋转尖刺迷阵',candy:[110,80],target:[255,345],ropes:[[110,32,60],[215,32,115],[270,120,95]],stars:[[165,135],[255,190],[255,275]],spikes:[[175,245]],blowers:[[75,185,1,0]],bubbles:[]},
+  {name:'气垫助推器',candy:[95,110],target:[265,340],ropes:[[95,40,70]],stars:[[145,180],[210,230],[265,280]],spikes:[[135,310]],blowers:[[70,185,1,-0.15],[150,240,1,-0.1]],bubbles:[]},
+  {name:'三绳连环锁',candy:[180,95],target:[115,345],ropes:[[110,36,92],[180,36,65],[255,36,95]],stars:[[220,150],[150,195],[115,275]],spikes:[[235,270]],blowers:[[285,165,-1,0]],bubbles:[]},
+  {name:'升空再落体',candy:[125,205],target:[245,345],ropes:[[125,130,75]],stars:[[125,270],[185,125],[245,245]],spikes:[[180,285]],blowers:[[75,115,1,0]],bubbles:[[125,275]]},
+  {name:'左右逢源',candy:[180,88],target:[180,350],ropes:[[95,40,105],[265,40,105]],stars:[[120,165],[240,165],[180,265]],spikes:[[110,285],[250,285]],blowers:[[68,165,1,0],[292,165,-1,0]],bubbles:[]},
+  {boss:'双重泡泡涡流',name:'双重泡泡涡流',candy:[110,190],target:[255,95],ropes:[[110,118,72],[200,118,115]],stars:[[110,260],[185,195],[255,155]],spikes:[[175,295]],blowers:[[70,195,1,0]],bubbles:[[110,265],[255,235]]},
+  {name:'精准斜抛',candy:[88,92],target:[272,340],ropes:[[88,35,60],[195,35,120]],stars:[[148,145],[225,190],[272,265]],spikes:[[175,290]],blowers:[[120,195,1,-0.2]],bubbles:[]},
+  {name:'尖刺峡谷',candy:[180,78],target:[180,352],ropes:[[120,34,78],[240,34,78]],stars:[[180,145],[180,215],[180,285]],spikes:[[118,215],[242,215]],blowers:[[70,145,1,0],[290,145,-1,0]],bubbles:[]},
+  {name:'四绳天网',candy:[180,110],target:[255,345],ropes:[[95,38,110],[155,38,80],[215,38,82],[275,90,98]],stars:[[140,165],[215,175],[255,265]],spikes:[[125,285]],blowers:[[80,175,1,0]],bubbles:[]},
+  {name:'浮泡穿梭',candy:[255,200],target:[105,345],ropes:[[255,125,75]],stars:[[255,270],[180,120],[105,245]],spikes:[[180,260]],blowers:[[295,115,-1,0]],bubbles:[[255,275]]},
+  {boss:'终极钟摆糖果屋',name:'终极钟摆糖果屋',candy:[180,86],target:[180,352],ropes:[[95,36,102],[180,32,60],[265,36,102]],stars:[[125,160],[235,160],[180,255]],spikes:[[112,265],[248,265]],blowers:[[62,160,1,0],[298,160,-1,0]],bubbles:[[180,295]]}
+];
+
+let L,candy,target,ropes,stars,spikes,blowers,bubbles;
+let score=0,gotStars=0,shields=0,ended=false,tAnim=0,raf=0,last=0,fast=1;
+let slashTrail=[],sparks=[],floats=[],swiping=false,lastPt=null;
+
+function starRadius(){
+  return 24+Kit.up('mag')*10;
 }
-/* ART T1-2: candy-depth renderer (GameUI.fx); the flat draw() stays as the no-FX fallback */
-const FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null;let cutBg=null;
-if(FX)FX.hidpi(cv,ctx,W,H);
-function fxCutBg(){
-  const d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas');c.width=W*d;c.height=H*d;const g=c.getContext('2d');g.scale(d,d);
-  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#3a1a10');bg.addColorStop(.5,'#1a1410');bg.addColorStop(1,'#0e0a0a');g.fillStyle=bg;g.fillRect(0,0,W,H);
-  g.fillStyle='rgba(255,138,101,.08)';for(let i=0;i<4;i++){g.beginPath();g.arc(60+i*100,90,24,0,7);g.fill();}
-  return c;
+
+function start(i){
+  L=LV[i];
+  candy={x:L.candy[0],y:L.candy[1],vx:0,vy:0,r:16,inBubble:false};
+  target={x:L.target[0],y:L.target[1],r:28,mouth:0};
+  ropes=L.ropes.map((r,idx)=>({id:idx,ax:r[0],ay:r[1],len:r[2],cut:false,fade:1}));
+  stars=L.stars.map(s=>({x:s[0],y:s[1],got:false,bob:Math.random()*6.28}));
+  spikes=L.spikes.map(s=>({x:s[0],y:s[1],r:15,ang:0}));
+  blowers=L.blowers.map(b=>({x:b[0],y:b[1],dx:b[2],dy:b[3],puff:0}));
+  bubbles=L.bubbles.map(b=>({x:b[0],y:b[1],r:22,used:false}));
+  score=0;
+  gotStars=0;
+  shields=Kit.up('shield');
+  ended=false;
+  slashTrail=[];sparks=[];floats=[];
+  swiping=false;lastPt=null;
+  hud();
+  last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);
 }
-function drawMonsterFx(){
-  const m=mouth;
-  FX.shadow(ctx,m.x,m.y+28,22,6,.35);
-  FX.orb(ctx,m.x|0,m.y|0,32,'#7cb342');
-  FX.orb(ctx,(m.x-10)|0,(m.y-14)|0,8,'#ffffff');FX.orb(ctx,(m.x+10)|0,(m.y-14)|0,8,'#ffffff');
-  FX.orb(ctx,(m.x-10)|0,(m.y-14)|0,4,'#212121');FX.orb(ctx,(m.x+10)|0,(m.y-14)|0,4,'#212121');
-  ctx.fillStyle='#1b2b12';ctx.beginPath();ctx.ellipse(m.x,m.y+8,15,11,0,0,7);ctx.fill();
-  ctx.fillStyle='#aed581';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('喂我!',m.x,m.y+34);ctx.textAlign='left';
+
+function addFloat(x,y,txt,c){
+  floats.push({x,y,txt,c:c||'#ffd54f',life:1});
 }
-function drawFx(){
-  if(!cutBg)cutBg=fxCutBg();
-  ctx.drawImage(cutBg,0,0,W,H);
+
+function cutRopeObj(rp){
+  if(!rp||rp.cut||ended)return false;
+  rp.cut=true;
+  score+=20;
+  const mx=(rp.ax+candy.x)*0.5,my=(rp.ay+candy.y)*0.5;
+  if(FX)FX.burst(sparks,mx,my,'#ffd54f',10);
+  Kit.sfx('cut');
+  hud();
+  return true;
+}
+
+// 线段相交检测
+function ccw(ax,ay,bx,by,cx,cy){return (cy-ay)*(bx-ax)>(by-ay)*(cx-ax);}
+function segHit(ax,ay,bx,by,cx,cy,dx,dy){
+  return ccw(ax,ay,cx,cy,dx,dy)!==ccw(bx,by,cx,cy,dx,dy)&&ccw(ax,ay,bx,by,cx,cy)!==ccw(ax,ay,bx,by,dx,dy);
+}
+// 点到线段距离
+function ptSegDist(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;
+  if(!l2)return Math.hypot(px-ax,py-ay);
+  const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
+  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+}
+
+function triggerBlower(bl){
+  bl.puff=1;
+  const dist=Math.hypot(candy.x-bl.x,candy.y-bl.y);
+  const boost=1+Kit.up('air')*0.28;
+  if(dist<190){
+    const f=(1-dist/210)*240*boost;
+    candy.vx+=bl.dx*f;
+    candy.vy+=bl.dy*f-35;
+  }else{
+    candy.vx+=bl.dx*135*boost;
+    candy.vy+=bl.dy*90*boost;
+  }
+  if(FX)FX.burst(sparks,bl.x+bl.dx*18,bl.y+bl.dy*18,'#80deea',10);
+  Kit.sfx('tap');
+}
+
+// 底部四个便捷操作按钮
+$('btnCut').addEventListener('click',()=>{
+  if(Kit.state!=='play'||ended)return;
+  const active=ropes.filter(r=>!r.cut);
+  if(!active.length){Kit.toast('✂️ 所有绳子已割断');return;}
+  // 优先割断离目标最远的那根绳子，让糖果朝目标摆过去
+  active.sort((a,b)=>Math.hypot(b.ax-target.x,b.ay-target.y)-Math.hypot(a.ax-target.x,a.ay-target.y));
+  cutRopeObj(active[0]);
+});
+
+$('btnPuff').addEventListener('click',()=>{
+  if(Kit.state!=='play'||ended)return;
+  if(blowers.length){
+    blowers.forEach(triggerBlower);
+  }else{
+    // 无气垫关卡也给一个朝向小怪兽的柔和顺风推力
+    const dx=target.x-candy.x,dy=target.y-candy.y,d=Math.hypot(dx,dy)||1;
+    candy.vx+=(dx/d)*150;
+    candy.vy+=(dy/d)*90-40;
+    if(FX)FX.burst(sparks,candy.x,candy.y,'#80deea',10);
+    Kit.sfx('tap');
+  }
+});
+
+$('btnBubble').addEventListener('click',()=>{
+  if(Kit.state!=='play'||ended)return;
+  if(candy.inBubble){
+    candy.inBubble=false;
+    if(FX)FX.burst(sparks,candy.x,candy.y,'#80deea',14);
+    addFloat(candy.x,candy.y,'🫧 戳破泡泡！','#80deea');
+    Kit.sfx('hit');
+  }else{
+    candy.inBubble=true;
+    candy.vy=Math.min(candy.vy,-85);
+    if(FX)FX.burst(sparks,candy.x,candy.y,'#80deea',12);
+    addFloat(candy.x,candy.y,'🫧 泡泡升空！','#80deea');
+    Kit.sfx('good');
+  }
+  hud();
+});
+
+function smartSolveStep(){
+  if(Kit.state!=='play'||ended)return;
+  // 1. 每次调用先吸附一颗未收集的星星
+  const nextStar=stars.find(s=>!s.got);
+  if(nextStar){
+    nextStar.got=true;
+    gotStars++;
+    score+=100+Kit.up('mag')*20;
+    if(FX)FX.burst(sparks,nextStar.x,nextStar.y,'#ffd54f',14);
+    addFloat(nextStar.x,nextStar.y,'⭐ 星星 +100','#ffd54f');
+    Kit.sfx('good');
+  }
+  // 2. 如果还有未割断的绳子，割断一根
+  const activeR=ropes.find(r=>!r.cut);
+  if(activeR)cutRopeObj(activeR);
+
+  // 3. 把糖果向小怪兽推进一大步（若已经收齐3星则直接送入怪兽口中）
+  if(stars.every(s=>s.got)){
+    candy.x=target.x;
+    candy.y=target.y;
+    winLevel();
+    return;
+  }
+  candy.x+=(target.x-candy.x)*0.45;
+  candy.y+=(target.y-candy.y)*0.45;
+  candy.vx=(target.x-candy.x)*2;
+  candy.vy=(target.y-candy.y)*2;
+  hud();
+}
+$('btnFeed').addEventListener('click',smartSolveStep);
+
+function ptLogical(e){
+  const r=cv.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};
+}
+
+cv.addEventListener('pointerdown',e=>{
+  if(Kit.state!=='play'||ended)return;
+  const p=ptLogical(e);
+  swiping=true;
+  lastPt=p;
+  slashTrail.push({x:p.x,y:p.y,life:1});
+
+  // 1. 检查是否点击了包裹糖果的泡泡（戳破泡泡）
+  if(candy.inBubble&&Math.hypot(p.x-candy.x,p.y-candy.y)<=34){
+    candy.inBubble=false;
+    if(FX)FX.burst(sparks,candy.x,candy.y,'#80deea',14);
+    addFloat(candy.x,candy.y,'🫧 泡泡破裂','#80deea');
+    Kit.sfx('hit');
+    hud();
+    return;
+  }
+  // 2. 检查是否点击了气垫吹风机
+  for(const bl of blowers){
+    if(Math.hypot(p.x-bl.x,p.y-bl.y)<=32){
+      triggerBlower(bl);
+      return;
+    }
+  }
+  // 3. 检查是否直接点中某根绳索或锚点（方便单击切绳）
   for(const rp of ropes){
-    ctx.strokeStyle='#d7ccc8';ctx.lineWidth=4;ctx.lineCap='round';
-    ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=4;
-    ctx.beginPath();ctx.moveTo(rp.pts[0].x,rp.pts[0].y);for(const p of rp.pts)ctx.lineTo(p.x,p.y);ctx.stroke();
-    ctx.shadowBlur=0;
-    FX.orb(ctx,rp.ax|0,rp.ay|0,7,'#8d6e63');FX.orb(ctx,rp.ax|0,rp.ay|0,3,'#5d4037');
+    if(!rp.cut&&ptSegDist(p.x,p.y,rp.ax,rp.ay,candy.x,candy.y)<=22){
+      cutRopeObj(rp);
+      return;
+    }
   }
-  for(const s of spikes){
-    ctx.save();ctx.translate(s.x,s.y);
-    FX.glow(ctx,'#ef5350',10);
-    ctx.fillStyle='#ef5350';ctx.beginPath();for(let i=0;i<8;i++){const a=i/8*Math.PI*2;const rr=i%2?s.r*0.55:s.r;ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}ctx.closePath();ctx.fill();
-    FX.noGlow(ctx);ctx.restore();
+});
+
+cv.addEventListener('pointermove',e=>{
+  if(!swiping||Kit.state!=='play'||ended)return;
+  const p=ptLogical(e);
+  slashTrail.push({x:p.x,y:p.y,life:1});
+  if(slashTrail.length>18)slashTrail.shift();
+  if(lastPt){
+    for(const rp of ropes){
+      if(!rp.cut&&(segHit(lastPt.x,lastPt.y,p.x,p.y,rp.ax,rp.ay,candy.x,candy.y)||ptSegDist(p.x,p.y,rp.ax,rp.ay,candy.x,candy.y)<=14)){
+        cutRopeObj(rp);
+      }
+    }
   }
-  for(const st of stars)if(!st.got){
-    ctx.save();ctx.translate(st.x,st.y);ctx.rotate(Date.now()/900);
-    FX.glow(ctx,'#ffd740',12);FX.orb(ctx,0,0,10,'#ffd740');FX.noGlow(ctx);ctx.restore();
+  lastPt=p;
+});
+
+addEventListener('pointerup',()=>{swiping=false;lastPt=null;});
+addEventListener('pointercancel',()=>{swiping=false;lastPt=null;});
+
+function upd(dt){
+  if(ended)return;
+  tAnim+=dt;
+
+  // 刀光消散
+  for(let i=slashTrail.length-1;i>=0;i--){
+    slashTrail[i].life-=dt*5;
+    if(slashTrail[i].life<=0)slashTrail.splice(i,1);
   }
-  drawMonsterFx();
-  const c=candy;FX.shadow(ctx,c.x,c.y+14,12,4,.35);FX.glow(ctx,'#ff8a65',10);FX.orb(ctx,c.x|0,c.y|0,14,'#ff8a65');FX.noGlow(ctx);
-  ctx.font='30px sans-serif';ctx.textAlign='center';ctx.fillText('🍬',c.x,c.y+10);ctx.textAlign='left';
-  for(const t of trail){ctx.globalAlpha=Math.max(0,t.life/14)*0.7;FX.orb(ctx,t.x|0,t.y|0,4,'#ffffff');}ctx.globalAlpha=1;
-  for(const p of parts){ctx.globalAlpha=Math.max(0,p.life/42);FX.orb(ctx,p.x|0,p.y|0,3,p.color);}ctx.globalAlpha=1;
-  ctx.textAlign='center';for(const f of floats){ctx.globalAlpha=Math.max(0,f.life/60);ctx.fillStyle=f.color||'#fff';ctx.font='bold 19px sans-serif';ctx.fillText(f.t,f.x,f.y);}ctx.globalAlpha=1;ctx.textAlign='left';
-  ctx.fillStyle='#aaa';ctx.font='12px sans-serif';ctx.fillText('⏱ '+Math.ceil(lvTimer/60)+'s',10,20);
+  for(const bl of blowers){
+    if(bl.puff>0)bl.puff=Math.max(0,bl.puff-dt*2.5);
+  }
+
+  // 物理重力（支持进阶模式挑战更高重力，泡泡包裹时改为向上浮力）
+  const grav=UI.pick(360,460);
+  if(candy.inBubble){
+    candy.vy+=(-220-candy.vy*1.8)*dt;
+    candy.vx*=Math.pow(0.96,dt*60);
+  }else{
+    candy.vy+=grav*dt;
+    candy.vx*=Math.pow(0.992,dt*60);
+    candy.vy*=Math.pow(0.992,dt*60);
+  }
+
+  candy.x+=candy.vx*dt;
+  candy.y+=candy.vy*dt;
+
+  // 绳索弹性约束求解
+  const activeRopes=ropes.filter(r=>!r.cut);
+  for(let iter=0;iter<4;iter++){
+    for(const rp of activeRopes){
+      const dx=candy.x-rp.ax,dy=candy.y-rp.ay;
+      const dist=Math.hypot(dx,dy)||1;
+      if(dist>rp.len){
+        const nx=dx/dist,ny=dy/dist;
+        const diff=dist-rp.len;
+        candy.x-=nx*diff*0.85;
+        candy.y-=ny*diff*0.85;
+        const vn=candy.vx*nx+candy.vy*ny;
+        if(vn>0){
+          candy.vx-=nx*vn*0.92;
+          candy.vy-=ny*vn*0.92;
+        }
+      }
+    }
+  }
+
+  // 左右墙壁温和反弹，避免轻易飞出左右边界
+  if(candy.x<22){candy.x=22;candy.vx=Math.abs(candy.vx)*0.65;}
+  if(candy.x>W-22){candy.x=W-22;candy.vx=-Math.abs(candy.vx)*0.65;}
+  if(candy.y<22){candy.y=22;candy.vy=Math.max(0,candy.vy);}
+
+  // 检查浮力泡泡拾取
+  for(const b of bubbles){
+    if(!b.used&&Math.hypot(candy.x-b.x,candy.y-b.y)<=b.r+candy.r){
+      b.used=true;
+      candy.inBubble=true;
+      candy.vy=-90;
+      if(FX)FX.burst(sparks,b.x,b.y,'#80deea',12);
+      addFloat(b.x,b.y,'🫧 浮力升空','#80deea');
+      Kit.sfx('good');
+    }
+  }
+
+  // 检查星星收集（带磁力吸引）
+  const sRad=starRadius();
+  for(const s of stars){
+    if(s.got)continue;
+    const d=Math.hypot(candy.x-s.x,candy.y-s.y);
+    if(d<=sRad+28&&Kit.up('mag')>0){
+      s.x+=(candy.x-s.x)*dt*5;
+      s.y+=(candy.y-s.y)*dt*5;
+    }
+    if(d<=sRad){
+      s.got=true;
+      gotStars++;
+      score+=100+Kit.up('mag')*20;
+      if(FX)FX.burst(sparks,s.x,s.y,'#ffd54f',15);
+      addFloat(s.x,s.y,'⭐ +100','#ffd54f');
+      Kit.sfx('good');
+      hud();
+    }
+  }
+
+  // 检查小怪兽张嘴程度与吃糖判定
+  const dTarget=Math.hypot(candy.x-target.x,candy.y-target.y);
+  target.mouth=dTarget<95?Math.min(1,target.mouth+dt*6):Math.max(0,target.mouth-dt*4);
+  if(dTarget<=target.r+candy.r*0.6){
+    winLevel();
+    return;
+  }
+
+  // 检查尖刺碰撞
+  for(const sp of spikes){
+    sp.ang+=dt*2.4;
+    if(Math.hypot(candy.x-sp.x,candy.y-sp.y)<=sp.r+candy.r-3){
+      if(candy.inBubble){
+        candy.inBubble=false;
+        candy.vy=-70;
+        if(FX)FX.burst(sparks,candy.x,candy.y,'#80deea',12);
+        addFloat(candy.x,candy.y,'🫧 泡泡抵挡尖刺！','#80deea');
+        Kit.sfx('hit');
+      }else if(shields>0){
+        shields--;
+        candy.vy=-130;
+        candy.vx=(candy.x<sp.x?-90:90);
+        if(FX)FX.burst(sparks,sp.x,sp.y,'#ff8a65',14);
+        addFloat(candy.x,candy.y,'🛡️ 糖衣护盾抵挡！','#ff8a65');
+        Kit.sfx('hit');
+      }else{
+        if(FX)FX.burst(sparks,candy.x,candy.y,'#ff5252',20);
+        return endLv(false,'糖果被旋转尖刺扎碎了！');
+      }
+    }
+  }
+
+  // 掉落出底部边界时：若有护盾则弹回一次，否则失败
+  if(candy.y>H+26){
+    if(shields>0){
+      shields--;
+      candy.y=H-50;
+      candy.vy=-260;
+      candy.vx=(target.x-candy.x)*1.5;
+      addFloat(candy.x,H-60,'🛡️ 护盾弹回！','#ff8a65');
+      Kit.sfx('hit');
+    }else{
+      return endLv(false,'糖果掉出盒子外，小怪兽没吃到！');
+    }
+  }
 }
-function loop(){raf=requestAnimationFrame(loop);if(state==='play'&&!paused){physics();
-for(const t of trail){t.life--;}trail=trail.filter(t=>t.life>0);
-for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life--;}parts=parts.filter(p=>p.life>0);
-for(const f of floats){f.y-=0.7;f.life--;}floats=floats.filter(f=>f.life>0);}
-draw();}
-$('startBtn').onclick=()=>{ac();startGame();};
-$('restartBtn').onclick=()=>{ac();state='play';hide('overScr');resetLevel();};
-$('nextBtn').onclick=()=>{ac();if(level<MAXLV){level++;state='play';hide('overScr');resetLevel();}};
-$('restartBtn2').onclick=()=>{ac();startGame();};
-$('resumeBtn').onclick=()=>{paused=false;hide('pauseScr');};
-$('pauseBtn').onclick=()=>{if(state!=='play')return;paused=!paused;if(paused)show('pauseScr');else hide('pauseScr');};
-$('soundBtn').onclick=function(){soundOn=!soundOn;try{GameUI.storageSet('g100_sound',soundOn?'1':'0');}catch(e){}this.textContent=soundOn?'🔊':'🔇';};
-$('soundBtn').textContent=soundOn?'🔊':'🔇';
-level=1;score=0;state='start';resetLevel();loop();
+
+function winLevel(){
+  if(ended)return;
+  const st=Math.max(1,gotStars);
+  score+=200+st*120+shields*50;
+  if(FX)FX.burst(sparks,target.x,target.y,'#69f0ae',22);
+  hud();
+  endLv(true,L.boss?'完美破解「'+L.boss+'」，小怪兽大快朵颐！':'美味糖果精准送入小怪兽嘴里！',st);
+}
+
+function endLv(won,why,st){
+  if(ended)return;ended=true;
+  if(won){
+    setTimeout(()=>Kit.win(st||Math.max(1,gotStars),score,why),240);
+  }else{
+    setTimeout(()=>Kit.lose(why,score),220);
+  }
+}
+
+function hud(){
+  const activeCnt=ropes?ropes.filter(r=>!r.cut).length:0;
+  $('iconT').innerHTML='🍬<b id="lvT">'+(Kit.lv+1)+'</b>';
+  $('starT').textContent=gotStars+'/3';
+  $('ropeLbl').innerHTML='绳索 <b id="ropeT">'+activeCnt+'</b>';
+  $('score').textContent=score;
+  $('goalLbl').textContent=(L&&L.boss?'👑 '+L.boss:L?L.name:'割绳喂糖');
+  $('progI').style.width=Math.min(100,Math.round(gotStars/3*100))+'%';
+  $('infoT').textContent=candy&&candy.inBubble?'🫧浮空中':shields>0?'🛡️×'+shields:'🐸待喂';
+}
+
+function drawMonster(x,y,open){
+  ctx.save();
+  ctx.translate(x,y);
+  if(FX)FX.shadow(ctx,0,24,26,8,0.35);
+  // 身体
+  if(FX)FX.orb(ctx,0,0,26,'#66bb6a');
+  else{
+    ctx.fillStyle='#66bb6a';
+    ctx.beginPath();ctx.arc(0,0,26,0,Math.PI*2);ctx.fill();
+  }
+  // 头顶呆毛触角
+  ctx.strokeStyle='#43a047';
+  ctx.lineWidth=4;
+  ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(0,-24);ctx.quadraticCurveTo(8,-35,14,-30);ctx.stroke();
+
+  // 大眼睛
+  for(const ex of [-9,9]){
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath();ctx.arc(ex,-8,6.5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#1b3022';
+    ctx.beginPath();ctx.arc(ex+(candy.x-x)*0.012,-8+(candy.y-y)*0.012,3.2,0,Math.PI*2);ctx.fill();
+  }
+
+  // 嘴巴（随糖果靠近张大）
+  const mw=14+open*6,mh=5+open*9;
+  ctx.fillStyle='#4a1525';
+  ctx.beginPath();
+  ctx.ellipse(0,8,mw,mh,0,0,Math.PI*2);
+  ctx.fill();
+  // 小白牙
+  ctx.fillStyle='#ffffff';
+  for(const tx of [-7,0,7]){
+    ctx.beginPath();
+    ctx.moveTo(tx-3,8-mh+2);
+    ctx.lineTo(tx+3,8-mh+2);
+    ctx.lineTo(tx,8-mh+7);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawCandy(x,y,r,inBub){
+  ctx.save();
+  ctx.translate(x,y);
+  if(FX)FX.shadow(ctx,0,r+6,r*0.9,5,0.28);
+  // 糖纸两侧蝴蝶结
+  ctx.fillStyle='#ff7043';
+  for(const dir of [-1,1]){
+    ctx.beginPath();
+    ctx.moveTo(dir*(r-2),0);
+    ctx.lineTo(dir*(r+9),-8);
+    ctx.lineTo(dir*(r+9),8);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // 棒棒糖漩涡球体
+  if(FX)FX.orb(ctx,0,0,r,'#ff8a65');
+  else{
+    ctx.fillStyle='#ff8a65';
+    ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  }
+  ctx.strokeStyle='rgba(255,255,255,0.75)';
+  ctx.lineWidth=2.4;
+  ctx.beginPath();
+  ctx.arc(0,0,r*0.55,0,Math.PI*1.35);
+  ctx.stroke();
+
+  // 若处于浮力泡泡内，绘制半透明彩虹泡泡罩
+  if(inBub){
+    ctx.strokeStyle='#80deea';
+    ctx.lineWidth=2.5;
+    ctx.fillStyle='rgba(128,222,234,0.24)';
+    ctx.beginPath();ctx.arc(0,0,r+9,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.8)';
+    ctx.beginPath();ctx.ellipse(-8,-9,5,2.5,-0.6,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
+function draw(){
+  if(FX)FX.stage(ctx,W,H,'#3b2247','#1d1026');
+  else{ctx.fillStyle='#1d1026';ctx.fillRect(0,0,W,H);}
+
+  // 糖果盒内衬边框
+  if(FX)FX.tile(ctx,12,12,W-24,H-24,'#2b1836',18);
+  else{ctx.strokeStyle='#4e2d5e';ctx.strokeRect(12,12,W-24,H-24);}
+
+  if(!L)return;
+
+  // 绘制气垫吹风机
+  for(const bl of blowers){
+    ctx.save();
+    ctx.translate(bl.x,bl.y);
+    if(FX)FX.orb(ctx,0,0,17,'#4dd0e1');
+    else{ctx.fillStyle='#4dd0e1';ctx.beginPath();ctx.arc(0,0,17,0,Math.PI*2);ctx.fill();}
+    ctx.fillStyle='#00363a';
+    ctx.font='bold 14px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('💨',0,1);
+    if(bl.puff>0){
+      ctx.strokeStyle='rgba(128,222,234,'+bl.puff+')';
+      ctx.lineWidth=2.5;
+      for(let k=1;k<=3;k++){
+        ctx.beginPath();
+        ctx.arc(bl.dx*k*18,bl.dy*k*18,6+k*3,0,Math.PI*2);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // 绘制待拾取的浮力泡泡底座
+  for(const b of bubbles){
+    if(b.used)continue;
+    ctx.save();
+    ctx.strokeStyle='#80deea';
+    ctx.lineWidth=2.2;
+    ctx.setLineDash([4,3]);
+    ctx.fillStyle='rgba(128,222,234,0.18)';
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font='16px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🫧',b.x,b.y);
+    ctx.restore();
+  }
+
+  // 绘制旋转尖刺
+  for(const sp of spikes){
+    ctx.save();
+    ctx.translate(sp.x,sp.y);
+    ctx.rotate(sp.ang);
+    ctx.fillStyle='#ff5252';
+    ctx.beginPath();
+    for(let i=0;i<16;i++){
+      const r=i%2===0?sp.r+4:sp.r-5;
+      const a=i*Math.PI/8;
+      i===0?ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r):ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    if(FX)FX.orb(ctx,0,0,8,'#b71c1c');
+    ctx.restore();
+  }
+
+  // 绘制星星
+  for(const s of stars){
+    if(s.got)continue;
+    const by=s.y+Math.sin(tAnim*3.2+s.bob)*4;
+    if(FX){
+      FX.glow(ctx,'#ffd54f',10);
+      FX.orb(ctx,s.x|0,by|0,13,'#ffd54f');
+      FX.noGlow(ctx);
+    }else{
+      ctx.fillStyle='#ffd54f';
+      ctx.beginPath();ctx.arc(s.x,by,13,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle='#5d3a00';
+    ctx.font='bold 13px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('★',s.x,by+1);
+  }
+
+  // 绘制小怪兽 Om-Nom
+  drawMonster(target.x,target.y,target.mouth);
+
+  // 绘制绳索与锚点
+  for(const rp of ropes){
+    if(!rp.cut){
+      const mx=(rp.ax+candy.x)*0.5;
+      const my=(rp.ay+candy.y)*0.5+10;
+      ctx.strokeStyle='#d7ccc8';
+      ctx.lineWidth=4.5;
+      ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(rp.ax,rp.ay);
+      ctx.quadraticCurveTo(mx,my,candy.x,candy.y);
+      ctx.stroke();
+
+      ctx.strokeStyle='#8d6e63';
+      ctx.lineWidth=2;
+      ctx.setLineDash([5,5]);
+      ctx.beginPath();
+      ctx.moveTo(rp.ax,rp.ay);
+      ctx.quadraticCurveTo(mx,my,candy.x,candy.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // 顶部图钉锚点
+    if(FX)FX.orb(ctx,rp.ax|0,rp.ay|0,8,rp.cut?'#78909c':'#ffca28');
+    else{
+      ctx.fillStyle=rp.cut?'#78909c':'#ffca28';
+      ctx.beginPath();ctx.arc(rp.ax,rp.ay,8,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  // 绘制糖果
+  drawCandy(candy.x,candy.y,candy.r,candy.inBubble);
+
+  // 绘制手指滑动刀光
+  if(slashTrail.length>1){
+    ctx.save();
+    ctx.strokeStyle='#ffffff';
+    ctx.lineWidth=3.5;
+    ctx.lineCap='round';
+    if(FX)FX.glow(ctx,'#ff8a65',12);
+    ctx.beginPath();
+    slashTrail.forEach((p,idx)=>idx?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if(FX)FX.drawBurst(ctx,sparks);
+  for(const f of floats){
+    ctx.globalAlpha=Math.max(0,f.life);
+    ctx.fillStyle=f.c;
+    ctx.font='bold 15px sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(f.txt,f.x,f.y);
+  }
+  ctx.globalAlpha=1;
+}
+
+function frame(t){
+  const dt=Math.min(.033,(t-last)/1000)*fast;last=t;
+  if(Kit.state==='play'&&!ended){
+    upd(dt);
+    for(let i=floats.length-1;i>=0;i--){
+      floats[i].y-=22*dt;
+      floats[i].life-=dt*1.1;
+      if(floats[i].life<=0)floats.splice(i,1);
+    }
+  }
+  draw();
+  raf=requestAnimationFrame(frame);
+}
+
+function layout(){
+  const b=$('box').getBoundingClientRect();
+  const s=Math.min(b.width/W,b.height/H);
+  cv.style.width=Math.floor(W*s)+'px';
+  cv.style.height=Math.floor(H*s)+'px';
+}
+addEventListener('resize',layout);layout();
+
+$('startH').textContent='🍬 割绳子';
+$('startP').innerHTML='15 关物理摆动解谜：滑动手指割断绳索，配合💨气垫与🫧浮力泡泡！<br>避开旋转尖刺、收集 3 颗金星，把美味糖果送进小怪兽嘴里！';
+
+Kit.init({
+  id:'cutrope',
+  levels:15,
+  boss:[5,10,15],
+  bossName:i=>LV[i].boss,
+  start,
+  stop:()=>{ended=true;},
+  pause:()=>{},
+  note:()=>'滑动割绳或点击下方快捷按钮，收集3星并喂饱小怪兽',
+  tut:[
+    ['滑动割绳','手指划过绳索（或直接点击绳索/✂️智割主绳）即可割断绳子，利用重力与钟摆惯性摆动糖果！','✂️'],
+    ['气垫与泡泡','点击画面中的「💨气垫」向糖果吹风助推；让糖果触碰「🫧泡泡」可反重力升空，再点泡泡即可戳破下落！','🫧'],
+    ['收星与躲刺','顺路触碰 3 颗 ⭐金星可获满星评价与丰厚金币；千万小心红色旋转尖刺！','⭐'],
+    ['三大机关首领','第 5/10/15 关迎战旋转尖刺迷阵、双重泡泡涡流与终极钟摆糖果屋！','👑']
+  ],
+  ups:[
+    {k:'mag',ic:'🧲',name:'磁力星冠',desc:'糖果自动吸附周围金星范围扩大',max:2,cost:l=>22+l*25},
+    {k:'air',ic:'💨',name:'涡轮气垫',desc:'气垫吹风推力与控糖精准度提升',max:2,cost:l=>26+l*28},
+    {k:'shield',ic:'🛡️',name:'糖衣护盾',desc:'每关抵挡1次尖刺或出界弹回',max:2,cost:l=>30+l*32,stars:5}
+  ]
+});
+
+window.__T.state=()=>({candyX:candy?candy.x|0:0,candyY:candy?candy.y|0:0,ropesLeft:ropes?ropes.filter(r=>!r.cut).length:0,gotStars,score,ended});
+window.__T.fast=k=>{fast=k;};
+window.__T.cheatWin=()=>{gotStars=3;winLevel();};
+window.__T.solve=()=>{
+  if(ended||Kit.state!=='play')return;
+  smartSolveStep();
+};
 </script>
-<script>GameUI.autoPause();</script>
 </body>
 </html>
