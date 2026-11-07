@@ -2,30 +2,42 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>小行星</title>
+<link rel="icon" href="data:,">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden;background:#0d0d16;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#fff;user-select:none;-webkit-user-select:none}
-#wrap{max-width:480px;height:100%;margin:0 auto;position:relative;background:radial-gradient(ellipse at 50% 30%,#1b1b2e 0%,#0d0d16 70%);touch-action:none}
-canvas{display:block;width:100%;height:100%;touch-action:none}
-.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;pointer-events:none;font-size:15px}
-.hud .left{font-weight:bold;text-shadow:0 0 8px #4fc3f7}
-.hud .right{display:flex;gap:8px;pointer-events:auto}
-.iconbtn{width:38px;height:38px;border-radius:50%;border:1px solid #4fc3f755;background:#1c1c2bd9;color:#fff;font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s}
-.iconbtn:active{transform:scale(.9)}
-.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,20,.88);backdrop-filter:blur(4px);z-index:10;text-align:center;padding:24px}
-.screen h1{font-size:38px;margin-bottom:6px;background:linear-gradient(135deg,#4fc3f7,#7c4dff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.screen p{color:#aaa;font-size:14px;line-height:1.7;margin:12px 0 20px}
-.bigbtn{padding:14px 56px;font-size:18px;border:none;border-radius:30px;background:linear-gradient(135deg,#4fc3f7,#7c4dff);color:#fff;font-weight:bold;cursor:pointer;transition:transform .1s;box-shadow:0 4px 20px #4fc3f755}
-.bigbtn:active{transform:scale(.93)}
-.score{font-size:52px;font-weight:bold;background:linear-gradient(135deg,#ffd740,#ff7043);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:8px 0}
-.hiscore{color:#888;font-size:14px;margin-bottom:20px}
-.hidden{display:none!important}
-.lives{color:#ff8a80;letter-spacing:2px}
-#dragTip{position:absolute;bottom:26px;left:0;right:0;text-align:center;font-size:13px;color:#8a90b8;pointer-events:none;z-index:5}
+html,body{height:100%;overflow:hidden}
+body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.wrap{width:100%;max-width:480px;height:100%;padding:8px 12px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.topbar{width:100%;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap!important;gap:6px}
+.topbar .stat{display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13px;overflow:hidden}
+.topbar .tools{display:flex;gap:6px;flex:none}
+.topbar .tools .iconbtn{min-width:44px;min-height:44px;padding:0 6px}
+.subbar{width:100%;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.prog{flex:1;height:10px;border-radius:6px;background:rgba(0,0,0,.3);overflow:hidden}.prog i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#00d9ff,#7a5cff);transition:width .2s}
+.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;z-index:20;padding:20px;text-align:center}
+.overlay.hidden,.hidden{display:none!important}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;width:100%}
+.lvgrid .lvl{min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;padding:3px!important;line-height:1.1}
+.lvgrid .lvl small{font-size:10px;letter-spacing:-1px;margin-top:2px}
+.lvgrid .lvl[disabled]{opacity:.45}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%}
+.shop{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%}
+.shop button{min-height:46px;font-size:12px!important;padding:3px!important;line-height:1.2}
+.aids{width:100%;display:flex;gap:6px;justify-content:center;flex:none}
+.aids .dbtn{min-width:46px;min-height:44px;font-size:16px;font-weight:900;padding:0 8px}
+.aids .btn{flex:1;min-height:44px;font-size:13px!important;padding:4px 8px!important}
+#tutStep{font-size:12px;opacity:.75}
+#tutPic{font-size:44px;line-height:1.1}
+#overStars{font-size:30px;letter-spacing:4px;min-height:34px}
+#toast{position:fixed;left:50%;top:15%;transform:translate(-50%,-10px);background:rgba(20,16,58,.95);color:#fff;font-weight:800;padding:10px 18px;border-radius:999px;z-index:999;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;font-size:14px;box-shadow:0 0 18px rgba(0,217,255,.55);white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+.lvTag{font-size:12px;opacity:.85}
+#cv{display:block;touch-action:none;max-width:100%;max-height:100%}
+.hint{font-size:12px;opacity:.88;text-align:center;flex:none}
 </style>
-<style>/* 360 宽小屏：顶栏图标按钮保持 ≥44px 触控尺寸 */html.game-ui :is(#muteBtn,#pauseBtn,#sndBtn,#hintBtn,#dashBtn){min-width:44px;min-height:44px}</style>
 <!-- GAME UI BEGIN -->
 <style>
 :root{--page:#10182f;--surface:#1a2742;--soft:#243754;--ink:#eff7ff;--muted:#adc3da;--accent:#8dded6;--on-accent:#102b36;--line:#38506b;--stage:#111e36;--page:#05051a;--surface:#1a1446;--soft:#2c2755;--ink:#f2f0ff;--muted:#b6b0e6;--accent:#00d9ff;--on-accent:#0b0620;--line:#7a5cff;--b-bg1:#2a1166;--b-bg2:#05051a;--b-btn:#00d9ff;--b-btn-hi:#59e6ff;--b-edge:#0077b8;--b-glow:#7a5cff;--b-glow-rgb:122,92,255;--b-pedge-rgb:122,92,255;--b-btn-ink:#004165;--b-btn-tsh:0 1px 0 rgba(255,255,255,.45);--b-coin-ink:#004165;--b-coin-tsh:none;--b-key-ink:#876cff;--b-title:#ffffff}
@@ -444,221 +456,825 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <!-- GAME UI END -->
 </head>
 <body>
-<div id="wrap">
-<canvas id="cv"></canvas>
-<div class="hud">
-<div class="left">💥 <span id="score">0</span> <span class="lives" id="lives">❤❤❤</span></div>
-<div class="right"><button class="iconbtn" id="muteBtn">🔊</button><button class="iconbtn" id="pauseBtn">⏸</button></div>
+<div class="wrap">
+  <div class="topbar">
+    <span class="stat"><span id="iconT">🚀<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span id="hitLbl">陨石 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
+    <span class="tools"><button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="mapBtn" aria-label="选择关卡">🗺️</button><button class="iconbtn" id="shopBtn" aria-label="道具商店">🛒</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+  </div>
+  <div class="subbar"><span id="goalLbl">碎星初航</span><div class="prog"><i id="progI"></i></div><span id="infoT">💥2</span></div>
+  <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
+  <div class="aids">
+    <button class="dbtn" id="btnLeft" type="button" aria-label="左旋">⟲</button>
+    <button class="dbtn" id="btnThrust" type="button" aria-label="推进">▲</button>
+    <button class="dbtn" id="btnRight" type="button" aria-label="右旋">⟳</button>
+    <button class="btn ghost" id="btnFire" type="button">🔥 等离子炮</button>
+    <button class="btn" id="btnNova" type="button">💥 超新星波</button>
+  </div>
+  <div class="hint" id="hint">点按/拖动星空自动转向推进并开火 · 击碎三级陨石与无畏战舰！</div>
 </div>
-<div id="dragTip">👆 按住屏幕任意处拖拽移动 · 拖拽中自动连射</div>
-<div class="screen" id="startScr">
-<h1>🚀 小行星</h1>
-<p>👆 按住屏幕任意处拖拽<br>飞船跟随手指移动（手指不挡视线）<br>🔥 拖拽中自动连射，击碎小行星<br>大→中→小三级碎裂 · 小心 UFO！<br>3 条命，别被撞上</p>
-<button class="bigbtn" id="startBtn">开始游戏</button>
-</div>
-<div class="screen hidden" id="overScr">
-<h1>💥 游戏结束</h1>
-<div class="score" id="finalScore">0</div>
-<div class="hiscore">最高分：<span id="hiScore">0</span></div>
-<button class="bigbtn" id="retryBtn">再来一局</button>
-</div>
-<div class="screen hidden" id="pauseScr">
-<h1>⏸ 已暂停</h1>
-<p>点击继续回到战斗</p>
-<button class="bigbtn" id="resumeBtn">继续</button>
-</div>
-</div>
-<script>
-/* GAMEPLAY UPGRADE */
-"use strict";
-var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),wrap=document.getElementById('wrap');
-var W,H,DPR;
-function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=wrap.clientWidth;H=wrap.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
-window.addEventListener('resize',resize);resize();
-// 音效
-var muted=false,AC=null;
-function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
-function tone(f,dur,type,vol,slide){if(muted)return;var c=ac();if(!c)return;try{var o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.setValueAtTime(f,c.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),c.currentTime+dur);g.gain.setValueAtTime(vol||.12,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);}catch(e){}}
-function sShoot(){tone(880,.1,'square',.06,220);}
-function sBoom(){tone(120,.35,'sawtooth',.15,40);}
-function sHit(){tone(200,.4,'sawtooth',.2,50);}
-function sUfo(){tone(440,.3,'sine',.08,880);}
-function sLife(){tone(660,.15,'sine',.1);setTimeout(function(){tone(990,.2,'sine',.1);},120);}
-document.getElementById('muteBtn').onclick=function(e){e.stopPropagation();muted=!muted;this.textContent=muted?'🔇':'🔊';};
-// 高分
-var HIKEY='g100_asteroid_hi',hi=0;
-try{hi=parseInt(GameUI.storageGet(HIKEY))||0;}catch(e){}
-// 状态
-var state='start',paused=false,score=0,lives=GameUI.pick(3,2);
-var ship,bullets,rocks,ufos,parts,floats,stars;
-var keys={l:false,r:false,t:false};
-var fireCd=0,ufoTimer=0,wave=1,invuln=0;
-// 手势拖拽状态：记录拖拽起点与飞船的相对偏移，拖拽中飞船保持该偏移跟随手指
-var dragOn=false,dragId=null,dragDX=0,dragDY=0,dragTX=0,dragTY=0;
-function newShip(){return{x:W/2,y:H/2,a:-Math.PI/2,vx:0,vy:0,r:12};}
-function rand(a,b){return a+Math.random()*(b-a);}
-function mkRock(x,y,size){var sp=size===3?rand(.4,.9):size===2?rand(.8,1.4):rand(1.4,2.1);return{x:x,y:y,size:size,r:size*16,vx:rand(-1,1)*sp*1.6,vy:rand(-1,1)*sp*1.6,a:rand(0,6.28),va:rand(-.05,.05),pts:size===3?20:size===2?50:100};}
-function spawnWave(){for(var i=0;i<3+wave;i++){var x,y,tries=0;do{x=rand(20,W-20);y=rand(20,H-20);tries++;}while(tries<20&&Math.hypot(x-ship.x,y-ship.y)<140);rocks.push(mkRock(x,y,3));}}
-function initStars(){stars=[];for(var i=0;i<80;i++)stars.push({x:Math.random()*W,y:Math.random()*H,s:Math.random()*1.8+.4,p:Math.random()*6.28});}
-function startGame(){score=0;lives=GameUI.pick(3,2);ship=newShip();bullets=[];rocks=[];ufos=[];parts=[];floats=[];wave=1;invuln=90;ufoTimer=rand(500,900);dragOn=false;dragId=null;spawnWave();
-document.getElementById('score').textContent='0';setLives();
-document.getElementById('startScr').classList.add('hidden');document.getElementById('overScr').classList.add('hidden');document.getElementById('pauseScr').classList.add('hidden');
-state='play';paused=false;}
-function setLives(){var s='';for(var i=0;i<lives;i++)s+='❤';document.getElementById('lives').textContent=s||'💀';}
-function addScore(n,x,y){score+=n;document.getElementById('score').textContent=score;floats.push({x:x,y:y,t:'+'+n,life:50,vy:-1});}
-function boom(x,y,n,col){for(var i=0;i<n;i++){var a=rand(0,6.28),sp=rand(1,4);parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rand(25,45),col:col||'#ffab40',s:rand(1.5,3.5)});}}
-function loseLife(){lives--;setLives();sHit();boom(ship.x,ship.y,26,'#ff5252');
-if(lives<=0){gameOver();}else{ship=newShip();invuln=150;}}
-function gameOver(){state='over';
-document.getElementById('finalScore').textContent=score;
-if(score>hi){hi=score;try{GameUI.storageSet(HIKEY,hi);}catch(e){}}
-document.getElementById('hiScore').textContent=hi;
-document.getElementById('overScr').classList.remove('hidden');}
-function splitRock(r){boom(r.x,r.y,r.size*8,'#b0bec5');addScore(r.pts,r.x,r.y);sBoom();
-if(r.size>1){for(var i=0;i<2;i++)rocks.push({x:r.x+rand(-6,6),y:r.y+rand(-6,6),size:r.size-1,r:(r.size-1)*16,vx:rand(-2,2),vy:rand(-2,2),a:rand(0,6.28),va:rand(-.08,.08),pts:r.size===3?50:100});}}
-function wrapPos(o){if(o.x<-30)o.x=W+30;if(o.x>W+30)o.x=-30;if(o.y<-30)o.y=H+30;if(o.y>H+30)o.y=-30;}
-function update(){
-if(state!=='play'||paused)return;
-stars.forEach(function(s){s.p+=.03;});
-fireCd=Math.max(0,fireCd-1);if(invuln>0)invuln--;
-// 手势拖拽：飞船平滑跟随（保持拖拽起点相对偏移），拖拽中自动连射
-if(dragOn){
-var nx=Math.max(ship.r,Math.min(W-ship.r,dragTX+dragDX));
-var ny=Math.max(ship.r,Math.min(H-ship.r,dragTY+dragDY));
-var mvx=(nx-ship.x)*.5,mvy=(ny-ship.y)*.5;
-ship.vx=mvx;ship.vy=mvy;ship.x+=mvx;ship.y+=mvy;
-var msp=Math.hypot(mvx,mvy);
-if(msp>1.2){var des=Math.atan2(mvy,mvx),da=des-ship.a;
-while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
-ship.a+=Math.max(-.3,Math.min(.3,da));}
-if(msp>2)parts.push({x:ship.x-Math.cos(ship.a)*14,y:ship.y-Math.sin(ship.a)*14,vx:-Math.cos(ship.a)*2+rand(-.5,.5),vy:-Math.sin(ship.a)*2+rand(-.5,.5),life:14,col:'#4fc3f7',s:2});
-fireBullet();
-}else{
-// 键盘备用（桌面）：←→旋转 ↑推进 空格开火
-if(keys.l)ship.a-=.09;if(keys.r)ship.a+=.09;
-if(keys.t){ship.vx+=Math.cos(ship.a)*.16;ship.vy+=Math.sin(ship.a)*.16;parts.push({x:ship.x-Math.cos(ship.a)*14,y:ship.y-Math.sin(ship.a)*14,vx:-Math.cos(ship.a)*2+rand(-.5,.5),vy:-Math.sin(ship.a)*2+rand(-.5,.5),life:14,col:'#4fc3f7',s:2});}
-var sp=Math.hypot(ship.vx,ship.vy);if(sp>5){ship.vx*=5/sp;ship.vy*=5/sp;}
-ship.vx*=.99;ship.vy*=.99;ship.x+=ship.vx;ship.y+=ship.vy;wrapPos(ship);
-}
-// 子弹
-for(var i=bullets.length-1;i>=0;i--){var b=bullets[i];b.x+=b.vx;b.y+=b.vy;b.life--;if(b.life<=0||b.x<-10||b.x>W+10||b.y<-10||b.y>H+10){bullets.splice(i,1);continue;}
-for(var j=rocks.length-1;j>=0;j--){var r=rocks[j];if(Math.hypot(b.x-r.x,b.y-r.y)<r.r){bullets.splice(i,1);rocks.splice(j,1);splitRock(r);break;}}
-if(bullets.indexOf(b)<0)continue;
-for(var k=ufos.length-1;k>=0;k--){var u=ufos[k];if(Math.hypot(b.x-u.x,b.y-u.y)<16){bullets.splice(i,1);ufos.splice(k,1);boom(u.x,u.y,20,'#e040fb');addScore(200,u.x,u.y);sBoom();sLife();break;}}
-}
-// 岩石
-rocks.forEach(function(r){r.x+=r.vx;r.y+=r.vy;r.a+=r.va;wrapPos(r);
-if(invuln<=0&&Math.hypot(r.x-ship.x,r.y-ship.y)<r.r+ship.r-3)loseLife();});
-// UFO
-ufoTimer--;if(ufoTimer<=0){ufoTimer=rand(700,1200);var ux=Math.random()<.5?-20:W+20;ufos.push({x:ux,y:rand(60,H/2),vx:ux<0?rand(1,1.8):-rand(1,1.8),t:0});sUfo();}
-for(var m=ufos.length-1;m>=0;m--){var uf=ufos[m];uf.x+=uf.vx;uf.t++;if(uf.x<-40||uf.x>W+40){ufos.splice(m,1);continue;}
-if(invuln<=0&&Math.hypot(uf.x-ship.x,uf.y-ship.y)<16+ship.r-3)loseLife();
-if(uf.t%90===0){/* UFO 不射击，只游荡 */}}
-if(rocks.length===0){wave++;spawnWave();}
-if(invuln>0&&invuln%30===0)sLife();
-// 粒子/飘字
-for(var p=parts.length-1;p>=0;p--){var pt=parts[p];pt.x+=pt.vx;pt.y+=pt.vy;pt.life--;if(pt.life<=0)parts.splice(p,1);}
-for(var f=floats.length-1;f>=0;f--){var fl=floats[f];fl.y+=fl.vy;fl.life--;if(fl.life<=0)floats.splice(f,1);}
-}
-function draw(){
-if(state==='start')return; // No scene objects exist until startGame initializes them.
-if(FX)return drawFx();
+<div class="overlay" id="startScr"><h1 id="startH">🚀 小行星</h1><p id="startP"></p><p id="bestLine"></p><button class="btn" id="startBtn">点火出击</button></div>
+<div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">过关</h2><div id="overStars"></div><div class="score" id="finalScore">0</div><p id="overText"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再来一次</button><button class="btn ghost" id="menu2Btn">选择关卡</button></div></div>
+<div id="toast"></div>
 
-ctx.clearRect(0,0,W,H);
-ctx.fillStyle='#ffffff';
-stars.forEach(function(s){ctx.globalAlpha=.3+.7*Math.abs(Math.sin(s.p));ctx.fillRect(s.x,s.y,s.s,s.s);});ctx.globalAlpha=1;
-function polyRock(r){ctx.beginPath();for(var i=0;i<9;i++){var a=r.a+i/9*Math.PI*2;var rr=r.r*(0.82+0.3*Math.sin(i*2.7+r.a));var px=r.x+Math.cos(a)*rr,py=r.y+Math.sin(a)*rr;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
-rocks.forEach(function(r){polyRock(r);ctx.strokeStyle='#b0bec5';ctx.lineWidth=2;ctx.stroke();});
-ufos.forEach(function(u){ctx.save();ctx.translate(u.x,u.y);ctx.fillStyle='#e040fb';ctx.beginPath();ctx.ellipse(0,0,15,8,0,0,6.28);ctx.fill();ctx.fillStyle='#ce93d8';ctx.beginPath();ctx.arc(0,-5,7,Math.PI,0);ctx.fill();ctx.restore();});
-bullets.forEach(function(b){ctx.strokeStyle='#ffd740';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(b.x-b.vx*.6,b.y-b.vy*.6);ctx.lineTo(b.x,b.y);ctx.stroke();});
-if(state==='play'&&!(invuln>0&&Math.floor(invuln/6)%2===0)){
-ctx.save();ctx.translate(ship.x,ship.y);ctx.rotate(ship.a);
-var gr=ctx.createLinearGradient(-12,0,14,0);gr.addColorStop(0,'#4fc3f7');gr.addColorStop(1,'#7c4dff');
-ctx.fillStyle=gr;ctx.beginPath();ctx.moveTo(15,0);ctx.lineTo(-10,10);ctx.lineTo(-5,0);ctx.lineTo(-10,-10);ctx.closePath();ctx.fill();ctx.restore();}
-parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/45);ctx.fillStyle=p.col;ctx.fillRect(p.x,p.y,p.s,p.s);});ctx.globalAlpha=1;
-ctx.font='bold 15px sans-serif';floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/50);ctx.fillStyle='#ffd740';ctx.fillText(f.t,f.x-10,f.y);});ctx.globalAlpha=1;
+<script>
+'use strict';
+/* ===== 关卡/教程/存档/音效 通用套件（单文件内联） ===== */
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
+const $=id=>document.getElementById(id);
+function show(id,on){$(id).classList.toggle('hidden',!on);}
+const Kit=(function(){
+  const K={state:'menu',lv:0};let cfg,P,muted,ac=null,tutI=0,tutThen=null;
+  function key(s){return 'g100_'+cfg.id+'_'+s;}
+  function load(){try{P=JSON.parse(UI.storageGet(key('prog'))||'{}')||{};}catch(e){P={};}
+    P.stars=P.stars||[];P.best=P.best||[];P.coins=P.coins||0;P.up=P.up||{};}
+  function save(){try{UI.storageSet(key('prog'),JSON.stringify(P));}catch(e){}}
+  K.save=save;K.prog=()=>P;K.up=k=>P.up[k]||0;
+  K.totalStars=()=>P.stars.reduce((a,b)=>a+(b||0),0);
+  K.hs=()=>+UI.storageGet(key('hs'))||0;
+  function tone(f,d,type,vol,f2,delay){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();
+    const t=ac.currentTime+(delay||0),o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
+    g.gain.setValueAtTime(vol||.13,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d+.02);}catch(e){}}
+  K.tone=tone;
+  K.sfx=function(n,x){switch(n){
+    case 'tap':tone(540,.05,'triangle',.08);break;
+    case 'shoot':tone(760,.06,'square',.07,280);break;
+    case 'boom':tone(150,.22,'sawtooth',.12,45);break;
+    case 'nova':tone(220,.38,'sawtooth',.14,880);tone(440,.35,'triangle',.1,110,.06);break;
+    case 'good':tone(660,.08,'sine',.11);tone(990,.1,'sine',.1,0,.06);break;
+    case 'combo':tone(520+Math.min(12,x||1)*70,.11,'sine',.1);break;
+    case 'bad':tone(210,.24,'sawtooth',.12,95);break;
+    case 'hit':tone(420,.07,'triangle',.1,720);break;
+    case 'coin':tone(1200,.07,'sine',.09);tone(1600,.09,'sine',.08,0,.06);break;
+    case 'boss':tone(120,.45,'sawtooth',.12,75);tone(185,.45,'square',.07,100,.09);break;
+    case 'win':[523,659,784,1046].forEach((f,i)=>tone(f,.18,'triangle',.12,0,i*.11));break;
+    case 'lose':[392,330,262,196].forEach((f,i)=>tone(f,.22,'sawtooth',.08,0,i*.13));break;
+    default:tone(440,.08);}};
+  function setMute(m){muted=m;try{UI.storageSet('g100_mute',m?'1':'0');}catch(e){}
+    document.querySelectorAll('.muteBtn,#muteBtn,#soundBtn').forEach(b=>b.textContent=m?'🔇':'🔊');}
+  let tt=0;K.toast=function(msg,ms){const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),ms||1300);};
+  K.vibrate=function(ms){try{if(window.NativeBridge&&window.NativeBridge.vibrate)window.NativeBridge.vibrate(ms);else if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}};
+  K.isBoss=i=>(cfg.boss||[]).includes(i+1);
+  K.unlocked=i=>i===0||(P.stars[i-1]||0)>0;
+  function stars(n){return '★★★'.slice(0,n)+'☆☆☆'.slice(0,3-n);}
+  K.starStr=stars;
+  function renderLevels(){
+    const g=$('lvgrid');g.innerHTML='';
+    for(let i=0;i<cfg.levels;i++){const b=document.createElement('button');b.className='lvl';const ok=K.unlocked(i);
+      const lab=cfg.label?cfg.label(i):String(i+1);
+      b.innerHTML=(ok?(K.isBoss(i)?'👑':'')+lab:'🔒')+'<small>'+(ok?stars(P.stars[i]||0):'&nbsp;')+'</small>';
+      if(!ok)b.disabled=true;b.addEventListener('click',()=>{K.sfx('tap');go(i);});g.appendChild(b);}
+    $('lvlInfo').textContent='⭐ '+K.totalStars()+'/'+cfg.levels*3+'   💰 '+P.coins+(K.hs()?'   🏆 '+K.hs():'');
+    $('lvlNote').textContent=cfg.note?cfg.note():'';
+    const s=$('shop');s.innerHTML='';
+    (cfg.ups||[]).forEach(u=>{const lv=K.up(u.k),max=u.max,cost=lv<max?u.cost(lv):0,b=document.createElement('button');b.className='ghost';
+      const need=u.stars&&K.totalStars()<u.stars;
+      b.innerHTML=u.ic+' '+u.name+' '+lv+'/'+max+'<br>'+(lv>=max?'已满级':need?'🔒 需 ⭐'+u.stars:'💰'+cost+' · '+u.desc);
+      if(lv>=max||need)b.disabled=true;
+      b.addEventListener('click',()=>{if(P.coins<cost){K.toast('💰 不够：通关赚取金币');K.sfx('bad');return;}P.coins-=cost;P.up[u.k]=lv+1;save();K.sfx('coin');K.toast(u.ic+' '+u.name+' 升到 '+(lv+1)+' 级');renderLevels();});
+      s.appendChild(b);});
+    s.classList.toggle('hidden',!(cfg.ups||[]).length);
+  }
+  K.menu=function(){K.state='menu';cfg.stop&&cfg.stop();['startScr','overScr','pauseOv','tutScr'].forEach(i=>show(i,false));renderLevels();show('lvlScr',true);};
+  function go(i){K.lv=i;['startScr','overScr','pauseOv','lvlScr','tutScr'].forEach(x=>show(x,false));K.state='play';
+    if(K.isBoss(i))setTimeout(()=>{K.sfx('boss');K.toast('👑 首领关：'+(cfg.bossName?cfg.bossName(i):'强敌来袭'),1800);},60);
+    else K.sfx('tap');cfg.start(i);}
+  K.go=go;
+  function tutShow(){const t=cfg.tut[tutI];$('tutH').textContent=t[0];$('tutP').innerHTML=t[1];$('tutPic').textContent=t[2]||'';$('tutStep').textContent=(tutI+1)+' / '+cfg.tut.length;$('tutNext').textContent=tutI===cfg.tut.length-1?'明白了，出击！':'下一步';}
+  K.tutorial=function(then){tutI=0;tutThen=then;['startScr','lvlScr'].forEach(x=>show(x,false));tutShow();show('tutScr',true);};
+  function tutEnd(){show('tutScr',false);P.tut=1;save();(tutThen||K.menu)();}
+  K.pause=function(){if(K.state!=='play')return;K.state='pause';cfg.pause&&cfg.pause();$('pauseInfo').textContent=(cfg.label?'第 '+cfg.label(K.lv):'第 '+(K.lv+1))+' 关'+(K.isBoss(K.lv)?' · 首领关':'');show('pauseOv',true);};
+  K.resume=function(){if(K.state!=='pause')return;K.state='play';show('pauseOv',false);cfg.resume&&cfg.resume();};
+  K.win=function(st,score,text){if(K.state!=='play')return;K.state='over';st=Math.max(1,Math.min(3,st|0));const i=K.lv;
+    const old=P.stars[i]||0,gain=st*4+(old?0:6)+(K.isBoss(i)?8:0)+(cfg.coinBonus?cfg.coinBonus(i,st,score):0);P.coins+=gain;
+    if(st>old)P.stars[i]=st;if((score||0)>(P.best[i]||0))P.best[i]=score;
+    const tot=P.best.reduce((a,b)=>a+(b||0),0);if(tot>K.hs())UI.storageSet(key('hs'),tot);save();
+    $('overH').textContent=K.isBoss(i)?'👑 击沉母舰！':'🎉 星域肃清！';$('overStars').textContent=stars(st);$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>💰 +'+gain+'　本关最佳 '+(P.best[i]||0);
+    const hasNext=i+1<cfg.levels;$('nextBtn').classList.toggle('hidden',!hasNext);if(hasNext)$('nextBtn').textContent=K.isBoss(i+1)?'👑 挑战首领':'下一关';
+    show('overScr',true);K.sfx('win');cfg.stop&&cfg.stop();};
+  K.lose=function(text,score){if(K.state!=='play')return;K.state='over';const gain=Math.min(3,K.lv>0?2:1);P.coins+=gain;save();
+    $('overH').textContent='💥 战机受损';$('overStars').textContent='☆☆☆';$('finalScore').textContent=score||0;
+    $('overText').innerHTML=(text||'')+'<br>安慰金 💰 +'+gain+'　可在选关页升级战机再战';
+    $('nextBtn').classList.add('hidden');show('overScr',true);K.sfx('lose');K.vibrate(120);cfg.stop&&cfg.stop();};
+  K.init=function(c){cfg=c;load();setMute(UI.storageGet('g100_mute')==='1');
+    document.querySelectorAll('.muteBtn,#muteBtn,#soundBtn').forEach(b=>b.addEventListener('click',()=>{setMute(!muted);if(!muted)K.sfx('tap');}));
+    $('startBtn').addEventListener('click',()=>{K.sfx('tap');if(!P.tut)K.tutorial(K.menu);else K.menu();});
+    $('tutNext').addEventListener('click',()=>{K.sfx('tap');if(tutI<cfg.tut.length-1){tutI++;tutShow();}else tutEnd();});
+    $('tutSkip').addEventListener('click',tutEnd);
+    $('howBtn').addEventListener('click',()=>K.tutorial(K.menu));
+    $('homeBtn').addEventListener('click',()=>{show('lvlScr',false);show('startScr',true);K.state='menu';});
+    $('pauseBtn').addEventListener('click',()=>K.state==='play'?K.pause():K.resume());
+    if($('mapBtn'))$('mapBtn').addEventListener('click',()=>K.menu());
+    if($('shopBtn'))$('shopBtn').addEventListener('click',()=>K.menu());
+    $('resumeBtn').addEventListener('click',K.resume);
+    $('restartBtn').addEventListener('click',()=>go(K.lv));
+    $('menuBtn').addEventListener('click',K.menu);$('menu2Btn').addEventListener('click',K.menu);
+    $('againBtn').addEventListener('click',()=>go(K.lv));
+    $('nextBtn').addEventListener('click',()=>go(Math.min(cfg.levels-1,K.lv+1)));
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)K.pause();});
+    const bl=$('bestLine');if(bl)bl.textContent=P.stars.length?('进度 ⭐'+K.totalStars()+'/'+cfg.levels*3+(K.hs()?' · 🏆 '+K.hs():'')):'首次游玩会有简短教程';
+    window.__T=window.__T||{};window.__T.kit=K;};
+  return K;
+})();
+/* ===== 套件结束 ===== */
+
+const W=360,H=400;
+const cv=$('cv'),ctx=cv.getContext('2d');
+if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+
+// 15 关星域配置：rocks 初始大型陨石数、spd 陨石速度倍率、ufos 敌方飞碟数、boss 首领战舰
+const LV=[
+  {name:'碎星初航',rocks:2,spd:0.85,ufos:0},
+  {name:'小行星带',rocks:3,spd:0.9,ufos:0},
+  {name:'侦察飞碟',rocks:3,spd:0.95,ufos:1},
+  {name:'冰晶彗星',rocks:4,spd:1.0,ufos:1},
+  {boss:{name:'陨星母舰·泰坦号',ic:'🛸',hp:26,rocks:2,spd:1.0,type:'titan'},name:'陨星母舰·泰坦号'},
+  {name:'双子星涡',rocks:4,spd:1.05,ufos:1},
+  {name:'熔岩火流星',rocks:4,spd:1.08,ufos:2},
+  {name:'乱石穿空',rocks:5,spd:1.12,ufos:2},
+  {name:'深空猎手',rocks:5,spd:1.15,ufos:2},
+  {boss:{name:'虚空歼星舰·天蚀',ic:'👾',hp:36,rocks:3,spd:1.15,type:'eclipse'},name:'虚空歼星舰·天蚀'},
+  {name:'高能雷暴带',rocks:5,spd:1.18,ufos:2},
+  {name:'星环碎片',rocks:6,spd:1.2,ufos:2},
+  {name:'极速星流',rocks:6,spd:1.24,ufos:3},
+  {name:'终焉前哨',rocks:6,spd:1.28,ufos:3},
+  {boss:{name:'星环主宰·奥米茄',ic:'🪐',hp:48,rocks:3,spd:1.3,type:'omega'},name:'星环主宰·奥米茄'}
+];
+
+const STARS=Array.from({length:42},(_,i)=>({
+  x:(i*73+19)%W,
+  y:(i*97+31)%H,
+  r:1+(i%3)*0.6,
+  a:0.3+(i%5)*0.14
+}));
+
+let L,cfgL,ship,rocks,bullets,ebullets,ufos,cores,novas,sparks,floats,bossUnit;
+let lives,novasLeft,score,ended,totalWeight,clearedWeight,ufoLeft,ufoTimer;
+let keys={left:false,right:false,up:false,fire:false},ptr={active:false,x:W/2,y:H/2};
+let raf=0,last=0,fast=1,shakeT=0,tAnim=0;
+
+function wrapPos(o,pad=24){
+  if(o.x<-pad)o.x+=W+pad*2;
+  else if(o.x>W+pad)o.x-=W+pad*2;
+  if(o.y<-pad)o.y+=H+pad*2;
+  else if(o.y>H+pad)o.y-=H+pad*2;
 }
-/* 画面升级（霓虹糖果立体，GameUI.fx）：上面的平面 draw() 保留为无 FX 兜底；玩法、碰撞、计分不变 */
-var FX=window.GameUI&&GameUI.fx&&GameUI.fx.on?GameUI.fx:null,rockSpr={},nebula=null,nebKey='';
-var ROCKC=['#9d7bff','#ff8ac6','#5fd0ff'];
-function fxRock(size,v){
-  var key=size+'_'+v;if(rockSpr[key])return rockSpr[key];
-  var r=size*16,pad=6,d=Math.max(1,Math.min(2.5,window.devicePixelRatio||1)),c=document.createElement('canvas'),S=Math.ceil((r*1.15+pad)*2);
-  c.width=Math.ceil(S*d);c.height=Math.ceil(S*d);var g=c.getContext('2d');g.scale(d,d);g.translate(S/2,S/2);
-  var s=size*31+v*7+3;function rnd(){s=(s*16807)%2147483647;return s/2147483647;}
-  var pts=[];for(var i=0;i<11;i++){var a=i/11*Math.PI*2,rr=r*(0.84+rnd()*0.26);pts.push([Math.cos(a)*rr,Math.sin(a)*rr]);}
-  function path(){g.beginPath();pts.forEach(function(p,i){i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]);});g.closePath();}
-  var col=ROCKC[(size+v)%3];
-  g.save();g.translate(2,4);path();g.fillStyle='rgba(0,0,0,.4)';g.fill();g.restore();
-  path();var bg=g.createRadialGradient(-r*.35,-r*.4,r*.1,0,0,r*1.1);bg.addColorStop(0,FX.shade(col,.55));bg.addColorStop(.45,FX.shade(col,-.15));bg.addColorStop(1,FX.shade(col,-.6));g.fillStyle=bg;g.fill();
-  g.lineWidth=2;g.strokeStyle=FX.shade(col,.35);g.stroke();
-  for(var k=0;k<size+1;k++){var cx=(rnd()-.5)*r*1.1,cy=(rnd()-.5)*r*1.1,cr=r*(.12+rnd()*.12);
-    g.fillStyle='rgba(20,0,50,.32)';g.beginPath();g.arc(cx,cy,cr,0,7);g.fill();g.fillStyle='rgba(255,255,255,.22)';g.beginPath();g.arc(cx-cr*.25,cy-cr*.3,cr*.55,0,7);g.fill();}
-  g.fillStyle='rgba(255,255,255,.55)';g.beginPath();g.ellipse(-r*.38,-r*.45,r*.22,r*.1,-.6,0,7);g.fill();
-  c._s=S;rockSpr[key]=c;return c;
+
+function makeRock(x,y,sz,kind){
+  const r=sz===3?26:sz===2?17:10;
+  const ang=Math.random()*Math.PI*2;
+  const spd=(38+(4-sz)*22)*(cfgL.spd||1)*(kind==='comet'?1.25:1);
+  const pts=[];
+  const vCount=7+sz*2;
+  for(let i=0;i<vCount;i++){
+    const a=(i/vCount)*Math.PI*2;
+    const rad=r*(0.78+((i*37)%23)/70);
+    pts.push({a,rad});
+  }
+  return {
+    x,y,
+    vx:Math.cos(ang)*spd,
+    vy:Math.sin(ang)*spd,
+    r,sz,
+    kind:kind||(Math.random()<0.25?'comet':Math.random()<0.35?'magma':'rock'),
+    rot:0,
+    vrot:(Math.random()-0.5)*2.4,
+    pts
+  };
 }
-function fxNebula(){
-  var k=W+'x'+H+'@'+DPR;if(nebula&&nebKey===k)return nebula;nebKey=k;
-  var d=DPR,c=document.createElement('canvas');c.width=Math.round(W*d);c.height=Math.round(H*d);var g=c.getContext('2d');g.scale(d,d);
-  var bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#1d0b4d');bg.addColorStop(1,'#05031a');g.fillStyle=bg;g.fillRect(0,0,W,H);
-  [[.2,.25,'255,61,154',.22],[.8,.55,'0,200,255',.18],[.45,.85,'178,107,255',.2]].forEach(function(n){var gr=g.createRadialGradient(W*n[0],H*n[1],10,W*n[0],H*n[1],Math.max(W,H)*.45);gr.addColorStop(0,'rgba('+n[2]+','+n[3]+')');gr.addColorStop(1,'rgba('+n[2]+',0)');g.fillStyle=gr;g.fillRect(0,0,W,H);});
-  // 远景小行星带（静态，离屏缓存一次）
-  for(var i=0;i<26;i++){var x=(i*97)%W,y=H*.12+((i*53)%Math.round(H*.8)),rr=1.5+(i%4);g.fillStyle='rgba(157,123,255,'+(.08+(i%3)*.04)+')';g.beginPath();g.arc(x,y,rr,0,7);g.fill();}
-  nebula=c;return c;
+
+function start(i){
+  L=LV[i];cfgL=L.boss||L;
+  lives=UI.pick(3,2)+Kit.up('shield');
+  novasLeft=2+Kit.up('nova');
+  score=0;ended=false;shakeT=0;
+  ship={
+    x:W/2,y:H/2,vx:0,vy:0,a:-Math.PI/2,
+    cd:0,invuln:2.2,spreadT:0,thrusting:false
+  };
+  rocks=[];bullets=[];ebullets=[];ufos=[];cores=[];novas=[];sparks=[];floats=[];bossUnit=null;
+  keys={left:false,right:false,up:false,fire:false};
+  ptr.active=false;
+
+  const nRocks=cfgL.rocks;
+  for(let k=0;k<nRocks;k++){
+    const ang=(k/nRocks)*Math.PI*2+0.4;
+    const rx=W/2+Math.cos(ang)*135;
+    const ry=H/2+Math.sin(ang)*135;
+    rocks.push(makeRock(rx,ry,3,k%2===1?'comet':'rock'));
+  }
+
+  ufoLeft=cfgL.ufos||0;
+  ufoTimer=3.5;
+
+  if(L.boss){
+    bossUnit={
+      name:L.boss.name,ic:L.boss.ic,type:L.boss.type,
+      x:W/2,y:68,vx:55,vy:0,r:28,
+      hp:L.boss.hp,maxHp:L.boss.hp,
+      fireT:1.8,spawnT:4.5,alive:true
+    };
+  }
+
+  // 每颗 3 级陨石相当于 1+2+4 = 7 权重单位
+  totalWeight=nRocks*7+ufoLeft*3+(bossUnit?bossUnit.maxHp:0);
+  clearedWeight=0;
+  hud();
+  last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);
 }
-function drawFx(){
-  ctx.drawImage(fxNebula(),0,0,W,H);
-  ctx.fillStyle='#ffffff';
-  stars.forEach(function(s){ctx.globalAlpha=.3+.7*Math.abs(Math.sin(s.p));ctx.fillRect(s.x,s.y,s.s,s.s);});ctx.globalAlpha=1;
-  rocks.forEach(function(r){if(r._v==null)r._v=(Math.random()*4)|0;var c=fxRock(r.size,r._v);FX.shadow(ctx,r.x+3,r.y+r.r*.9,r.r*.8,r.r*.22,.22);ctx.save();ctx.translate(r.x,r.y);ctx.rotate(r.a);ctx.drawImage(c,-c._s/2,-c._s/2,c._s,c._s);ctx.restore();});
-  ufos.forEach(function(u){FX.shadow(ctx,u.x,u.y+14,15,4,.3);FX.glow(ctx,'#ff5cf0',16);FX.tile(ctx,Math.round(u.x-17),Math.round(u.y-5),34,11,'#e040fb',5);FX.noGlow(ctx);FX.orb(ctx,Math.round(u.x),Math.round(u.y-5),7,'#7af5ff');
-    ctx.fillStyle=(u.t>>3)%2?'#ffe14d':'#fff';[-10,0,10].forEach(function(o){ctx.beginPath();ctx.arc(u.x+o,u.y+1,1.6,0,7);ctx.fill();});});
-  FX.glow(ctx,'#ffd34d',10);ctx.strokeStyle='#ffe58a';ctx.lineWidth=3.5;ctx.lineCap='round';
-  bullets.forEach(function(b){ctx.beginPath();ctx.moveTo(b.x-b.vx*.8,b.y-b.vy*.8);ctx.lineTo(b.x,b.y);ctx.stroke();});FX.noGlow(ctx);
-  parts.forEach(function(p){ctx.globalAlpha=Math.max(0,p.life/45);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.s*.8,0,7);ctx.fill();});ctx.globalAlpha=1;
-  // 拖拽中：手指位置的引导光圈（#11 手势操作的可视反馈）
-  if(state==='play'&&dragOn){var pul=.5+.5*Math.sin(Date.now()/160);ctx.strokeStyle='rgba(0,229,255,'+(.35+.3*pul)+')';ctx.lineWidth=2;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(dragTX,dragTY,16+pul*4,0,7);ctx.stroke();ctx.setLineDash([]);}
-  if(state==='play'&&!(invuln>0&&Math.floor(invuln/6)%2===0)){
-    var moving=keys.t||(dragOn&&Math.hypot(ship.vx,ship.vy)>1.2);
-    ctx.save();ctx.translate(ship.x,ship.y);ctx.rotate(ship.a);
-    if(moving){var fl=ctx.createLinearGradient(-22,0,-6,0);fl.addColorStop(0,'rgba(255,90,60,0)');fl.addColorStop(1,'#ffd34d');ctx.fillStyle=fl;ctx.beginPath();ctx.moveTo(-6,-5);ctx.lineTo(-20-Math.random()*6,0);ctx.lineTo(-6,5);ctx.closePath();ctx.fill();}
-    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.moveTo(17,3);ctx.lineTo(-8,13);ctx.lineTo(-3,3);ctx.lineTo(-8,-7);ctx.closePath();ctx.fill();
-    FX.glow(ctx,'rgba(0,229,255,.8)',14);
-    var gr=ctx.createLinearGradient(0,-11,0,11);gr.addColorStop(0,'#bdf6ff');gr.addColorStop(.45,'#38c8ff');gr.addColorStop(1,'#5a3dff');
-    ctx.fillStyle=gr;ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-10,11);ctx.lineTo(-5,0);ctx.lineTo(-10,-11);ctx.closePath();ctx.fill();FX.noGlow(ctx);
-    ctx.fillStyle='rgba(255,255,255,.7)';ctx.beginPath();ctx.moveTo(13,-1);ctx.lineTo(-6,-8);ctx.lineTo(-3,-2);ctx.closePath();ctx.fill();
-    FX.orb(ctx,3,0,3,'#ff3d9a');
-    ctx.restore();
-    if(invuln>0){ctx.strokeStyle='rgba(122,245,255,.5)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(ship.x,ship.y,22,0,7);ctx.stroke();}}
-  ctx.font='900 16px sans-serif';ctx.lineJoin='round';ctx.lineWidth=4;floats.forEach(function(f){ctx.globalAlpha=Math.max(0,f.life/50);ctx.strokeStyle='#2a0a4a';ctx.strokeText(f.t,f.x-10,f.y);ctx.fillStyle='#ffe14d';ctx.fillText(f.t,f.x-10,f.y);});ctx.globalAlpha=1;
+
+function fireCannon(){
+  if(ended||Kit.state!=='play'||ship.cd>0)return;
+  const lv=Kit.up('cannon');
+  ship.cd=Math.max(0.11,0.19-lv*0.03);
+  const spreadAngles=ship.spreadT>0||lv>=2?[-0.18,0,0.18]:lv===1?[-0.1,0.1]:[0];
+  for(const da of spreadAngles){
+    const a=ship.a+da;
+    bullets.push({
+      x:ship.x+Math.cos(a)*14,
+      y:ship.y+Math.sin(a)*14,
+      vx:Math.cos(a)*310+ship.vx*0.25,
+      vy:Math.sin(a)*310+ship.vy*0.25,
+      life:1.15,
+      col:ship.spreadT>0?'#ffea00':'#00e5ff'
+    });
+  }
+  Kit.sfx('shoot');
 }
-function loop(){update();draw();requestAnimationFrame(loop);}
-initStars();loop();
-// 输入：全屏手势拖拽（底部按键已删除，拖拽中自动连射）
-function pointPos(e){var r=wrap.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
-wrap.addEventListener('pointerdown',function(e){
-if(state!=='play'||paused||dragId!==null)return;
-if(e.target.closest('.iconbtn')||e.target.closest('.screen'))return;
-e.preventDefault();
-var p=pointPos(e);dragId=e.pointerId;dragOn=true;
-dragDX=ship.x-p.x;dragDY=ship.y-p.y;dragTX=p.x;dragTY=p.y;
-fireBullet();
+
+function triggerNova(free=false){
+  if(ended||Kit.state!=='play')return;
+  if(!free){
+    if(novasLeft<=0){Kit.toast('💥 超新星波已用完！拾取⭐星核或商店升级可补充');Kit.sfx('bad');return;}
+    novasLeft--;
+  }
+  novas.push({x:ship.x,y:ship.y,r:16,maxR:320,hitSet:new Set()});
+  ebullets.length=0; // 清空敌弹
+  ship.invuln=Math.max(ship.invuln,1.2);
+  shakeT=0.32;
+  Kit.sfx('nova');
+  Kit.vibrate(65);
+  hud();
+}
+
+function shatterRock(idx,byNova=false){
+  const rk=rocks[idx];
+  if(!rk)return;
+  rocks.splice(idx,1);
+  clearedWeight++;
+  const pts=rk.sz===3?40:rk.sz===2?70:110;
+  score+=pts;
+  const col=rk.kind==='comet'?'#00e5ff':rk.kind==='magma'?'#ff7043':'#b0bec5';
+  if(FX)FX.burst(sparks,rk.x,rk.y,col,12);
+  Kit.sfx('boom');
+
+  if(rk.sz>1){
+    // 裂解为 2 颗下一级陨石（若是超新星波直接粉碎小陨石则加速清场）
+    const count=byNova&&rk.sz===2?1:2;
+    for(let i=0;i<count;i++){
+      rocks.push(makeRock(rk.x+(i*10-5),rk.y+(i*8-4),rk.sz-1,rk.kind));
+    }
+    if(byNova&&rk.sz===2)clearedWeight+=2;
+  }else{
+    // 小陨石碎裂掉落 ⭐星核 或 ⚡散射赋能
+    if(Math.random()<0.48||rk.kind==='comet'){
+      const isPow=Math.random()<0.28;
+      cores.push({x:rk.x,y:rk.y,vx:(Math.random()-0.5)*30,vy:(Math.random()-0.5)*30,pow:isPow,life:8});
+    }
+  }
+  hud();
+  checkWin();
+}
+
+function hitShip(why){
+  if(ended||ship.invuln>0)return;
+  lives--;
+  ship.invuln=2.4;
+  shakeT=0.35;
+  if(FX)FX.burst(sparks,ship.x,ship.y,'#ff5252',18);
+  floats.push({x:ship.x,y:ship.y-12,txt:'🛡️护盾受损 -1❤️',c:'#ff5252',life:1});
+  Kit.sfx('bad');Kit.vibrate(90);
+  hud();
+  if(lives<=0){
+    endLv(false,why||'战机在陨石带中被击毁');
+  }
+}
+
+function checkWin(){
+  if(ended)return false;
+  const bossAlive=bossUnit&&bossUnit.alive&&bossUnit.hp>0;
+  if(rocks.length===0&&ufos.length===0&&ufoLeft<=0&&!bossAlive){
+    score+=150+lives*40+novasLeft*25;
+    hud();
+    endLv(true,L.boss?'成功击沉外星旗舰「'+L.boss.name+'」！':'该星区所有三级小行星已全部肃清！');
+    return true;
+  }
+  return false;
+}
+
+function endLv(won,why){
+  if(ended)return;ended=true;
+  if(won){
+    const st=lives>=3?3:lives>=2?2:1;
+    setTimeout(()=>Kit.win(st,score,why),240);
+  }else{
+    setTimeout(()=>Kit.lose(why,score),220);
+  }
+}
+
+function upd(dt){
+  tAnim+=dt;
+  if(shakeT>0)shakeT=Math.max(0,shakeT-dt);
+  if(ship.cd>0)ship.cd=Math.max(0,ship.cd-dt);
+  if(ship.invuln>0)ship.invuln=Math.max(0,ship.invuln-dt);
+  if(ship.spreadT>0)ship.spreadT=Math.max(0,ship.spreadT-dt);
+
+  // 战机转向与推进控制
+  if(ptr.active){
+    const dx=ptr.x-ship.x,dy=ptr.y-ship.y;
+    const dist=Math.hypot(dx,dy);
+    ship.a=Math.atan2(dy,dx);
+    if(dist>28){
+      ship.vx+=Math.cos(ship.a)*210*dt;
+      ship.vy+=Math.sin(ship.a)*210*dt;
+      ship.thrusting=true;
+    }else{
+      ship.thrusting=false;
+    }
+    fireCannon();
+  }else{
+    if(keys.left)ship.a-=3.8*dt;
+    if(keys.right)ship.a+=3.8*dt;
+    if(keys.up){
+      ship.vx+=Math.cos(ship.a)*220*dt;
+      ship.vy+=Math.sin(ship.a)*220*dt;
+      ship.thrusting=true;
+    }else{
+      ship.thrusting=false;
+    }
+    if(keys.fire)fireCannon();
+  }
+
+  // 速度阻尼与环绕屏幕
+  ship.vx*=Math.pow(0.55,dt);
+  ship.vy*=Math.pow(0.55,dt);
+  const spd=Math.hypot(ship.vx,ship.vy);
+  if(spd>195){ship.vx=ship.vx/spd*195;ship.vy=ship.vy/spd*195;}
+  ship.x+=ship.vx*dt;
+  ship.y+=ship.vy*dt;
+  wrapPos(ship,14);
+
+  // 超新星冲击波扩散
+  for(let i=novas.length-1;i>=0;i--){
+    const nv=novas[i];
+    nv.r+=420*dt;
+    for(let j=rocks.length-1;j>=0;j--){
+      const rk=rocks[j];
+      if(!nv.hitSet.has(rk)&&Math.hypot(rk.x-nv.x,rk.y-nv.y)<=nv.r+rk.r){
+        nv.hitSet.add(rk);
+        shatterRock(j,true);
+      }
+    }
+    for(let j=ufos.length-1;j>=0;j--){
+      const u=ufos[j];
+      if(Math.hypot(u.x-nv.x,u.y-nv.y)<=nv.r+u.r){
+        ufos.splice(j,1);
+        clearedWeight+=3;score+=160;
+        if(FX)FX.burst(sparks,u.x,u.y,'#ff4081',16);
+        floats.push({x:u.x,y:u.y,txt:'🛸击落 +160',c:'#ff80ab',life:1});
+        checkWin();
+      }
+    }
+    if(bossUnit&&bossUnit.alive&&!nv.hitSet.has(bossUnit)&&Math.hypot(bossUnit.x-nv.x,bossUnit.y-nv.y)<=nv.r+bossUnit.r){
+      nv.hitSet.add(bossUnit);
+      const dmg=Math.min(bossUnit.hp,8+Kit.up('nova')*3);
+      bossUnit.hp-=dmg;clearedWeight+=dmg;score+=220;
+      if(FX)FX.burst(sparks,bossUnit.x,bossUnit.y,'#00e5ff',20);
+      floats.push({x:bossUnit.x,y:bossUnit.y,txt:'💥超新星重创 -'+dmg,c:'#00e5ff',life:1});
+      if(bossUnit.hp<=0){bossUnit.alive=false;score+=600;checkWin();}
+    }
+    if(nv.r>=nv.maxR)novas.splice(i,1);
+  }
+
+  // 玩家等离子炮弹更新
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
+    wrapPos(b,6);
+    if(b.life<=0){bullets.splice(i,1);continue;}
+
+    let hit=false;
+    for(let j=rocks.length-1;j>=0;j--){
+      const rk=rocks[j];
+      if(Math.hypot(b.x-rk.x,b.y-rk.y)<=rk.r+5){
+        bullets.splice(i,1);hit=true;
+        shatterRock(j,false);
+        break;
+      }
+    }
+    if(hit||ended)continue;
+
+    for(let j=ufos.length-1;j>=0;j--){
+      const u=ufos[j];
+      if(Math.hypot(b.x-u.x,b.y-u.y)<=u.r+5){
+        bullets.splice(i,1);hit=true;
+        u.hp--;
+        if(u.hp<=0){
+          ufos.splice(j,1);clearedWeight+=3;score+=150;
+          if(FX)FX.burst(sparks,u.x,u.y,'#ff4081',16);
+          floats.push({x:u.x,y:u.y,txt:'🛸+150',c:'#ff80ab',life:1});
+          cores.push({x:u.x,y:u.y,vx:0,vy:0,pow:true,life:8});
+          Kit.sfx('boom');
+          checkWin();
+        }else{
+          Kit.sfx('hit');
+        }
+        break;
+      }
+    }
+    if(hit||ended)continue;
+
+    if(bossUnit&&bossUnit.alive&&Math.hypot(b.x-bossUnit.x,b.y-bossUnit.y)<=bossUnit.r+6){
+      bullets.splice(i,1);
+      bossUnit.hp--;clearedWeight++;score+=35;
+      if(FX)FX.burst(sparks,b.x,b.y,'#ffea00',6);
+      Kit.sfx('hit');
+      if(bossUnit.hp<=0){
+        bossUnit.alive=false;score+=600;
+        if(FX)FX.burst(sparks,bossUnit.x,bossUnit.y,'#ff4081',28);
+        Kit.sfx('boom');
+        checkWin();
+      }
+      hud();
+    }
+  }
+
+  // 陨石运动与碰撞
+  for(let i=rocks.length-1;i>=0;i--){
+    const rk=rocks[i];
+    rk.x+=rk.vx*dt;rk.y+=rk.vy*dt;rk.rot+=rk.vrot*dt;
+    wrapPos(rk,rk.r);
+    if(Math.hypot(rk.x-ship.x,rk.y-ship.y)<=rk.r+11){
+      shatterRock(i,false);
+      hitShip('战机撞上了高速移动的小行星');
+      if(ended)return;
+    }
+  }
+
+  // 敌方 UFO 刷出与更新
+  if(ufoLeft>0&&ufos.length===0){
+    ufoTimer-=dt;
+    if(ufoTimer<=0){
+      ufoLeft--;
+      ufoTimer=5.5;
+      const side=Math.random()<0.5?0:W;
+      ufos.push({x:side,y:60+Math.random()*(H-140),vx:side===0?65:-65,vy:25,r:16,hp:2,fireT:1.6});
+    }
+  }
+  for(const u of ufos){
+    u.x+=u.vx*dt;u.y+=Math.sin(tAnim*3)*35*dt;
+    wrapPos(u,18);
+    u.fireT-=dt;
+    if(u.fireT<=0){
+      u.fireT=2.2;
+      const ang=Math.atan2(ship.y-u.y,ship.x-u.x);
+      ebullets.push({x:u.x,y:u.y,vx:Math.cos(ang)*145,vy:Math.sin(ang)*145,life:2.4});
+    }
+    if(Math.hypot(u.x-ship.x,u.y-ship.y)<=u.r+11){
+      hitShip('与外星侦察飞碟🛸发生碰撞');
+    }
+  }
+
+  // 首领战舰 AI 更新
+  if(bossUnit&&bossUnit.alive){
+    bossUnit.x+=bossUnit.vx*dt;
+    if(bossUnit.x<56||bossUnit.x>W-56)bossUnit.vx=-bossUnit.vx;
+    bossUnit.y=68+Math.sin(tAnim*2)*16;
+
+    bossUnit.fireT-=dt;
+    if(bossUnit.fireT<=0){
+      bossUnit.fireT=2.1;
+      const aim=Math.atan2(ship.y-bossUnit.y,ship.x-bossUnit.x);
+      const count=bossUnit.type==='omega'?3:2;
+      for(let k=0;k<count;k++){
+        const a=aim+(k-(count-1)/2)*0.28;
+        ebullets.push({x:bossUnit.x,y:bossUnit.y+12,vx:Math.cos(a)*155,vy:Math.sin(a)*155,life:2.5});
+      }
+    }
+    bossUnit.spawnT-=dt;
+    if(bossUnit.spawnT<=0&&rocks.length<4){
+      bossUnit.spawnT=5.0;
+      rocks.push(makeRock(bossUnit.x,bossUnit.y+24,2,'comet'));
+      totalWeight+=3;
+    }
+    if(Math.hypot(bossUnit.x-ship.x,bossUnit.y-ship.y)<=bossUnit.r+12){
+      hitShip('撞上了首领母舰「'+bossUnit.name+'」');
+    }
+  }
+
+  // 敌方弹幕更新
+  for(let i=ebullets.length-1;i>=0;i--){
+    const eb=ebullets[i];
+    eb.x+=eb.vx*dt;eb.y+=eb.vy*dt;eb.life-=dt;
+    if(eb.life<=0||eb.x<0||eb.x>W||eb.y<0||eb.y>H){ebullets.splice(i,1);continue;}
+    if(Math.hypot(eb.x-ship.x,eb.y-ship.y)<=13){
+      ebullets.splice(i,1);
+      hitShip('被外星等离子弹幕击中');
+    }
+  }
+
+  // 星核与散射赋能磁吸拾取
+  const magRange=85+Kit.up('cannon')*25;
+  for(let i=cores.length-1;i>=0;i--){
+    const c=cores[i];
+    c.life-=dt;
+    const dx=ship.x-c.x,dy=ship.y-c.y,d=Math.hypot(dx,dy);
+    if(d<magRange&&d>1){
+      c.x+=(dx/d)*180*dt;
+      c.y+=(dy/d)*180*dt;
+    }else{
+      c.x+=c.vx*dt;c.y+=c.vy*dt;
+    }
+    if(d<18){
+      cores.splice(i,1);
+      score+=65;
+      if(c.pow){
+        ship.spreadT=6.5;
+        floats.push({x:ship.x,y:ship.y-12,txt:'⚡三向散射!',c:'#ffea00',life:1});
+      }else{
+        floats.push({x:ship.x,y:ship.y-12,txt:'⭐星核 +65',c:'#ffd54f',life:1});
+      }
+      Kit.sfx('coin');
+      hud();
+      continue;
+    }
+    if(c.life<=0)cores.splice(i,1);
+  }
+
+  for(let i=floats.length-1;i>=0;i--){
+    floats[i].y-=24*dt;
+    floats[i].life-=dt*1.25;
+    if(floats[i].life<=0)floats.splice(i,1);
+  }
+}
+
+function hud(){
+  $('lvT').textContent=Kit.lv+1;
+  $('lifeT').textContent=lives;
+  const rem=rocks.length+ufos.length+ufoLeft+(bossUnit&&bossUnit.alive?1:0);
+  $('hitLbl').innerHTML='目标 <b id="hitT">'+rem+'</b>';
+  $('score').textContent=score;
+  $('goalLbl').textContent=bossUnit&&bossUnit.alive?'👑 '+bossUnit.name+' HP:'+bossUnit.hp:L.name+' · 关 '+(Kit.lv+1)+'/15';
+  $('progI').style.width=Math.min(100,clearedWeight/Math.max(1,totalWeight)*100)+'%';
+  $('infoT').textContent='💥'+novasLeft;
+  $('btnNova').textContent='💥 超新星('+novasLeft+')';
+}
+
+// 绑定底部触控按钮与键盘
+function bindHold(id,keyName){
+  const el=$(id);
+  el.addEventListener('pointerdown',e=>{e.preventDefault();keys[keyName]=true;});
+  el.addEventListener('pointerup',()=>{keys[keyName]=false;});
+  el.addEventListener('pointercancel',()=>{keys[keyName]=false;});
+  el.addEventListener('pointerleave',()=>{keys[keyName]=false;});
+}
+bindHold('btnLeft','left');
+bindHold('btnThrust','up');
+bindHold('btnRight','right');
+bindHold('btnFire','fire');
+$('btnNova').addEventListener('click',()=>triggerNova(false));
+
+cv.addEventListener('pointerdown',e=>{
+  if(Kit.state!=='play'||ended)return;
+  const r=cv.getBoundingClientRect();
+  ptr.x=(e.clientX-r.left)*W/r.width;
+  ptr.y=(e.clientY-r.top)*H/rectHeight(r);
+  ptr.active=true;
+  fireCannon();
 });
-wrap.addEventListener('pointermove',function(e){
-if(e.pointerId!==dragId)return;var p=pointPos(e);dragTX=p.x;dragTY=p.y;e.preventDefault();
-},{passive:false});
-function endDrag(e){if(e.pointerId===dragId){dragId=null;dragOn=false;}}
-wrap.addEventListener('pointerup',endDrag);
-wrap.addEventListener('pointercancel',endDrag);
-function fireBullet(){if(state==='play'&&!paused&&fireCd<=0){fireCd=8;bullets.push({x:ship.x+Math.cos(ship.a)*16,y:ship.y+Math.sin(ship.a)*16,vx:Math.cos(ship.a)*9+ship.vx,vy:Math.sin(ship.a)*9+ship.vy,life:60});sShoot();}}
-document.addEventListener('keydown',function(e){if(e.key==='ArrowLeft')keys.l=true;if(e.key==='ArrowRight')keys.r=true;if(e.key==='ArrowUp')keys.t=true;
-if(e.key===' '){e.preventDefault();fireBullet();}});
-document.addEventListener('keyup',function(e){if(e.key==='ArrowLeft')keys.l=false;if(e.key==='ArrowRight')keys.r=false;if(e.key==='ArrowUp')keys.t=false;});
-document.getElementById('startBtn').onclick=function(){ac();startGame();};
-document.getElementById('retryBtn').onclick=function(){startGame();};
-document.getElementById('pauseBtn').onclick=function(e){e.stopPropagation();if(state!=='play')return;paused=true;dragOn=false;dragId=null;document.getElementById('pauseScr').classList.remove('hidden');};
-document.getElementById('resumeBtn').onclick=function(){paused=false;document.getElementById('pauseScr').classList.add('hidden');};
-document.addEventListener('visibilitychange',function(){if(document.hidden&&state==='play'&&!paused){paused=true;dragOn=false;dragId=null;document.getElementById('pauseScr').classList.remove('hidden');}});
+function rectHeight(r){return r.height||H;}
+cv.addEventListener('pointermove',e=>{
+  if(!ptr.active)return;
+  const r=cv.getBoundingClientRect();
+  ptr.x=(e.clientX-r.left)*W/r.width;
+  ptr.y=(e.clientY-r.top)*H/rectHeight(r);
+});
+addEventListener('pointerup',()=>{ptr.active=false;});
+addEventListener('pointercancel',()=>{ptr.active=false;});
+
+addEventListener('keydown',e=>{
+  if(Kit.state!=='play')return;
+  if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A')keys.left=true;
+  else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D')keys.right=true;
+  else if(e.key==='ArrowUp'||e.key==='w'||e.key==='W')keys.up=true;
+  else if(e.key===' '){e.preventDefault();keys.fire=true;}
+  else if(e.key==='Shift'||e.key==='x'||e.key==='X'||e.key==='Enter')triggerNova(false);
+});
+addEventListener('keyup',e=>{
+  if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A')keys.left=false;
+  else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D')keys.right=false;
+  else if(e.key==='ArrowUp'||e.key==='w'||e.key==='W')keys.up=false;
+  else if(e.key===' ')keys.fire=false;
+});
+
+function draw(){
+  ctx.save();
+  if(shakeT>0)ctx.translate((Math.random()-0.5)*7,(Math.random()-0.5)*7);
+
+  if(FX)FX.stage(ctx,W,H,'#1a1446','#05051a');
+  else{ctx.fillStyle='#080820';ctx.fillRect(0,0,W,H);}
+
+  // 璀璨星空背景
+  for(const st of STARS){
+    ctx.fillStyle='rgba(255,255,255,'+st.a+')';
+    ctx.beginPath();ctx.arc(st.x,st.y,st.r,0,Math.PI*2);ctx.fill();
+  }
+
+  // 超新星冲击波光环
+  for(const nv of novas){
+    ctx.save();
+    if(FX)FX.glow(ctx,'#00e5ff',14);
+    ctx.strokeStyle='#00e5ff';
+    ctx.lineWidth=4;
+    ctx.beginPath();ctx.arc(nv.x,nv.y,nv.r,0,Math.PI*2);ctx.stroke();
+    if(FX)FX.noGlow(ctx);
+    ctx.restore();
+  }
+
+  // 星核与道具掉落
+  for(const c of cores){
+    if(FX)FX.orb(ctx,c.x|0,c.y|0,9,c.pow?'#ffea00':'#ffd54f');
+    ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(c.pow?'⚡':'⭐',c.x,c.y+1);
+  }
+
+  // 三级小行星绘制（立体球体底座 + 矢量晶面轮廓）
+  for(const rk of rocks){
+    const col=rk.kind==='comet'?'#00d9ff':rk.kind==='magma'?'#ff7043':'#78909c';
+    ctx.save();
+    ctx.translate(rk.x,rk.y);
+    ctx.rotate(rk.rot);
+    if(FX)FX.orb(ctx,0,0,(rk.r*0.85)|0,col);
+    ctx.strokeStyle='#ffffff';
+    ctx.lineWidth=2;
+    ctx.fillStyle='rgba(15,20,42,0.38)';
+    ctx.beginPath();
+    for(let i=0;i<rk.pts.length;i++){
+      const p=rk.pts[i];
+      const px=Math.cos(p.a)*p.rad,py=Math.sin(p.a)*p.rad;
+      if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+    }
+    ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.restore();
+  }
+
+  // 外星飞碟 UFO
+  for(const u of ufos){
+    if(FX)FX.orb(ctx,u.x|0,u.y|0,15,'#ff4081');
+    ctx.font='20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🛸',u.x,u.y);
+  }
+
+  // 首领母舰绘制
+  if(bossUnit&&bossUnit.alive){
+    const x=bossUnit.x,y=bossUnit.y;
+    if(FX){
+      FX.glow(ctx,'#7a5cff',14);
+      FX.orb(ctx,x|0,y|0,26,'#7a5cff');
+      FX.noGlow(ctx);
+    }
+    ctx.font='30px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(bossUnit.ic,x,y);
+    // 首领血条
+    const bw=84,bh=7,bx=x-bw/2,by=y-36;
+    ctx.fillStyle='rgba(0,0,0,0.65)';ctx.fillRect(bx,by,bw,bh);
+    ctx.fillStyle='#00e5ff';ctx.fillRect(bx,by,bw*Math.max(0,bossUnit.hp/bossUnit.maxHp),bh);
+  }
+
+  // 玩家子弹与敌方弹幕
+  for(const b of bullets){
+    ctx.fillStyle=b.col;
+    ctx.beginPath();ctx.arc(b.x,b.y,3.5,0,Math.PI*2);ctx.fill();
+  }
+  for(const eb of ebullets){
+    ctx.fillStyle='#ff5252';
+    ctx.beginPath();ctx.arc(eb.x,eb.y,4.5,0,Math.PI*2);ctx.fill();
+  }
+
+  // 玩家星际战机绘制
+  if(ship){
+    ctx.save();
+    ctx.translate(ship.x,ship.y);
+    if(ship.invuln>0){
+      ctx.strokeStyle='rgba(0,229,255,0.75)';
+      ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(0,0,17,0,Math.PI*2);ctx.stroke();
+    }
+    ctx.rotate(ship.a);
+    // 推进尾焰
+    if(ship.thrusting){
+      ctx.fillStyle='#ff9100';
+      ctx.beginPath();
+      ctx.moveTo(-10,-5);ctx.lineTo(-20-Math.random()*6,0);ctx.lineTo(-10,5);
+      ctx.closePath();ctx.fill();
+    }
+    if(FX)FX.glow(ctx,'#00d9ff',10);
+    ctx.fillStyle='#00d9ff';
+    ctx.strokeStyle='#ffffff';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(15,0);
+    ctx.lineTo(-11,-10);
+    ctx.lineTo(-6,0);
+    ctx.lineTo(-11,10);
+    ctx.closePath();
+    ctx.fill();ctx.stroke();
+    if(FX)FX.noGlow(ctx);
+    ctx.restore();
+  }
+
+  if(FX)FX.drawBurst(ctx,sparks);
+  for(const f of floats){
+    ctx.globalAlpha=Math.max(0,f.life);
+    ctx.fillStyle=f.c;
+    ctx.font='bold 17px sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(f.txt,f.x,f.y);
+  }
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
+
+function frame(t){
+  const dt=Math.min(.033,(t-last)/1000)*fast;last=t;
+  if(Kit.state==='play'&&!ended)upd(dt);
+  draw();
+  raf=requestAnimationFrame(frame);
+}
+
+function layout(){
+  const b=$('box').getBoundingClientRect();
+  const s=Math.min(b.width/W,b.height/H);
+  cv.style.width=Math.floor(W*s)+'px';
+  cv.style.height=Math.floor(H*s)+'px';
+}
+addEventListener('resize',layout);layout();
+
+$('startH').textContent='🚀 小行星';
+$('startP').innerHTML='15 关 360° 矢量太空射击：旋转推进，发射等离子炮击碎大中小三级陨石！<br>释放💥超新星冲击波，迎战三大外星无畏舰首领！';
+
+Kit.init({
+  id:'asteroid',
+  levels:15,
+  boss:[5,10,15],
+  bossName:i=>LV[i].boss.name,
+  start,
+  stop:()=>{ended=true;},
+  pause:()=>{},
+  note:()=>'点按星空自动转向开火，击碎全部三级陨石与首领战舰即可过关',
+  tut:[
+    ['360° 转向与推进','直接按住星空任意位置（或用下方 ⟲ ▲ ⟳ 按钮），战机将自动朝目标方向推进并连续发射等离子炮！','🚀'],
+    ['三级陨石裂解','大型陨石被击中后会分裂为 2 颗中型陨石，中型再分裂为 2 颗小型陨石；彻底击碎可掉落⭐星核与⚡三向散射！','☄️'],
+    ['超新星冲击波','遭遇密集陨石围堵时，点击「💥超新星波」可释放全屏环形脉冲，瞬间震碎沿途陨石并清空敌方弹幕！','💥'],
+    ['迎战无畏战舰','第 5/10/15 关将遭遇泰坦母舰、天蚀歼星舰与奥米茄星环主宰，善用走位与超新星波将其击沉！','👑']
+  ],
+  ups:[
+    {k:'cannon',ic:'🔥',name:'双联等离子炮',desc:'射速提升且解锁双发/三向散射炮',max:2,cost:l=>24+l*26},
+    {k:'nova',ic:'💥',name:'超新星核心',desc:'每关初始💥超新星波次数 +1 且伤害提升',max:2,cost:l=>26+l*28},
+    {k:'shield',ic:'🛡️',name:'曲速偏导盾',desc:'每关初始护盾生命值 +1',max:2,cost:l=>30+l*32,stars:5}
+  ]
+});
+
+window.__T.state=()=>({rocks:rocks?rocks.length:0,ufos:ufos?ufos.length:0,bossHp:bossUnit&&bossUnit.alive?bossUnit.hp:0,score,lives,ended});
+window.__T.fast=k=>{fast=k;};
+window.__T.cheatWin=()=>{
+  rocks=[];ufos=[];ufoLeft=0;
+  if(bossUnit)bossUnit.alive=false;
+  checkWin();
+};
+window.__T.solve=()=>{
+  if(ended||Kit.state!=='play')return;
+  // 每次调用释放超新星脉冲并清除一批陨石/重创首领，最多 3 次调用必定 3 星过关
+  ufoLeft=0;ufos=[];ebullets=[];
+  if(bossUnit&&bossUnit.alive){
+    const dmg=Math.ceil(bossUnit.maxHp*0.5);
+    bossUnit.hp=Math.max(0,bossUnit.hp-dmg);
+    clearedWeight+=dmg;score+=240;
+    if(bossUnit.hp<=0)bossUnit.alive=false;
+  }
+  const clearN=Math.max(2,Math.ceil(rocks.length*0.6));
+  for(let k=0;k<clearN&&rocks.length>0;k++){
+    const rk=rocks.pop();
+    clearedWeight+=rk.sz===3?7:rk.sz===2?3:1;
+    score+=90;
+  }
+  hud();
+  checkWin();
+};
 </script>
 </body>
 </html>
