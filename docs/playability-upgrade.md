@@ -28,10 +28,10 @@
 ## 进度
 
 - 一共 **439** 款（相对此前文档的 419：11-06 每日新增 10 款 bumpdrive/stuntbike/wheelie/beltsort/mahjongpair/picdrop/hexslide/sandbus/tracklogic/cubetwist；11-07 每日新增 10 款 pinpull/kickrun/mosqsurvive/paperroute/bodyguard/ginrummy/euchre/cribpeg/minerwar/sniperlane；目录/manifest 现 439）。
-- 已完成 **394** 款：
+- 已完成 **404** 款：
   - Grok 出品 20 款；
   - 10-21 升级的 11 款；
-  - 每日任务升级的 190 款（10-21～11-07 第 19 批）；
+  - 每日任务升级的 200 款（10-21～11-07 第 20 批）；
   - 10-22 每日新游戏 2 款（gunslinger、lasso）；
   - 10-23 记入的新复杂游戏 8 款（cactus、drawpoker、goldrush、horseshoe、minetrack、safecrack、saltpan、steamlab）；
   - 10-24 每日新游戏 10 款（arrowescape、catrealm、colorgate、yarnloop、sandfill、parkexit、busqueue、ropetangle、gravityflip、cookrush，按新游戏标准，不进队列）；
@@ -51,7 +51,22 @@
   - 11-05 每日新游戏 10 款（bastionlane、decksiege、cratepush、swarmgun、skylink、tapnova、ringwar、gemfusion、bossrush、cafempire，按新游戏标准，不进队列）；
   - 11-06 每日新游戏 10 款（bumpdrive、stuntbike、wheelie、beltsort、mahjongpair、picdrop、hexslide、sandbus、tracklogic、cubetwist，按新游戏标准，不进队列）；
   - 11-07 每日新游戏 10 款（pinpull、kickrun、mosqsurvive、paperroute、bodyguard、ginrummy、euchre、cribpeg、minerwar、sniperlane，按新游戏标准，不进队列）。
-- 还剩 **45** 款（待升级队列实际剩余 35 款）。
+- 还剩 **35** 款（待升级队列实际剩余 25 款）。
+
+### 2026-11-07（第 20 批）
+
+| id | 名称 | 主要改进 |
+|---|---|---|
+| ballroll | 滚珠入洞 | 15 关 3D 平衡板滚珠：操控单/双/三颗金属珠绕过黑洞陷阱与弹力柱滚入荧光球袋；第 5/10/15 关旋转激光闸门首领；可升级陀螺仪、球洞磁吸、钛合金珠壳 |
+| columns | 宝石列柱 | 15 关三联彩柱消除：横竖斜三消与重力连锁、🌈百搭晶、💣爆破晶与⚡棱镜净化；第 5/10/15 关石化暗晶首领；可升级棱镜祝福、缓降力场、连锁增幅 |
+| dungeonkey | 地牢钥匙 | 15 关地牢寻钥探险：收集三色钥匙开启封印门、避开巡逻守卫与交替地刺、点击自动寻路；第 5/10/15 关典狱长/深渊魔王首领；可升级万能钥、破障圣剑、秘银护甲 |
+| onestroke | 一笔画 | 15 关欧拉路径一笔画：实时度数与⭐奇点高亮、🌉彩虹飞桥跨越与💡欧拉妙笔；第 5/10/15 关哥尼斯堡双桥王/乾坤天枢首领；可升级飞桥、慧眼、护心画轴 |
+| pizzacut | 披萨刀 | 15 关公平切披萨：拖拽拉弦实时预览刀路、半平面等分面积与配料切分校验；第 5/10/15 关皇家双拼/什锦大满贯首领；可升级刀路准星、保温烤炉、主厨口碑 |
+| bagua | 八卦转轮 | 15 关乾坤八卦罗盘：旋转外环与内环联动对应八象、激发太极光束化解五行灵珠；第 5/10/15 关天罡九宫/混元太极劫首领；可升级定盘罗盘、延寿、护阵元气 |
+| cubhop | 魔块跳跳 | 15 关 3D 等距金字塔跳块：踩亮立方体翻转目标色、借🛸飞盘脱险与❄️冰冻脉冲；第 5/10/15 关幻彩魔方王/星界棱镜首领；可升级怀表、飞盘、魔力护盾 |
+| iceslide | 冰滑块 | 15 关极地滑冰解谜：四向滑行至岩壁或❄️雪堆停步、收集💎冰晶激活🌀传送阵；第 5/10/15 关霜寒巨魔/冰冠女王首领；可升级防滑冰靴、聚能棱镜、极光罗盘 |
+| jewel | 消消乐 | 15 关璀璨宝石三消：滑动交换触发⚡十字雷霆、💣爆破钻与🌈彩虹全清、击碎🧊寒冰与🪨玄岩；第 5/10/15 关冰晶女王/星耀幻钻王首领；可升级碎钻锤、开局彩钻、步数 |
+| link | 连连看 | 15 关闪电连连看：≤2 折路径激光消除、下落/左移重力变换与🧊冰封方块破冰；第 5/10/15 关霜锁迷阵王/星穹千结首领；可升级闪电配对、洗牌破冰、延时 |
 
 
 
@@ -405,7 +420,7 @@
 
 - **Grok 出品**：abysscrawl、arrowrogue、bagbrawl、beatblade、chesslord、fatespire、gardenguard、gemhero、hexrealm、islelord、jokerpoker、landlord、marblerun、mechbreach、mergelegion、metromap、neontd、shadowgo、starconquest、starswarm
 - **10-21 升级**：blackjack、magrail、neodrone、neohack、neoncourier、neonfish、neonmirror、neonrunner、spinmatrix、viruslock、plumpile
-- **每日任务**：memory、puzzle15、whackamole、gomoku、minesweeper、game2048、balloon、tank、prism、circuit、breakout、electromagnet、lens、ohm、reflection、seriesparallel、magnet、refraction、incline、levitate、pinball、pottery、projectile、spring、cellstruct、fruitmerge、mitosis、parachute、pendulum、photosynthesis、frogger、piano、punnett、racing、snake、doodle、hexduel、jump、phtest、pong、resonance、tetris、airhockey、bubbletea、bumpercar、claw、dig、dino、dragonegg、periodic、pulley、slot、indicator、invaders、orbit、snowball、volcano、ascent、lightsout、microscopelab、darts、peg、reversi、staticlab、collapse、flappy、fruitbattery、hoop、inkspray、mastermind、moonphase、spintop、swordparry、jetpack、rhythm、trapeze、zuma、acidbase、bigfish、catapult、copter、deepdive、jellyzap、paperfly、pearlcatch、rocketlab、simon、skeleton、sonar、archery、floodit、broomrace、densitylab、digestion、duckhunt、ecobottle、freefall、golf、grill、heartpump、checkers、klotski、lever、lighthouse、lumber、maze、shellgame、ski、snowman、solitaire、metalreact、potion、pressurelab、seahorse、tideseek、wavelab、bowling、buoyancy、expansion、fishing、wordsearch、heattransfer、penalty、shellswap、spotthediff、catch、connectfour、foodchain、pop、wordle、yahtzee、alchemy、collision、domino、dotsboxes、friction、icecurl、lungcap、pyramid、seacannon
+- **每日任务**：memory、puzzle15、whackamole、gomoku、minesweeper、game2048、balloon、tank、prism、circuit、breakout、electromagnet、lens、ohm、reflection、seriesparallel、magnet、refraction、incline、levitate、pinball、pottery、projectile、spring、cellstruct、fruitmerge、mitosis、parachute、pendulum、photosynthesis、frogger、piano、punnett、racing、snake、doodle、hexduel、jump、phtest、pong、resonance、tetris、airhockey、bubbletea、bumpercar、claw、dig、dino、dragonegg、periodic、pulley、slot、indicator、invaders、orbit、snowball、volcano、ascent、lightsout、microscopelab、darts、peg、reversi、staticlab、collapse、flappy、fruitbattery、hoop、inkspray、mastermind、moonphase、spintop、swordparry、jetpack、rhythm、trapeze、zuma、acidbase、bigfish、catapult、copter、deepdive、jellyzap、paperfly、pearlcatch、rocketlab、simon、skeleton、sonar、archery、floodit、broomrace、densitylab、digestion、duckhunt、ecobottle、freefall、golf、grill、heartpump、checkers、klotski、lever、lighthouse、lumber、maze、shellgame、ski、snowman、solitaire、metalreact、potion、pressurelab、seahorse、tideseek、wavelab、bowling、buoyancy、expansion、fishing、wordsearch、heattransfer、penalty、shellswap、spotthediff、catch、connectfour、foodchain、pop、wordle、yahtzee、alchemy、collision、domino、dotsboxes、friction、icecurl、lungcap、pyramid、seacannon、teahouse、xiangqi、bomber、combustion、hanoi、ninja、snowflake、solubility、waiter、farm、noodle、tangram、wandshop、alienlang、colorlines、crystal、digdug、donkeykong、electrolysis、ludo、missile、pacman、shuttle、sleigh、stack、bomberman、cannon、hotpot、rotatemaze、snowbros、ballroll、columns、dungeonkey、onestroke、pizzacut、bagua、cubhop、iceslide、jewel、link
 - **10-23 新复杂游戏**：cactus、drawpoker、goldrush、horseshoe、minetrack、safecrack、saltpan、steamlab
 - **10-24 新游戏**：arrowescape、catrealm、colorgate、yarnloop、sandfill、parkexit、busqueue、ropetangle、gravityflip、cookrush
 - **10-25 新游戏**：hexwar、seatpref、dominofall、factoryline、spellcraft、railtycoon、curlingduel、tenpair、swarmcmd、cryptops
@@ -425,40 +440,30 @@
 
 括号里是代码扫描分数。标了批次的游戏，在那个画面批次当天会被跳过。
 
-（已去掉 11-07 第 19 批升级的 10 款 missile/pacman/shuttle/sleigh/stack/bomberman/cannon/hotpot/rotatemaze/snowbros；待升级队列剩余 35 款。）
+（已去掉 11-07 第 20 批升级的 10 款 ballroll/columns/dungeonkey/onestroke/pizzacut/bagua/cubhop/iceslide/jewel/link；待升级队列剩余 25 款。）
 
-1. ballroll 滚珠入洞（11.5） · 画面批次 T2-4
-2. columns 宝石列柱（11.5） · 画面批次 T1-3
-3. dungeonkey 地牢钥匙（11.5） · 画面批次 T2-4
-4. onestroke 一笔画（11.5） · 画面批次 T2-6
-5. pizzacut 披萨刀（11.5） · 画面批次 T2-6
-6. bagua 八卦转轮（11.8） · 画面批次 T2-6
-7. cubhop 魔块跳跳（11.8） · 画面批次 T2-2
-8. iceslide 冰滑块（11.8） · 画面批次 T2-5
-9. jewel 消消乐（11.8） · 画面批次 T1-2
-10. link 连连看（11.8） · 画面批次 T2-5
-11. colormix 小丑调色（12） · 画面批次 DOM-1
-12. eyevision 眼睛成像（12） · 画面批次 T2-1
-13. cutrope 割绳子（12.3） · 画面批次 T1-2
-14. frost 冰窗花（12.3） · 画面批次 T2-4
-15. yeti 雪怪（12.3） · 画面批次 T2-5
-16. snowplow 铲雪车（12.5） · 画面批次 T2-5
-17. lunarlander 登月舱（12.8） · 画面批次 T2-3
-18. mooncrawl 月球车（12.8） · 画面批次 T2-3
-19. slingshot 引力弹射（12.8） · 画面批次 T2-3
-20. spacelevator 太空电梯（12.8） · 画面批次 T2-4
-21. towerdef 简易塔防（12.8） · 画面批次 T2-3
-22. docking 太空对接（13） · 画面批次 T2-3
-23. laser 激光反射（13） · 画面批次 T2-2
-24. asteroid 小行星（13.3） · 画面批次 T1-1
-25. flow 连连线（13.8） · 画面批次 T2-6
-26. sortcandy 糖果分拣（13.8） · 画面批次 DOM-2
-27. starmail 星际快递（13.8） · 画面批次 T2-4
-28. pipes 水管工（14） · 画面批次 T2-6
-29. nonogram 数织（14.5） · 画面批次 DOM-2
-30. sokoban 推箱子（14.5） · 画面批次 DOM-2
-31. touhu 投壶（14.8） · 画面批次 T2-6
-32. bento 便当拼装（15.3） · 画面批次 DOM-2
-33. unblock 挪车让路（15.3） · 画面批次 T2-6
-34. icebridge 铺冰桥（16） · 画面批次 T2-5
-35. cityskyline 都市天际线（16.5） · 画面批次 T2-2
+1. colormix 小丑调色（12） · 画面批次 DOM-1
+2. eyevision 眼睛成像（12） · 画面批次 T2-1
+3. cutrope 割绳子（12.3） · 画面批次 T1-2
+4. frost 冰窗花（12.3） · 画面批次 T2-4
+5. yeti 雪怪（12.3） · 画面批次 T2-5
+6. snowplow 铲雪车（12.5） · 画面批次 T2-5
+7. lunarlander 登月舱（12.8） · 画面批次 T2-3
+8. mooncrawl 月球车（12.8） · 画面批次 T2-3
+9. slingshot 引力弹射（12.8） · 画面批次 T2-3
+10. spacelevator 太空电梯（12.8） · 画面批次 T2-4
+11. towerdef 简易塔防（12.8） · 画面批次 T2-3
+12. docking 太空对接（13） · 画面批次 T2-3
+13. laser 激光反射（13） · 画面批次 T2-2
+14. asteroid 小行星（13.3） · 画面批次 T1-1
+15. flow 连连线（13.8） · 画面批次 T2-6
+16. sortcandy 糖果分拣（13.8） · 画面批次 DOM-2
+17. starmail 星际快递（13.8） · 画面批次 T2-4
+18. pipes 水管工（14） · 画面批次 T2-6
+19. nonogram 数织（14.5） · 画面批次 DOM-2
+20. sokoban 推箱子（14.5） · 画面批次 DOM-2
+21. touhu 投壶（14.8） · 画面批次 T2-6
+22. bento 便当拼装（15.3） · 画面批次 DOM-2
+23. unblock 挪车让路（15.3） · 画面批次 T2-6
+24. icebridge 铺冰桥（16） · 画面批次 T2-5
+25. cityskyline 都市天际线（16.5） · 画面批次 T2-2
