@@ -1,0 +1,24 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {fileURLToPath} from 'node:url';
+process.chdir(fileURLToPath(new URL('.',import.meta.url)));
+const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+const page=await browser.newPage({viewport:{width:1280,height:800}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.route('http://**',r=>r.abort());await page.route('https://**',r=>r.abort());
+await page.goto(new URL('../../games/dunewalker/index.html',import.meta.url).href);
+await page.locator('#startBtn').click();await page.waitForTimeout(600);
+const from=await page.evaluate(()=>duneDemo.position);
+await page.keyboard.down('KeyW');await page.waitForTimeout(900);await page.keyboard.up('KeyW');
+const to=await page.evaluate(()=>duneDemo.position);assert.ok(to[2]<from[2]-2,'W moves forward');
+await page.keyboard.press('KeyE');assert.equal(await page.evaluate(()=>duneDemo.mounted),true);
+await page.locator('#pauseBtn').click();const paused=await page.evaluate(()=>duneDemo.position);await page.waitForTimeout(300);assert.deepEqual(await page.evaluate(()=>duneDemo.position),paused);
+await page.locator('#resumeBtn').click();await page.keyboard.press('KeyE');assert.equal(await page.evaluate(()=>duneDemo.mounted),false);
+fs.mkdirSync('../../.artifacts/dunewalker',{recursive:true});
+await page.screenshot({path:'../../.artifacts/dunewalker/desktop.png'});
+await page.setViewportSize({width:390,height:844});await page.screenshot({path:'../../.artifacts/dunewalker/mobile.png'});
+await page.locator('#pauseBtn').click();await page.locator('#restartBtn').click();assert.equal(await page.evaluate(()=>duneDemo.score),0);
+assert.deepEqual(errors,[]);console.log('PASS offline file, keyboard movement, mount/dismount, pause/resume, restart; no page errors');
+await browser.close();
+
