@@ -4,7 +4,6 @@
 <title>神级颠勺</title>
 <link rel="icon" href="data:,">
 <style>
-/* 游戏自身样式只管布局与玩法元素；颜色/面板/按钮外观交给共用皮肤（sync 时注入）。 */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -12,15 +11,19 @@ body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-
 .topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
 .topbar .tools{display:flex;gap:8px}
 .topbar .tools .iconbtn{min-width:44px;min-height:44px}
-#cv{width:100%;max-height:calc(100svh - 230px);aspect-ratio:360/540;object-fit:contain;touch-action:none;border-radius:16px}
+.stagebox{width:100%;display:flex;justify-content:center}
+#cv{width:100%;max-height:calc(100svh - 170px);aspect-ratio:360/540;object-fit:contain;touch-action:none;border-radius:16px}
 .hint{font-size:13px;text-align:center}
-#fireBtn{min-width:44px;min-height:44px;width:100%}
-.panrow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
-.panrow .panbtn{min-width:44px;min-height:44px;padding:8px 12px}
-.panrow .panbtn.sel{outline:3px solid #ffd34d}
-.panrow .panbtn:disabled{opacity:.45}
 .overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
 .overlay.hidden{display:none}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:min(360px,92vw)}
+.btn.lvl{min-width:44px;min-height:44px;font-size:14px}
+.btn.lvl small{display:block;font-size:10px;opacity:.85}
+.shop{width:min(360px,92vw);display:flex;flex-direction:column;gap:10px}
+.shop .row{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left}
+.rowbtns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+#toast{position:fixed;left:50%;bottom:18%;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#fff;padding:8px 16px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;z-index:50;transition:opacity .2s}
+#toast.on{opacity:1}
 </style>
 <!-- GAME UI BEGIN -->
 <style>
@@ -444,240 +447,112 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="topbar">
     <span class="title">🍳 神级颠勺</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
-    <span class="tools"><button class="iconbtn" id="muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools">
+      <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
+      <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
+    </span>
   </div>
-  <canvas id="cv"></canvas>
-  <button class="btn" id="fireBtn">🔥 开大火（回满火候，糊得更快）</button>
-  <p class="hint">按住画面蓄力，松手颠勺 · 抛进绿色完美区得分 · 第 <b id="lv">1</b>/10 关</p>
+  <div class="stagebox"><canvas id="cv"></canvas></div>
+  <p class="hint" id="hint">按住蓄力松手颠勺 · 落进绿色完美区</p>
 </div>
-<div class="overlay" id="startScr"><h1>🍳 神级颠勺</h1><p>按住屏幕蓄力，松手颠勺！食材抛进绿色完美区 +20，连击加分。<br>抛太高飞出锅外扣 1 命，太低没抛起糊值 +20；糊值满 100 炒糊扣 1 命。<br>火候会自动下降，「开大火」回满但糊得更快——大火高分高风险。<br>第 4 关起防辣椒炸锅（3 秒内连点灭火），第 7 关双食材，第 10 关满汉全席！</p><div class="panrow" id="panRow"></div><button class="btn" id="startBtn">开始游戏</button></div>
-<div class="overlay hidden" id="pauseOv"><h1>⏸ 已暂停</h1><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="quitBtn">重新开始</button></div>
-<div class="overlay hidden" id="overScr"><h1>游戏结束</h1><div class="score" id="finalScore">0</div><p id="overText"></p><button class="btn" id="againBtn">再来一局</button></div>
+<div class="overlay" id="startScr"><h1>🍳 神级颠勺</h1><p>掌勺师傅按住蓄力、松手颠勺，把食材抛进绿色完美区。<br>火候越高分越高，也更容易飞出锅外。<br>第 5/10/15 关迎战辣椒爆锅、双料齐颠与满汉全席！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
+<div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重开</button><button class="btn ghost" id="menuBtn">选关</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">过关！</h2><div class="score" id="finalScore">★★★</div><p id="overText"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再玩一次</button><button class="btn ghost" id="menu2Btn">选关</button></div></div>
+<div id="toast"></div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-const W=360,H=540;                       // 逻辑坐标：所有玩法/命中判定都用它
+const W=360,H=540;
 const cv=$('cv'),ctx=cv.getContext('2d');
-const UI=window.GameUI||{pick:(a)=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
-const FX=UI.fx&&UI.fx.on?UI.fx:null;     // 共用皮肤的画布立体工具；没有时走平面画法
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
 if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
-// ---- 锅具（成长解锁） ----
-const PANS=[
-  {name:'铁锅',  chargeT:.9, zonePad:0, heatMult:0,   burnMul:1,   need:0},
-  {name:'不粘锅',chargeT:1.15,zonePad:10,heatMult:0,   burnMul:1,   need:500},
-  {name:'紫铜锅',chargeT:.9, zonePad:0, heatMult:.45, burnMul:1.6, need:1500},
-];
-function getProg(){try{const p=JSON.parse(UI.storageGet('g100_wokflip_prog')||'{}');return{sel:p.sel||0};}catch(e){return{sel:0};}}
-function setProg(p){UI.storageSet('g100_wokflip_prog',JSON.stringify(p));}
-let prog=getProg(),pan=PANS[prog.sel]||PANS[0];
-// ---- 状态 ----
-let state='menu',score=0,lives=3,level=1,combo=0,heat=.8,burnX2T=0,hush=0,last=0;
-let items=[],sparks=[],floats=[],charging=false,charge=0,chiliEv=null,chiliT=0;
-const REST_Y=H-100,MOUTH_Y=H-140;        // 锅里食材静止高度 / 锅口高度
-const TARGETS=[0,120,260,420,600,800,1020,1260,1520,1800,2100];
-const FOOD=['🥕','🥩','🌶️','🍤','🌽','🍄'];
-let best=+UI.storageGet('g100_wokflip_hs')||0;$('best').textContent=best;
-function zoneTop(){return 300-pan.zonePad;}
-function zoneBot(){return 360+pan.zonePad;}
-function itemCount(){return level>=10?5:level>=7?2:1;}
-function resetItems(){items=[];const n=itemCount();for(let i=0;i<n;i++)items.push({e:FOOD[i%FOOD.length],ox:(i-(n-1)/2)*26,st:'in',x:0,y:0,vx:0,vy:0,minY:0});}
-// ---- 音效：WebAudio 合成，无外部资源；遵守静音开关 ----
-let muted=UI.storageGet('g100_wokflip_mute')==='1',ac=null;$('muteBtn').textContent=muted?'🔇':'🔊';
-function beep(f,d,type){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.setValueAtTime(.15,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
-$('muteBtn').addEventListener('click',()=>{muted=!muted;UI.storageSet('g100_wokflip_mute',muted?'1':'0');$('muteBtn').textContent=muted?'🔇':'🔊';});
-// ---- 输入：pointer 事件 + 按画布显示尺寸换算到逻辑坐标（桌球 #15 的教训） ----
-function posOf(e){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches.length)?e.touches[0]:(e.changedTouches&&e.changedTouches.length)?e.changedTouches[0]:e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
-cv.addEventListener('pointerdown',e=>{
-  e.preventDefault();if(state!=='play')return;
-  cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);
-  const p=posOf(e);
-  if(chiliEv){ // 辣椒炸锅：3 秒内连点灭火
-    const d=Math.hypot(p.x-chiliEv.x,p.y-chiliEv.y);
-    if(d<48){chiliEv.taps++;beep(700+chiliEv.taps*80,.06,'square');if(FX)FX.burst(sparks,chiliEv.x,chiliEv.y,'#7CFF6B',10);
-      if(chiliEv.taps>=5){score+=30;$('score').textContent=score;floats.push({x:chiliEv.x,y:chiliEv.y-20,t:'灭火成功 +30',c:'#7CFF6B',life:1.2});beep(1200,.15);chiliEv=null;chiliT=12+Math.random()*8;}}
-    return;
-  }
-  charging=true;charge=0;
-});
-cv.addEventListener('pointerup',e=>{
-  if(chiliEv||state!=='play')return;
-  if(!charging)return;charging=false;toss();
-});
-cv.addEventListener('pointercancel',()=>{charging=false;});
-document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();if(state!=='play')return;
-  if(e.type==='keydown'&&!charging&&!chiliEv){charging=true;charge=0;}}});
-document.addEventListener('keyup',e=>{if(e.code==='Space'&&charging&&state==='play'&&!chiliEv){charging=false;toss();}});
-// ---- 颠勺 ----
-function toss(){
-  const p=Math.min(1,charge),wob=heat*90;
-  for(const it of items){if(it.st!=='in')continue;
-    it.st='air';it.vy=-(160+560*p);it.vx=(Math.random()*2-1)*wob;it.minY=REST_Y;}
-  beep(300+p*300,.12,'triangle');
-}
-function float(t,c){floats.push({x:W/2,y:H/2-40,t,c:c||'#fff',life:1.2});}
-function judge(it){
-  const m=it.minY,zt=zoneTop(),zb=zoneBot();
-  it.st='in';
-  if(m<zt-40){ // 飞出锅外
-    lives--;combo=0;float('飞出锅外！-1 命','#ff6b6b');beep(150,.3,'sawtooth');
-    if(lives<=0)return over(false);
-  }else if(m>=zt&&m<=zb){ // 完美（边缘博高连击：越靠近中心分越高）
-    combo++;
-    const center=(zt+zb)/2,edge=Math.abs(m-center)/((zb-zt)/2); // 0 中心 ~ 1 边缘
-    const mult=(1+heat*.8+pan.heatMult)*(1.25-.25*edge);
-    const pts=Math.round(20*(1+.15*(combo-1))*Math.max(1,Math.round(mult*10)/10));
-    score+=pts;$('score').textContent=score;
-    float((combo>1?combo+'连击 ':'')+'完美 +'+pts,'#7CFF6B');
-    if(FX)FX.burst(sparks,it.x,m,'#7CFF6B',16);beep(880+Math.min(combo,10)*40,.1);
-  }else if(m>=zt-40&&m<=zb+60){ // 擦边
-    score+=8;$('score').textContent=score;float('擦边 +8','#ffd34d');beep(500,.08);
-  }else{ // 没抛起来
-    hush+=20;combo=0;float('没抛起来 糊+20','#ffb14d');beep(200,.2,'sawtooth');
-  }
-}
-// ---- 流程 ----
 function show(id,on){$(id).classList.toggle('hidden',!on);}
-function start(){
-  pan=PANS[prog.sel]||PANS[0];
-  score=0;lives=3;level=1;combo=0;heat=.8;burnX2T=0;hush=0;
-  chiliEv=null;chiliT=14;charging=false;charge=0;floats=[];sparks=[];
-  resetItems();$('score').textContent=0;$('lv').textContent=1;
-  show('startScr',false);show('overScr',false);show('pauseOv',false);state='play';last=performance.now();beep(660,.12);
-}
-function pause(){if(state!=='play')return;state='pause';show('pauseOv',true);}
-function resume(){if(state!=='pause')return;state='play';last=performance.now();show('pauseOv',false);}
-function over(win){
-  state='over';
-  let unlockMsg='';
-  if(score>best){best=score;UI.storageSet('g100_wokflip_hs',best);$('best').textContent=best;
-    if(best>=1500&&prog.sel<2){prog.sel=2;setProg(prog);unlockMsg=' · 解锁紫铜锅！';}
-    else if(best>=500&&prog.sel<1){prog.sel=1;setProg(prog);unlockMsg=' · 解锁不粘锅！';}}
-  $('finalScore').textContent=score;
-  $('overText').textContent=(win?'🏆 通关！满汉全席！':'')+'到达第 '+level+' 关 · 最佳 '+best+unlockMsg;
-  show('overScr',true);beep(win?880:220,.4,'triangle');renderPans();
-}
-$('startBtn').addEventListener('click',start);$('againBtn').addEventListener('click',start);
-$('pauseBtn').addEventListener('click',()=>state==='play'?pause():resume());$('resumeBtn').addEventListener('click',resume);
-$('quitBtn').addEventListener('click',()=>{show('pauseOv',false);start();});
-$('fireBtn').addEventListener('click',()=>{if(state!=='play')return;heat=1;burnX2T=10;float('大火全开！糊得更快','#ff9f2e');beep(440,.15,'sawtooth');});
-// 切到后台自动暂停（App 切换、锁屏）
-document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
-// 锅具选择
-function renderPans(){
-  const row=$('panRow');row.innerHTML='';
-  PANS.forEach((p,i)=>{
-    const b=document.createElement('button');
-    b.className='panbtn btn'+(i===prog.sel?' sel':'');
-    b.textContent=p.name+(best>=p.need?'':' 🔒'+p.need);
-    b.disabled=best<p.need;
-    b.addEventListener('click',()=>{prog.sel=i;setProg(prog);renderPans();beep(700,.08);});
-    row.appendChild(b);
-  });
-}
-renderPans();
-// ---- 循环 ----
-function update(dt){
-  if(charging){charge=Math.min(1,charge+dt/pan.chargeT);}
-  // 火候自动下降；火越旺糊得越快；开大火后 10 秒糊速翻倍
-  heat=Math.max(0,heat-.05*dt);
-  if(burnX2T>0)burnX2T-=dt;
-  if(heat>.5)hush+=dt*(heat>.75?4:2)*(burnX2T>0?pan.burnMul*2:1)*.5;
-  if(hush>=100){ // 炒糊了：本关失败
-    hush=0;combo=0;lives--;float('炒糊了！-1 命','#ff6b6b');beep(140,.35,'sawtooth');
-    if(lives<=0)return over(false);
-  }
-  // 食材物理
-  for(const it of items){
-    if(it.st==='air'){
-      it.vy+=980*dt;it.x+=it.vx*dt;it.y=(it.y||REST_Y)+it.vy*dt;
-      if(it.y<it.minY)it.minY=it.y;
-      it.x=Math.max(20,Math.min(W-20,it.x));
-      if(it.vy>0&&it.y>=REST_Y){it.y=REST_Y;judge(it);if(state!=='play')break;}
-    }else{it.x=W/2+it.ox;it.y=REST_Y;}
-  }
-  // 辣椒炸锅随机事件（第 4 关起）
-  if(level>=4&&!chiliEv){
-    chiliT-=dt;
-    if(chiliT<=0){
-      chiliEv={x:60+Math.random()*(W-120),y:140+Math.random()*160,t:3,taps:0};
-      float('🌶️ 辣椒炸锅！连点灭火！','#ff6b6b');beep(180,.4,'sawtooth');
-    }
-  }
-  if(chiliEv){
-    chiliEv.t-=dt;
-    if(chiliEv.t<=0){ // 没灭掉
-      chiliEv=null;chiliT=12+Math.random()*8;hush+=40;combo=0;
-      float('炸锅了！糊+40','#ff6b6b');beep(120,.5,'sawtooth');
-    }
-  }
-  // 过关
-  if(score>=TARGETS[level]){
-    if(level>=10)return over(true);
-    level++;$('lv').textContent=level;resetItems();hush=Math.max(0,hush-30);
-    float('🎉 第 '+level+' 关！'+(level===4?'小心辣椒炸锅':level===7?'双食材同抛！':level===10?'满汉全席！':''),'#ffd34d');
-    beep(1200,.2,'square');
-  }
-  for(let i=floats.length-1;i>=0;i--){floats[i].life-=dt;floats[i].y-=24*dt;if(floats[i].life<=0)floats.splice(i,1);}
-}
-function bar(x,y,w,h,frac,c1,c2){
-  ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(x,y,w,h);
-  if(FX)FX.tile(ctx,x,y,w*Math.max(0,Math.min(1,frac)),h,frac>.5?c1:c2,4);
-  else{ctx.fillStyle=frac>.5?c1:c2;ctx.fillRect(x,y,w*Math.max(0,Math.min(1,frac)),h);}
-}
-function draw(){
-  if(FX)FX.stage(ctx,W,H,'#4a2410','#180b04');else{ctx.fillStyle='#2a1408';ctx.fillRect(0,0,W,H);}
-  // 完美区（绿色区间）
-  const zt=zoneTop(),zb=zoneBot();
-  ctx.fillStyle='rgba(80,255,110,.16)';ctx.fillRect(40,zt,W-80,zb-zt);
-  ctx.strokeStyle='rgba(80,255,110,.75)';ctx.lineWidth=2;ctx.setLineDash([8,6]);
-  ctx.strokeRect(40,zt,W-80,zb-zt);ctx.setLineDash([]);
-  ctx.fillStyle='rgba(124,255,107,.9)';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText('完美区',W/2,(zt+zb)/2);
-  // 火候条 & 糊值条 & 命
-  ctx.textAlign='left';ctx.font='13px sans-serif';ctx.fillStyle='#fff';
-  ctx.fillText('🔥',6,14);bar(26,7,W-120,12,heat,'#ff9f2e','#c33');
-  ctx.fillText('糊',6,32);bar(26,25,W-120,12,hush/100,'#8a5a2b','#5b3410');
-  ctx.fillText('❤️'.repeat(Math.max(0,lives)),10,50);
-  if(combo>1){ctx.textAlign='right';ctx.fillStyle='#ffd34d';ctx.fillText(combo+' 连击',W-10,50);}
-  if(burnX2T>0){ctx.textAlign='right';ctx.fillStyle='#ff9f2e';ctx.fillText('大火 '+Math.ceil(burnX2T)+'s',W-10,66);}
-  // 辣椒炸锅事件
-  if(chiliEv){
-    const e=chiliEv;
-    ctx.font='40px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText('🌶️',e.x,e.y);ctx.fillText('🔥',e.x,e.y-34);
-    ctx.fillStyle='#fff';ctx.font='bold 15px sans-serif';
-    ctx.fillText('连点灭火 '+e.t.toFixed(1)+'s ('+e.taps+'/5)',e.x,e.y+36);
-  }
-  // 铁锅
-  const wx=W/2,wy=MOUTH_Y+44;
-  if(FX)FX.shadow(ctx,wx,wy+22,86,10);
-  ctx.fillStyle='#23232c';ctx.beginPath();ctx.ellipse(wx,wy,86,26,0,0,Math.PI);ctx.fill();
-  ctx.fillStyle='#33333e';ctx.beginPath();ctx.ellipse(wx,wy,86,26,0,Math.PI,0);ctx.fill();
-  ctx.fillStyle='#101014';ctx.beginPath();ctx.ellipse(wx,wy,70,19,0,Math.PI,0);ctx.fill();
-  if(FX){FX.tile(ctx,wx+78,wy-34,52,12,'#7a5a3a',6);}else{ctx.fillStyle='#7a5a3a';ctx.fillRect(wx+78,wy-34,52,12);}
-  // 食材
-  ctx.font='30px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  for(const it of items){
-    if(FX){FX.glow(ctx,'#ffdf8a',8);ctx.fillText(it.e,it.x,it.y);FX.noGlow(ctx);}
-    else ctx.fillText(it.e,it.x,it.y);
-  }
-  if(FX)FX.drawBurst(ctx,sparks);
-  // 飘字
-  ctx.textAlign='center';
-  for(const f of floats){
-    ctx.globalAlpha=Math.min(1,f.life*2);ctx.fillStyle=f.c;ctx.font='bold 17px sans-serif';
-    ctx.fillText(f.t,f.x,f.y);ctx.globalAlpha=1;
-  }
-  // 蓄力条
-  if(charging){
-    const bw=18,bh=140,bx=W-34,by=H/2-bh/2;
-    ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(bx,by,bw,bh);
-    if(FX)FX.tile(ctx,bx,by+bh*(1-charge),bw,bh*charge,charge>.85?'#ff4444':charge>.5?'#ffd34d':'#7CFF6B',6);
-    else{ctx.fillStyle=charge>.85?'#ff4444':'#ffd34d';ctx.fillRect(bx,by+bh*(1-charge),bw,bh*charge);}
-    ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.fillText('力',bx+bw/2,by-12);
-  }
-}
-function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play')update(dt);draw();requestAnimationFrame(frame);}
-draw();requestAnimationFrame(frame);
+function toast(t){const el=$('toast');el.textContent=t;el.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('on'),1200);}
+function posOf(e){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};}
+const PK='g100_wokflip_prog',HK='g100_wokflip_hs',MK='g100_mute';
+let muted=UI.storageGet(MK)==='1',ac=null;$('muteBtn').textContent=muted?'🔇':'🔊';
+function beep(f,d,type){if(muted)return;try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.setValueAtTime(.12,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+$('muteBtn').onclick=()=>{muted=!muted;UI.storageSet(MK,muted?'1':'0');$('muteBtn').textContent=muted?'🔇':'🔊';};
+function loadProg(){try{return JSON.parse(UI.storageGet(PK)||'{}');}catch(e){return{};}}
+function saveProg(p){UI.storageSet(PK,JSON.stringify(p));}
+let prog=loadProg();
+if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==null)prog.unlock=1;
+if(!prog.seenTut)prog.seenTut=0;
+const LEGACY={missile:'g100_missile_hi',cannon:'g100_cannon_hi',sleigh:'g100_sleigh_best',stack:'stack_best',icebridge:'g100_icebridge_best'};
+if(LEGACY['wokflip']&&!UI.storageGet(HK)){const v=+UI.storageGet(LEGACY['wokflip'])||0;if(v)UI.storageSet(HK,String(v));}
+let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
+const TOTAL=15;
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
+
+if(prog.sel==null)prog.sel=0;
+const TUT=[['蓄力颠勺','按住屏幕蓄力，松手把锅里的食材抛起来。','🍳'],['完美落点','让食材落回绿色完美区可连击加分，抛太高会飞出锅外扣命。','🟢'],['火候博弈','火候越高分数倍率越大，锅也更晃。','🔥'],['食神首领','第5关辣椒爆锅要点灭火星，第10关多料齐颠，第15关满汉全席。','👑']];
+const SHOP=[{k:'zoneLv',name:'不粘锅沿',max:3,cost(){return 32+(prog.zoneLv|0)*26;},desc(){return '完美区更宽'}},{k:'slowLv',name:'稳火慢蓄',max:3,cost(){return 36+(prog.slowLv|0)*28;},desc(){return '蓄力更容易看准'}},{k:'lifeLv',name:'额外命',max:2,cost(){return 44+(prog.lifeLv|0)*34;},desc(){return '生命+1'}}];
+const FOOD=['🥕','🥩','🦐','🌽','🍄','🥬','🦞'];
+const REST_Y=H-108,MOUTH_Y=H-148;
+let items=[],lives=3,need=6,done=0,combo=0,heat=.55,charging=false,charge=0,chili=null,chiliCd=8,parts=[],floats=[],rng;
+function zPad(){return 8+(prog.zoneLv|0)*7;}
+function zone(){const p=zPad();return {t:292-p,b:368+p};}
+function itemN(n){if(n===15)return 5;if(n===10||n>=12)return 3;if(n>=7||n===5)return 2;return 1;}
+function resetItems(){items=[];const n=itemN(lvl);for(let i=0;i<n;i++)items.push({e:FOOD[(i+lvl)%FOOD.length],ox:(i-(n-1)/2)*28,st:'in',x:W/2,y:REST_Y,vx:0,vy:0,minY:REST_Y});}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];parts=[];floats=[];charging=false;charge=0;combo=0;done=0;chili=null;rng=mulberry32(n*7723+4);
+  lives=3+(prog.lifeLv|0);need=5+Math.ceil(lvl*0.7)+(boss?3:0);heat=0.35+lvl*0.045+(boss?0.12:0);chiliCd=boss&&lvl===5?3.2:7-lvl*0.15;
+  resetItems();show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(500,.1);$('score').textContent=0;
+  $('hint').textContent=lvl===5?'👑 辣椒爆锅：连点火星灭火':lvl===10?'👑 双料齐颠：一次抛起多份食材':lvl===15?'👑 满汉全席：五料同颠且火旺':'按住蓄力，松手颠勺';}
+function toss(){const p=Math.min(1,charge);const wob=heat*70;items.forEach(it=>{if(it.st!=='in')return;it.st='air';it.vy=-(170+520*p);it.vx=(rng()*2-1)*wob;it.minY=REST_Y;});beep(260+p*280,.11,'triangle');}
+function judge(it){const z=zone(),m=it.minY;it.st='in';it.vy=0;it.vx=0;
+  if(m<z.t-46){lives--;combo=0;float('飞出锅外!','#ff6b6b');beep(140,.28,'sawtooth');if(lives<=0)return lose('食材飞光了');}
+  else if(m>=z.t&&m<=z.b){combo++;const center=(z.t+z.b)/2,edge=Math.abs(m-center)/Math.max(8,(z.b-z.t)/2);const pts=Math.round((18+lvl)*(1+heat*0.7)*(1.2-0.2*edge)*(1+0.12*(combo-1)));score+=pts;$('score').textContent=score;done++;float((combo>1?combo+'连 ':'')+'完美 +'+pts,'#7CFF6B');if(FX)FX.burst(sparks,it.x,m,'#7CFF6B',14);beep(860+Math.min(combo,8)*30,.09);if(done>=need)win();}
+  else if(m>=z.t-40&&m<=z.b+55){score+=6;$('score').textContent=score;combo=0;float('擦边 +6','#ffd34d');beep(480,.07);}
+  else{combo=0;float('没颠起来','#ffb74d');beep(200,.16,'sawtooth');}}
+function float(t,c){floats.push({x:W/2,y:H/2-30,t,c,life:1.15});}
+function win(){if(state!=='play')return;const stars=lives>=3&&combo>=3?3:lives>=2?2:1;finishWin(stars,42+stars*13+(boss?48:0)+combo*2,boss?'食神点头！':'颠出火候！');}
+function lose(msg){if(state!=='play')return;finishLose(msg);}
+function update(dt){const slow=1+(prog.slowLv|0)*0.35;if(charging)charge=Math.min(1,charge+dt*(1.35/slow));
+  heat=Math.min(1.25,heat+dt*0.015);
+  if(!chili){chiliCd-=dt;if(chiliCd<=0&&(boss||lvl>=4)){chili={x:80+rng()*200,y:210+rng()*80,taps:0,life:3.2};chiliCd=lvl===5?3.4:8;}}
+  if(chili){chili.life-=dt;if(chili.life<=0){chili=null;lives--;float('糊锅了!','#ff6b6b');beep(130,.3,'sawtooth');if(lives<=0)return lose('锅烧糊了');}}
+  items.forEach(it=>{if(it.st!=='air')return;it.vy+=980*dt;it.x+=it.vx*dt;it.y+=it.vy*dt;if(it.y<it.minY)it.minY=it.y;if(it.y>=REST_Y&&it.vy>0){it.y=REST_Y;judge(it);}});
+  floats.forEach(f=>f.life-=dt);for(let i=floats.length-1;i>=0;i--)if(floats[i].life<=0)floats.splice(i,1);}
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
+  if(chili&&Math.hypot(p.x-chili.x,p.y-chili.y)<52){chili.taps++;beep(640+chili.taps*70,.06,'square');if(chili.taps>=4){score+=24;$('score').textContent=score;float('灭火 +24','#7CFF6B');chili=null;chiliCd=6;}return;}
+  charging=true;charge=0;});
+cv.addEventListener('pointerup',()=>{if(state!=='play'||!charging)return;charging=false;toss();});
+cv.addEventListener('pointercancel',()=>{charging=false;});
+function draw(){if(FX)FX.stage(ctx,W,H,'#4e342e','#21140d');else{ctx.fillStyle='#21140d';ctx.fillRect(0,0,W,H);}
+  const z=zone();ctx.fillStyle='rgba(124,255,107,.18)';ctx.fillRect(40,z.t,W-80,z.b-z.t);ctx.strokeStyle='#7CFF6B';ctx.strokeRect(40,z.t,W-80,z.b-z.t);
+  if(FX)FX.tile(ctx,70,H-92,220,70,'#5d4037',22);else{ctx.fillStyle='#5d4037';ctx.fillRect(70,H-92,220,70);}
+  ctx.fillStyle='#37474f';ctx.beginPath();ctx.ellipse(W/2,H-86,118,22,0,0,7);ctx.fill();
+  items.forEach(it=>{const x=it.st==='air'?it.x:W/2+it.ox,y=it.st==='air'?it.y:REST_Y;ctx.font='28px sans-serif';ctx.textAlign='center';ctx.fillText(it.e,x,y);});
+  if(charging){ctx.fillStyle='rgba(255,255,255,.14)';ctx.fillRect(18,H-28,W-36,10);ctx.fillStyle='#ffcc80';ctx.fillRect(18,H-28,(W-36)*charge,10);}
+  if(chili){ctx.globalAlpha=0.4+0.4*Math.sin(performance.now()/80);ctx.font='34px sans-serif';ctx.textAlign='center';ctx.fillText('🌶️',chili.x,chili.y);ctx.globalAlpha=1;}
+  ctx.fillStyle='#fff8e1';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('❤'+lives+' 完美'+done+'/'+need+' 火'+(heat*100|0)+'%'+(boss?' 👑':''),10,22);
+  floats.forEach(f=>{ctx.globalAlpha=Math.max(0,f.life);ctx.fillStyle=f.c;ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.fillText(f.t,f.x,f.y);});ctx.globalAlpha=1;
+  if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
+window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);done=need;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,done,need,lives}},kit:{get state(){return state;}}};
+
+
+function finishWin(stars,gain,title){state='over';const prev=prog.stars[lvl]|0;if(stars>prev)prog.stars[lvl]=stars;prog.coins+=gain;if(lvl>=prog.unlock&&lvl<TOTAL)prog.unlock=lvl+1;saveProg(prog);if(score>best){best=score;UI.storageSet(HK,best);$('best').textContent=best;}$('overH').textContent=title||'过关！';$('finalScore').textContent='★'.repeat(stars);$('overText').textContent='关卡 '+lvl+' · +'+gain+'币';show('overScr',true);beep(880,.2);}
+function finishLose(msg){state='over';$('overH').textContent='失败';$('finalScore').textContent='💀';$('overText').textContent=(msg||'')+' · 得分 '+score;show('overScr',true);beep(160,.35,'triangle');}
+function tutorial(steps,done){let i=0;show('tutScr',true);const paint=()=>{$('tutH').textContent=steps[i][0];$('tutP').textContent=steps[i][1];$('tutStep').textContent=(i+1)+'/'+steps.length;};paint();$('tutNext').onclick=()=>{i++;if(i>=steps.length){show('tutScr',false);done();}else paint();};$('tutSkip').onclick=()=>{show('tutScr',false);done();};}
+function openLevels(){state='menu';show('startScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('tutScr',false);show('lvlScr',true);$('lvlInfo').textContent='解锁 '+prog.unlock+'/'+TOTAL+' · 币 '+prog.coins;const g=$('lvgrid');g.innerHTML='';for(let i=1;i<=TOTAL;i++){const b=document.createElement('button');b.className='btn lvl';const locked=i>prog.unlock;const st=prog.stars[i]|0;b.innerHTML=locked?'🔒':(i%5===0?'👑':'')+i+'<small>'+'★'.repeat(st)+'</small>';b.disabled=locked;if(!locked)b.onclick=()=>enter(i);g.appendChild(b);}}
+function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;saveProg(prog);tutorial(TUT,go);}else go();}
+function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').textContent='金币：'+prog.coins;const box=$('shopList');box.innerHTML='';for(const it of SHOP){if(prog[it.k]==null)prog[it.k]=0;const row=document.createElement('div');row.className='row';row.innerHTML='<div><b>'+it.name+'</b><br><small>'+it.desc()+'</small></div>';const btn=document.createElement('button');btn.className='btn';const maxed=prog[it.k]>=it.max;const cost=it.cost();btn.textContent=maxed?'满':cost+'币';btn.disabled=maxed||prog.coins<cost;btn.onclick=()=>{prog.coins-=cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();};row.appendChild(btn);box.appendChild(row);}}
+$('startBtn').onclick=openLevels;$('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
+$('shopBtn').onclick=openShop;$('shopBack').onclick=openLevels;
+$('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};
+$('resumeBtn').onclick=()=>{state='play';last=performance.now();show('pauseOv',false);};
+$('restartBtn').onclick=()=>{show('pauseOv',false);startLevel(lvl);};
+$('menuBtn').onclick=()=>{show('pauseOv',false);state='menu';openLevels();};
+$('againBtn').onclick=()=>startLevel(lvl);
+$('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
+$('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+
 </script>
 </body></html>

@@ -4,7 +4,6 @@
 <title>甩饼飞天</title>
 <link rel="icon" href="data:,">
 <style>
-/* 游戏自身样式只管布局与玩法元素；颜色/面板/按钮外观交给共用皮肤（sync 时注入）。 */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -12,12 +11,19 @@ body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-
 .topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
 .topbar .tools{display:flex;gap:8px}
 .topbar .tools .iconbtn{min-width:44px;min-height:44px}
-#cashBtn{min-width:72px;min-height:44px;font-size:14px}
-#cashBtn:disabled{opacity:.4}
+.stagebox{width:100%;display:flex;justify-content:center}
 #cv{width:100%;max-height:calc(100svh - 170px);aspect-ratio:360/540;object-fit:contain;touch-action:none;border-radius:16px}
 .hint{font-size:13px;text-align:center}
 .overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
 .overlay.hidden{display:none}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:min(360px,92vw)}
+.btn.lvl{min-width:44px;min-height:44px;font-size:14px}
+.btn.lvl small{display:block;font-size:10px;opacity:.85}
+.shop{width:min(360px,92vw);display:flex;flex-direction:column;gap:10px}
+.shop .row{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left}
+.rowbtns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+#toast{position:fixed;left:50%;bottom:18%;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#fff;padding:8px 16px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;z-index:50;transition:opacity .2s}
+#toast.on{opacity:1}
 </style>
 <!-- GAME UI BEGIN -->
 <style>
@@ -441,174 +447,109 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="topbar">
     <span class="title">🫓 甩饼飞天</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
-    <span class="tools"><button class="iconbtn" id="cashBtn" aria-label="收饼结算连击加成">收饼(0)</button><button class="iconbtn" id="muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools">
+      <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
+      <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
+    </span>
   </div>
-  <canvas id="cv"></canvas>
-  <p class="hint">按住蓄力、松手甩饼 · 落进盘子得分 · 饼塔越高加成越大</p>
+  <div class="stagebox"><canvas id="cv"></canvas></div>
+  <p class="hint" id="hint">按住蓄力甩饼 · 落进移动的盘子</p>
 </div>
-<div class="overlay" id="startScr"><h1>🫓 甩饼飞天</h1><p>按住屏幕蓄力，松手把面饼甩向右侧移动的盘子。<br>落进盘子 +10 起，连击叠饼塔：每层 +10%（上限翻倍）。<br>第 6 关起有阵风干扰，注意风向箭头；3 条命。<br>12 关：3/6/9 关解锁新饼皮；随时按「收饼」落袋为安。</p><button class="btn" id="startBtn">开始游戏</button></div>
-<div class="overlay hidden" id="pauseOv"><h1>⏸ 已暂停</h1><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="quitBtn">重新开始</button></div>
-<div class="overlay hidden" id="overScr"><h1 id="overTitle">游戏结束</h1><div class="score" id="finalScore">0</div><p id="overText"></p><button class="btn" id="againBtn">再来一局</button></div>
+<div class="overlay" id="startScr"><h1>🫓 甩饼飞天</h1><p>按住蓄力把刚出锅的飞饼甩向对面移动盘子，叠得越高分越多。<br>途中有风力干扰，也可以中途收饼结算连击。<br>第 5/10/15 关迎战金盘迷你、狂风乱流与双盘接饼！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
+<div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重开</button><button class="btn ghost" id="menuBtn">选关</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">过关！</h2><div class="score" id="finalScore">★★★</div><p id="overText"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再玩一次</button><button class="btn ghost" id="menu2Btn">选关</button></div></div>
+<div id="toast"></div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-const W=360,H=540;                       // 逻辑坐标：所有玩法/命中判定都用它
+const W=360,H=540;
 const cv=$('cv'),ctx=cv.getContext('2d');
-const UI=window.GameUI||{pick:(a)=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
-const FX=UI.fx&&UI.fx.on?UI.fx:null;     // 共用皮肤的画布立体工具；没有时走平面画法
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
 if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
-// ---- 玩法常量 ----
-const G=560,LX=64,LY=392,PLATE_Y=428,GY=H-20,DR=13;
-const COSA=0.559,SINA=0.829;             // 甩出仰角 56°
-const MAXLEVEL=12;
-// ---- 状态 ----
-let state='menu',score=0,lives=3,level=1,hits=0,tower=0,maxTower=0;
-let charging=false,power=0,shakeT=0,respawnT=0,overT=0,win=false;
-let sparks=[],floats=[],last=0,rot=0;
-const dough={flying:false,x:LX,y:LY,vx:0,vy:0,rot:0,prevY:LY};
-const plate={x:270,dir:1,w:62,golden:false,speed:60};
-// ---- 存档 ----
-let best=+UI.storageGet('g100_doughfly_hs')||0;$('best').textContent=best;
-let prog={skins:[0],max:1};
-try{const p=JSON.parse(UI.storageGet('g100_doughfly_prog')||'null');if(p&&Array.isArray(p.skins))prog=p;}catch(e){}
-function saveProg(){UI.storageSet('g100_doughfly_prog',JSON.stringify(prog));}
-const SKINS=[{c:'#f6e7c1',dot:null},{c:'#f6e7c1',dot:'#8a6b3f'},{c:'#cfe3a1',dot:'#4e7d2a'},{c:'#e8b7a0',dot:'#7a3b2e'}];
-const SKIN_NAME=['原味','芝麻','葱花','豆沙'];
-function skinIdx(){return Math.min(3,Math.max.apply(null,prog.skins));}
-// ---- 风 ----
-let baseWind=0,gustA=0,gustT=0,gustCd=0;
-function newWind(){baseWind=(Math.random()*2-1)*(8+level*7);}
-// ---- 音效：WebAudio 合成，无外部资源；遵守静音开关 ----
-let muted=UI.storageGet('g100_doughfly_mute')==='1',ac=null;$('muteBtn').textContent=muted?'🔇':'🔊';
-function tone(f,d,type){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.setValueAtTime(.16,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
-function sweep(f1,f2,d,type){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f1,ac.currentTime);o.frequency.exponentialRampToValueAtTime(f2,ac.currentTime+d);g.gain.setValueAtTime(.16,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
-$('muteBtn').addEventListener('click',()=>{muted=!muted;UI.storageSet('g100_doughfly_mute',muted?'1':'0');$('muteBtn').textContent=muted?'🔇':'🔊';});
-// ---- 输入：pointer 事件 + 按画布显示尺寸换算成逻辑坐标 ----
-function posOf(e){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches.length)?e.touches[0]:(e.changedTouches&&e.changedTouches.length)?e.changedTouches[0]:e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;if(dough.flying||respawnT>0)return;e.preventDefault();cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);charging=true;power=0;});
-function release(){if(!charging)return;charging=false;if(power<12){power=0;return;}launch();}
-['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,release));
-$('cashBtn').addEventListener('click',()=>{if(state!=='play'||tower<=0)return;const bonus=tower*8;score+=bonus;$('score').textContent=score;floats.push({x:plate.x,y:PLATE_Y-60,txt:'收饼 +'+bonus,t:1,c:'#ffd34d'});tower=0;syncCashBtn();tone(880,.1);setTimeout(()=>tone(1174,.14),90);});
-// ---- 流程 ----
 function show(id,on){$(id).classList.toggle('hidden',!on);}
-function setupLevel(){const need=3+level;hits=0;plate.golden=(level===10||level===12);plate.w=plate.golden?46:62;plate.speed=(45+level*14)*(plate.golden?1.35:1);plate.x=270;plate.dir=Math.random()<.5?-1:1;newWind();return need;}
-function start(){score=0;lives=3;level=1;tower=0;maxTower=0;charging=false;power=0;shakeT=0;respawnT=0;overT=0;win=false;sparks=[];floats=[];dough.flying=false;dough.x=LX;dough.y=LY;setupLevel();$('score').textContent=0;syncCashBtn();show('startScr',false);show('overScr',false);show('pauseOv',false);state='play';last=performance.now();tone(660,.12);}
-function pause(){if(state!=='play')return;state='pause';show('pauseOv',true);}
-function resume(){if(state!=='pause')return;state='play';last=performance.now();show('pauseOv',false);}
-function over(w){state='over';win=w;if(score>best){best=score;UI.storageSet('g100_doughfly_hs',best);$('best').textContent=best;}
-  $('overTitle').textContent=w?'🎉 通关！12 关全过':'游戏结束';$('finalScore').textContent=score;
-  $('overText').textContent=(w?'全部通关':'到达第 '+level+' 关')+' · 最高连击 '+maxTower+' 层 · 最佳 '+best;
-  show('overScr',true);if(w){tone(523,.15);setTimeout(()=>tone(659,.15),140);setTimeout(()=>tone(784,.25),280);}else sweep(300,120,.5,'sawtooth');}
-$('startBtn').addEventListener('click',start);$('againBtn').addEventListener('click',start);
-$('pauseBtn').addEventListener('click',()=>state==='play'?pause():resume());$('resumeBtn').addEventListener('click',resume);
-$('quitBtn').addEventListener('click',()=>{show('pauseOv',false);start();});
-// 切到后台自动暂停（App 切换、锁屏）
-document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
-function syncCashBtn(){$('cashBtn').textContent='收饼('+tower+')';$('cashBtn').disabled=tower<=0;}
-// ---- 发射与判定 ----
-function launch(){const v=240+power/100*360;power=0;dough.flying=true;dough.x=LX;dough.y=LY;dough.prevY=LY;dough.vx=v*COSA;dough.vy=-v*SINA;dough.rot=0;gustCd=1+Math.random()*1.5;sweep(500,180,.28,'sawtooth');}
-function need(){return 3+level;}
-function onHit(){const mult=1+Math.min(tower,10)*0.1;const gain=Math.round(10*mult*(plate.golden?2:1));score+=gain;$('score').textContent=score;tower++;maxTower=Math.max(maxTower,tower);syncCashBtn();hits++;
-  if(FX)FX.burst(sparks,dough.x,PLATE_Y-8,plate.golden?'#ffe14d':'#ffd34d',16);
-  floats.push({x:dough.x,y:PLATE_Y-46,txt:'+'+gain+(plate.golden?' 金盘!':''),t:1,c:'#fff'});
-  tone(plate.golden?1320:990,.09);setTimeout(()=>tone(1320,.1),70);
-  dough.flying=false;respawnT=.4;dough.x=LX;dough.y=LY;
-  if(hits>=need()){ // 过关
-    level++;tower=0;syncCashBtn();
-    if(level>MAXLEVEL){over(true);return;}
-    setupLevel();
-    floats.push({x:W/2,y:H/2-40,txt:'第 '+level+' 关！',t:1.4,c:'#ffd34d'});tone(1200,.15,'square');
-    let ns=-1;if(level===3)ns=1;else if(level===6)ns=2;else if(level===9)ns=3;
-    if(ns>0&&prog.skins.indexOf(ns)<0){prog.skins.push(ns);prog.max=Math.max(prog.max,level);saveProg();floats.push({x:W/2,y:H/2,txt:'解锁饼皮：'+SKIN_NAME[ns]+'！',t:1.8,c:'#8ef7a1'});setTimeout(()=>tone(1568,.2),200);}
-    else{prog.max=Math.max(prog.max,level);saveProg();}
-  }}
-function onMiss(){lives--;tower=0;syncCashBtn();shakeT=.35;sweep(280,90,.4,'sawtooth');
-  floats.push({x:W/2,y:H/2,txt:lives>0?'掉地了！剩 '+lives+' 条命':'',t:1,c:'#ff8a8a'});
-  dough.flying=false;respawnT=.4;dough.x=LX;dough.y=LY;
-  if(lives<=0){overT=.7;}}
-// ---- 循环 ----
-function update(dt){
-  rot+=dt*2;
-  // 盘子移动
-  plate.x+=plate.dir*plate.speed*dt;
-  if(plate.x<195+plate.w/2){plate.x=195+plate.w/2;plate.dir=1;}
-  if(plate.x>340-plate.w/2){plate.x=340-plate.w/2;plate.dir=-1;}
-  if(respawnT>0){respawnT-=dt;}
-  if(overT>0){overT-=dt;if(overT<=0){over(false);return;}}
-  if(shakeT>0)shakeT-=dt;
-  if(charging){power=Math.min(100,power+dt*87);}
-  if(dough.flying){
-    // 第 6 关起随机阵风
-    if(level>=6){gustCd-=dt;if(gustCd<=0){gustA=(Math.random()<.5?-1:1)*(50+level*10);gustT=.45;gustCd=1.2+Math.random()*1.8;}}
-    if(gustT>0){gustT-=dt;if(gustT<=0)gustA=0;}
-    dough.vx+=(baseWind+gustA)*dt;dough.vy+=G*dt;dough.prevY=dough.y;dough.x+=dough.vx*dt;dough.y+=dough.vy*dt;dough.rot+=dt*9;
-    if(dough.vy>0&&dough.prevY<PLATE_Y&&dough.y>=PLATE_Y){
-      if(Math.abs(dough.x-plate.x)<=plate.w/2){onHit();return;}
-    }
-    if(dough.y>=GY||dough.x>W+14||dough.x<-14||dough.y<-40){onMiss();return;}
-  }
-  for(const f of floats)f.t-=dt;floats=floats.filter(f=>f.t>0);
-}
-function drawDough(x,y,r,rotA,si){const sk=SKINS[si];
-  ctx.save();ctx.translate(x,y);ctx.rotate(rotA);
-  if(FX){FX.orb(ctx,0,0,r,sk.c);}else{ctx.fillStyle=sk.c;ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill();}
-  if(sk.dot){ctx.fillStyle=sk.dot;for(let i=0;i<6;i++){const a=i*1.047+rotA*.3;ctx.beginPath();ctx.arc(Math.cos(a)*r*.55,Math.sin(a)*r*.55,2.2,0,7);ctx.fill();}}
-  ctx.restore();}
-function draw(){
-  ctx.save();
-  if(shakeT>0)ctx.translate((Math.random()-.5)*10*shakeT/.35,(Math.random()-.5)*8*shakeT/.35);
-  if(FX)FX.stage(ctx,W,H,'#4a2e1c','#1c1008');else{ctx.fillStyle='#2a1a10';ctx.fillRect(-20,-20,W+40,H+40);}
-  // 地面
-  ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(0,GY,W,H-GY);
-  // 左侧案台
-  if(FX){FX.shadow(ctx,70,LY+26,80,8);FX.tile(ctx,-10,LY+18,170,34,'#a5713f',10);}
-  else{ctx.fillStyle='#a5713f';ctx.fillRect(-10,LY+18,170,34);}
-  // 待发的饼（持续旋转）
-  if(!dough.flying&&respawnT<=0){const pr=charging?DR+power/100*5:DR;drawDough(LX,LY,pr,rot,skinIdx());}
-  // 蓄力条
-  if(charging){const bx=18,by0=150,by1=400,bh=by1-by0,ph=bh*power/100;
-    ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(bx-4,by0-4,20,bh+8);
-    const pc=power<50?'#7CFC90':power<80?'#ffd34d':'#ff5a5a';
-    ctx.fillStyle=pc;ctx.fillRect(bx,by1-ph,12,ph);
-    ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(Math.round(power)+'%',bx+6,by1+20);
-    // 预测落点（虚线 + 落点标记，计入基础风，不计随机阵风）
-    let px=LX,py=LY,pvx=(240+power/100*360)*COSA,pvy=-(240+power/100*360)*SINA,landed=false;
-    ctx.fillStyle='rgba(255,255,255,.55)';
-    for(let i=0;i<70&&!landed;i++){pvx+=baseWind*.04;pvy+=G*.04;px+=pvx*.04;py+=pvy*.04;
-      if(i%3===0){ctx.beginPath();ctx.arc(px,py,2,0,7);ctx.fill();}
-      if(pvy>0&&py>=PLATE_Y){landed=true;ctx.strokeStyle='#8ef7a1';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(px-9,py-9);ctx.lineTo(px+9,py+9);ctx.moveTo(px+9,py-9);ctx.lineTo(px-9,py+9);ctx.stroke();}
-      if(py>GY||px>W+10||px<-10)landed=true;}
-  }
-  // 飞行中的饼
-  if(dough.flying)drawDough(dough.x,dough.y,DR,dough.rot,skinIdx());
-  // 盘子 + 饼塔
-  if(FX)FX.shadow(ctx,plate.x,PLATE_Y+10,plate.w/2+6,5);
-  const pc2=plate.golden?'#f7c948':'#e8e2d5';
-  if(FX)FX.tile(ctx,plate.x-plate.w/2,PLATE_Y-6,plate.w,14,pc2,7);else{ctx.fillStyle=pc2;ctx.fillRect(plate.x-plate.w/2,PLATE_Y-6,plate.w,14);}
-  if(plate.golden){ctx.fillStyle='#fff2b0';ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('✦',plate.x,PLATE_Y+4);}
-  const tn=Math.min(tower,10);
-  for(let i=0;i<tn;i++){const wy=PLATE_Y-8-i*11,ww=plate.w/2-4-i*1.5;
-    if(FX)FX.tile(ctx,plate.x-ww/2,wy-6,ww,12,SKINS[skinIdx()].c,6);
-    else{ctx.fillStyle=SKINS[skinIdx()].c;ctx.fillRect(plate.x-ww/2,wy-6,ww,12);}}
-  if(FX)FX.drawBurst(ctx,sparks);
-  // 阵风提示
-  if(gustT>0){ctx.fillStyle='rgba(140,220,255,.9)';ctx.font='bold 22px sans-serif';ctx.textAlign='center';
-    ctx.fillText(gustA>0?'🌬️ →→':'←← 🌬️',gustA>0?W-70:70,150);}
-  // 浮动文字
-  ctx.textAlign='center';ctx.textBaseline='middle';
-  for(const f of floats){ctx.globalAlpha=Math.min(1,f.t);ctx.fillStyle=f.c;ctx.font='bold 20px sans-serif';ctx.fillText(f.txt,f.x,f.y-(1-f.t)*30);}
-  ctx.globalAlpha=1;
-  // HUD
-  ctx.fillStyle='#fff';ctx.font='bold 15px sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
-  ctx.fillText('第'+Math.min(level,MAXLEVEL)+'关 '+Math.min(hits,need())+'/'+need(),10,8);
-  ctx.textAlign='right';ctx.fillText('❤️'.repeat(Math.max(0,lives)),W-10,8);
-  ctx.textAlign='center';ctx.font='13px sans-serif';
-  const wdir=baseWind>=0?'→':'←',wlv=Math.min(5,Math.round(Math.abs(baseWind)/10));
-  ctx.fillText('🌬️'+wdir+' 风级'+wlv,W/2,9);
-  if(plate.golden){ctx.fillStyle='#ffe14d';ctx.font='bold 13px sans-serif';ctx.fillText('金盘双倍！',W/2,28);}
-  ctx.restore();
-}
-function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play')update(dt);draw();requestAnimationFrame(frame);}
-syncCashBtn();draw();requestAnimationFrame(frame);
+function toast(t){const el=$('toast');el.textContent=t;el.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('on'),1200);}
+function posOf(e){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};}
+const PK='g100_doughfly_prog',HK='g100_doughfly_hs',MK='g100_mute';
+let muted=UI.storageGet(MK)==='1',ac=null;$('muteBtn').textContent=muted?'🔇':'🔊';
+function beep(f,d,type){if(muted)return;try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.setValueAtTime(.12,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+$('muteBtn').onclick=()=>{muted=!muted;UI.storageSet(MK,muted?'1':'0');$('muteBtn').textContent=muted?'🔇':'🔊';};
+function loadProg(){try{return JSON.parse(UI.storageGet(PK)||'{}');}catch(e){return{};}}
+function saveProg(p){UI.storageSet(PK,JSON.stringify(p));}
+let prog=loadProg();
+if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==null)prog.unlock=1;
+if(!prog.seenTut)prog.seenTut=0;
+const LEGACY={missile:'g100_missile_hi',cannon:'g100_cannon_hi',sleigh:'g100_sleigh_best',stack:'stack_best',icebridge:'g100_icebridge_best'};
+if(LEGACY['doughfly']&&!UI.storageGet(HK)){const v=+UI.storageGet(LEGACY['doughfly'])||0;if(v)UI.storageSet(HK,String(v));}
+let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
+const TOTAL=15;
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
+
+if(!prog.skins)prog.skins=[0];
+const TUT=[['蓄力甩饼','按住屏幕蓄力，松手把饼沿抛物线甩向对面。','🫓'],['移动托盘','接住左右移动的盘子即可叠塔，盘子越小越难。','🍽️'],['风与收饼','注意风力偏移；可以点「收饼」把当前层数兑成分数。','💨'],['饼摊首领','第5关迷你金盘、第10关狂风、第15关双盘齐飞。','👑']];
+const SHOP=[{k:'wideLv',name:'宽盘沿',max:3,cost(){return 32+(prog.wideLv|0)*26;},desc(){return '盘子更宽更好接'}},{k:'windLv',name:'抗风',max:3,cost(){return 36+(prog.windLv|0)*28;},desc(){return '风力影响更小'}},{k:'lifeLv',name:'额外命',max:2,cost(){return 44+(prog.lifeLv|0)*34;},desc(){return '生命+1'}}];
+const LX=58,LY=400,PLATE_Y=430,G=560,COSA=0.56,SINA=0.83;
+let lives=3,need=4,hits=0,tower=0,charging=false,power=0,dough={fly:false,x:58,y:400,vx:0,vy:0},plates=[],wind=0,gust=0,floats=[],rng,cashRect={x:250,y:12,w:96,h:36};
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];floats=[];charging=false;power=0;hits=0;tower=0;rng=mulberry32(n*6407+2);
+  lives=3+(prog.lifeLv|0);need=3+Math.ceil(lvl*0.55)+(boss?2:0);
+  const w0=64+(prog.wideLv|0)*8-(lvl>8?8:0);wind=(rng()*2-1)*(10+lvl*5)*(1-0.22*(prog.windLv|0));gust=0;
+  plates=[{x:250,dir:rng()<.5?-1:1,w:lvl===5?42:w0,spd:48+lvl*11+(boss?18:0),gold:lvl===5||lvl===12}];
+  if(lvl===15){plates=[{x:150,dir:-1,w:48,spd:86,gold:true},{x:270,dir:1,w:48,spd:92,gold:true}];}
+  if(lvl===10){plates[0].spd+=30;wind*=1.6;}
+  dough={fly:false,x:LX,y:LY,vx:0,vy:0};show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(540,.1);$('score').textContent=0;
+  $('hint').textContent=lvl===5?'👑 迷你金盘：盘子又小又快':lvl===10?'👑 狂风乱流：风力来回抽搐':lvl===15?'👑 双盘接饼：两只金盘来回穿梭':'按住蓄力甩饼，可点右上角收饼';}
+function launch(){const v=250+power/100*340;power=0;dough.fly=true;dough.x=LX;dough.y=LY;dough.vx=v*COSA;dough.vy=-v*SINA;beep(420,.12,'sawtooth');}
+function onHit(pl){const mult=1+Math.min(tower,8)*0.1;const gain=Math.round(12*mult*(pl.gold?1.8:1));score+=gain;$('score').textContent=score;tower++;hits++;if(FX)FX.burst(sparks,dough.x,PLATE_Y-6,pl.gold?'#ffe14d':'#ffcc80',14);floats.push({x:dough.x,y:PLATE_Y-40,t:'+'+gain,life:1,c:'#fff8e1'});beep(pl.gold?1200:900,.09);dough.fly=false;dough.x=LX;dough.y=LY;if(hits>=need)win();}
+function onMiss(){lives--;tower=0;floats.push({x:W/2,y:H/2,t:'掉地 剩'+lives,life:1,c:'#ffab91'});beep(150,.28,'sawtooth');dough.fly=false;dough.x=LX;dough.y=LY;if(lives<=0)lose('饼都掉地上了');}
+function cashOut(){if(tower<=0)return;const bonus=tower*10;score+=bonus;$('score').textContent=score;floats.push({x:W-70,y:70,t:'收饼 +'+bonus,life:1.1,c:'#ffe082'});tower=0;beep(880,.1);}
+function win(){if(state!=='play')return;const stars=lives>=3?3:lives>=2?2:1;finishWin(stars,40+stars*13+(boss?46:0)+tower*4,boss?'饼摊轰动！':'一盘好饼！');}
+function lose(msg){if(state!=='play')return;finishLose(msg);}
+function update(dt){if(lvl===10)wind+=Math.sin(performance.now()/180)*0.8;
+  plates.forEach(pl=>{pl.x+=pl.dir*pl.spd*dt;if(pl.x<40+pl.w/2){pl.x=40+pl.w/2;pl.dir=1;}if(pl.x>W-24-pl.w/2){pl.x=W-24-pl.w/2;pl.dir=-1;}});
+  if(charging)power=Math.min(100,power+dt*90);
+  if(dough.fly){dough.vy+=G*dt;dough.vx+=wind*(1-0.22*(prog.windLv|0))*dt;dough.x+=dough.vx*dt;dough.y+=dough.vy*dt;
+    if(dough.vy>0&&dough.y>=PLATE_Y-8&&dough.y<=PLATE_Y+18){const hit=plates.find(pl=>Math.abs(dough.x-pl.x)<pl.w*0.5+8);if(hit){onHit(hit);return;}}
+    if(dough.y>H-12||dough.x>W+20||dough.x<-20)onMiss();}
+  floats.forEach(f=>{f.life-=dt;f.y-=16*dt;});for(let i=floats.length-1;i>=0;i--)if(floats[i].life<=0)floats.splice(i,1);}
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
+  if(p.x>cashRect.x&&p.y<60){cashOut();return;}if(dough.fly)return;charging=true;power=0;});
+cv.addEventListener('pointerup',()=>{if(!charging)return;charging=false;if(power<10){power=0;return;}launch();});
+cv.addEventListener('pointercancel',()=>{charging=false;});
+function draw(){if(FX)FX.stage(ctx,W,H,'#6d4c41','#2b1a12');else{ctx.fillStyle='#2b1a12';ctx.fillRect(0,0,W,H);}
+  ctx.fillStyle='#8d6e63';ctx.fillRect(0,H-24,W,24);
+  ctx.fillStyle='#ffe082';ctx.beginPath();ctx.arc(LX,LY,11,0,7);ctx.fill();
+  plates.forEach(pl=>{ctx.fillStyle=pl.gold?'#ffd54f':'#eceff1';ctx.beginPath();ctx.ellipse(pl.x,PLATE_Y,pl.w*0.5,10,0,0,7);ctx.fill();ctx.strokeStyle='#bcaaa4';ctx.stroke();});
+  if(dough.fly||true){ctx.fillStyle='#f6e7c1';ctx.beginPath();ctx.arc(dough.x,dough.y,13,0,7);ctx.fill();ctx.strokeStyle='#d7ccc8';ctx.stroke();}
+  if(charging){ctx.fillStyle='rgba(255,255,255,.14)';ctx.fillRect(16,H-38,W-32,10);ctx.fillStyle='#ffcc80';ctx.fillRect(16,H-38,(W-32)*power/100,10);}
+  if(FX)FX.tile(ctx,cashRect.x,8,cashRect.w,34,'#ffb74d',10);else{ctx.fillStyle='#ffb74d';ctx.fillRect(cashRect.x,8,cashRect.w,34);}
+  ctx.fillStyle='#4e342e';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText('收饼 '+tower,cashRect.x+cashRect.w/2,30);
+  ctx.fillStyle='#fff8e1';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('❤'+lives+' 接'+hits+'/'+need+' 风'+(wind|0)+(boss?' 👑':''),10,22);
+  floats.forEach(f=>{ctx.globalAlpha=Math.max(0,f.life);ctx.fillStyle=f.c;ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.fillText(f.t,f.x,f.y);});ctx.globalAlpha=1;
+  if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
+window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);hits=need;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,hits,need,lives}},kit:{get state(){return state;}}};
+
+
+function finishWin(stars,gain,title){state='over';const prev=prog.stars[lvl]|0;if(stars>prev)prog.stars[lvl]=stars;prog.coins+=gain;if(lvl>=prog.unlock&&lvl<TOTAL)prog.unlock=lvl+1;saveProg(prog);if(score>best){best=score;UI.storageSet(HK,best);$('best').textContent=best;}$('overH').textContent=title||'过关！';$('finalScore').textContent='★'.repeat(stars);$('overText').textContent='关卡 '+lvl+' · +'+gain+'币';show('overScr',true);beep(880,.2);}
+function finishLose(msg){state='over';$('overH').textContent='失败';$('finalScore').textContent='💀';$('overText').textContent=(msg||'')+' · 得分 '+score;show('overScr',true);beep(160,.35,'triangle');}
+function tutorial(steps,done){let i=0;show('tutScr',true);const paint=()=>{$('tutH').textContent=steps[i][0];$('tutP').textContent=steps[i][1];$('tutStep').textContent=(i+1)+'/'+steps.length;};paint();$('tutNext').onclick=()=>{i++;if(i>=steps.length){show('tutScr',false);done();}else paint();};$('tutSkip').onclick=()=>{show('tutScr',false);done();};}
+function openLevels(){state='menu';show('startScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('tutScr',false);show('lvlScr',true);$('lvlInfo').textContent='解锁 '+prog.unlock+'/'+TOTAL+' · 币 '+prog.coins;const g=$('lvgrid');g.innerHTML='';for(let i=1;i<=TOTAL;i++){const b=document.createElement('button');b.className='btn lvl';const locked=i>prog.unlock;const st=prog.stars[i]|0;b.innerHTML=locked?'🔒':(i%5===0?'👑':'')+i+'<small>'+'★'.repeat(st)+'</small>';b.disabled=locked;if(!locked)b.onclick=()=>enter(i);g.appendChild(b);}}
+function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;saveProg(prog);tutorial(TUT,go);}else go();}
+function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').textContent='金币：'+prog.coins;const box=$('shopList');box.innerHTML='';for(const it of SHOP){if(prog[it.k]==null)prog[it.k]=0;const row=document.createElement('div');row.className='row';row.innerHTML='<div><b>'+it.name+'</b><br><small>'+it.desc()+'</small></div>';const btn=document.createElement('button');btn.className='btn';const maxed=prog[it.k]>=it.max;const cost=it.cost();btn.textContent=maxed?'满':cost+'币';btn.disabled=maxed||prog.coins<cost;btn.onclick=()=>{prog.coins-=cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();};row.appendChild(btn);box.appendChild(row);}}
+$('startBtn').onclick=openLevels;$('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
+$('shopBtn').onclick=openShop;$('shopBack').onclick=openLevels;
+$('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};
+$('resumeBtn').onclick=()=>{state='play';last=performance.now();show('pauseOv',false);};
+$('restartBtn').onclick=()=>{show('pauseOv',false);startLevel(lvl);};
+$('menuBtn').onclick=()=>{show('pauseOv',false);state='menu';openLevels();};
+$('againBtn').onclick=()=>startLevel(lvl);
+$('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
+$('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+
 </script>
 </body></html>

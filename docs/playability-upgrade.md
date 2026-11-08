@@ -27,11 +27,11 @@
 
 ## 进度
 
-- 一共 **439** 款（相对此前文档的 419：11-06 每日新增 10 款 bumpdrive/stuntbike/wheelie/beltsort/mahjongpair/picdrop/hexslide/sandbus/tracklogic/cubetwist；11-07 每日新增 10 款 pinpull/kickrun/mosqsurvive/paperroute/bodyguard/ginrummy/euchre/cribpeg/minerwar/sniperlane；目录/manifest 现 439）。
-- 已完成 **424** 款：
+- 一共 **449** 款（相对此前文档的 439：11-08 每日新增 10 款 mergepack/zombierush/citymission/puppetrun/slitherloop/heartsduel/botprogram/orderbook/railshunt/sluicefarm；目录/manifest 现 449）。
+- 已完成 **449** 款：
   - Grok 出品 20 款；
   - 10-21 升级的 11 款；
-  - 每日任务升级的 220 款（10-21～11-07 第 22 批）；
+  - 每日任务升级的 228 款（10-21～11-08 第 23 批，其中第 23 批升级 8 款）；
   - 10-22 每日新游戏 2 款（gunslinger、lasso）；
   - 10-23 记入的新复杂游戏 8 款（cactus、drawpoker、goldrush、horseshoe、minetrack、safecrack、saltpan、steamlab）；
   - 10-24 每日新游戏 10 款（arrowescape、catrealm、colorgate、yarnloop、sandfill、parkexit、busqueue、ropetangle、gravityflip、cookrush，按新游戏标准，不进队列）；
@@ -50,8 +50,28 @@
   - 11-04 每日新游戏 10 款（crownduel、tideforge、scrapmech、vaultcrawl、pulsearena、gritfarm、inkclash、orbitwar、runechain、nightmarket，按新游戏标准，不进队列）；
   - 11-05 每日新游戏 10 款（bastionlane、decksiege、cratepush、swarmgun、skylink、tapnova、ringwar、gemfusion、bossrush、cafempire，按新游戏标准，不进队列）；
   - 11-06 每日新游戏 10 款（bumpdrive、stuntbike、wheelie、beltsort、mahjongpair、picdrop、hexslide、sandbus、tracklogic、cubetwist，按新游戏标准，不进队列）；
-  - 11-07 每日新游戏 10 款（pinpull、kickrun、mosqsurvive、paperroute、bodyguard、ginrummy、euchre、cribpeg、minerwar、sniperlane，按新游戏标准，不进队列）。
-- 还剩 **15** 款（待升级队列实际剩余 5 款）。
+  - 11-07 每日新游戏 10 款（pinpull、kickrun、mosqsurvive、paperroute、bodyguard、ginrummy、euchre、cribpeg、minerwar、sniperlane，按新游戏标准，不进队列）；
+  - 11-08 每日新游戏 10 款（mergepack、zombierush、citymission、puppetrun、slitherloop、heartsduel、botprogram、orderbook、railshunt、sluicefarm，按新游戏标准，不进队列）；
+  - 此前未列入队列、审核已达标的 6 款（blockgrid、goodssort、hillclimb、knifehit、screwpop、watersort，无需重写）；
+  - 3D 空间 / agy 负责且已达标的 3 款（citydash、helixdrop、roofpark，未改代码）。
+- 还剩 **0** 款（待升级队列已清空；全部非 3D 游戏与已达标的 3D 游戏均已完成）。
+
+
+### 2026-11-08（第 23 批）
+
+| id | 名称 | 主要改进 |
+|---|---|---|
+| touhu | 投壶 | 15 关雅集投壶：按住蓄力松手投箭，壶口摇晃看准时机，正中壶心与连中加分；第 5/10/15 关双壶对宴/旋壶狸首/九矢连中首领；可升级准星、羽箭、定壶 |
+| bento | 便当拼装 | 15 关便当拼盘：拖放旋转积木食材填满格子，可拿起重摆；第 5/10/15 关限时午餐/隔层便当/满汉全席首领；可升级撤销、提示、加时 |
+| unblock | 挪车让路 | 15 关挪车突围：保留原已验证关卡，红车从右侧出口离开，步数越少星越多；第 5/10/15 关限步高峰并可升级拖车清障；兼容原 unblock_stars |
+| icebridge | 铺冰桥 | 15 关铺冰桥：短/中/长木板连接浮冰与河岸，长板可跳岛；第 5/10/15 关融冰限时/薄冰承重/极夜急渡首领；可升级备用短板、冻结、提示 |
+| cityskyline | 都市天际线 | 15 关城市规划：铺路建设住宅商业工业与电厂公园，完成人口与幸福指标；第 5/10/15 关停电重建/污染治理/大都会庆典首领；兼容原城市存档 |
+| wokflip | 神级颠勺 | 15 关颠勺：按住蓄力把食材抛进完美区连击加分，火候越高分越高也越险；第 5/10/15 关辣椒爆锅/双料齐颠/满汉全席首领；可升级锅沿、慢蓄、额外命 |
+| doughfly | 甩饼飞天 | 15 关甩饼叠塔：蓄力把飞饼甩进移动盘子，可收饼结算连击；第 5/10/15 关迷你金盘/狂风乱流/双盘接饼首领；可升级盘沿、抗风、额外命 |
+| sushigo | 寿司传送带 | 15 关传送带点餐：点对订单寿司并躲开伪装芥末；第 5/10/15 关芥末潮/多单齐赶/大胃王冲刺首领；可升级慢传送带、客人耐心、额外心 |
+
+- 都含首玩教程、选关星级、金币升级、第 5/10/15 关首领、暂停/重开/最佳纪录、音效、切后台自动暂停；进度存在 `g100_<id>_prog`（兼容原 hs / best / save / unblock_stars 键）。
+- 今日无画面批次跳过（画面升级例程均已完成）；11-08 新游戏 10 款按新游戏标准记入已完成、不进队列。审核另外 6 款非 3D 与 3 款 3D 已达标，未改代码。本批完成后，全部非 3D 游戏均已达可玩性标准，队列清空。
 
 ### 2026-11-07（第 22 批）
 
@@ -450,7 +470,7 @@
 
 - **Grok 出品**：abysscrawl、arrowrogue、bagbrawl、beatblade、chesslord、fatespire、gardenguard、gemhero、hexrealm、islelord、jokerpoker、landlord、marblerun、mechbreach、mergelegion、metromap、neontd、shadowgo、starconquest、starswarm
 - **10-21 升级**：blackjack、magrail、neodrone、neohack、neoncourier、neonfish、neonmirror、neonrunner、spinmatrix、viruslock、plumpile
-- **每日任务**：memory、puzzle15、whackamole、gomoku、minesweeper、game2048、balloon、tank、prism、circuit、breakout、electromagnet、lens、ohm、reflection、seriesparallel、magnet、refraction、incline、levitate、pinball、pottery、projectile、spring、cellstruct、fruitmerge、mitosis、parachute、pendulum、photosynthesis、frogger、piano、punnett、racing、snake、doodle、hexduel、jump、phtest、pong、resonance、tetris、airhockey、bubbletea、bumpercar、claw、dig、dino、dragonegg、periodic、pulley、slot、indicator、invaders、orbit、snowball、volcano、ascent、lightsout、microscopelab、darts、peg、reversi、staticlab、collapse、flappy、fruitbattery、hoop、inkspray、mastermind、moonphase、spintop、swordparry、jetpack、rhythm、trapeze、zuma、acidbase、bigfish、catapult、copter、deepdive、jellyzap、paperfly、pearlcatch、rocketlab、simon、skeleton、sonar、archery、floodit、broomrace、densitylab、digestion、duckhunt、ecobottle、freefall、golf、grill、heartpump、checkers、klotski、lever、lighthouse、lumber、maze、shellgame、ski、snowman、solitaire、metalreact、potion、pressurelab、seahorse、tideseek、wavelab、bowling、buoyancy、expansion、fishing、wordsearch、heattransfer、penalty、shellswap、spotthediff、catch、connectfour、foodchain、pop、wordle、yahtzee、alchemy、collision、domino、dotsboxes、friction、icecurl、lungcap、pyramid、seacannon、teahouse、xiangqi、bomber、combustion、hanoi、ninja、snowflake、solubility、waiter、farm、noodle、tangram、wandshop、alienlang、colorlines、crystal、digdug、donkeykong、electrolysis、ludo、missile、pacman、shuttle、sleigh、stack、bomberman、cannon、hotpot、rotatemaze、snowbros、ballroll、columns、dungeonkey、onestroke、pizzacut、bagua、cubhop、iceslide、jewel、link、colormix、eyevision、cutrope、frost、yeti、snowplow、lunarlander、mooncrawl、slingshot、spacelevator、towerdef、docking、laser、asteroid、flow、sortcandy、starmail、pipes、nonogram、sokoban
+- **每日任务**：memory、puzzle15、whackamole、gomoku、minesweeper、game2048、balloon、tank、prism、circuit、breakout、electromagnet、lens、ohm、reflection、seriesparallel、magnet、refraction、incline、levitate、pinball、pottery、projectile、spring、cellstruct、fruitmerge、mitosis、parachute、pendulum、photosynthesis、frogger、piano、punnett、racing、snake、doodle、hexduel、jump、phtest、pong、resonance、tetris、airhockey、bubbletea、bumpercar、claw、dig、dino、dragonegg、periodic、pulley、slot、indicator、invaders、orbit、snowball、volcano、ascent、lightsout、microscopelab、darts、peg、reversi、staticlab、collapse、flappy、fruitbattery、hoop、inkspray、mastermind、moonphase、spintop、swordparry、jetpack、rhythm、trapeze、zuma、acidbase、bigfish、catapult、copter、deepdive、jellyzap、paperfly、pearlcatch、rocketlab、simon、skeleton、sonar、archery、floodit、broomrace、densitylab、digestion、duckhunt、ecobottle、freefall、golf、grill、heartpump、checkers、klotski、lever、lighthouse、lumber、maze、shellgame、ski、snowman、solitaire、metalreact、potion、pressurelab、seahorse、tideseek、wavelab、bowling、buoyancy、expansion、fishing、wordsearch、heattransfer、penalty、shellswap、spotthediff、catch、connectfour、foodchain、pop、wordle、yahtzee、alchemy、collision、domino、dotsboxes、friction、icecurl、lungcap、pyramid、seacannon、teahouse、xiangqi、bomber、combustion、hanoi、ninja、snowflake、solubility、waiter、farm、noodle、tangram、wandshop、alienlang、colorlines、crystal、digdug、donkeykong、electrolysis、ludo、missile、pacman、shuttle、sleigh、stack、bomberman、cannon、hotpot、rotatemaze、snowbros、ballroll、columns、dungeonkey、onestroke、pizzacut、bagua、cubhop、iceslide、jewel、link、colormix、eyevision、cutrope、frost、yeti、snowplow、lunarlander、mooncrawl、slingshot、spacelevator、towerdef、docking、laser、asteroid、flow、sortcandy、starmail、pipes、nonogram、sokoban、touhu、bento、unblock、icebridge、cityskyline、wokflip、doughfly、sushigo
 - **10-23 新复杂游戏**：cactus、drawpoker、goldrush、horseshoe、minetrack、safecrack、saltpan、steamlab
 - **10-24 新游戏**：arrowescape、catrealm、colorgate、yarnloop、sandfill、parkexit、busqueue、ropetangle、gravityflip、cookrush
 - **10-25 新游戏**：hexwar、seatpref、dominofall、factoryline、spellcraft、railtycoon、curlingduel、tenpair、swarmcmd、cryptops
@@ -465,15 +485,18 @@
 - **11-01 新游戏**：stormkeep、runecrawl、autobrawl、tombcrawl、surgeborn、weightforge、milltycoon、matchquest、beatstage、warfront
 - **11-02 新游戏**：tidalguards、dicequest、chaincut、neonvein、citytune、fogharbor、bladeflash、maggrid、alchescale、bullettrain
 - **11-03 新游戏**：voidkeep、spellraid、crystalgrid、fogforge、railstorm、inkpath、drumforge、hexforge、shadowraid、frostvault
+- **11-04 新游戏**：crownduel、tideforge、scrapmech、vaultcrawl、pulsearena、gritfarm、inkclash、orbitwar、runechain、nightmarket
+- **11-05 新游戏**：bastionlane、decksiege、cratepush、swarmgun、skylink、tapnova、ringwar、gemfusion、bossrush、cafempire
+- **11-06 新游戏**：bumpdrive、stuntbike、wheelie、beltsort、mahjongpair、picdrop、hexslide、sandbus、tracklogic、cubetwist
+- **11-07 新游戏**：pinpull、kickrun、mosqsurvive、paperroute、bodyguard、ginrummy、euchre、cribpeg、minerwar、sniperlane
+- **11-08 新游戏**：mergepack、zombierush、citymission、puppetrun、slitherloop、heartsduel、botprogram、orderbook、railshunt、sluicefarm
+- **此前未列入队列、已达标**：blockgrid、goodssort、hillclimb、knifehit、screwpop、watersort
+- **3D 空间已达标（agy）**：citydash、helixdrop、roofpark
 
 ## 待升级队列（按优先级，从差到好）
 
 括号里是代码扫描分数。标了批次的游戏，在那个画面批次当天会被跳过。
 
-（已去掉 11-07 第 22 批升级的 10 款 towerdef/docking/laser/asteroid/flow/sortcandy/starmail/pipes/nonogram/sokoban；待升级队列剩余 5 款。）
+（已去掉 11-08 第 23 批升级的 8 款 touhu/bento/unblock/icebridge/cityskyline/wokflip/doughfly/sushigo；并记入 11-08 新游戏 10 款、此前未列入队列但已达标的 6 款非 3D 与 3 款 3D。待升级队列剩余 0 款。）
 
-1. touhu 投壶（14.8） · 画面批次 T2-6
-2. bento 便当拼装（15.3） · 画面批次 DOM-2
-3. unblock 挪车让路（15.3） · 画面批次 T2-6
-4. icebridge 铺冰桥（16） · 画面批次 T2-5
-5. cityskyline 都市天际线（16.5） · 画面批次 T2-2
+目前没有待升级游戏。全部非 3D 游戏均已达可玩性标准；citydash / helixdrop / roofpark 三款 3D 空间游戏经审核已达标，由 agy 继续负责后续 3D 工作。

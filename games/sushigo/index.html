@@ -4,7 +4,6 @@
 <title>寿司传送带</title>
 <link rel="icon" href="data:,">
 <style>
-/* 游戏自身样式只管布局与玩法元素；颜色/面板/按钮外观交给共用皮肤（sync 时注入）。 */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -12,10 +11,19 @@ body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-
 .topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
 .topbar .tools{display:flex;gap:8px}
 .topbar .tools .iconbtn{min-width:44px;min-height:44px}
+.stagebox{width:100%;display:flex;justify-content:center}
 #cv{width:100%;max-height:calc(100svh - 170px);aspect-ratio:360/540;object-fit:contain;touch-action:none;border-radius:16px}
 .hint{font-size:13px;text-align:center}
 .overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
 .overlay.hidden{display:none}
+.lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:min(360px,92vw)}
+.btn.lvl{min-width:44px;min-height:44px;font-size:14px}
+.btn.lvl small{display:block;font-size:10px;opacity:.85}
+.shop{width:min(360px,92vw);display:flex;flex-direction:column;gap:10px}
+.shop .row{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left}
+.rowbtns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+#toast{position:fixed;left:50%;bottom:18%;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#fff;padding:8px 16px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;z-index:50;transition:opacity .2s}
+#toast.on{opacity:1}
 </style>
 <!-- GAME UI BEGIN -->
 <style>
@@ -439,323 +447,106 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="topbar">
     <span class="title">🍣 寿司传送带</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
-    <span class="tools"><button class="iconbtn" id="muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools">
+      <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
+      <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
+    </span>
   </div>
-  <canvas id="cv"></canvas>
-  <p class="hint">点传送带上的寿司装盘 · 🌶️芥末别碰 · ✨金色大奖+50</p>
+  <div class="stagebox"><canvas id="cv"></canvas></div>
+  <p class="hint" id="hint">点传送带上的寿司装满订单 · 躲开芥末</p>
 </div>
-<div class="overlay" id="startScr"><h1>🍣 寿司传送带</h1><p>点传送带上的寿司，按顶部订单装盘：装对 +10，连击越高加成越多。<br>点错品种 −10；订单超时作废并扣 1 颗星，3 星扣完结束。<br>共 12 关：5 关起有🌶️芥末陷阱，8 关起✨金枪鱼大奖 +50，12 关 60 秒大胃王冲刺！<br>策略：先做快超时的简单单保连击，复杂单分高但风险大。</p><button class="btn" id="startBtn">开始游戏</button></div>
-<div class="overlay hidden" id="pauseOv"><h1>⏸ 已暂停</h1><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="quitBtn">重新开始</button></div>
-<div class="overlay hidden" id="overScr"><h1>游戏结束</h1><div class="score" id="finalScore">0</div><p id="overText"></p><button class="btn" id="againBtn">再来一局</button></div>
+<div class="overlay" id="startScr"><h1>🍣 寿司传送带</h1><p>看着订单去点传送带上的寿司装盘交单。<br>有的寿司是伪装芥末，点到会扣心；金枪鱼是高分大奖。<br>第 5/10/15 关迎战芥末潮、多单齐赶与大胃王冲刺！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
+<div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
+<div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
+<div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重开</button><button class="btn ghost" id="menuBtn">选关</button></div></div>
+<div class="overlay hidden" id="overScr"><h2 id="overH">过关！</h2><div class="score" id="finalScore">★★★</div><p id="overText"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再玩一次</button><button class="btn ghost" id="menu2Btn">选关</button></div></div>
+<div id="toast"></div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-const W=360,H=540;                       // 逻辑坐标：所有玩法/命中判定都用它
+const W=360,H=540;
 const cv=$('cv'),ctx=cv.getContext('2d');
-const UI=window.GameUI||{pick:(a)=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
-const FX=UI.fx&&UI.fx.on?UI.fx:null;     // 共用皮肤的画布立体工具；没有时走平面画法
+const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
+const FX=UI.fx&&UI.fx.on?UI.fx:null;
 if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
-
-// ---- 寿司品种 ----
-const KINDS={
-  salmon:{icon:'🍣',name:'三文鱼'},
-  shrimp:{icon:'🍤',name:'虾'},
-  tamago:{icon:'🥚',name:'玉子'},
-  tuna:{icon:'🐟',name:'金枪鱼'},
-  cucumber:{icon:'🥒',name:'黄瓜卷'},
-};
-const KKEYS=Object.keys(KINDS);
-const BELT_Y=330, BELT_TOP=250, BELT_BOT=410;
-
-// ---- 状态 ----
-let state='menu',score=0,stars=3,level=1,doneInLevel=0,combo=0,maxCombo=0;
-let belt=[],orders=[],sparks=[],floaters=[];
-let spawnT=0,jackT=8,blitzT=0,last=0,beltOff=0,banner='',bannerT=0,flashRed=0,overReason='';
-let best=+UI.storageGet('g100_sushigo_hs')||0;$('best').textContent=best;
-
-// ---- 成长：寿司师傅称号 ----
-let prog={titles:['见习学徒'],maxLv:0};
-try{const p=JSON.parse(UI.storageGet('g100_sushigo_prog'));if(p&&Array.isArray(p.titles)&&p.titles.length)prog=p;}catch(e){}
-const TITLE_UP=[[3,'板前助手'],[6,'寿司职人'],[9,'寿司大师'],[12,'寿司之神']];
-function curTitle(){return prog.titles[prog.titles.length-1];}
-function checkTitle(){
-  for(const pair of TITLE_UP){
-    if(level>=pair[0]&&prog.titles.indexOf(pair[1])<0){
-      prog.titles.push(pair[1]);UI.storageSet('g100_sushigo_prog',JSON.stringify(prog));
-      banner='称号解锁：'+pair[1]+'！';bannerT=2;beep(880,.15,'square');
-    }
-  }
-  if(level>prog.maxLv){prog.maxLv=level;UI.storageSet('g100_sushigo_prog',JSON.stringify(prog));}
-}
-
-// ---- 音效：WebAudio 合成，无外部资源；遵守静音开关 ----
-let muted=UI.storageGet('g100_sushigo_mute')==='1',ac=null;$('muteBtn').textContent=muted?'🔇':'🔊';
-function beep(f,d,type){if(muted)return;try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.setValueAtTime(.15,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
-function jingle(fs){fs.forEach((f,i)=>setTimeout(()=>beep(f,.12),i*90));}
-$('muteBtn').addEventListener('click',()=>{muted=!muted;UI.storageSet('g100_sushigo_mute',muted?'1':'0');$('muteBtn').textContent=muted?'🔇':'🔊';});
-
-// ---- 输入：pointer 事件 + 按画布显示尺寸换算到逻辑坐标 ----
-function posOf(e){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches.length)?e.touches[0]:(e.changedTouches&&e.changedTouches.length)?e.changedTouches[0]:e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
-cv.addEventListener('pointerdown',e=>{e.preventDefault();const p=posOf(e);tap(p.x,p.y);});
-
-// ---- 订单 ----
-function maxOrders(){return level>=3?2:1;}
-function orderTime(lv){return lv===12?15:Math.max(12,26-lv*1.2);}
-function makeOrder(lv){
-  const nItems=lv<=2?(Math.random()<.5?1:2):(lv<=6?(Math.random()<.5?2:3):2+Math.floor(Math.random()*3));
-  const items={};let total=0;
-  for(let i=0;i<nItems;i++){
-    const k=KKEYS[Math.floor(Math.random()*KKEYS.length)];
-    const c=1+(lv>=5&&Math.random()<.4?1:0);       // 高关订单可能要 2 份同种
-    items[k]=(items[k]||0)+c;total+=c;
-  }
-  return {items,total,time:orderTime(lv),t:0};
-}
-function fillOrders(){while(orders.length<maxOrders())orders.push(makeOrder(level));}
-
-// ---- 传送带生成 ----
-function beltSpeed(){return level===12?210:60+level*15;}
-function spawnInterval(){return level===12?.7:Math.max(.8,1.7-level*.07);}
-function spawnItem(){
-  const need=[];
-  for(const o of orders)for(const k in o.items)if(o.items[k]>0&&need.indexOf(k)<0)need.push(k);
-  let kind;
-  if(need.length&&Math.random()<.68)kind=need[Math.floor(Math.random()*need.length)];
-  else kind=KKEYS[Math.floor(Math.random()*KKEYS.length)];
-  belt.push({x:W+30,y:BELT_Y+(Math.random()*36-18),kind,r:24});
-  if(level>=5&&Math.random()<.12){                  // 芥末寿司陷阱
-    const disguise=KKEYS[Math.floor(Math.random()*KKEYS.length)];
-    belt.push({x:W+80,y:BELT_Y+(Math.random()*36-18),kind:'wasabi',look:disguise,r:24});
-  }
-}
-
-// ---- 点击判定 ----
-function addFloater(txt,x,y,color){floaters.push({txt,x,y,color:color||'#ffffff',t:0});}
-function burstAt(x,y,color,n){if(FX)FX.burst(sparks,x,y,color,n||14);}
-function serveTap(b,i){
-  if(b.kind==='wasabi'){
-    belt.splice(i,1);score=Math.max(0,score-25);combo=0;flashRed=.5;
-    for(const o of orders)o.t=Math.min(o.time,o.t+3);   // 扣时：所有订单倒计时 −3s
-    beep(140,.3,'sawtooth');burstAt(b.x,b.y,'#7CFC00',10);
-    addFloater('🌶️芥末！−25',b.x,b.y-8,'#7CFC00');return;
-  }
-  if(b.kind==='jackpot'){
-    belt.splice(i,1);score+=50;combo++;maxCombo=Math.max(maxCombo,combo);
-    jingle([1046,1318,1568]);burstAt(b.x,b.y,'#ffd700',22);
-    addFloater('✨金枪鱼大奖 +50',b.x,b.y-8,'#ffd700');
-    $('score').textContent=score;return;
-  }
-  let tgt=null;
-  for(const o of orders){
-    if(o.items[b.kind]>0&&(!tgt||(o.time-o.t)<(tgt.time-tgt.t)))tgt=o;
-  }
-  if(tgt){
-    belt.splice(i,1);tgt.items[b.kind]--;combo++;maxCombo=Math.max(maxCombo,combo);
-    const pts=10+Math.min(20,combo*2);score+=pts;
-    beep(660+Math.min(400,combo*20),.08);burstAt(b.x,b.y,'#7CFC00',12);
-    addFloater('+'+pts,b.x,b.y-8,'#b6ff9e');
-    if(Object.keys(tgt.items).every(k=>tgt.items[k]<=0))completeOrder(tgt);
-  }else{
-    score=Math.max(0,score-10);combo=0;flashRed=.4;
-    beep(180,.2,'sawtooth');burstAt(b.x,b.y,'#ff6b6b',8);
-    addFloater('点错 −10',b.x,b.y-8,'#ff9e9e');
-  }
-  $('score').textContent=score;
-}
-function tap(x,y){
-  if(state!=='play')return;
-  for(let i=belt.length-1;i>=0;i--){
-    const b=belt[i];
-    if(Math.hypot(b.x-x,b.y-y)<=b.r+10){serveTap(b,i);return;}
-  }
-}
-function completeOrder(o){
-  const idx=orders.indexOf(o);if(idx>=0)orders.splice(idx,1);
-  const bonus=15*o.total+Math.ceil(Math.max(0,o.time-o.t))*2;
-  score+=bonus;doneInLevel++;
-  jingle([523,659,784]);
-  addFloater('订单完成 +'+bonus,W/2,150,'#ffe27a');
-  $('score').textContent=score;
-  if(level<12&&doneInLevel>=4+level)nextLevel();
-  fillOrders();
-}
-function nextLevel(){
-  level++;doneInLevel=0;combo=0;checkTitle();
-  if(level===12){
-    orders=[];belt=[];blitzT=60;
-    banner='第12关：大胃王！60秒无限冲分！';bannerT=2.5;jingle([392,523,659,784]);
-  }else{
-    banner='第'+level+'关';bannerT=1.5;jingle([659,784]);
-  }
-  fillOrders();
-}
-
-// ---- 流程 ----
 function show(id,on){$(id).classList.toggle('hidden',!on);}
-function start(){
-  score=0;stars=3;level=1;doneInLevel=0;combo=0;maxCombo=0;
-  belt=[];sparks=[];floaters=[];spawnT=.5;jackT=8;blitzT=0;
-  orders=[];fillOrders();
-  banner='';bannerT=0;flashRed=0;overReason='';
-  $('score').textContent=0;show('startScr',false);show('overScr',false);show('pauseOv',false);
-  state='play';last=performance.now();beep(660,.12);
-}
-function pause(){if(state!=='play')return;state='pause';show('pauseOv',true);}
-function resume(){if(state!=='pause')return;state='play';last=performance.now();show('pauseOv',false);}
-function over(){
-  state='over';
-  if(score>best){best=score;UI.storageSet('g100_sushigo_hs',best);$('best').textContent=best;}
-  if(level>prog.maxLv){prog.maxLv=level;UI.storageSet('g100_sushigo_prog',JSON.stringify(prog));}
-  $('finalScore').textContent=score;
-  $('overText').textContent=(overReason==='time'?'大胃王冲刺结束！':'星星扣完了…')+
-    ' 第'+level+'关 · 称号「'+curTitle()+'」 · 最高连击'+maxCombo+' · 最佳'+best;
-  show('overScr',true);beep(220,.4,'triangle');
-}
-$('startBtn').addEventListener('click',start);$('againBtn').addEventListener('click',start);
-$('pauseBtn').addEventListener('click',()=>state==='play'?pause():resume());$('resumeBtn').addEventListener('click',resume);
-$('quitBtn').addEventListener('click',()=>{show('pauseOv',false);start();});
-document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+function toast(t){const el=$('toast');el.textContent=t;el.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('on'),1200);}
+function posOf(e){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};}
+const PK='g100_sushigo_prog',HK='g100_sushigo_hs',MK='g100_mute';
+let muted=UI.storageGet(MK)==='1',ac=null;$('muteBtn').textContent=muted?'🔇':'🔊';
+function beep(f,d,type){if(muted)return;try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.setValueAtTime(.12,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}}
+$('muteBtn').onclick=()=>{muted=!muted;UI.storageSet(MK,muted?'1':'0');$('muteBtn').textContent=muted?'🔇':'🔊';};
+function loadProg(){try{return JSON.parse(UI.storageGet(PK)||'{}');}catch(e){return{};}}
+function saveProg(p){UI.storageSet(PK,JSON.stringify(p));}
+let prog=loadProg();
+if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==null)prog.unlock=1;
+if(!prog.seenTut)prog.seenTut=0;
+const LEGACY={missile:'g100_missile_hi',cannon:'g100_cannon_hi',sleigh:'g100_sleigh_best',stack:'stack_best',icebridge:'g100_icebridge_best'};
+if(LEGACY['sushigo']&&!UI.storageGet(HK)){const v=+UI.storageGet(LEGACY['sushigo'])||0;if(v)UI.storageSet(HK,String(v));}
+let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
+const TOTAL=15;
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 
-// ---- 循环 ----
-function update(dt){
-  if(bannerT>0)bannerT-=dt;
-  if(flashRed>0)flashRed-=dt;
-  beltOff=(beltOff+beltSpeed()*dt)%48;
-  for(let i=floaters.length-1;i>=0;i--){const f=floaters[i];f.t+=dt;f.y-=34*dt;if(f.t>1)floaters.splice(i,1);}
-  const blitz=level===12;
-  if(blitz){blitzT-=dt;if(blitzT<=0){overReason='time';return over();}}
-  spawnT-=dt;
-  if(spawnT<=0){spawnT=spawnInterval();spawnItem();}
-  if(level>=8){jackT-=dt;if(jackT<=0){jackT=7+Math.random()*4;belt.push({x:W+30,y:BELT_Y+(Math.random()*36-18),kind:'jackpot',r:24,life:4});}}
-  const sp=beltSpeed();
-  for(let i=belt.length-1;i>=0;i--){
-    const b=belt[i];b.x-=sp*dt;
-    if(b.kind==='jackpot'){b.life-=dt;if(b.life<=0){belt.splice(i,1);continue;}}
-    if(b.x<-40)belt.splice(i,1);
-  }
-  for(let i=orders.length-1;i>=0;i--){
-    const o=orders[i];o.t+=dt;
-    if(o.t>=o.time){
-      orders.splice(i,1);
-      if(!blitz){                                  // 第12关超时只作废、不扣星
-        stars--;combo=0;flashRed=.6;beep(160,.3,'sawtooth');
-        addFloater('超时！−1⭐',W/2,150,'#ffb3b3');
-        if(stars<=0){overReason='stars';return over();}
-      }
-      orders.push(makeOrder(level));
-    }
-  }
-}
-function roundRectPath(x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
-}
-function drawSushi(b){
-  if(FX)FX.shadow(ctx,b.x,b.y+b.r*.9,b.r*.85,5);
-  if(b.kind==='jackpot'){
-    if(FX)FX.glow(ctx,'#ffd700',14);
-    ctx.fillStyle='#fff3c4';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();
-    if(FX)FX.noGlow(ctx);
-    if(!(b.life<1.5&&Math.floor(b.life*6)%2===0)){
-      ctx.font='24px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🐟',b.x,b.y);
-    }
-    ctx.font='13px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⭐',b.x+b.r*.55,b.y-b.r*.55);
-  }else if(b.kind==='wasabi'){
-    if(FX)FX.glow(ctx,'#7CFC00',8);
-    ctx.fillStyle='#f4f7f4';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();
-    if(FX)FX.noGlow(ctx);
-    ctx.font='24px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(KINDS[b.look].icon,b.x,b.y);
-    ctx.font='13px sans-serif';ctx.fillText('🌶️',b.x+b.r*.55,b.y+b.r*.55);  // 细心才能发现的小标记
-  }else{
-    ctx.fillStyle='#f8fbf8';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();
-    ctx.strokeStyle='#d8e2d8';ctx.lineWidth=2;ctx.stroke();
-    ctx.font='25px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(KINDS[b.kind].icon,b.x,b.y+1);
-  }
-}
-function drawOrderCard(o,idx,x,y,w){
-  const h=108;
-  if(FX)FX.tile(ctx,x,y,w,h,'#fdf6e3',10);
-  else{ctx.fillStyle='#fdf6e3';ctx.fillRect(x,y,w,h);}
-  ctx.textAlign='left';ctx.textBaseline='top';
-  ctx.fillStyle='#5a3d1e';ctx.font='bold 14px sans-serif';
-  ctx.fillText('📋 订单'+(idx+1),x+10,y+8);
-  // 倒计时条
-  const rem=Math.max(0,1-o.t/o.time);
-  ctx.fillStyle='#e5d9c3';ctx.fillRect(x+10,y+30,w-20,8);
-  ctx.fillStyle=rem<.3?'#ff5252':'#66bb6a';ctx.fillRect(x+10,y+30,(w-20)*rem,8);
-  // 品项
-  let ix=x+12,iy=y+46;
-  for(const k in o.items){
-    if(o.items[k]<=0)continue;
-    ctx.font='22px sans-serif';ctx.fillText(KINDS[k].icon,ix,iy);
-    ctx.fillStyle='#5a3d1e';ctx.font='bold 13px sans-serif';
-    ctx.fillText('×'+o.items[k],ix+26,iy+6);
-    ix+=62;if(ix>x+w-60){ix=x+12;iy+=34;}
-  }
-}
-function draw(){
-  if(FX)FX.stage(ctx,W,H,'#16423c','#061a18');     // 深色厨房
-  else{ctx.fillStyle='#0a2422';ctx.fillRect(0,0,W,H);}
-  if(flashRed>0){ctx.fillStyle='rgba(255,40,40,'+(flashRed*.35)+')';ctx.fillRect(0,0,W,H);}
+if(!prog.titles)prog.titles=['见习学徒'];
+const TUT=[['看单点寿司','上方是客人订单，点传送带上对应的寿司装进盘子。','🍣'],['躲开芥末','带🌶️标记或闪光伪装的是芥末陷阱，点到会扣心。','🌶️'],['赶时间','每张订单都有耐心条，清空订单即可过关。','⏱️'],['职人首领','第5关芥末变多，第10关多单同时，第15关大胃王冲刺。','👑']];
+const SHOP=[{k:'slowLv',name:'慢传送带',max:3,cost(){return 32+(prog.slowLv|0)*26;},desc(){return '传送带减速'}},{k:'timeLv',name:'客人耐心',max:3,cost(){return 36+(prog.timeLv|0)*28;},desc(){return '订单时限更长'}},{k:'lifeLv',name:'额外心',max:2,cost(){return 44+(prog.lifeLv|0)*34;},desc(){return '生命+1'}}];
+const KINDS=[{k:'salmon',e:'🍣',n:'三文鱼'},{k:'shrimp',e:'🍤',n:'虾'},{k:'tamago',e:'🥚',n:'玉子'},{k:'tuna',e:'🐟',n:'金枪鱼'},{k:'cuke',e:'🥒',n:'黄瓜卷'}];
+const BELT_Y=318;
+let lives=3,need=4,done=0,orders=[],belt=[],spawnT=0,combo=0,floats=[],rng;
+function maxOrd(n){if(n===15)return 4;if(n===10||n>=11)return 3;if(n>=3)return 2;return 1;}
+function makeOrder(n){const items={};const cnt=n<=2?2:n<=6?2+((rng()*2)|0):3;for(let i=0;i<cnt;i++){const k=KINDS[(rng()*KINDS.length)|0].k;items[k]=(items[k]||0)+1;}const time=(n===15?11:Math.max(11,24-n*0.8))+(prog.timeLv|0)*2.2;return {items,left:{...items},t:time,max:time};}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];floats=[];belt=[];orders=[];done=0;combo=0;rng=mulberry32(n*5011+9);
+  lives=3+(prog.lifeLv|0);need=3+Math.ceil(lvl*0.5)+(boss?2:0);spawnT=0.4;
+  while(orders.length<maxOrd(lvl))orders.push(makeOrder(lvl));
+  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(600,.1);$('score').textContent=0;
+  $('hint').textContent=lvl===5?'👑 芥末潮：伪装芥末更多':lvl===10?'👑 多单齐赶：三张订单同时倒数':lvl===15?'👑 大胃王冲刺：带更快、单更多':'点对订单寿司，躲开芥末';}
+function beltSpd(){return (lvl===15?200:58+lvl*13)*(1-0.12*(prog.slowLv|0));}
+function spawn(){const needK=[];orders.forEach(o=>Object.keys(o.left).forEach(k=>{if(o.left[k]>0)needK.push(k);}));const kind=needK.length&&rng()<0.7?needK[(rng()*needK.length)|0]:KINDS[(rng()*KINDS.length)|0].k;
+  const wasabi=(lvl>=4&&rng()<(lvl===5?0.28:0.12))||(boss&&rng()<0.18);belt.push({x:W+28,kind,wasabi,look:wasabi?KINDS[(rng()*KINDS.length)|0].k:kind,r:24});}
+function kindInfo(k){return KINDS.find(a=>a.k===k)||KINDS[0];}
+function complete(o){orders.splice(orders.indexOf(o),1);done++;combo++;const gain=20+combo*4+(boss?6:0);score+=gain;$('score').textContent=score;floats.push({x:W/2,y:140,t:'交单 +'+gain,life:1,c:'#b9f6ca'});beep(880,.1);if(done>=need)return win();while(orders.length<maxOrd(lvl))orders.push(makeOrder(lvl));}
+function tap(x,y){if(state!=='play')return;if(Math.abs(y-BELT_Y)>50)return;let best=-1,bd=40;belt.forEach((b,i)=>{const d=Math.hypot(b.x-x,BELT_Y-y);if(d<bd){bd=d;best=i;}});if(best<0)return;const b=belt[best];
+  if(b.wasabi){belt.splice(best,1);lives--;combo=0;floats.push({x:b.x,y:BELT_Y-30,t:'芥末! -1',life:1,c:'#ff8a80'});beep(150,.25,'sawtooth');if(lives<=0)lose('被芥末呛到了');return;}
+  const o=orders.find(od=>od.left[b.kind]>0);if(!o){combo=0;floats.push({x:b.x,y:BELT_Y-24,t:'不是这单',life:0.8,c:'#ffe082'});beep(240,.08,'triangle');return;}
+  belt.splice(best,1);o.left[b.kind]--;score+=8;$('score').textContent=score;if(FX)FX.burst(sparks,b.x,BELT_Y,'#80deea',8);beep(740,.07);if(Object.values(o.left).every(v=>v<=0))complete(o);}
+function win(){if(state!=='play')return;const stars=lives>=3?3:lives>=2?2:1;if(lvl> (prog.maxLv|0))prog.maxLv=lvl;const titles=[[3,'板前助手'],[6,'寿司职人'],[9,'寿司大师'],[12,'寿司之神']];titles.forEach(p=>{if(lvl>=p[0]&&prog.titles.indexOf(p[1])<0)prog.titles.push(p[1]);});saveProg(prog);finishWin(stars,40+stars*13+(boss?46:0),boss?'大将称赞！':'订单完成！');}
+function lose(msg){if(state!=='play')return;finishLose(msg);}
+function update(dt){spawnT-=dt;if(spawnT<=0){spawn();spawnT=lvl===15?0.55:Math.max(0.7,1.55-lvl*0.06);}
+  const sp=beltSpd();for(let i=belt.length-1;i>=0;i--){belt[i].x-=sp*dt;if(belt[i].x<-40)belt.splice(i,1);}
+  orders.forEach(o=>o.t-=dt);for(let i=orders.length-1;i>=0;i--){if(orders[i].t<=0){orders.splice(i,1);lives--;combo=0;floats.push({x:W/2,y:90,t:'客人走了',life:1,c:'#ffab91'});beep(160,.2,'sawtooth');if(lives<=0)return lose('客人全走了');while(orders.length<maxOrd(lvl))orders.push(makeOrder(lvl));}}
+  floats.forEach(f=>f.life-=dt);for(let i=floats.length-1;i>=0;i--)if(floats[i].life<=0)floats.splice(i,1);}
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);tap(p.x,p.y);});
+function draw(){if(FX)FX.stage(ctx,W,H,'#4e342e','#1b120c');else{ctx.fillStyle='#1b120c';ctx.fillRect(0,0,W,H);}
+  ctx.fillStyle='#3e2723';ctx.fillRect(0,BELT_Y-40,W,80);ctx.fillStyle='#5d4037';ctx.fillRect(0,BELT_Y-16,W,32);
+  orders.forEach((o,i)=>{const x=12+i*116,y=40;if(FX)FX.tile(ctx,x,y,108,86,'#efebe9',10);else{ctx.fillStyle='#efebe9';ctx.fillRect(x,y,108,86);}
+    ctx.fillStyle='#4e342e';ctx.font='11px sans-serif';ctx.textAlign='left';let yy=y+18;Object.keys(o.left).forEach(k=>{ctx.fillText(kindInfo(k).e+' '+kindInfo(k).n+' x'+o.left[k],x+8,yy);yy+=16;});
+    ctx.fillStyle='#ffcc80';ctx.fillRect(x+8,y+72,92*(o.t/o.max),6);});
+  belt.forEach(b=>{ctx.font='26px sans-serif';ctx.textAlign='center';ctx.fillText(kindInfo(b.look).e,b.x,BELT_Y+10);if(b.wasabi){ctx.font='14px sans-serif';ctx.fillText('🌶️',b.x+14,BELT_Y-12);}});
+  ctx.fillStyle='#fff8e1';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('❤'+lives+' 单'+done+'/'+need+(boss?' 👑':''),10,22);
+  floats.forEach(f=>{ctx.globalAlpha=Math.max(0,f.life);ctx.fillStyle=f.c;ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.fillText(f.t,f.x,f.y);});ctx.globalAlpha=1;
+  if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
+window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);done=need;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,done,need,lives}},kit:{get state(){return state;}}};
 
-  // 顶部订单牌
-  const cw=168;
-  for(let i=0;i<orders.length;i++)drawOrderCard(orders[i],i,i===0?6:W-cw-6,8,cw);
 
-  // 状态行
-  ctx.textAlign='left';ctx.textBaseline='top';ctx.font='15px sans-serif';
-  ctx.fillStyle='#ffe9b8';
-  ctx.fillText('⭐'.repeat(Math.max(0,stars)),10,126);
-  ctx.textAlign='center';
-  ctx.fillText('第'+level+'关'+(level===12?' 大胃王':'')+' · '+curTitle(),W/2,126);
-  ctx.textAlign='right';
-  ctx.fillStyle=combo>=5?'#ffd34d':'#cfe3df';
-  ctx.fillText(combo>1?('连击×'+combo):'',W-10,126);
+function finishWin(stars,gain,title){state='over';const prev=prog.stars[lvl]|0;if(stars>prev)prog.stars[lvl]=stars;prog.coins+=gain;if(lvl>=prog.unlock&&lvl<TOTAL)prog.unlock=lvl+1;saveProg(prog);if(score>best){best=score;UI.storageSet(HK,best);$('best').textContent=best;}$('overH').textContent=title||'过关！';$('finalScore').textContent='★'.repeat(stars);$('overText').textContent='关卡 '+lvl+' · +'+gain+'币';show('overScr',true);beep(880,.2);}
+function finishLose(msg){state='over';$('overH').textContent='失败';$('finalScore').textContent='💀';$('overText').textContent=(msg||'')+' · 得分 '+score;show('overScr',true);beep(160,.35,'triangle');}
+function tutorial(steps,done){let i=0;show('tutScr',true);const paint=()=>{$('tutH').textContent=steps[i][0];$('tutP').textContent=steps[i][1];$('tutStep').textContent=(i+1)+'/'+steps.length;};paint();$('tutNext').onclick=()=>{i++;if(i>=steps.length){show('tutScr',false);done();}else paint();};$('tutSkip').onclick=()=>{show('tutScr',false);done();};}
+function openLevels(){state='menu';show('startScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('tutScr',false);show('lvlScr',true);$('lvlInfo').textContent='解锁 '+prog.unlock+'/'+TOTAL+' · 币 '+prog.coins;const g=$('lvgrid');g.innerHTML='';for(let i=1;i<=TOTAL;i++){const b=document.createElement('button');b.className='btn lvl';const locked=i>prog.unlock;const st=prog.stars[i]|0;b.innerHTML=locked?'🔒':(i%5===0?'👑':'')+i+'<small>'+'★'.repeat(st)+'</small>';b.disabled=locked;if(!locked)b.onclick=()=>enter(i);g.appendChild(b);}}
+function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;saveProg(prog);tutorial(TUT,go);}else go();}
+function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').textContent='金币：'+prog.coins;const box=$('shopList');box.innerHTML='';for(const it of SHOP){if(prog[it.k]==null)prog[it.k]=0;const row=document.createElement('div');row.className='row';row.innerHTML='<div><b>'+it.name+'</b><br><small>'+it.desc()+'</small></div>';const btn=document.createElement('button');btn.className='btn';const maxed=prog[it.k]>=it.max;const cost=it.cost();btn.textContent=maxed?'满':cost+'币';btn.disabled=maxed||prog.coins<cost;btn.onclick=()=>{prog.coins-=cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();};row.appendChild(btn);box.appendChild(row);}}
+$('startBtn').onclick=openLevels;$('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
+$('shopBtn').onclick=openShop;$('shopBack').onclick=openLevels;
+$('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};
+$('resumeBtn').onclick=()=>{state='play';last=performance.now();show('pauseOv',false);};
+$('restartBtn').onclick=()=>{show('pauseOv',false);startLevel(lvl);};
+$('menuBtn').onclick=()=>{show('pauseOv',false);state='menu';openLevels();};
+$('againBtn').onclick=()=>startLevel(lvl);
+$('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
+$('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
-  // 传送带
-  if(FX)FX.tile(ctx,6,BELT_TOP,W-12,BELT_BOT-BELT_TOP,'#4a3f35',14);
-  else{ctx.fillStyle='#4a3f35';ctx.fillRect(6,BELT_TOP,W-12,BELT_BOT-BELT_TOP);}
-  ctx.save();
-  ctx.beginPath();roundRectPath(6,BELT_TOP,W-12,BELT_BOT-BELT_TOP,14);ctx.clip();
-  ctx.strokeStyle='#6b5d4f';ctx.lineWidth=3;
-  for(let x=-48+beltOff;x<W+48;x+=48){
-    ctx.beginPath();ctx.moveTo(x,BELT_TOP+8);ctx.lineTo(x,BELT_BOT-8);ctx.stroke();
-  }
-  ctx.fillStyle='rgba(255,255,255,.06)';ctx.fillRect(6,BELT_TOP,W-12,26);
-  for(const b of belt)drawSushi(b);
-  ctx.restore();
-
-  // 底部信息
-  ctx.textAlign='center';ctx.textBaseline='top';ctx.font='14px sans-serif';ctx.fillStyle='#cfe3df';
-  if(level===12){
-    ctx.fillStyle='#ffd34d';ctx.font='bold 18px sans-serif';
-    ctx.fillText('⏱ 剩余 '+Math.ceil(blitzT)+' 秒 · 纯冲分！',W/2,440);
-  }else{
-    ctx.fillText('本关完成 '+doneInLevel+' / '+(4+level)+' 单',W/2,442);
-    ctx.font='13px sans-serif';ctx.fillStyle='#9dbfba';
-    const locked=TITLE_UP.filter(p=>level<p[0])[0];
-    ctx.fillText(locked?('下一称号：'+locked[1]+'（第'+locked[0]+'关）'):'已是最高称号「寿司之神」',W/2,466);
-  }
-  if(FX)FX.drawBurst(ctx,sparks);
-  // 飘字
-  for(const f of floaters){
-    ctx.globalAlpha=Math.max(0,1-f.t);
-    ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillStyle='#10231f';ctx.fillText(f.txt,f.x+1,f.y+1);
-    ctx.fillStyle=f.color;ctx.fillText(f.txt,f.x,f.y);
-    ctx.globalAlpha=1;
-  }
-  // 关卡横幅
-  if(bannerT>0){
-    ctx.font='bold 30px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillStyle='#10231f';ctx.fillText(banner,W/2+2,H/2+2);
-    ctx.fillStyle='#ffe27a';ctx.fillText(banner,W/2,H/2);
-  }
-}
-function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play')update(dt);draw();requestAnimationFrame(frame);}
-draw();requestAnimationFrame(frame);
 </script>
 </body></html>
