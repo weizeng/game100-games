@@ -5,7 +5,7 @@ const groups = {
   garden: 'bigfish dig digdug duckhunt farm fishing frogger golf lumber snake whackamole islelord gardenguard goldrush cactus catrealm vineclimb nestcraft milltycoon',
   candy: 'balloon bubble catch claw collapse colorlines cutrope doodle draw floodit fruitmerge game2048 jewel link memory pop simon slice slot sortcandy zuma neonmirror landlord colorgate busqueue tenpair orbquest gemquest floramerge hexasort mobgate draftduel lanternrun rainlane matchquest neonvein hexforge tideforge runechain gemfusion stuntbike picdrop sandbus cubetwist kickrun puppetrun',
   ice: 'frost icebridge icecurl iceslide ski sleigh snowball snowbros snowflake snowman snowplow yeti curlingduel frostpath frostforge frostvault',
-  sky: 'ballroll bowling dino flappy hoop jump paperfly penalty pyramid shuttle stack waiter hexrealm hillclimb parkexit railtycoon bladeflash shadowraid pulsearena orbitwar skylink bumpdrive hexslide mosqsurvive',
+  sky: 'ballroll bowling dino flappy hoop jump paperfly penalty pyramid shuttle stack waiter hexrealm hillclimb parkexit railtycoon bladeflash shadowraid pulsearena orbitwar skylink bumpdrive hexslide mosqsurvive skywarden',
   space: 'asteroid aurora debrisweep docking invaders jetpack lunarlander missile mooncrawl moonphase orbit plane rocket shieldguard spacelevator starmail starswarm neodrone starconquest mechbreach gravityflip cryptops neoncity orbitcmd fleetcmd crystalmine orbitlink astralraft',
   kitchen: 'grill hotpot noodle pizzacut riddle teahouse yahtzee doughfly sushigo wokflip recipe weighit faircut piping kittyfeed foodbingo goodssort cookrush fruithole cargoflow riftbrew fogforge gritfarm nightmarket cafempire',
   // 2026-10-20 皮肤 B 上线时补登记的 80 款（全部为深色画面）
