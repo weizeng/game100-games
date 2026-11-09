@@ -25,3 +25,5 @@ npm run build
 验证：仓库 check-game 两种竖屏尺寸通过；verify.mjs 检查断网 file URL、键盘移动、座驾、暂停、重开并保存截图到 .artifacts/dunewalker。运行 `node verify.mjs`（默认使用 Windows Chrome，可通过 CHROME_PATH 指定浏览器）。全仓 UI 同步检查通过；经典游戏检查在已有 connectfour 文件上失败，本 demo 没有修改经典游戏。
 
 依赖固定在 package-lock.json。Three.js MIT 许可见 THREE-LICENSE.txt。源码是维护入口；不要直接编辑生成的游戏 HTML。
+
+版本 2：新增月海沙丘、紫晶荒原、青绿盐湖三个可选目的地；暂停菜单可返回选择，切换后重新开始，各场景独立保存纪录。新增实例化地表碎石、水晶群、盐湖植被、云带与座驾把手。运行 node verify-scenes.mjs 检查六种场景/手机尺寸组合。
