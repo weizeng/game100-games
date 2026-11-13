@@ -454,7 +454,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点四轨击打判定线音符</p>
 </div>
-<div class="overlay" id="startScr"><h1>🎤 节拍舞台</h1><p>四轨下落音符点轨击打。<br>连击提分，Miss扣命。<br>Boss：谱面更快更密。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🎤 节拍舞台</h1><p>四轨下落音符点轨击打。<br>连击提分，Miss扣命。<br>Boss：谱面更快更密。</p><p style="font-size:12px;opacity:.85">v2 优化：加宽移动端判定窗、新增Perfect/Good分级与轨道击打光效</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -488,20 +488,22 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 const TUT=[["轨道","四轨下落音符。"],["击打","音符到判定线时点轨。"],["连击","连击提升分数倍率。"],["Boss","Boss关更快更密。"]];
 const SHOP=[{k:'winLv',name:'判定窗',max:3,cost(){return 40+(prog.winLv|0)*30;},desc(){return '判定更宽'}},{k:'lifeLv',name:'容错生命',max:3,cost(){return 45+(prog.lifeLv|0)*30;},desc(){return '额外生命'}},{k:'scoreLv',name:'得分加成',max:3,cost(){return 50+(prog.scoreLv|0)*35;},desc(){return '得分乘数+'}}];
 const LX=[55,130,230,305];
-let notes=[],spawnT=0,combo=0,lives=0,hit=0,goal=0,rng,speed=0;
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*7879+5);notes=[];spawnT=0.4;combo=0;lives=3+(prog.lifeLv|0);hit=0;goal=20+lvl*3+(boss?10:0);speed=160+lvl*10+(boss?40:0);show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点四轨击打判定线音符';}
+let notes=[],spawnT=0,combo=0,lives=0,hit=0,goal=0,rng,speed=0,laneFlash=[0,0,0,0],judgeTxt='',judgeCol='#fff',judgeT=0;
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*7879+5);notes=[];spawnT=0.4;combo=0;lives=3+(prog.lifeLv|0);hit=0;goal=20+lvl*3+(boss?10:0);speed=160+lvl*10+(boss?40:0);laneFlash=[0,0,0,0];judgeT=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点四轨击打判定线音符';}
 function win(){if(state!=='play')return;const stars=lives>=3?3:lives>=2?2:1;const gain=40+stars*15+(boss?50:0)+combo;finishWin(stars,gain,'舞台通关！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){if(hit>=goal)return win();spawnT-=dt;if(spawnT<=0){spawnT=Math.max(0.22,0.7-lvl*0.025-(boss?0.15:0));notes.push({lane:rng()*4|0,y:-20});}
-  const line=H-100;for(let i=notes.length-1;i>=0;i--){notes[i].y+=speed*dt;if(notes[i].y>line+50){notes.splice(i,1);combo=0;lives--;beep(160,.1,'triangle');toast('Miss');if(lives<=0)lose('舞台冷场');}}}
+function update(dt){if(hit>=goal)return win();spawnT-=dt;for(let i=0;i<4;i++)laneFlash[i]=Math.max(0,laneFlash[i]-dt*4);if(judgeT>0)judgeT-=dt;if(spawnT<=0){spawnT=Math.max(0.24,0.72-lvl*0.025-(boss?0.14:0));notes.push({lane:rng()*4|0,y:-20});}
+  const line=H-100;for(let i=notes.length-1;i>=0;i--){notes[i].y+=speed*dt;if(notes[i].y>line+55){notes.splice(i,1);combo=0;lives--;judgeTxt='MISS';judgeCol='#ff5c7a';judgeT=0.45;beep(160,.1,'triangle');toast('Miss');if(lives<=0)lose('舞台冷场');}}}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);let lane=0;if(p.x<W/4)lane=0;else if(p.x<W/2)lane=1;else if(p.x<3*W/4)lane=2;else lane=3;
-  const line=H-100;const winW=28+(prog.winLv|0)*8;let best=-1,bd=1e9;for(let i=0;i<notes.length;i++){const n=notes[i];if(n.lane!==lane)continue;const d=Math.abs(n.y-line);if(d<bd){bd=d;best=i;}}
-  if(best>=0&&bd<=winW){notes.splice(best,1);combo++;hit++;const mul=1+(prog.scoreLv|0)*0.2+Math.min(2,combo*0.05);score+=Math.round(10*mul);$('score').textContent=score;beep(660+lane*80,.05);if(FX)FX.burst(sparks,LX[lane],line,'#ffe08a',8);if(hit>=goal)win();}else{combo=0;beep(200,.06,'triangle');}});
+  laneFlash[lane]=1;
+  const line=H-100;const winW=44+(prog.winLv|0)*8;let best=-1,bd=1e9;for(let i=0;i<notes.length;i++){const n=notes[i];if(n.lane!==lane)continue;const d=Math.abs(n.y-line);if(d<bd){bd=d;best=i;}}
+  if(best>=0&&bd<=winW){notes.splice(best,1);combo++;hit++;const perf=bd<=18;const mul=(1+(prog.scoreLv|0)*0.2+Math.min(2,combo*0.05))*(perf?1.5:1);score+=Math.round(10*mul);$('score').textContent=score;judgeTxt=perf?'PERFECT!':'GOOD';judgeCol=perf?'#ffe066':'#6ef5a6';judgeT=0.45;beep((perf?780:660)+lane*80,.05);if(FX)FX.burst(sparks,LX[lane],line,perf?'#ffe08a':'#6ef5a6',perf?12:8);if(hit>=goal)win();}else{combo=0;beep(200,.06,'triangle');}});
 function draw(){if(FX)FX.stage(ctx,W,H,'#2a0d4e','#0b0620');else{ctx.fillStyle='#0b0620';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('命'+lives+' 击'+hit+'/'+goal+' 连'+combo+(boss?' 👑':''),10,22);
-  const line=H-100;for(let i=0;i<4;i++){ctx.fillStyle='rgba(255,255,255,.06)';ctx.fillRect(LX[i]-30,40,60,H-80);ctx.strokeStyle='rgba(255,61,154,.5)';ctx.strokeRect(LX[i]-30,line-8,60,16);}
-  for(const n of notes){if(FX)FX.orb(ctx,LX[n.lane],n.y,12,'#ff3d9a');else{ctx.fillStyle='#ff3d9a';ctx.beginPath();ctx.arc(LX[n.lane],n.y,12,0,7);ctx.fill();}}
-  for(let i=0;i<4;i++){ctx.fillStyle='rgba(255,61,154,.25)';ctx.fillRect(LX[i]-28,H-52,56,44);ctx.fillStyle='#fff';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(['A','S','D','F'][i],LX[i],H-24);}
+  const line=H-100;for(let i=0;i<4;i++){ctx.fillStyle=laneFlash[i]>0?`rgba(255,61,154,${0.12+laneFlash[i]*0.28})`:'rgba(255,255,255,.06)';ctx.fillRect(LX[i]-30,40,60,H-80);ctx.strokeStyle=laneFlash[i]>0?'#ffe08a':'rgba(255,61,154,.6)';ctx.lineWidth=laneFlash[i]>0?2.5:1;ctx.strokeRect(LX[i]-30,line-10,60,20);}
+  for(const n of notes){if(FX)FX.orb(ctx,LX[n.lane],n.y,13,'#ff3d9a');else{ctx.fillStyle='#ff3d9a';ctx.beginPath();ctx.arc(LX[n.lane],n.y,13,0,7);ctx.fill();}}
+  if(judgeT>0){ctx.fillStyle=judgeCol;ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.fillText(judgeTxt+(combo>1?' ×'+combo:''),W/2,line-42);}
+  for(let i=0;i<4;i++){ctx.fillStyle=laneFlash[i]>0?'rgba(255,224,138,.45)':'rgba(255,61,154,.28)';ctx.fillRect(LX[i]-28,H-54,56,46);ctx.fillStyle='#fff';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(['1','2','3','4'][i],LX[i],H-26);}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);hit=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,hit,goal,lives,combo}}};
 

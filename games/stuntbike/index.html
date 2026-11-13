@@ -454,7 +454,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">右油门 · 左刹车 · 上下倾空翻</p>
 </div>
-<div class="overlay" id="startScr"><h1>🏍️ 飞跃特技</h1><p>侧视摩托冲刺计时赛。<br>跳台空翻稳落地可减时。<br>Boss：定时闸门窗口通行。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🏍️ 飞跃特技</h1><p>侧视摩托冲刺计时赛。<br>跳台空翻稳落地可减时。<br>Boss：定时闸门窗口通行。</p><p style="font-size:12px;opacity:.85">v2 优化：修复360°空翻落地必摔Bug、防滑出卡键并增加触控区提示</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -498,22 +498,22 @@ function gy(x){for(const s of track){if(x>=s.x&&x<s.x+s.w)return s.y-(s.ramp?((x
 function win(){if(state!=='play')return;const stars=time<target*.7?3:time<target?2:1;finishWin(stars,40+stars*15+(boss?50:0)+Math.max(0,Math.floor((target-time)*2)),'特技完成！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
 function update(dt){time+=dt;for(const g of gates){g.t+=dt;g.open=Math.sin(g.t*(Math.PI*2/g.period))>(boss?-0.15:-0.45);}
-  const spd=1+(prog.spdLv|0)*.12;if(holdG>0)bike.vx+=170*spd*dt;else if(holdG<0)bike.vx-=140*dt;bike.vx=Math.max(-30,Math.min(270*spd,bike.vx));bike.vx*=.995;
-  if(!bike.on){bike.av+=tilt*5*dt;bike.ang+=bike.av*dt;}else bike.ang*=.88;
+  const spd=1+(prog.spdLv|0)*.12;if(holdG>0)bike.vx+=210*spd*dt;else if(holdG<0)bike.vx-=160*dt;bike.vx=Math.max(-30,Math.min(280*spd,bike.vx));bike.vx*=Math.pow(.995,dt*60);
+  if(!bike.on){bike.av+=tilt*6*dt;bike.ang+=bike.av*dt;}else{bike.ang=Math.atan2(Math.sin(bike.ang),Math.cos(bike.ang))*Math.pow(.88,dt*60);}
   bike.vy+=500*dt;bike.x+=bike.vx*dt;bike.y+=bike.vy*dt;
   const g=gy(bike.x),on=bike.y+16>=g&&g<900;
   if(on){const was=!bike.on;bike.y=g-16;bike.vy=Math.min(0,bike.vy);bike.on=true;
-    if(was){const tol=.75+(prog.stabLv|0)*.14;if(Math.abs(bike.ang)>tol){bike.x=cps[Math.max(0,cpI-1)]||80;bike.y=gy(bike.x)-16;bike.vx=50;bike.ang=0;bike.av=0;time+=2;toast('摔回检查点');}
-    else if(Math.abs(airFlip)>=Math.PI*1.5){time=Math.max(0,time-(.9+(prog.flipLv|0)*.4));score+=35;$('score').textContent=score;beep(990,.08);if(FX)FX.burst(sparks,W/2,180,'#ffcf33',12);}
+    if(was){const tol=.82+(prog.stabLv|0)*.14;const normAng=Math.atan2(Math.sin(bike.ang),Math.cos(bike.ang));bike.ang=normAng;if(Math.abs(normAng)>tol){bike.x=cps[Math.max(0,cpI-1)]||80;bike.y=gy(bike.x)-16;bike.vx=50;bike.ang=0;bike.av=0;time+=2;toast('摔回检查点');}
+    else if(Math.abs(airFlip)>=Math.PI*1.5){time=Math.max(0,time-(.9+(prog.flipLv|0)*.4));score+=35;$('score').textContent=score;beep(990,.08);toast('空翻减时!');if(FX)FX.burst(sparks,W/2,180,'#ffcf33',12);}
     bike.av=0;airFlip=0;}}
-  else{bike.on=false;airFlip+=bike.av*dt;if(bike.y>530){bike.x=cps[Math.max(0,cpI-1)]||80;bike.y=gy(bike.x)-16;bike.vx=40;bike.ang=0;time+=2;toast('落水');}}
-  for(const g of gates){if(Math.abs(bike.x-g.x)<12&&!g.open){bike.x=cps[Math.max(0,cpI-1)]||80;bike.vx=40;time+=1.5;toast('撞闸');}}
+  else{bike.on=false;airFlip+=bike.av*dt;if(bike.y>530){bike.x=cps[Math.max(0,cpI-1)]||80;bike.y=gy(bike.x)-16;bike.vx=40;bike.ang=0;bike.av=0;time+=2;toast('落水');}}
+  for(const g of gates){if(Math.abs(bike.x-g.x)<12&&!g.open){bike.x=cps[Math.max(0,cpI-1)]||80;bike.vx=40;bike.ang=0;bike.av=0;time+=1.5;toast('撞闸');}}
   while(cpI<cps.length&&bike.x>=cps[cpI]){cpI++;score+=20;$('score').textContent=score;beep(760,.06);}
   camX=Math.max(0,bike.x-100);if(cpI>=cps.length)win();}
-let p0y=0;
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);holdG=p.x>W/2?1:-1;p0y=p.y;});
-cv.addEventListener('pointermove',e=>{if(state!=='play')return;const p=posOf(e);tilt=p.y<p0y-12?-1:p.y>p0y+12?1:0;});
-['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,()=>{holdG=0;tilt=0;}));
+let p0y=0,isDown=false;
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();isDown=true;cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);const p=posOf(e);holdG=p.x>W/2?1:-1;p0y=p.y;});
+cv.addEventListener('pointermove',e=>{if(!isDown||state!=='play')return;const p=posOf(e);tilt=p.y<p0y-14?-1:p.y>p0y+14?1:0;});
+['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,()=>{isDown=false;holdG=0;tilt=0;}));
 function draw(){if(FX)FX.stage(ctx,W,H,'#ff8ac6','#8d58ff');else{ctx.fillStyle='#8d58ff';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('⏱'+time.toFixed(1)+'/'+target.toFixed(0)+' CP'+cpI+(boss?' 👑':''),10,22);
   ctx.save();ctx.translate(-camX,0);ctx.fillStyle='#4a2060';
@@ -523,6 +523,8 @@ function draw(){if(FX)FX.stage(ctx,W,H,'#ff8ac6','#8d58ff');else{ctx.fillStyle='
   ctx.save();ctx.translate(bike.x,bike.y);ctx.rotate(bike.ang);
   if(FX)FX.tile(ctx,-18,-10,36,18,'#ffcf33',5);else{ctx.fillStyle='#ffcf33';ctx.fillRect(-18,-10,36,18);}
   ctx.fillStyle='#222';ctx.beginPath();ctx.arc(-12,10,6,0,7);ctx.arc(12,10,6,0,7);ctx.fill();ctx.restore();ctx.restore();
+  ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(0,H-54,W/2-1,54);ctx.fillRect(W/2+1,H-54,W/2-1,54);
+  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText('◀ 刹车',W/4,H-22);ctx.fillText('油门(上下滑空翻) ▶',W*3/4,H-22);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);cpI=cps.length;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,time,cpI}}};
 

@@ -455,7 +455,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点左右换道 · 投报送达</p>
 </div>
-<div class="overlay" id="startScr"><h1>📰 送报骑行</h1><p>左右换道骑车送报，把报纸投进订户信箱。<br>躲开车辆与路障。<br>Boss：急件限时 / 逆向车流。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>📰 送报骑行</h1><p>左右换道骑车送报，把报纸投进订户信箱。<br>躲开车辆与路障。<br>Boss：急件限时 / 逆向车流。</p><p style="font-size:12px;opacity:.85">v2 优化：修复漏投后空跑卡死与高关报纸不足Bug，支持信箱/车流循环刷新</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -490,10 +490,11 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 const TUT=[["换道","点左/右半屏或滑动换车道。"],["投报","靠近信箱自动或点击投报。"],["躲避","撞车或路障会扣命。"],["特殊","急件限时送达；逆向车流更密。"]];
 const SHOP=[{k:'laneLv',name:'反应',max:3,cost(){return 35+(prog.laneLv|0)*25;},desc(){return '换道加速+'}},{k:'bagLv',name:'报袋',max:2,cost(){return 40+(prog.bagLv|0)*30;},desc(){return '报纸储量+'}},{k:'armorLv',name:'护具',max:2,cost(){return 50+(prog.armorLv|0)*40;},desc(){return '生命+'}}];
 let lane=1,lanes=3,yScroll=0,speed=180,hp=3,papers=8,mailboxes=[],cars=[],delivered=0,need=5,timer=0,urgent=-1,rng,flip=false;
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*3307+2);lane=1;lanes=3;yScroll=0;speed=160+n*8;hp=3+(prog.armorLv|0);papers=6+(prog.bagLv|0)*2;delivered=0;need=4+Math.min(6,(n/2)|0);timer=50+n;flip=boss&&lvl>10;urgent=boss&&lvl<=10?2:-1;
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*3307+2);lane=1;lanes=3;yScroll=0;speed=160+n*8;hp=3+(prog.armorLv|0);need=4+Math.min(6,(n/2)|0);papers=Math.max(need+2,6+(prog.bagLv|0)*2);delivered=0;timer=50+n;flip=boss&&lvl>10;urgent=boss&&lvl<=10?2:-1;
   mailboxes=[];cars=[];
-  for(let i=0;i<need+3;i++)mailboxes.push({lane:(rng()*3)|0,y:-200-i*(180-n*3),done:false,urgent:urgent===i});
-  for(let i=0;i<8+n;i++)cars.push({lane:(rng()*3)|0,y:-100-i*160,h:36,spd:speed*(flip&&rng()<.4?-0.6:0.3+rng()*.5),flip:flip&&rng()<.4});
+  const mbGap=Math.max(120,180-n*3);
+  for(let i=0;i<need+3;i++)mailboxes.push({lane:(rng()*3)|0,y:-200-i*mbGap,done:false,urgent:urgent===i});
+  for(let i=0;i<8+Math.min(8,n);i++)cars.push({lane:(rng()*3)|0,y:-100-i*160,h:36,spd:speed*(flip&&rng()<.4?-0.6:0.3+rng()*.5),flip:flip&&rng()<.4});
   show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='换道投报';}
 function laneX(l){return 60+l*((W-120)/2);}
 function win(){if(state!=='play')return;finishWin(delivered>=need?3:2,45+(boss?40:0),'送达完成！');}
@@ -501,9 +502,14 @@ function lose(msg){if(state!=='play')return;finishLose(msg);}
 function update(dt){timer-=dt;if(timer<=0)return lose('超时');
   const sc=speed*dt;yScroll+=sc;
   const py=H-90;
-  for(const m of mailboxes){m.y+=sc;if(!m.done&&m.y>py-30&&m.y<py+30&&m.lane===lane&&papers>0){m.done=true;papers--;delivered++;score+=m.urgent?40:20;$('score').textContent=score;if(FX)FX.burst(sparks,laneX(lane),py,'#ffd34d',12);beep(900,.08);if(delivered>=need)return win();}}
+  let topMb=-120;for(const m of mailboxes)if(!m.done&&m.y<topMb)topMb=m.y;
+  for(const m of mailboxes){m.y+=sc;
+    if(!m.done&&m.y>py-30&&m.y<py+30&&m.lane===lane&&papers>0){m.done=true;papers--;delivered++;score+=m.urgent?40:20;$('score').textContent=score;if(FX)FX.burst(sparks,laneX(lane),py,'#ffd34d',12);beep(900,.08);if(delivered>=need)return win();}
+    else if(!m.done&&m.y>H+45){m.y=topMb-150;topMb=m.y;m.lane=(rng()*3)|0;}}
+  let topCar=-120;for(const c of cars)if(c.y<topCar&&c.y>-1200)topCar=c.y;
   for(const c of cars){c.y+=sc+c.spd*dt*(c.flip?-1:1);
-    if(c.y>py-20&&c.y<py+20&&c.lane===lane){hp--;c.y=-999;beep(180,.2,'sawtooth');toast('撞车');if(hp<=0)return lose('车祸');}}
+    if(c.y>py-20&&c.y<py+20&&c.lane===lane){hp--;c.y=topCar-180;topCar=c.y;c.lane=(rng()*3)|0;beep(180,.2,'sawtooth');toast('撞车');if(hp<=0)return lose('车祸');}
+    else if(c.y>H+50){c.y=topCar-160;topCar=c.y;c.lane=(rng()*3)|0;}}
 }
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
   if(p.x<W/2)lane=Math.max(0,lane-1);else lane=Math.min(2,lane+1);beep(500,.03);});

@@ -455,7 +455,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">拖球盘带 · 松手射门</p>
 </div>
-<div class="overlay" id="startScr"><h1>⚽ 盘带破门</h1><p>拖动足球绕过防线，瞄准球门射门。<br>别撞防守队员。<br>Boss：弹跳垫 / 移动门将。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>⚽ 盘带破门</h1><p>拖动足球绕过防线，瞄准球门射门。<br>别撞防守队员。<br>Boss：弹跳垫 / 移动门将。</p><p style="font-size:12px;opacity:.85">v2 优化：支持划动斜角射门、修复球速衰减过快并扩大触球判定</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -503,20 +503,22 @@ function lose(msg){if(state!=='play')return;finishLose(msg);}
 function update(dt){timer-=dt;if(timer<=0)return lose('时间到');
   goalie.x+=goalie.vx*dt;if(goalie.x<40||goalie.x>W-40)goalie.vx*=-1;
   for(const d of defs){d.x+=Math.sin(performance.now()/400+d.phase)*d.spd*dt*d.dir*.02;d.y+=Math.cos(performance.now()/500+d.phase)*20*dt;d.x=Math.max(20,Math.min(W-20,d.x));d.y=Math.max(100,Math.min(H-100,d.y));}
-  if(!ball.held){ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;ball.vx*=.98;ball.vy*=.98;
-    for(const p of pads){if(ball.x>p.x&&ball.x<p.x+p.w&&ball.y>p.y&&ball.y<p.y+p.h){ball.vy=-220-(prog.kickLv|0)*30;ball.y=p.y-2;beep(900,.05);}}
+  if(!ball.held){ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;const damp=Math.pow(.992,dt*60);ball.vx*=damp;ball.vy*=damp;
+    if(ball.x<30){ball.x=30;ball.vx=Math.abs(ball.vx)*.8;}else if(ball.x>W-30){ball.x=W-30;ball.vx=-Math.abs(ball.vx)*.8;}
+    for(const p of pads){if(ball.x>p.x&&ball.x<p.x+p.w&&ball.y>p.y&&ball.y<p.y+p.h){ball.vy=-320-(prog.kickLv|0)*40;ball.y=p.y-2;beep(900,.05);}}
     if(ball.y<90&&ball.x>W/2-55&&ball.x<W/2+55){ // goal attempt
       if(Math.abs(ball.x-goalie.x)<goalie.w/2+8){toast('门将扑出');resetBall();shots++;beep(200,.15,'sawtooth');}
       else{goals++;score+=100;$('score').textContent=score;if(FX)FX.burst(sparks,ball.x,80,'#ffd34d',16);beep(1000,.15);if(goals>=need)return win();resetBall();}
     }
-    if(ball.y<0||ball.y>H||ball.x<0||ball.x>W){resetBall();shots++;}
+    if(ball.y<0||ball.y>H){resetBall();shots++;}
   }
   const tol=10+(prog.shieldLv|0)*4;
   for(const d of defs){if(Math.hypot(ball.x-d.x,ball.y-d.y)<ball.r+d.r-tol){toast('丢球');resetBall();shots++;beep(180,.2,'triangle');score=Math.max(0,score-10);$('score').textContent=score;}}
 }
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(Math.hypot(p.x-ball.x,p.y-ball.y)<40){dragging=true;ball.held=true;cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);}});
-cv.addEventListener('pointermove',e=>{if(!dragging||state!=='play')return;const p=posOf(e);const sp=1+(prog.speedLv|0)*.15;ball.x=p.x;ball.y=Math.min(H-30,Math.max(100,p.y));});
-['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,e=>{if(!dragging)return;dragging=false;ball.held=false;const p=posOf(e);ball.vx=(p.x-ball.x)*0;ball.vy=-180-(prog.kickLv|0)*40;if(ball.y<200){ball.vy=-220-(prog.kickLv|0)*50;}beep(600,.05);}));
+let prevPx=W/2,dragVx=0;
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(Math.hypot(p.x-ball.x,p.y-ball.y)<54){dragging=true;ball.held=true;prevPx=p.x;dragVx=0;cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);}});
+cv.addEventListener('pointermove',e=>{if(!dragging||state!=='play')return;const p=posOf(e);dragVx=Math.max(-220,Math.min(220,(p.x-prevPx)*14));prevPx=p.x;ball.x=Math.max(30,Math.min(W-30,p.x));ball.y=Math.min(H-30,Math.max(110,p.y));});
+['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,e=>{if(!dragging)return;dragging=false;ball.held=false;ball.vx=dragVx;ball.vy=-320-(prog.kickLv|0)*50;if(ball.y<220){ball.vy=-360-(prog.kickLv|0)*60;}beep(600,.05);}));
 function draw(){if(FX)FX.stage(ctx,W,H,'#ff8ac6','#8d58ff');else{ctx.fillStyle='#8d58ff';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   // field
   ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=2;ctx.strokeRect(20,40,W-40,H-80);ctx.beginPath();ctx.moveTo(20,H/2);ctx.lineTo(W-20,H/2);ctx.stroke();
