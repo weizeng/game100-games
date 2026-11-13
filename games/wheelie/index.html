@@ -452,9 +452,9 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     </span>
   </div>
   <div class="stagebox"><canvas id="cv"></canvas></div>
-  <p class="hint" id="hint">按住抬前轮 · 松开压回平衡</p>
+  <p class="hint" id="hint">按住保持翘头 · 松开压低前轮</p>
 </div>
-<div class="overlay" id="startScr"><h1>🚲 单轮狂飙</h1><p>按住抬头、松开压回，保持前轮翘起。<br>翘头可越过来车，连翘越久倍率越高。<br>跳台空翻加分。Boss 关车流更密、坡更晃。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🚲 单轮狂飙</h1><p>按住画面开始并保持翘头，松开会慢慢压低前轮。<br>保持翘头就能越过来车；跳台空翻加分，连翘越久倍率越高。<br>Boss 关车流更密、路面更晃。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -469,6 +469,7 @@ const cv=$('cv'),ctx=cv.getContext('2d');
 const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
 const FX=UI.fx&&UI.fx.on?UI.fx:null;
 if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+try{cv.style.touchAction='none';}catch(e){}
 function show(id,on){$(id).classList.toggle('hidden',!on);}
 function toast(t){const el=$('toast');el.textContent=t;el.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('on'),1200);}
 function posOf(e){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
@@ -486,38 +487,40 @@ let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textCont
 const TOTAL=15;
 let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 
-const TUT=[["翘头","按住画面抬起前轮。"],["平衡","松开微调，别后翻。"],["连翘","前轮不落地连翘加倍率。"],["Boss","Boss关车流更密坡更陡。"]];
+const TUT=[["翘头","按住画面就会开始，并抬起前轮保持翘头。"],["平衡","松开会慢慢压低前轮；不要松太久落地，也不用一直猛抬。"],["连翘","保持翘头就能越过来车，连翘越久倍率越高。"],["Boss","Boss关来车更密，路面更晃，注意看右侧角度槽。"]];
 const SHOP=[{k:'pwrLv',name:'动力',max:3,cost(){return 40+(prog.pwrLv|0)*30;},desc(){return '抬头力+'}},{k:'balLv',name:'平衡杆',max:3,cost(){return 45+(prog.balLv|0)*30;},desc(){return '容错角+'}},{k:'mulLv',name:'连翘芯',max:2,cost(){return 50+(prog.mulLv|0)*40;},desc(){return '倍率成长+'}}];
-let bike,dist=0,goal=0,mul=1,holding=false,cars=[],ramps=[],t=0,air=false,flips=0,rng;
-function limits(){const tol=.7+(prog.balLv|0)*.14;return {pwr:1.15+(prog.pwrLv|0)*.22,tol,lo:.1,hi:tol+.95};}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];dist=0;mul=1;holding=false;cars=[];ramps=[];t=0;air=false;flips=0;rng=mulberry32(n*4417+2);
-  goal=180+n*55+(boss?80:0);bike={ang:.42,av:0};
-  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='按住抬前轮，松开压回 · 翘头可越过来车';}
+let bike,dist=0,goal=0,mul=1,holding=false,cars=[],ramps=[],t=0,air=false,flips=0,rng,holdPtr=null;
+function limits(){const tol=.95+(prog.balLv|0)*.18;return{target:.58+(prog.pwrLv|0)*.04,pull:3.4+(prog.pwrLv|0)*.25,damp:3.1,drop:.48,tol,lo:.12,hi:tol+.55,clear:.26};}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];dist=0;mul=1;holding=false;holdPtr=null;cars=[];ramps=[];t=0;air=false;flips=0;rng=mulberry32(n*4417+2);
+  goal=820+n*90+(boss?120:0);bike={ang:.5,av:0};
+  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='ready';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='按住画面开始并保持翘头，松开可压低前轮';}
 function win(){if(state!=='play')return;const stars=mul>=3?3:mul>=2?2:1;finishWin(stars,35+stars*15+(boss?45:0)+Math.floor(dist/20),'单轮达标！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){t+=dt;const dens=.55+lvl*.05+(boss?.28:0);
-  if(rng()<dens*dt){const lane=rng()<.55?0:1;cars.push({x:W+48,lane,w:36+rng()*20});if(lane===0)ramps.push({x:W+8,used:0});}
-  const scroll=(130+lvl*8)*dt;
+function update(dt){if(state!=='play')return;t+=dt;const dens=t<1.6?0:(.28+lvl*.03+(boss?.16:0));
+  if(rng()<dens*dt){const lane=rng()<(lvl<=3?.4:.55)?0:1;cars.push({x:W+70,lane,w:34+rng()*16});if(lane===0)ramps.push({x:W+18,used:0});}
+  const scroll=(96+lvl*5)*dt;
   for(let i=cars.length-1;i>=0;i--){cars[i].x-=scroll;if(cars[i].x<-60)cars.splice(i,1);}
   for(let i=ramps.length-1;i>=0;i--){ramps[i].x-=scroll;if(ramps[i].x<-80)ramps.splice(i,1);}
   const L=limits();
-  if(holding)bike.av+=L.pwr*dt;else bike.av-=1.22*dt;
-  bike.ang+=bike.av*dt;bike.av*=.98;
-  bike.ang+=Math.sin(t*(.65+lvl*.04))*(.045+lvl*.005+(boss?.035:0))*dt;
+  if(holding){bike.av+=(L.target-bike.ang)*L.pull*dt-bike.av*L.damp*dt;}else{bike.av-=L.drop*dt;bike.av*=.98;}
+  bike.ang+=bike.av*dt;
+  if(t>1.2)bike.ang+=Math.sin(t*(.55+lvl*.03))*(.03+lvl*.004+(boss?.03:0))*dt;
   if(bike.ang<L.lo)return lose('前轮落地');if(bike.ang>L.hi)return lose('后翻了');
   const bx=W*.45;
-  for(const rp of ramps){if(!rp.used&&rp.x<bx+8&&rp.x>bx-36){rp.used=1;air=true;flips=0;bike.av+=.12;if(FX)FX.burst(sparks,bx,390,'#ffcf33',8);}}
-  for(const c of cars){if(Math.abs(c.x-bx)<28&&c.lane===0&&!air&&bike.ang<0.28)return lose('撞车');}
-  if(air){flips+=dt;if(flips>.55){air=false;if(holding||bike.ang>0.35){score+=40*mul;$('score').textContent=score|0;beep(880,.08);}else{mul=1;toast('落地断翘');}}}
-  dist+=(88+lvl*4)*dt*(holding?1.12:1);if(holding)mul=Math.min(5,mul+(.12+(prog.mulLv|0)*.07)*dt);
+  for(const rp of ramps){if(!rp.used&&rp.x<bx+8&&rp.x>bx-36){rp.used=1;air=true;flips=0;bike.av+=.08;if(FX)FX.burst(sparks,bx,390,'#ffcf33',8);}}
+  for(const c of cars){if(Math.abs(c.x-bx)<28&&c.lane===0&&!air&&bike.ang<L.clear)return lose('撞车');}
+  if(air){flips+=dt;if(flips>.7){air=false;if(holding||bike.ang>0.35){score+=40*mul;$('score').textContent=score|0;beep(880,.08);}else{mul=1;toast('落地断翘');}}}
+  dist+=(62+lvl*3)*dt*(holding?1.08:1);if(holding)mul=Math.min(5,mul+(.12+(prog.mulLv|0)*.07)*dt);
   score=Math.max(score,Math.floor(dist*mul/10));$('score').textContent=score|0;
   if(dist>=goal)win();}
 function setHold(v){holding=!!v;}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();setHold(true);try{cv.setPointerCapture(e.pointerId);}catch(_){}});
-['pointerup','pointercancel','lostpointercapture'].forEach(ev=>cv.addEventListener(ev,()=>setHold(false)));
-window.addEventListener('pointerup',()=>setHold(false));
-function draw(){if(FX)FX.stage(ctx,W,H,'#72cbff','#3b62ef');else{ctx.fillStyle='#3b62ef';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('距'+(dist|0)+'/'+goal+' ×'+mul.toFixed(1)+(boss?' 👑':'')+(air?' 🌀':''),10,22);
+function onHoldDown(e){if(state!=='play'&&state!=='ready')return;e.preventDefault();if(state==='ready'){state='play';last=performance.now();}holdPtr=e.pointerId;setHold(true);try{cv.setPointerCapture(e.pointerId);}catch(err){}}
+function onHoldUp(e){if(holdPtr!=null&&e&&e.pointerId!==holdPtr&&e.type!=='pointercancel')return;holdPtr=null;setHold(false);}
+cv.addEventListener('pointerdown',onHoldDown);
+cv.addEventListener('pointerup',onHoldUp);
+cv.addEventListener('pointercancel',onHoldUp);
+function draw(){if(FX)FX.stage(ctx,W,H,'#72cbff','#3b62ef');else{ctx.fillStyle='#3b62ef';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause'&&state!=='ready')return;
+  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText((state==='ready'?'按住开始 · ':'')+'距'+(dist|0)+'/'+goal+' ×'+mul.toFixed(1)+(boss?' 👑':'')+(air?' 🌀':''),10,22);
   const L=limits(),meterX=W-24,meterY=48,meterH=132;
   ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(meterX,meterY,14,meterH);
   ctx.fillStyle='#ff6b6b';ctx.fillRect(meterX,meterY,14,18);ctx.fillRect(meterX,meterY+meterH-18,14,18);
@@ -530,9 +533,10 @@ function draw(){if(FX)FX.stage(ctx,W,H,'#72cbff','#3b62ef');else{ctx.fillStyle='
   const bx=W*.45,by=air?350:390;ctx.save();ctx.translate(bx,by);ctx.rotate(-bike.ang);
   if(FX)FX.tile(ctx,-20,-8,40,16,'#ffb21e',5);else{ctx.fillStyle='#ffb21e';ctx.fillRect(-20,-8,40,16);}
   ctx.fillStyle='#222';ctx.beginPath();ctx.arc(14,10,8,0,7);ctx.fill();ctx.globalAlpha=.3;ctx.beginPath();ctx.arc(-14,10,6,0,7);ctx.fill();ctx.globalAlpha=1;ctx.restore();
+  if(state==='ready'){ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(40,230,W-80,70);ctx.fillStyle='#fff';ctx.font='bold 18px sans-serif';ctx.textAlign='center';ctx.fillText('按住画面开始',W/2,272);}
   ctx.fillStyle='#33e1a0';ctx.fillRect(20,H-28,Math.min(1,dist/goal)*(W-40),10);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
-window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);dist=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,dist,goal,mul}}};
+window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);state='play';last=performance.now();},hold(v){if(v&&state==='ready'){state='play';last=performance.now();}setHold(v);},win(){if(state!=='play'&&state!=='ready')startLevel(lvl||1);state='play';dist=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,dist,goal,mul,holding,ang:bike&&+bike.ang.toFixed(3)}}};
 
 function finishWin(stars,gain,title){state='over';const prev=prog.stars[lvl]|0;if(stars>prev)prog.stars[lvl]=stars;prog.coins+=gain;if(lvl>=prog.unlock&&lvl<TOTAL)prog.unlock=lvl+1;saveProg(prog);if(score>best){best=score;UI.storageSet(HK,best);$('best').textContent=best;}$('overH').textContent=title||'过关！';$('finalScore').textContent='★'.repeat(stars);$('overText').textContent='关卡 '+lvl+' · +'+gain+'币';show('overScr',true);beep(880,.2);}
 function finishLose(msg){state='over';$('overH').textContent='失败';$('finalScore').textContent='💀';$('overText').textContent=(msg||'')+' · 得分 '+score;show('overScr',true);beep(160,.35,'triangle');}
@@ -542,13 +546,13 @@ function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;sa
 function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').textContent='金币：'+prog.coins;const box=$('shopList');box.innerHTML='';for(const it of SHOP){if(prog[it.k]==null)prog[it.k]=0;const row=document.createElement('div');row.className='row';row.innerHTML='<div><b>'+it.name+'</b><br><small>'+it.desc()+'</small></div>';const btn=document.createElement('button');btn.className='btn';const maxed=prog[it.k]>=it.max;const cost=it.cost();btn.textContent=maxed?'满':cost+'币';btn.disabled=maxed||prog.coins<cost;btn.onclick=()=>{prog.coins-=cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();};row.appendChild(btn);box.appendChild(row);}}
 $('startBtn').onclick=openLevels;$('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
 $('shopBtn').onclick=openShop;$('shopBack').onclick=openLevels;
-$('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};
-$('resumeBtn').onclick=()=>{state='play';last=performance.now();show('pauseOv',false);};
+let prePause='play';$('pauseBtn').onclick=()=>{if(state==='play'||state==='ready'){prePause=state;state='pause';show('pauseOv',true);}else if(state==='pause'){state=prePause;last=performance.now();show('pauseOv',false);}};
+$('resumeBtn').onclick=()=>{state=prePause||'play';last=performance.now();show('pauseOv',false);};
 $('menuBtn').onclick=()=>{show('pauseOv',false);state='menu';openLevels();};
 $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&(state==='play'||state==='ready')){prePause=state;state='pause';show('pauseOv',true);}});
 requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>

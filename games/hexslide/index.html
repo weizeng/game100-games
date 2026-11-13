@@ -452,9 +452,9 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     </span>
   </div>
   <div class="stagebox"><canvas id="cv"></canvas></div>
-  <p class="hint" id="hint">拖六边块滑动 · 同色相连消</p>
+  <p class="hint" id="hint">拖色块滑向空位 · 同色相接即消</p>
 </div>
-<div class="overlay" id="startScr"><h1>⬡ 六边滑色</h1><p>六向滑动六边色块直至撞停。<br>同色相邻即合并消除。<br>Boss：双色块需先选生效色。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>⬡ 六边滑色</h1><p>沿六向把色块滑到空位，同色相接就会消除。<br>开局会先清掉已连在一起的块，再把剩余的滑到一起。<br>滑不动时可点撤销。Boss 关双色块要先点选生效色。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -469,6 +469,7 @@ const cv=$('cv'),ctx=cv.getContext('2d');
 const UI=window.GameUI||{pick:a=>a,storageGet:k=>localStorage.getItem(k),storageSet:(k,v)=>localStorage.setItem(k,v)};
 const FX=UI.fx&&UI.fx.on?UI.fx:null;
 if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
+try{cv.style.touchAction='none';}catch(e){}
 function show(id,on){$(id).classList.toggle('hidden',!on);}
 function toast(t){const el=$('toast');el.textContent=t;el.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('on'),1200);}
 function posOf(e){const r=cv.getBoundingClientRect();const t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e;return{x:(t.clientX-r.left)*W/r.width,y:(t.clientY-r.top)*H/r.height};}
@@ -486,53 +487,96 @@ let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textCont
 const TOTAL=15;
 let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 
-const TUT=[["滑动","拖动六边块沿六向滑到撞停。"],["合并","同色相邻连接即消除。"],["空位","空格有限，滑错会堵死。"],["Boss","Boss关双色块先选生效色。"]];
+const TUT=[["滑动","按住色块沿六个方向拖向空位，松手后会滑到撞停。"],["合并","同色挨在一起就会消除。开局已连上的会先清掉。"],["撤销","滑错了就点左下角撤销。只剩无法对消的块时会结算。"],["Boss","Boss关双色块先点一下选生效色，再拖动。"]];
 const SHOP=[{k:'undoLv',name:'撤销',max:3,cost(){return 40+(prog.undoLv|0)*30;},desc(){return '撤销+'}},{k:'hintLv',name:'光标',max:2,cost(){return 50+(prog.hintLv|0)*40;},desc(){return '提示+'}},{k:'slotLv',name:'空格',max:2,cost(){return 45+(prog.slotLv|0)*35;},desc(){return '初始空位+'}}];
-const COLS=['#ff6b9a','#ffcf33','#33e1a0','#4fc3f7','#b26bff'];
+const COLS=['#ff6b9a','#ffcf33','#33e1a0','#4fc3f7','#b26bff','#ff8a4c','#7ee0ff','#f07ad0'];
 const DIRS=[[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]];
-let cells={},size=4,sel=null,undos=0,rng,dual=null;
+const HS=22;
+let cells={},size=4,sel=null,undos=0,rng,dual=null,hist=[],drag0=null,dragPtr=null;
 function key(q,r){return q+','+r;}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*2203+6);size=3+Math.min(2,n>>3);sel=null;undos=1+(prog.undoLv|0);dual=null;cells={};
-  const colors=3+Math.min(2,n>>3);const empties=2+(prog.slotLv|0);
+function colorCounts(){const m={};for(const v of Object.values(cells)){if(!v)continue;const c=activeColor(v);m[c]=(m[c]||0)+1;}return m;}
+function boardLeft(){return Object.values(cells).filter(Boolean).length;}
+function canSlide(q,r,dq,dr){const k=key(q,r);if(!cells[k])return false;let cq=q,cr=r;while(true){const nq=cq+dq,nr=cr+dr,nk=key(nq,nr);if(!(nk in cells)||cells[nk])break;cq=nq;cr=nr;}return !(cq===q&&cr===r);}
+function legalMoves(){const ms=[];for(const k of Object.keys(cells)){if(!cells[k])continue;const [q,r]=k.split(',').map(Number);for(const [dq,dr] of DIRS){if(canSlide(q,r,dq,dr))ms.push([q,r,dq,dr]);}}return ms;}
+function undoBox(){return{x:8,y:H-52,w:108,h:44};}
+function inUndo(p){const b=undoBox();return p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h;}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*2203+17);size=3+Math.min(2,n>>3);sel=null;undos=1+(prog.undoLv|0);dual=null;hist=[];drag0=null;cells={};
+  const colors=3+Math.min(2,n>>3);const pairN=3+Math.min(5,Math.max(0,n-1));
   const coords=[];for(let q=-size;q<=size;q++)for(let r=-size;r<=size;r++){if(Math.abs(q+r)<=size)coords.push([q,r]);}
-  let emptyLeft=empties;for(const [q,r] of coords){if(emptyLeft&&rng()<.2){emptyLeft--;cells[key(q,r)]=null;continue;}
-    const c=(rng()*colors)|0;const isDual=boss&&rng()<.15;cells[key(q,r)]=isDual?{c,c2:(c+1)%colors,dual:true}:{c};}
-  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='拖六边块滑动接色';}
-function hexToPix(q,r){const s=22;return{x:W/2+s*1.5*q,y:H/2-20+s*(Math.sqrt(3)/2*q+Math.sqrt(3)*r)};}
-function pixToHex(x,y){const s=22;const q=(2/3*(x-W/2))/s;const r=((-1/3*(x-W/2))+Math.sqrt(3)/3*(y-(H/2-20)))/s;return{q:Math.round(q),r:Math.round(r)};}
-function slide(q,r,dq,dr){const k=key(q,r);if(!cells[k])return false;let cq=q,cr=r;
-  while(true){const nq=cq+dq,nr=cr+dr,nk=key(nq,nr);if(!(nk in cells)||cells[nk])break;cq=nq;cr=nr;}
-  if(cq===q&&cr===r)return false;cells[key(cq,cr)]=cells[k];cells[k]=null;return true;}
+  let ok=false;
+  for(let attempt=0;attempt<90&&!ok;attempt++){
+    cells={};for(const qr of coords)cells[key(qr[0],qr[1])]=null;
+    const axes=[[1,0],[0,1],[1,-1]],rays=[],seen=new Set();
+    for(const qr of coords){
+      for(const d of axes){let sq=qr[0],sr=qr[1];while(key(sq-d[0],sr-d[1]) in cells){sq-=d[0];sr-=d[1];}
+        const id=key(sq,sr)+':'+d[0]+','+d[1];if(seen.has(id))continue;seen.add(id);
+        const ray=[];let cq=sq,cr=sr;while(key(cq,cr) in cells){ray.push([cq,cr]);cq+=d[0];cr+=d[1];}
+        if(ray.length>=3)rays.push({d,ray});}
+    }
+    for(let i=rays.length-1;i>0;i--){const j=(rng()*(i+1))|0;const tmp=rays[i];rays[i]=rays[j];rays[j]=tmp;}
+    const occ=new Set();let placed=0;
+    const free=(q,r)=>!occ.has(key(q,r));
+    const touches=(q,r,c)=>{for(const d of DIRS){const o=cells[key(q+d[0],r+d[1])];if(o&&o.c===c)return true;}return false;};
+    for(let p=0;p<pairN;p++){
+      const c=p%COLS.length;let done=false;
+      for(const item of rays){
+        const ray=item.ray,idx=[];for(let i=0;i<ray.length;i++)if(free(ray[i][0],ray[i][1]))idx.push(i);
+        const opts=[];for(let a=0;a<idx.length;a++)for(let b=a+1;b<idx.length;b++){
+          if(idx[b]<idx[a]+2)continue;let clr=true;for(let k=idx[a]+1;k<idx[b];k++)if(!free(ray[k][0],ray[k][1])){clr=false;break;}
+          if(clr)opts.push([idx[a],idx[b]]);
+        }
+        if(!opts.length)continue;
+        const pick=opts[(rng()*opts.length)|0],A=ray[pick[0]],B=ray[pick[1]];
+        if(touches(A[0],A[1],c)||touches(B[0],B[1],c))continue;
+        cells[key(A[0],A[1])]={c};cells[key(B[0],B[1])]={c};
+        occ.add(key(A[0],A[1]));occ.add(key(B[0],B[1]));placed++;done=true;break;
+      }
+      if(!done)break;
+    }
+    ok=placed===pairN&&boardLeft()===pairN*2&&!groups().length&&legalMoves().length>=1;
+  }
+  if(!ok){cells={};for(const qr of coords)cells[key(qr[0],qr[1])]=null;cells[key(0,0)]={c:0};cells[key(2,0)]={c:0};cells[key(0,2)]={c:1};cells[key(0,-2)]={c:1};cells[key(2,-2)]={c:2};cells[key(-2,2)]={c:2};}
+  if(boss){const ks=Object.keys(cells).filter(k=>cells[k]);for(let i=0;i<ks.length&&i<2;i++){if(rng()<.5)continue;const k=ks[i],c=cells[k].c;cells[k]={c,c2:(c+1)%COLS.length,dual:true};}}
+  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='拖色块滑向空位，同色相接即消';}
+function hexToPix(q,r){return{x:W/2+HS*1.5*q,y:H/2-20+HS*(Math.sqrt(3)/2*q+Math.sqrt(3)*r)};}
+function pixToHex(x,y){const q=(2/3*(x-W/2))/HS;const r=((-1/3*(x-W/2))+Math.sqrt(3)/3*(y-(H/2-20)))/HS;return{q:Math.round(q),r:Math.round(r)};}
+function slide(q,r,dq,dr){const k=key(q,r);if(!cells[k]||!canSlide(q,r,dq,dr))return false;let cq=q,cr=r;while(true){const nq=cq+dq,nr=cr+dr,nk=key(nq,nr);if(!(nk in cells)||cells[nk])break;cq=nq;cr=nr;}cells[key(cq,cr)]=cells[k];cells[k]=null;return true;}
 function groups(){const seen=new Set(),gs=[];for(const k of Object.keys(cells)){if(!cells[k]||seen.has(k))continue;const c=activeColor(cells[k]);const stack=[k],g=[];
     while(stack.length){const cur=stack.pop();if(seen.has(cur))continue;seen.add(cur);if(!cells[cur]||activeColor(cells[cur])!==c)continue;g.push(cur);
       const [q,r]=cur.split(',').map(Number);for(const [dq,dr] of DIRS){const nk=key(q+dq,r+dr);if(cells[nk]&&activeColor(cells[nk])===c)stack.push(nk);}}
     if(g.length>=2)gs.push(g);}return gs;}
 function activeColor(cell){if(!cell)return -1;if(cell.dual&&cell.pick!=null)return cell.pick;return cell.c;}
-function clearGroups(){const gs=groups();let n=0;for(const g of gs){for(const k of g){cells[k]=null;n++;score+=10;}if(FX&&g[0]){const [q,r]=g[0].split(',').map(Number);const p=hexToPix(q,r);FX.burst(sparks,p.x,p.y,'#ffcf33',8);}}
-  if(n){$('score').textContent=score;beep(840,.08);}return n;}
-function win(){if(state!=='play')return;const left=Object.values(cells).filter(Boolean).length;const stars=left===0?3:left<=2?2:1;finishWin(stars,40+stars*12+(boss?45:0),'滑色散尽！');}
+function clearGroups(silent){const gs=groups();let n=0;for(const g of gs){for(const k of g){cells[k]=null;n++;if(!silent)score+=10;}if(!silent&&FX&&g[0]){const [q,r]=g[0].split(',').map(Number);const p=hexToPix(q,r);FX.burst(sparks,p.x,p.y,'#ffcf33',8);}}
+  if(n&&!silent){$('score').textContent=score;beep(840,.08);}return n;}
+function dirFromSwipe(dx,dy){const ang=Math.atan2(dy,dx);let best=DIRS[0],bestD=99;for(const d of DIRS){const a2=Math.atan2(Math.sqrt(3)/2*d[0]+Math.sqrt(3)*d[1],1.5*d[0]);let diff=Math.abs(ang-a2);if(diff>Math.PI)diff=2*Math.PI-diff;if(diff<bestD){bestD=diff;best=d;}}return best;}
+function rewind(){if(!hist.length)return false;const snap=JSON.parse(hist.pop());cells=snap.cells;score=snap.score;$('score').textContent=score;sel=null;dual=null;return true;}function doUndo(){if(!hist.length||undos<=0)return;rewind();undos--;toast('已撤销');beep(520,.08);}
+function win(){if(state!=='play')return;const left=boardLeft();const stars=left===0?3:left<=2?2:1;finishWin(stars,40+stars*12+(boss?45:0),left===0?'滑色散尽！':'滑色过关');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){const left=Object.values(cells).filter(Boolean).length;if(left===0)return win();}
-let drag0=null;
+function update(dt){const left=boardLeft();if(left===0)return win();const cc=colorCounts();const pairable=Object.values(cc).some(v=>v>=2);if(!pairable){if(left<=4)return win();return lose('无法再对消');}if(legalMoves().length===0){if(left<=2)return win();return lose('没有可滑的空位');}}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
-  if(p.y>H-48&&p.x<70&&undos>0){toast('撤销暂存本关起点');return;}
+  if(inUndo(p)){doUndo();return;}
   const h=pixToHex(p.x,p.y);const k=key(h.q,h.r);if(cells[k]){if(cells[k].dual&&cells[k].pick==null){cells[k].pick=cells[k].c;toast('选色A，再点切B');dual=k;sel=k;return;}
     if(cells[k].dual&&dual===k){cells[k].pick=cells[k].pick===cells[k].c?cells[k].c2:cells[k].c;toast('切换色');return;}
-    drag0={x:p.x,y:p.y,q:h.q,r:h.r};sel=k;}});
-cv.addEventListener('pointerup',e=>{if(state!=='play'||!drag0)return;const p=posOf(e);const dx=p.x-drag0.x,dy=p.y-drag0.y;if(Math.hypot(dx,dy)<16){drag0=null;return;}
-  const ang=Math.atan2(dy,dx);
-  const cand=DIRS.map(d=>{const a2=Math.atan2(Math.sqrt(3)/2*d[0]+Math.sqrt(3)*d[1],1.5*d[0]||0.001);let diff=Math.abs(ang-a2);if(diff>Math.PI)diff=2*Math.PI-diff;return{d,diff};}).sort((a,b)=>a.diff-b.diff)[0].d;
-  if(slide(drag0.q,drag0.r,cand[0],cand[1])){clearGroups();beep(620,.04);}
-  drag0=null;sel=null;});
+    drag0={x:p.x,y:p.y,q:h.q,r:h.r};dragPtr=e.pointerId;sel=k;try{cv.setPointerCapture(e.pointerId);}catch(err){}}});
+function endDrag(e){if(state!=='play'||!drag0)return;if(e&&dragPtr!=null&&e.pointerId!==dragPtr&&e.type!=='pointercancel')return;const p=posOf(e||{clientX:0,clientY:0});const dx=p.x-drag0.x,dy=p.y-drag0.y;if(Math.hypot(dx,dy)<12){drag0=null;dragPtr=null;return;}
+  const cand=dirFromSwipe(dx,dy);
+  hist.push(JSON.stringify({cells,score}));if(hist.length>20)hist.shift();
+  if(slide(drag0.q,drag0.r,cand[0],cand[1])){clearGroups();beep(620,.04);}else hist.pop();
+  drag0=null;dragPtr=null;sel=null;}
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',endDrag);
 function draw(){if(FX)FX.stage(ctx,W,H,'#86d8ff','#5875ff');else{ctx.fillStyle='#5875ff';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  const left=Object.values(cells).filter(Boolean).length;
+  const left=boardLeft();
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('块'+left+(boss?' 👑双色':''),10,22);
-  for(const k of Object.keys(cells)){const [q,r]=k.split(',').map(Number);const p=hexToPix(q,r);ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);const x=p.x+20*Math.cos(a),y=p.y+20*Math.sin(a);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.closePath();
-    if(!cells[k]){ctx.strokeStyle='rgba(255,255,255,.25)';ctx.stroke();continue;}
-    const col=COLS[activeColor(cells[k])%COLS.length];ctx.fillStyle=col;ctx.fill();ctx.strokeStyle=sel===k?'#fff':'rgba(0,0,0,.2)';ctx.lineWidth=sel===k?3:1;ctx.stroke();
+  const R=HS-1;
+  for(const k of Object.keys(cells)){const [q,r]=k.split(',').map(Number);const p=hexToPix(q,r);ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i;const x=p.x+R*Math.cos(a),y=p.y+R*Math.sin(a);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.closePath();
+    if(!cells[k]){ctx.fillStyle='rgba(255,255,255,.08)';ctx.fill();ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1.5;ctx.stroke();continue;}
+    const col=COLS[activeColor(cells[k])%COLS.length];ctx.fillStyle=col;ctx.fill();ctx.strokeStyle=sel===k?'#fff':'rgba(0,0,0,.25)';ctx.lineWidth=sel===k?3:1;ctx.stroke();
     if(cells[k].dual){ctx.fillStyle='#000';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText('双',p.x,p.y+4);}}
+  const ub=undoBox();ctx.fillStyle=undos>0&&hist.length?'rgba(0,0,0,.45)':'rgba(0,0,0,.2)';ctx.fillRect(ub.x,ub.y,ub.w,ub.h);ctx.strokeStyle='rgba(255,255,255,.35)';ctx.strokeRect(ub.x+.5,ub.y+.5,ub.w-1,ub.h-1);
+  ctx.fillStyle='#fff';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(undos>0?'撤销 '+undos:'撤销 0',ub.x+ub.w/2,ub.y+28);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
-window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);for(const k of Object.keys(cells))cells[k]=null;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,left:Object.values(cells).filter(Boolean).length}}};
+window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);for(const k of Object.keys(cells))cells[k]=null;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},slide(q,r,dq,dr){hist.push(JSON.stringify({cells,score}));if(slide(q,r,dq,dr)){clearGroups();update(0);return true;}hist.pop();return false;},moves(){return legalMoves();},undo(){rewind();},pix(q,r){return hexToPix(q,r);},state(){return{state,lvl,score,boss,left:boardLeft(),moves:legalMoves().length,counts:colorCounts(),undos,hist:hist.length}}};
 
 function finishWin(stars,gain,title){state='over';const prev=prog.stars[lvl]|0;if(stars>prev)prog.stars[lvl]=stars;prog.coins+=gain;if(lvl>=prog.unlock&&lvl<TOTAL)prog.unlock=lvl+1;saveProg(prog);if(score>best){best=score;UI.storageSet(HK,best);$('best').textContent=best;}$('overH').textContent=title||'过关！';$('finalScore').textContent='★'.repeat(stars);$('overText').textContent='关卡 '+lvl+' · +'+gain+'币';show('overScr',true);beep(880,.2);}
 function finishLose(msg){state='over';$('overH').textContent='失败';$('finalScore').textContent='💀';$('overText').textContent=(msg||'')+' · 得分 '+score;show('overScr',true);beep(160,.35,'triangle');}
