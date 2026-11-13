@@ -466,7 +466,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">点按跃起穿过水管 · 别撞管壁</div>
 </div>
-<div class="overlay" id="startScr"><h1>🐤 笨鸟先飞</h1><p>15 关穿越水管：管距收紧、速度升。<br>第 5/10/15 关移动管口 Boss！可升级浮力、护盾、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始飞行</button></div>
+<div class="overlay" id="startScr"><h1>🐤 笨鸟先飞</h1><p>15 关穿越水管：管距收紧、速度升。<br>第 5/10/15 关移动管口 Boss！可升级浮力、护盾、额外命。<br><small style="opacity:.85">v9（Gemini 优化）：新增晴空/落日/星夜三大空域、管隙金币与动态羽翼特效</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始飞行</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -590,26 +590,40 @@ const LV=[
  {need:11,gap:88,spd:200,space:148},{need:12,gap:85,spd:210,space:145},{need:12,gap:82,spd:220,space:142},{need:13,gap:80,spd:230,space:140},
  {boss:{name:'深渊管魔',need:10,gap:100,spd:200,space:160,move:1,hp:1}}
 ];
-let L,bird,pipes,lives,score,ended,raf=0,last=0,fast=1,need,passed,sparks,boss,shield,grav;
-function start(i){L=LV[i];score=0;ended=false;pipes=[];sparks=[];passed=0;lives=3+Kit.up('life');shield=Kit.up('shield');
+const SKIES=[
+  {name:'晨曦晴空',top:'#81d4fa',bot:'#0288d1',pipe:'#66bb6a',cap:'#43a047',cloud:'rgba(255,255,255,.45)',ground:'#558b2f'},
+  {name:'落日峡谷',top:'#ffb74d',bot:'#d84315',pipe:'#ff7043',cap:'#d84315',cloud:'rgba(255,236,179,.38)',ground:'#6d4c41'},
+  {name:'星夜霓虹',top:'#1a237e',bot:'#060918',pipe:'#26c6da',cap:'#00838f',cloud:'rgba(128,222,234,.28)',ground:'#1c313a'}
+];
+let L,bird,pipes,lives,score,ended,raf=0,last=0,fast=1,need,passed,sparks,boss,shield,grav,clouds,rings,coins,combo=0,gOff=0,sky;
+function start(i){L=LV[i];score=0;ended=false;pipes=[];sparks=[];rings=[];coins=[];passed=0;combo=0;lives=3+Kit.up('life');shield=Kit.up('shield');
+  sky=SKIES[Math.min(2,Math.floor(i/5))];
+  clouds=Array.from({length:6},(_,k)=>({x:k*72+Math.random()*30,y:26+Math.random()*130,r:16+Math.random()*16,s:14+Math.random()*16}));
   const b=L.boss||L;need=b.need;grav=980*(1-Kit.up('float')*.12);
-  bird={x:80,y:H/2,vy:0,r:14};boss=L.boss?{name:L.boss.name}:null;
+  bird={x:80,y:H/2,vy:0,r:14,wing:0};boss=L.boss?{name:L.boss.name}:null;
   for(let k=0;k<3;k++)spawnPipe(W+40+k*((b.space||180)));
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
 function spawnPipe(x){const b=L.boss||L;const gap=b.gap;const top=60+Math.random()*(H-gap-140);
-  pipes.push({x,top,gap,w:52,passed:false,dy:b.move?(Math.random()<.5?-1:1)*40:0});}
-function flap(){if(Kit.state!=='play'||ended)return;bird.vy=-280*(1+Kit.up('float')*.1);Kit.sfx('tap');}
+  pipes.push({x,top,gap,w:52,passed:false,dy:b.move?(Math.random()<.5?-1:1)*40:0});
+  if(Math.random()<.65)coins.push({x:x+26,y:top+gap/2+(Math.random()-.5)*gap*.28,r:9,got:false,p:Math.random()*6});}
+function flap(){if(Kit.state!=='play'||ended)return;bird.vy=-280*(1+Kit.up('float')*.1);bird.wing=1;Kit.sfx('tap');
+  if(FX)FX.burst(sparks,bird.x-8,bird.y+4,'#fff59d',4);}
 cv.addEventListener('pointerdown',e=>{e.preventDefault();flap();});
 document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();flap();}});
 function upd(dt){if(ended)return;const b=L.boss||L;
-  bird.vy+=grav*dt;bird.y+=bird.vy*dt;
-  if(bird.y<bird.r||bird.y>H-bird.r){if(shield>0){shield--;bird.y=Math.max(bird.r,Math.min(H-bird.r,bird.y));bird.vy=0;Kit.toast('护盾！');Kit.sfx('bad');}
+  bird.vy+=grav*dt;bird.y+=bird.vy*dt;bird.wing=Math.max(0,bird.wing-dt*4);gOff=(gOff+b.spd*dt)%28;
+  for(const c of clouds){c.x-=c.s*dt;if(c.x<-40)c.x=W+40;}
+  for(let i=rings.length-1;i>=0;i--){rings[i].r+=75*dt;rings[i].a-=1.9*dt;if(rings[i].a<=0)rings.splice(i,1);}
+  if(bird.y<bird.r||bird.y>H-bird.r-12){if(shield>0){shield--;bird.y=Math.max(bird.r,Math.min(H-bird.r-12,bird.y));bird.vy=0;Kit.toast('🛡️ 护盾抵挡！');Kit.sfx('bad');if(FX)FX.burst(sparks,bird.x,bird.y,'#80deea',10);}
     else return endLv(false,'撞墙了');}
-  for(const p of pipes){p.x-=b.spd*dt;if(p.dy){p.top+=p.dy*dt;if(p.top<40||p.top+p.gap>H-40)p.dy*=-1;}
-    if(!p.passed&&p.x+p.w<bird.x){p.passed=true;passed++;score+=10;Kit.sfx('good');if(passed>=need)return endLv(true);}
+  for(const c of coins){if(c.got)continue;c.x-=b.spd*dt;c.p+=dt*6;
+    if(Math.hypot(bird.x-c.x,bird.y-c.y)<bird.r+c.r){c.got=true;score+=15;combo++;Kit.sfx('coin');rings.push({x:c.x,y:c.y,r:8,a:1,col:'#ffd54f'});if(FX)FX.burst(sparks,c.x,c.y,'#ffd54f',8);}}
+  coins=coins.filter(c=>!c.got&&c.x>-30);
+  for(const p of pipes){p.x-=b.spd*dt;if(p.dy){p.top+=p.dy*dt;if(p.top<40||p.top+p.gap>H-52)p.dy*=-1;}
+    if(!p.passed&&p.x+p.w<bird.x){p.passed=true;passed++;score+=10+Math.min(10,combo*2);Kit.sfx('good');rings.push({x:bird.x,y:bird.y,r:12,a:.85,col:'#a5d6a7'});if(passed>=need)return endLv(true);}
     const inX=bird.x+bird.r>p.x&&bird.x-bird.r<p.x+p.w;
     if(inX&&(bird.y-bird.r<p.top||bird.y+bird.r>p.top+p.gap)){
-      if(shield>0){shield--;p.x=-99;Kit.toast('护盾挡管');Kit.sfx('bad');}
+      if(shield>0){shield--;combo=0;p.x=-99;Kit.toast('🛡️ 护盾破管！');Kit.sfx('bad');if(FX)FX.burst(sparks,bird.x,bird.y,'#80deea',12);}
       else return endLv(false,'撞管了');}
   }
   pipes=pipes.filter(p=>p.x>-60);while(pipes.length<3){const last=pipes[pipes.length-1];spawnPipe((last?last.x:W)+(b.space||180));}
@@ -622,14 +636,38 @@ function endLv(won,why){if(ended)return;ended=true;
   else{lives=0;setTimeout(()=>Kit.lose(why,score),250);}}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#81d4fa','#0288d1');else{ctx.fillStyle='#0288d1';ctx.fillRect(0,0,W,H);}
-  for(const p of pipes){
-    if(FX){FX.tile(ctx,p.x,0,p.w,p.top,'#66bb6a',4);FX.tile(ctx,p.x,p.top+p.gap,p.w,H-(p.top+p.gap),'#66bb6a',4);}
-    else{ctx.fillStyle='#66bb6a';ctx.fillRect(p.x,0,p.w,p.top);ctx.fillRect(p.x,p.top+p.gap,p.w,H-(p.top+p.gap));}
+  const sk=sky||SKIES[0];
+  if(FX)FX.stage(ctx,W,H,sk.top,sk.bot);else{ctx.fillStyle=sk.bot;ctx.fillRect(0,0,W,H);}
+  for(const c of (clouds||[])){
+    ctx.fillStyle=sk.cloud;ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,7);ctx.arc(c.x+c.r*.7,c.y+2,c.r*.72,0,7);ctx.fill();
   }
-  if(FX){FX.glow(ctx,'#ffd54f',8);FX.orb(ctx,bird.x|0,bird.y|0,bird.r|0,'#ffeb3b');FX.noGlow(ctx);}
-  else{ctx.fillStyle='#ffeb3b';ctx.beginPath();ctx.arc(bird.x,bird.y,bird.r,0,7);ctx.fill();}
-  ctx.fillStyle='#333';ctx.beginPath();ctx.arc(bird.x+5,bird.y-3,2,0,7);ctx.fill();
+  for(const p of pipes){
+    if(boss&&FX)FX.glow(ctx,'#ff5252',6);
+    if(FX){FX.tile(ctx,p.x,0,p.w,p.top,sk.pipe,4);FX.tile(ctx,p.x-4,p.top-14,p.w+8,14,sk.cap,5);
+      FX.tile(ctx,p.x,p.top+p.gap,p.w,H-(p.top+p.gap),sk.pipe,4);FX.tile(ctx,p.x-4,p.top+p.gap,p.w+8,14,sk.cap,5);}
+    else{ctx.fillStyle=sk.pipe;ctx.fillRect(p.x,0,p.w,p.top);ctx.fillRect(p.x,p.top+p.gap,p.w,H-(p.top+p.gap));}
+    if(boss&&FX)FX.noGlow(ctx);
+  }
+  for(const c of (coins||[])){
+    const rx=Math.max(2,Math.abs(Math.cos(c.p))*c.r);
+    ctx.save();ctx.translate(c.x,c.y);ctx.fillStyle='#ffd54f';ctx.beginPath();ctx.ellipse(0,0,rx,c.r,0,0,7);ctx.fill();
+    ctx.strokeStyle='#ff8f00';ctx.lineWidth=1.5;ctx.stroke();ctx.restore();
+  }
+  for(const rg of (rings||[])){
+    ctx.save();ctx.globalAlpha=Math.max(0,rg.a);ctx.strokeStyle=rg.col;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(rg.x,rg.y,rg.r,0,7);ctx.stroke();ctx.restore();
+  }
+  ctx.fillStyle=sk.ground;ctx.fillRect(0,H-12,W,12);
+  ctx.fillStyle='rgba(255,255,255,.22)';for(let gx=-gOff;gx<W;gx+=28)ctx.fillRect(gx,H-12,14,4);
+  ctx.save();ctx.translate(bird.x,bird.y);ctx.rotate(Math.max(-.45,Math.min(.65,bird.vy/520)));
+  if(shield>0){ctx.strokeStyle='rgba(128,222,234,.85)';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(0,0,bird.r+5,0,7);ctx.stroke();}
+  if(FX){FX.glow(ctx,'#ffd54f',8);FX.orb(ctx,0,0,bird.r|0,'#ffeb3b');FX.noGlow(ctx);}
+  else{ctx.fillStyle='#ffeb3b';ctx.beginPath();ctx.arc(0,0,bird.r,0,7);ctx.fill();}
+  ctx.fillStyle='#fff59d';ctx.beginPath();ctx.ellipse(-4,2-bird.wing*5,7,4,-.3-bird.wing*.5,0,7);ctx.fill();
+  ctx.fillStyle='#ff7043';ctx.beginPath();ctx.moveTo(bird.r-2,-2);ctx.lineTo(bird.r+8,1);ctx.lineTo(bird.r-2,5);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(5,-4,4,0,7);ctx.fill();
+  ctx.fillStyle='#222';ctx.beginPath();ctx.arc(6,-4,2,0,7);ctx.fill();
+  ctx.restore();
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
