@@ -27,6 +27,8 @@ class GameDetailActivity : AppCompatActivity() {
 
     private lateinit var userData: UserData
     private lateinit var game: RemoteGame
+    private var lbLoadedOnce = false
+    private var lbLoading = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,10 +50,18 @@ class GameDetailActivity : AppCompatActivity() {
         }
         findViewById<android.view.View>(R.id.detail_hero).background =
             GameAdapter.heroBackground(this, game.color)
+        val repo = com.game100.center.data.GameRepository(this)
+        val installedVer = repo.getInstalledVersion(game.id)
         findViewById<TextView>(R.id.detail_name).text = game.name
         findViewById<TextView>(R.id.detail_category).text = game.category
-        findViewById<TextView>(R.id.detail_size).text =
-            if (game.size > 0) "${formatSize(game.size)}  ·  下载后离线可玩" else "✔ 已下载到本机 · 没网也能玩"
+        findViewById<TextView>(R.id.detail_version).text =
+            if (installedVer > 0 && game.version > installedVer) "v$installedVer → v${game.version}" else "v${game.version}"
+        findViewById<TextView>(R.id.detail_size).text = when {
+            installedVer > 0 && game.version > installedVer -> "已装 v$installedVer · 最新 v${game.version}（${formatSize(game.size)}）"
+            installedVer > 0 -> "v$installedVer · ✔ 已下载到本机 · 没网也能玩"
+            game.size > 0 -> "v${game.version} · ${formatSize(game.size)} · 下载后离线可玩"
+            else -> "v${game.version} · ✔ 已下载到本机 · 没网也能玩"
+        }
         findViewById<TextView>(R.id.detail_desc).text =
             game.desc.ifBlank { "暂无简介" }
 
@@ -131,7 +141,6 @@ class GameDetailActivity : AppCompatActivity() {
 
         // 开始游戏 / 下载游戏（根据是否已安装）
         val btnPlay = findViewById<Button>(R.id.btn_play)
-        val repo = com.game100.center.data.GameRepository(this)
         fun refreshPlayButton() {
             if (repo.isInstalled(game.id)) {
                 btnPlay.text = "▶ 开始游戏"
@@ -168,7 +177,7 @@ class GameDetailActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::game.isInitialized) bindLeaderboard(game.id)
+        if (::game.isInitialized && lbLoadedOnce) bindLeaderboard(game.id)
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -187,20 +196,29 @@ class GameDetailActivity : AppCompatActivity() {
             panel.visibility = android.view.View.GONE
             return
         }
+        if (lbLoading) return
+        lbLoading = true
         panel.visibility = android.view.View.VISIBLE
+        panel.setOnClickListener(null)
         statusTv.text = getString(R.string.leaderboard_loading)
         listTv.text = ""
         myTv.text = ""
         lifecycleScope.launch(Dispatchers.IO) {
-            val top = LeaderboardSync.fetchTop(this@GameDetailActivity, gameId, 10)
-            val mine = LeaderboardSync.fetchMyRank(this@GameDetailActivity, gameId)
+            val res = LeaderboardSync.fetchTopResult(this@GameDetailActivity, gameId, 10)
+            val mine = if (res.ok) LeaderboardSync.fetchMyRank(this@GameDetailActivity, gameId) else null
             withContext(Dispatchers.Main) {
-                if (top.isEmpty()) {
+                lbLoading = false
+                lbLoadedOnce = true
+                if (!res.ok) {
+                    statusTv.text = getString(R.string.leaderboard_error)
+                    listTv.text = ""
+                    panel.setOnClickListener { bindLeaderboard(gameId) }
+                } else if (res.entries.isEmpty()) {
                     statusTv.text = getString(R.string.leaderboard_empty)
                     listTv.text = ""
                 } else {
                     statusTv.text = getString(R.string.leaderboard_title)
-                    listTv.text = top.joinToString("\n") { e ->
+                    listTv.text = res.entries.joinToString("\n") { e ->
                         val medal = when (e.rank.toInt()) {
                             1 -> "🥇"
                             2 -> "🥈"

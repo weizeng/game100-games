@@ -31,14 +31,23 @@ object LeaderboardSync {
         }
     }
 
-    fun fetchTop(context: Context, gameId: String, limit: Int = 10): List<LeaderboardApi.Entry> {
-        if (!LeaderboardApi.isConfigured) return emptyList()
-        if (!BuildConfig.ONLINE_CATALOG) return emptyList()
+    data class TopResult(
+        val entries: List<LeaderboardApi.Entry>,
+        val ok: Boolean,
+        val error: String? = null
+    )
+
+    fun fetchTop(context: Context, gameId: String, limit: Int = 10): List<LeaderboardApi.Entry> =
+        fetchTopResult(context, gameId, limit).entries
+
+    fun fetchTopResult(context: Context, gameId: String, limit: Int = 10): TopResult {
+        if (!LeaderboardApi.isConfigured) return TopResult(emptyList(), ok = true)
+        if (!BuildConfig.ONLINE_CATALOG) return TopResult(emptyList(), ok = true)
         return try {
-            LeaderboardApi.getLeaderboard(gameId, limit)
+            TopResult(LeaderboardApi.getLeaderboard(gameId, limit), ok = true)
         } catch (e: Exception) {
             Log.w(TAG, "fetch failed for $gameId: ${e.message}")
-            emptyList()
+            TopResult(emptyList(), ok = false, error = e.message)
         }
     }
 

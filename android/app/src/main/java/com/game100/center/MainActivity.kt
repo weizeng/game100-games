@@ -677,8 +677,17 @@ class MainActivity : AppCompatActivity() {
     private fun onGameClick(item: GameItem) {
         when {
             item.hasUpdate -> {
+                val remote = item.remote!!
+                val msg = buildString {
+                    append(getString(R.string.update_or_play, item.name, item.installedVersion, remote.version))
+                    if (remote.desc.isNotBlank()) {
+                        append("\n\n更新内容：\n")
+                        append(remote.desc)
+                    }
+                }
                 AlertDialog.Builder(this)
-                    .setMessage(getString(R.string.update_or_play, item.name, item.installedVersion, item.remote!!.version))
+                    .setTitle("发现新版本 v${remote.version}")
+                    .setMessage(msg)
                     .setPositiveButton(R.string.update_now) { _, _ -> downloadGame(item) }
                     .setNegativeButton(R.string.play_now) { _, _ -> openGame(item.id) }
                     .show()

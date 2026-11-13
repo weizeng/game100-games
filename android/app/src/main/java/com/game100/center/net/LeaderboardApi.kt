@@ -103,12 +103,25 @@ object LeaderboardApi {
     }
 
     private fun postRpcRaw(fn: String, body: JSONObject): String {
+        var lastErr: Exception? = null
+        for (attempt in 0..1) {
+            if (attempt > 0) Thread.sleep(300)
+            try {
+                return postRpcOnce(fn, body)
+            } catch (e: IOException) {
+                lastErr = e
+            }
+        }
+        throw lastErr ?: IOException("排行榜请求失败")
+    }
+
+    private fun postRpcOnce(fn: String, body: JSONObject): String {
         val base = BuildConfig.SUPABASE_URL.trimEnd('/')
         val url = URL("$base/rest/v1/rpc/$fn")
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 8_000
-            readTimeout = 10_000
+            connectTimeout = 10_000
+            readTimeout = 12_000
             doOutput = true
             useCaches = false
             setRequestProperty("Content-Type", "application/json")
