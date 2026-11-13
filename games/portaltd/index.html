@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🌀 门缝防线</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">布塔并开关传送门，把怪赶到较长的路线</p>
 </div>
-<div class="overlay" id="startScr"><h1>🌀 门缝防线</h1><p>在路径上建造防御塔，同时开关、旋转彩色传送门改道。<br>匹配颜色的门会把怪物送到更远的弯路。<br>首领会尝试错门穿越，需要提前布置对应门户。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🌀 门缝防线</h1><p>在路径上建造防御塔，同时开关、旋转彩色传送门改道。<br>匹配颜色的门会把怪物送到更远的弯路。<br>首领会尝试错门穿越，需要提前布置对应门户。<br>v2（Gemini 优化：新增三大次元地貌、炮塔光束与升级、主副路径指示及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -504,7 +505,13 @@ const SHOP=[
   {k:'porLv',name:'门控核心',max:2,cost(){return 40+(prog.porLv|0)*30;},desc(){return '开局多一扇传送门';}},
   {k:'goldLv',name:'军饷',max:2,cost(){return 30+(prog.goldLv|0)*25;},desc(){return '开局金币更多';}}
 ];
-let gold=0,lives=5,t=0,spawnI=0,enemies=[],towers=[],portals=[],slots=[],goal=0,killed=0,wave=[],sel=null;
+const REALMS=[
+  {name:'星际裂隙',bg1:'#0b1028',bg2:'#040712',slot:'#334155'},
+  {name:'翠绿回廊',bg1:'#0d3b32',bg2:'#041411',slot:'#27594e'},
+  {name:'炽炎虚空',bg1:'#3b1128',bg2:'#14040e',slot:'#592542'}
+];
+function realmTheme(){return REALMS[Math.min(2,Math.floor((lvl-1)/5))];}
+let gold=0,lives=5,t=0,spawnI=0,enemies=[],towers=[],portals=[],slots=[],goal=0,killed=0,wave=[],sel=null,beams=[],spd=1;
 const COLS={R:'#fda4af',B:'#7dd3fc',Y:'#ffd34d'};
 function beginPlay(hint){score=0;sparks=[];show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
 function pathPts(usePortal,col,openMap){
@@ -516,7 +523,7 @@ function pathPts(usePortal,col,openMap){
 function startLevel(n){
   lvl=n|0;boss=lvl%5===0;
   gold=60+(prog.goldLv|0)*25+Math.max(0,8-lvl)*2;lives=4+(lvl<=2?1:0);
-  t=0;spawnI=0;enemies=[];towers=[];sel=null;killed=0;
+  t=0;spawnI=0;enemies=[];towers=[];beams=[];sel=null;killed=0;
   slots=[{x:90,y:120},{x:130,y:250},{x:230,y:250},{x:250,y:430},{x:90,y:430},{x:230,y:120}];
   portals=[{c:'R',on:1,x:40,y:200},{c:'B',on:1,x:180,y:360}];
   if((prog.porLv|0)>=1||lvl>=4)portals.push({c:'Y',on:lvl>=4?1:0,x:180,y:200});
@@ -545,10 +552,16 @@ function retarget(e){
   if(e.pi>=path.length)e.pi=path.length-1;
 }
 function build(slot){
-  if(towers.some(t=>t.x===slot.x&&t.y===slot.y))return;
+  const ex=towers.find(t=>t.x===slot.x&&t.y===slot.y);
+  if(ex){
+    if((ex.lv||1)>=3){toast('已达最高 Lv3');return;}
+    const upCost=50;if(gold<upCost){toast('升级需 '+upCost+' 金币');return;}
+    gold-=upCost;ex.lv=(ex.lv||1)+1;ex.dps=Math.round(ex.dps*1.5);ex.r+=10;
+    if(FX)FX.burst(sparks,ex.x,ex.y,'#38bdf8',12);beep(860,.08);toast('炮塔升至 Lv'+ex.lv);return;
+  }
   const cost=40;if(gold<cost){toast('金币不足');return;}
-  gold-=cost;towers.push({x:slot.x,y:slot.y,r:70+(prog.towLv|0)*8,dps:7+(prog.towLv|0)*3+Math.floor(lvl/4),cd:0});
-  beep(700,.07);
+  gold-=cost;towers.push({x:slot.x,y:slot.y,lv:1,r:70+(prog.towLv|0)*8,dps:7+(prog.towLv|0)*3+Math.floor(lvl/4),cd:0});
+  if(FX)FX.burst(sparks,slot.x,slot.y,'#38bdf8',8);beep(700,.07);
 }
 function onDown(p){
   for(const por of portals){if(Math.hypot(p.x-por.x,p.y-por.y)<22){por.on=por.on?0:1;enemies.forEach(retarget);beep(500,.06);return;}}
@@ -561,7 +574,7 @@ function update(dt){
     if(tw.cd<=0){
       let best=null,bd=tw.r;
       for(const e of enemies){const d=Math.hypot(e.x-tw.x,e.y-tw.y);if(d<bd){bd=d;best=e;}}
-      if(best){best.hp-=tw.dps;tw.cd=0.45;if(FX)FX.burst(sparks,best.x,best.y,'#ffd34d',4);}
+      if(best){best.hp-=tw.dps;tw.cd=0.45/(1+((tw.lv||1)-1)*0.15);beams.push({x1:tw.x,y1:tw.y,x2:best.x,y2:best.y,t:1});if(FX)FX.burst(sparks,best.x,best.y,'#ffd34d',4);}
     }
   }
   for(let i=enemies.length-1;i>=0;i--){
@@ -576,27 +589,38 @@ function update(dt){
   if(spawnI>=wave.length&&!enemies.length){if(lives>0)win();else lose('基地被突破');}
 }
 function draw(){
-  hits=[];stage('#0b1028','#040712');
+  const rm=realmTheme();
+  hits=[];stage(rm.bg1,rm.bg2);
   if(state!=='play'&&state!=='pause')return;
-  const om=openMap();
   const show=pathPts(true,'R',{R:1,B:1,Y:1});
+  const mainP=pathPts(false,'R',{});
   ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=16;ctx.lineCap='round';ctx.beginPath();
   show.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+  ctx.save();ctx.strokeStyle='rgba(255,110,130,.28)';ctx.lineWidth=4;ctx.setLineDash([6,6]);ctx.beginPath();
+  mainP.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.restore();
+  label('🌀',40,40,'#fff',16,'center');label('🏰',320,500,'#fff',16,'center');
   for(const s of slots){
     const used=towers.some(t=>t.x===s.x&&t.y===s.y);
-    tile(s.x-16,s.y-16,32,32,used?'#64748b':'#334155',8);
+    tile(s.x-16,s.y-16,32,32,used?'#64748b':rm.slot,8);
   }
-  for(const tw of towers){if(FX&&FX.glow){FX.glow(ctx,'#00e5ff',10);orb(tw.x,tw.y,14,'#38bdf8');FX.noGlow(ctx);}else orb(tw.x,tw.y,14,'#38bdf8');}
+  for(const tw of towers){
+    ctx.strokeStyle='rgba(56,189,248,.18)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(tw.x,tw.y,tw.r,0,7);ctx.stroke();
+    if(FX&&FX.glow){FX.glow(ctx,'#00e5ff',10);orb(tw.x,tw.y,14,'#38bdf8');FX.noGlow(ctx);}else orb(tw.x,tw.y,14,'#38bdf8');
+    if((tw.lv||1)>1)label('★'.repeat(tw.lv-1),tw.x,tw.y,'#ffe066',9,'center');
+  }
+  for(let i=beams.length-1;i>=0;i--){const b=beams[i];b.t-=0.09;if(b.t<=0){beams.splice(i,1);continue;}ctx.save();ctx.globalAlpha=b.t;ctx.strokeStyle='#7dd3fc';ctx.lineWidth=3*b.t;ctx.beginPath();ctx.moveTo(b.x1,b.y1);ctx.lineTo(b.x2,b.y2);ctx.stroke();ctx.restore();}
   for(const p of portals){
+    ctx.strokeStyle=p.on?COLS[p.c]:'rgba(148,163,184,.3)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,19+Math.sin(t*5)*1.5,0,7);ctx.stroke();
     orb(p.x,p.y,16,p.on?COLS[p.c]:'#475569');
     label(p.on?'开':'关',p.x,p.y,'#0b0620',10,'center');
   }
   for(const e of enemies){
     orb(e.x,e.y,e.boss?16:10,COLS[e.c]);
+    if(e.boss)label('👑',e.x,e.y,'#fff',11,'center');
     tile(e.x-12,e.y-20,24,4,'#1e293b',2);tile(e.x-12,e.y-20,24*(e.hp/e.max),4,'#86efac',2);
   }
-  label((boss?'👑 ':'')+'生命 '+lives+'  金币 '+gold+'  击破 '+killed+'/'+goal,12,20,'#fff',12,'left');
-  label('点空位建塔 40金 · 点门开关',12,H-22,'#94a3b8',11,'left');
+  label((boss?'👑 ':'')+'关'+lvl+' '+rm.name+' · 命'+lives+' · 金'+gold+' · '+killed+'/'+goal,12,20,'#fff',12,'left');
+  label('点空位建塔40 · 点塔升级50 · 点门开关',12,H-22,'#94a3b8',11,'left');
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 function win(){if(state!=='play')return;finishWin(lives>=3?3:lives>=2?2:1,40+lvl*3+(boss?30:0)+lives*8+killed,'门缝守住了！');}
@@ -610,6 +634,7 @@ function openLevels(){state='menu';show('startScr',false);show('shopScr',false);
 function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;saveProg(prog);tutorial(TUT,go);}else go();}
 function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').textContent='金币：'+prog.coins;const box=$('shopList');box.innerHTML='';for(const it of SHOP){if(prog[it.k]==null)prog[it.k]=0;const row=document.createElement('div');row.className='row';row.innerHTML='<div><b>'+it.name+'</b><br><small>'+it.desc()+'</small></div>';const b=document.createElement('button');b.className='btn';const maxed=prog[it.k]>=it.max;const cost=it.cost();b.textContent=maxed?'满级':cost+'币';b.disabled=maxed||prog.coins<cost;b.onclick=()=>{prog.coins-=cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();};row.appendChild(b);box.appendChild(row);}}
 $('startBtn').onclick=openLevels;$('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
+$('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';toast('波次速度 '+spd+'×');};
 $('shopBtn').onclick=openShop;$('shopBack').onclick=openLevels;
 $('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};
 $('resumeBtn').onclick=()=>{state='play';last=performance.now();show('pauseOv',false);};
@@ -618,7 +643,7 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function'){for(let i=0;i<spd;i++){update(dt);if(state!=='play')break;}}if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>

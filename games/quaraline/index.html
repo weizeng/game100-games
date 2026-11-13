@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🛡️ 检疫防线</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">沿通道布置检测、隔离与治疗，拦住感染者进入城区</p>
 </div>
-<div class="overlay" id="startScr"><h1>🛡️ 检疫防线</h1><p>沿人流通道布置检测点、隔离病房、治疗席和有限卡口。<br>目标是识别并拦住感染者，而不是靠火力清场。<br>首领关会出现超级传播者或无症状携带者。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🛡️ 检疫防线</h1><p>沿人流通道布置检测点、隔离病房、治疗席和有限卡口。<br>目标是识别并拦住感染者，而不是靠火力清场。<br>首领关会出现超级传播者或无症状携带者。<br>v2（Gemini 优化：新增三大防线场景、检测/治疗光环与状态飘字、设施图标及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -514,8 +515,15 @@ const SHOP=[
   {k:'capLv',name:'床位',max:2,cost(){return 35+(prog.capLv|0)*25;},desc(){return '隔离与治疗容量更大';}},
   {k:'labLv',name:'快检',max:1,cost(){return 50;},desc(){return '检测耗时缩短';}}
 ];
-const KINDS=[{id:'check',n:'卡口',col:'#93c5fd',cost:1},{id:'test',n:'检测',col:'#86efac',cost:1},{id:'iso',n:'隔离',col:'#fde68a',cost:1},{id:'cure',n:'治疗',col:'#fda4af',cost:1}];
-let slots,fac,people,sel,budget,used,leaks,leakMax,t,wave,spawned,done,cap;
+const KINDS=[{id:'check',n:'卡口',ic:'🛂',col:'#93c5fd',cost:1},{id:'test',n:'检测',ic:'🔬',col:'#86efac',cost:1},{id:'iso',n:'隔离',ic:'🏥',col:'#fde68a',cost:1},{id:'cure',n:'治疗',ic:'💊',col:'#fda4af',cost:1}];
+const SECTORS=[
+  {name:'空港口岸',bg1:'#0e3a4a',bg2:'#062028',empty:'#164e63'},
+  {name:'地铁枢纽',bg1:'#1e3a5f',bg2:'#0a192f',empty:'#234876'},
+  {name:'核心城区',bg1:'#3b235a',bg2:'#140b24',empty:'#4b2d73'}
+];
+function sectorTheme(){return SECTORS[Math.min(2,Math.floor((lvl-1)/5))];}
+let slots,fac,people,sel,budget,used,leaks,leakMax,t,wave,spawned,done,cap,rings=[],pops=[],spd=1;
+function addFx(x,y,txtStr,col){pops.push({x,y,txt:txtStr,col,t:1});rings.push({x,y,col,t:1});}
 function startLevel(n){
   lvl=n|0;boss=lvl%5===0;const rng=mulberry32(lvl*1777+9);
   const nSlot=4+Math.min(2,Math.floor((lvl-1)/6));
@@ -525,7 +533,7 @@ function startLevel(n){
   if(nSlot>=6)slots[5].y=430;
   fac=slots.map(()=>null);sel='test';
   budget=2+(prog.budLv|0)+ (lvl<=2?1:0)+ (lvl>=8?1:0);if(boss)budget+=1;used=0;
-  leakMax=lvl<=3?1:0;leaks=0;t=0;spawned=0;done=false;people=[];
+  leakMax=lvl<=3?1:0;leaks=0;t=0;spawned=0;done=false;people=[];rings=[];pops=[];
   cap=2+(prog.capLv|0);
   const nP=5+Math.min(8,lvl)+(boss?3:0);
   const nInf=Math.min(nP-1,1+Math.floor(lvl/2)+(boss?2:0));
@@ -573,13 +581,13 @@ function update(dt){
         if(f==='test'||f==='check'){
           const acc=accOf(f,p),delay=f==='test'?(prog.labLv?0.25:0.45):0.18;
           p.wait=delay;
-          if(p.inf&&((p.id*17+lvl*3+i)%100)/100<acc)p.flag=true;
+          if(p.inf&&((p.id*17+lvl*3+i)%100)/100<acc){p.flag=true;addFx(s.x,s.y,'检出!','#fdba74');}
         }else if(f==='iso'&&p.flag&&!p.iso){
           const usedIso=people.filter(q=>q.iso&&!q.cured&&!q.dead).length;
-          if(usedIso<cap){p.iso=true;p.wait=0.6;addScore(6);}
+          if(usedIso<cap){p.iso=true;p.wait=0.6;addScore(6);addFx(s.x,s.y,'隔离','#fde68a');}
         }else if(f==='cure'&&(p.iso||p.flag)){
           const usedC=people.filter(q=>q.wait>0&&q.cured).length;
-          p.cured=true;p.inf=false;p.flag=false;p.iso=false;p.wait=0.5;addScore(10);beep(900,.06);
+          p.cured=true;p.inf=false;p.flag=false;p.iso=false;p.wait=0.5;addScore(10);addFx(s.x,s.y,'治愈!','#86efac');beep(900,.06);
         }
       }
     });
@@ -588,7 +596,7 @@ function update(dt){
     }
     if(p.y>=500&&!p.dead){
       p.dead=true;
-      if(p.inf&&!p.cured){leaks++;beep(160,.12,'sawtooth');}
+      if(p.inf&&!p.cured){leaks++;addFx(180,500,'泄漏!','#fda4af');beep(160,.12,'sawtooth');}
     }
   });
   if(leaks>leakMax)lose('感染者进入城区过多');
@@ -598,28 +606,34 @@ function update(dt){
   }
 }
 function draw(){
-  hits=[];stage('#0e3a4a','#062028');
+  const sec=sectorTheme();
+  hits=[];stage(sec.bg1,sec.bg2);
   if(state!=='play'&&state!=='pause')return;
-  label((boss?'👑 ':'')+'第 '+lvl+' 关 · 编制 '+(budget-used)+'/'+budget,14,18,'#fff',12,'left');
+  label((boss?'👑 ':'')+'关'+lvl+' '+sec.name+' · 编制 '+(budget-used)+'/'+budget,14,18,'#fff',12,'left');
   label('泄漏 '+leaks+'/'+leakMax,346,18,leaks?'#fda4af':'#86efac',12,'right');
   ctx.strokeStyle='rgba(186,230,253,.35)';ctx.lineWidth=16;ctx.lineJoin='round';
   ctx.beginPath();ctx.moveTo(180,40);slots.forEach(s=>ctx.lineTo(s.x,s.y));ctx.lineTo(180,510);ctx.stroke();
   tile(150,500,60,28,'#1e3a5f',8);label('城区',180,514,'#e0f2fe',11,'center');
   slots.forEach((s,i)=>{
     const f=fac[i],k=KINDS.find(x=>x.id===f);
-    tile(s.x-32,s.y-22,64,44,k?k.col:'#164e63',10);
-    label(k?k.n:(i+1)+'位',s.x,s.y,k?'#3a2200':'#e0f2fe',11,'center');
+    tile(s.x-32,s.y-22,64,44,k?k.col:sec.empty,10);
+    label(k?(k.ic+k.n):(i+1)+'位',s.x,s.y,k?'#3a2200':'#e0f2fe',11,'center');
     addHit(s.x-32,s.y-22,64,44,()=>place(sel,i));
   });
   people.forEach(p=>{
     if(p.y>530)return;
     const col=p.cured?'#86efac':p.iso?'#fde68a':p.flag?'#fdba74':p.inf?'#fda4af':'#e0f2fe';
-    orb(p.id%2===0? (p.slot>=0?slots[p.slot].x:180)-8: (p.slot>=0?slots[Math.min(p.slot,slots.length-1)].x:180)+8,p.y,7,col);
+    const px=p.id%2===0? (p.slot>=0?slots[p.slot].x:180)-8: (p.slot>=0?slots[Math.min(p.slot,slots.length-1)].x:180)+8;
+    orb(px,p.y,p.superS?9:7,col);
+    if(p.flag)label('!',px,p.y,'#3a2200',9,'center');
+    else if(p.cured)label('✓',px,p.y,'#064e3b',9,'center');
   });
+  for(let i=rings.length-1;i>=0;i--){const r=rings[i];r.t-=0.05;if(r.t<=0){rings.splice(i,1);continue;}ctx.save();ctx.globalAlpha=r.t;ctx.strokeStyle=r.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(r.x,r.y,12+24*(1-r.t),0,7);ctx.stroke();ctx.restore();}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.t-=0.03;p.y-=0.6;if(p.t<=0){pops.splice(i,1);continue;}ctx.save();ctx.globalAlpha=Math.min(1,p.t*1.2);label(p.txt,p.x,p.y,p.col,11,'center');ctx.restore();}
   KINDS.forEach((k,i)=>{
     const x=16+i*84,on=sel===k.id;
-    tile(x,H-62,78,48,on?k.col:'#164e63',10);
-    label(k.n,x+39,H-38,on?'#3a2200':'#e0f2fe',13,'center');
+    tile(x,H-62,78,48,on?k.col:sec.empty,10);
+    label(k.ic+k.n,x+39,H-38,on?'#3a2200':'#e0f2fe',12,'center');
     addHit(x,H-62,78,48,()=>{sel=k.id;});
   });
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
@@ -635,6 +649,7 @@ function openLevels(){state='menu';show('startScr',false);show('shopScr',false);
 function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;saveProg(prog);tutorial(TUT,go);}else go();}
 function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').textContent='金币：'+prog.coins;const box=$('shopList');box.innerHTML='';for(const it of SHOP){if(prog[it.k]==null)prog[it.k]=0;const row=document.createElement('div');row.className='row';row.innerHTML='<div><b>'+it.name+'</b><br><small>'+it.desc()+'</small></div>';const b=document.createElement('button');b.className='btn';const maxed=prog[it.k]>=it.max;const cost=it.cost();b.textContent=maxed?'满级':cost+'币';b.disabled=maxed||prog.coins<cost;b.onclick=()=>{prog.coins-=cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();};row.appendChild(b);box.appendChild(row);}}
 $('startBtn').onclick=openLevels;$('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
+$('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';toast('通行速度 '+spd+'×');};
 $('shopBtn').onclick=openShop;$('shopBack').onclick=openLevels;
 $('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};
 $('resumeBtn').onclick=()=>{state='play';last=performance.now();show('pauseOv',false);};
@@ -643,7 +658,7 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function'){for(let i=0;i<spd;i++){update(dt);if(state!=='play')break;}}if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>
