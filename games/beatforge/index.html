@@ -453,7 +453,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">三路铁砧，音符靠近时点对应路。</p>
 </div>
-<div class="overlay" id="startScr"><h1>🔨 锻节奏</h1><p>三路铁砧，音符靠近时点对应路。<br>Miss 提升热度，填满锻条通关。<br>Boss 谱面更密更快。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🔨 锻节奏</h1><p>三路铁砧，音符靠近时点对应路。<br>Miss 提升热度，填满锻条通关。<br>Boss 谱面更密更快。</p><p style="font-size:12px;opacity:.85">v3 优化：加宽移动端判定窗并新增Perfect/Good打击反馈</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -487,23 +487,24 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 
 const TUT=[["三路","音符从上路落下，点对应铁砧。"],["判定","在判定线附近点击得分。"],["热度","Miss 升温，过热失败。"],["Boss","Boss 音符更密速度更快。"]];
 const SHOP=[{k:'winLv',name:'判定窗口',max:3,cost(){return 45+(prog.winLv|0)*30;},desc(){return '判定范围更宽';}},{k:'heatLv',name:'热度上限',max:3,cost(){return 40+(prog.heatLv|0)*30;},desc(){return '可承受更多 Miss';}},{k:'autoLv',name:'自动免Miss',max:3,cost(){return 55+(prog.autoLv|0)*35;},desc(){return '每关自动免一次 Miss';}}];
-let notes=[],heat=0,hmax=0,forge=0,goal=0,spawn=0,beat=0,autos=0,laneHit=[0,0,0];
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];notes=[];heat=0;hmax=8+(prog.heatLv|0)*2;forge=0;goal=20+lvl*3+(boss?8:0);spawn=0;beat=0;autos=prog.autoLv|0;laneHit=[0,0,0];
+let notes=[],heat=0,hmax=0,forge=0,goal=0,spawn=0,beat=0,autos=0,laneHit=[0,0,0],judgeTxt='',judgeCol='#fff',judgeT=0;
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];notes=[];heat=0;hmax=8+(prog.heatLv|0)*2;forge=0;goal=20+lvl*3+(boss?8:0);spawn=0;beat=0;autos=prog.autoLv|0;laneHit=[0,0,0];judgeT=0;
   show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点三路踩拍锻打';}
 function win(){if(state!=='play')return;const stars=heat<=2?3:heat<=5?2:1;finishWin(stars,40+stars*15+(boss?55:0)+forge,'锻造成功！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function missOne(){if(autos>0){autos--;toast('自动免Miss');return;}heat++;beep(180,.08,'triangle');if(heat>=hmax)lose('过热');}
-function update(dt){const spd=160+lvl*8+(boss?40:0);spawn-=dt;const interval=Math.max(0.28,0.7-lvl*0.025-(boss?0.12:0));if(spawn<=0&&forge<goal){notes.push({lane:Math.random()*3|0,y:-20});spawn=interval;if(boss&&Math.random()<0.35)notes.push({lane:Math.random()*3|0,y:-50});}
+function missOne(){if(autos>0){autos--;toast('自动免Miss');return;}heat++;judgeTxt='MISS';judgeCol='#ff5c7a';judgeT=0.45;beep(180,.08,'triangle');if(heat>=hmax)lose('过热');}
+function update(dt){const spd=160+lvl*8+(boss?40:0);spawn-=dt;if(judgeT>0)judgeT-=dt;const interval=Math.max(0.28,0.7-lvl*0.025-(boss?0.12:0));if(spawn<=0&&forge<goal){notes.push({lane:Math.random()*3|0,y:-20});spawn=interval;if(boss&&Math.random()<0.35)notes.push({lane:Math.random()*3|0,y:-50});}
   for(const n of notes){n.y+=spd*dt;if(n.y>H-40){n.dead=1;missOne();}}
   notes=notes.filter(n=>!n.dead);if(forge>=goal)win();$('score').textContent=score|0;}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);const lane=((p.x/(W/3))|0);if(lane<0||lane>2)return;laneHit[lane]=1;setTimeout(()=>laneHit[lane]=0,100);
-  const winW=28+(prog.winLv|0)*10;const line=H-100;let best=null,bd=1e9;for(const n of notes){if(n.lane!==lane||n.dead)continue;const d=Math.abs(n.y-line);if(d<bd){bd=d;best=n;}}
-  if(best&&bd<=winW){best.dead=1;forge++;score+=10+(bd<12?5:0);beep(880,.05);if(FX)FX.burst(sparks,lane*W/3+W/6,line,'#ffe08a',8);}else missOne();});
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);const lane=((p.x/(W/3))|0);if(lane<0||lane>2)return;laneHit[lane]=1;setTimeout(()=>laneHit[lane]=0,110);
+  const winW=44+(prog.winLv|0)*10;const line=H-100;let best=null,bd=1e9;for(const n of notes){if(n.lane!==lane||n.dead)continue;const d=Math.abs(n.y-line);if(d<bd){bd=d;best=n;}}
+  if(best&&bd<=winW){best.dead=1;forge++;const perf=bd<=18;score+=10+(perf?8:0);judgeTxt=perf?'PERFECT!':'GOOD';judgeCol=perf?'#ffe066':'#6ef5a6';judgeT=0.45;beep(perf?960:820,.05);if(FX)FX.burst(sparks,lane*W/3+W/6,line,'#ffe08a',perf?12:8);}else missOne();});
 function draw(){if(FX)FX.stage(ctx,W,H,'#ff6b9d','#3b0a2a');else{ctx.fillStyle='#3b0a2a';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('锻'+forge+'/'+goal+' 热'+heat+'/'+hmax+(boss?' 👑':''),10,22);
-  for(let i=0;i<3;i++){ctx.fillStyle=laneHit[i]?'rgba(255,255,255,.25)':'rgba(255,255,255,.08)';ctx.fillRect(i*W/3+4,40,W/3-8,H-80);ctx.fillStyle='#ffd43b';ctx.fillRect(i*W/3+20,H-110,W/3-40,20);}
+  for(let i=0;i<3;i++){ctx.fillStyle=laneHit[i]?'rgba(255,255,255,.28)':'rgba(255,255,255,.08)';ctx.fillRect(i*W/3+4,40,W/3-8,H-80);ctx.fillStyle='#ffd43b';ctx.fillRect(i*W/3+20,H-110,W/3-40,20);}
   ctx.strokeStyle='#fff';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(0,H-100);ctx.lineTo(W,H-100);ctx.stroke();ctx.setLineDash([]);
   for(const n of notes){ctx.fillStyle='#7df9ff';ctx.beginPath();ctx.arc(n.lane*W/3+W/6,n.y,14,0,7);ctx.fill();}
+  if(judgeT>0){ctx.fillStyle=judgeCol;ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.fillText(judgeTxt,W/2,H-140);}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);forge=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,forge,goal,heat}}};
 
