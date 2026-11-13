@@ -457,7 +457,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="ctl" id="ratio"><button class="btn ghost" data-r="25">25%</button><button class="btn ghost" data-r="50">50%</button><button class="btn ghost" data-r="75">75%</button><button class="btn ghost" data-r="100">100%</button><button class="btn ghost" id="allBtn">全选<small>我方星球</small></button></div>
 </div>
-<div class="overlay" id="startScr"><h1>星域征服</h1><p>即时战略星球争夺：点选己方星球，再点目标派出舰队。<br>大星球产能更高；中立星球需要先打掉守军。<br>15 个星域，敌对帝国从 1 个增加到 3 个；黑洞、要塞星、母舰首领层层加码。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始征服</button></div>
+<div class="overlay" id="startScr"><h1>星域征服</h1><p>即时战略星球争夺：点选己方星球，再点目标派出舰队。<br>大星球产能更高；中立星球需要先打掉守军。<br>15 个星域，敌对帝国从 1 个增加到 3 个；黑洞、要塞星、母舰首领层层加码。<br>v3（Gemini 优化：新增三大星云背景、星球占领光环、要塞激光束与战况飘字）</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始征服</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns" id="lvlBtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选关</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -514,7 +514,8 @@ const LV=[];for(let i=0;i<15;i++){const boss=(i+1)%5===0;LV.push({i,boss,ai:i<4?
  hole:i===4||i===12,fort:i>=6,mother:i===9||i===14,allied:i===14,par:90+i*12,name:boss?['黑洞边境','母舰要塞','虚空帝国'][(i+1)/5-1]:'星域 '+(i+1)});}
 let save=Store.get('save',{stars:[],tut:0});
 const ups=()=>{const t=sumStars(save);return{prod:t>=6?1.1:1,speed:t>=15?1.15:1,start:t>=25?20:0,def:t>=35?1.2:1};};
-let G=null,li=0,state='menu',spd=1,FAST=false,sparks=[],sel=new Set(),ratio=50,drag=null;
+let G=null,li=0,state='menu',spd=1,FAST=false,sparks=[],rings=[],beams=[],pops=[],sel=new Set(),ratio=50,drag=null;
+const GALAXIES=[{name:'深蓝星海',bg1:'#1b1446',bg2:'#03030f'},{name:'翠绿星云',bg1:'#0e3b38',bg2:'#031012'},{name:'炽红星渊',bg1:'#42112a',bg2:'#0e0209'}];
 function genMap(i){const L=LV[i],rnd=mkRng(1000+i*77);const ps=[];const ok=(x,y,r)=>x>r+6&&x<W-r-6&&y>r+50&&y<H-r-10&&ps.every(p=>Math.hypot(p.x-x,p.y-y)>p.r+r+18)&&(!L.hole||Math.hypot(x-W/2,y-H/2)>70+r);
  const add=(x,y,r,o,n,t)=>{ps.push({id:ps.length,x,y,r,o,n,t:t||'',acc:0});};
  add(W/2,H-50,26,1,30+ups().start);
@@ -522,7 +523,7 @@ function genMap(i){const L=LV[i],rnd=mkRng(1000+i*77);const ps=[];const ok=(x,y,
  let guard=0;while(ps.length<1+L.ai+L.neutral&&guard++<3000){const r=Math.round(12+rnd()*14),x=r+10+rnd()*(W-2*r-20),y=60+r+rnd()*(H-r*2-80);if(!ok(x,y,r))continue;
   const fort=L.fort&&rnd()<.18;add(x,y,r,0,Math.round(L.nShip*(.6+rnd()*.9)*(r/18))+(fort?10:0),fort?'fort':rnd()<.12?'rich':'');}
  return ps;}
-function startLevel(i){li=i;G={ps:genMap(i),fl:[],t:0,aiT:[0,0,1,1.5,2],hole:LV[i].hole?{x:W/2,y:H/2,r:46}:null,sent:0,lost:0};sel.clear();state='play';['lvlScr','overScr','pauseOv','tutScr','startScr'].forEach(x=>show(x,false));hud();
+function startLevel(i){li=i;G={ps:genMap(i),fl:[],t:0,aiT:[0,0,1,1.5,2],hole:LV[i].hole?{x:W/2,y:H/2,r:46}:null,sent:0,lost:0};rings=[];beams=[];pops=[];sel.clear();state='play';['lvlScr','overScr','pauseOv','tutScr','startScr'].forEach(x=>show(x,false));hud();
  toast(LV[i].name+' · 敌对势力 '+LV[i].ai+(LV[i].allied?'（结成同盟！）':''),2200);tone(440,.12,'triangle');}
 const prodOf=p=>(p.o?p.r/26*1.6:0)*(p.t==='rich'?2:p.t==='mother'?1.8:1)*(p.o===1?ups().prod:p.o>=2?.72+li*.022:1);
 function send(from,to,frac,owner){if(from===to||from.o!==owner)return 0;const n=Math.floor(from.n*frac);if(n<1)return 0;from.n-=n;const a=Math.atan2(to.y-from.y,to.x-from.x);
@@ -530,7 +531,7 @@ function send(from,to,frac,owner){if(from===to||from.o!==owner)return 0;const n=
 const allied=(a,b)=>a===b||(LV[li].allied&&a>=2&&b>=2);
 function arrive(f){const p=f.to;if(allied(p.o,f.o)&&p.o!==0){p.n+=f.n;return;}
  const def=(p.t==='fort'?2:1)*(p.o===1?ups().def:1)*(p.t==='mother'?1.5:1);const need=p.n*def;
- if(f.n>need){p.n=Math.floor(f.n-need);const old=p.o;p.o=f.o;if(f.o===1){tone(880,.1,'triangle');tone(1320,.15,'triangle',.08,null,.08);}else if(old===1){tone(200,.3,'sawtooth',.08,90);}
+ if(f.n>need){p.n=Math.floor(f.n-need);const old=p.o;p.o=f.o;if(!FAST){rings.push({x:p.x,y:p.y,r:p.r,maxR:p.r+28,col:COL[f.o],t:1});if(f.o===1||old===1)pops.push({x:p.x,y:p.y-p.r-8,txt:f.o===1?'占领!':'失守!',col:COL[f.o],t:1});}if(f.o===1){tone(880,.1,'triangle');tone(1320,.15,'triangle',.08,null,.08);}else if(old===1){tone(200,.3,'sawtooth',.08,90);}
   burst(sparks,p.x,p.y,COL[f.o],16);sel.delete(p.id);}else{p.n=Math.max(0,p.n-f.n/def);if(f.o===1)G.lost+=f.n;}
  burst(sparks,p.x,p.y,COL[f.o],4);}
 function aiThink(o,aggr){const mine=G.ps.filter(p=>p.o===o);if(!mine.length)return;const incoming=p=>G.fl.filter(f=>f.to===p&&!allied(f.o,p.o)).reduce((a,f)=>a+f.n,0);
@@ -551,7 +552,7 @@ function step(dt){const L=LV[li];G.t+=dt;
  for(let i=0;i<G.fl.length;i++)for(let j=i+1;j<G.fl.length;j++){const a=G.fl[i],b=G.fl[j];if(allied(a.o,b.o))continue;if(Math.abs(a.x-b.x)<8&&Math.abs(a.y-b.y)<8){const m=Math.min(a.n,b.n);a.n-=m;b.n-=m;burst(sparks,a.x,a.y,'#fff',5);}}
  G.fl=G.fl.filter(f=>f.n>=0.5);
  // 要塞炮台：击落附近的敌舰
- for(const p of G.ps)if(p.t==='fort'&&p.o)for(const f of G.fl)if(!allied(f.o,p.o)&&Math.hypot(f.x-p.x,f.y-p.y)<p.r+40)f.n-=dt*3;
+ for(const p of G.ps)if(p.t==='fort'&&p.o)for(const f of G.fl)if(!allied(f.o,p.o)&&Math.hypot(f.x-p.x,f.y-p.y)<p.r+40){f.n-=dt*3;if(!FAST&&Math.random()<.22)beams.push({x1:p.x,y1:p.y,x2:f.x,y2:f.y,t:1});}
  for(let o=2;o<2+L.ai;o++){G.aiT[o]-=dt;if(G.aiT[o]<=0){G.aiT[o]=L.aiRate*(.7+Math.random()*.6);aiThink(o,L.aggr);}}
  if(BOT){G.aiT[1]-=dt;if(G.aiT[1]<=0){G.aiT[1]=BOT.rate;aiThink(1,BOT.aggr);}}
  const alive=o=>G.ps.some(p=>p.o===o)||G.fl.some(f=>f.o===o);
@@ -578,7 +579,7 @@ $('allBtn').onclick=()=>{if(!G)return;G.ps.forEach(p=>{if(p.o===1)sel.add(p.id);
 $('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';};
 // ---------- 绘制 ----------
 const starsBg=Array.from({length:80},(_,i)=>{const r=mkRng(i+5);return{x:r()*W,y:r()*H,s:r()*1.6+.3,a:r()};});
-function render(dt){stage(ctx,W,H,'#1b1446','#03030f');for(const s of starsBg){ctx.globalAlpha=.4+.6*Math.abs(Math.sin(performance.now()/1500+s.a*9));ctx.fillStyle='#fff';ctx.fillRect(s.x,s.y,s.s,s.s);}ctx.globalAlpha=1;
+function render(dt){const gx=GALAXIES[Math.min(2,Math.floor(li/5))];stage(ctx,W,H,gx.bg1,gx.bg2);for(const s of starsBg){ctx.globalAlpha=.4+.6*Math.abs(Math.sin(performance.now()/1500+s.a*9));ctx.fillStyle='#fff';ctx.fillRect(s.x,s.y,s.s,s.s);}ctx.globalAlpha=1;
  if(!G)return;
  if(G.hole){const h=G.hole;const g=ctx.createRadialGradient(h.x,h.y,4,h.x,h.y,h.r);g.addColorStop(0,'#000');g.addColorStop(.6,'rgba(80,0,120,.6)');g.addColorStop(1,'rgba(80,0,120,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(h.x,h.y,h.r,0,7);ctx.fill();
   ctx.strokeStyle='rgba(200,120,255,.5)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(h.x,h.y,h.r*.7,performance.now()/400,performance.now()/400+4);ctx.stroke();}
@@ -592,9 +593,12 @@ function render(dt){stage(ctx,W,H,'#1b1446','#03030f');for(const s of starsBg){c
  for(const f of G.fl){const k=Math.min(10,Math.ceil(f.n/4));const a=Math.atan2(f.to.y-f.y,f.to.x-f.x);glowOn(ctx,COL[f.o],8);ctx.fillStyle=COL[f.o];
   for(let i=0;i<k;i++){const ox=Math.cos(i*2.4)*(i?5:0),oy=Math.sin(i*2.4)*(i?5:0);ctx.save();ctx.translate(f.x+ox-Math.cos(a)*i*1.5,f.y+oy-Math.sin(a)*i*1.5);ctx.rotate(a);ctx.beginPath();ctx.moveTo(5,0);ctx.lineTo(-3,-3);ctx.lineTo(-3,3);ctx.fill();ctx.restore();}
   glowOff(ctx);txt(ctx,String(Math.floor(f.n)),f.x,f.y-10,10,'#fff');}
+ for(let i=beams.length-1;i>=0;i--){const b=beams[i];b.t-=dt*6;if(b.t<=0){beams.splice(i,1);continue;}ctx.save();ctx.globalAlpha=b.t;ctx.strokeStyle='#ffd166';ctx.lineWidth=2.5*b.t;ctx.beginPath();ctx.moveTo(b.x1,b.y1);ctx.lineTo(b.x2,b.y2);ctx.stroke();ctx.restore();}
+ for(let i=rings.length-1;i>=0;i--){const r=rings[i];r.t-=dt*2;if(r.t<=0){rings.splice(i,1);continue;}ctx.save();ctx.globalAlpha=r.t*.85;ctx.strokeStyle=r.col;ctx.lineWidth=3;ctx.beginPath();ctx.arc(r.x,r.y,r.r+(r.maxR-r.r)*(1-r.t),0,7);ctx.stroke();ctx.restore();}
+ for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.t-=dt*1.1;p.y-=18*dt;if(p.t<=0){pops.splice(i,1);continue;}ctx.save();ctx.globalAlpha=Math.min(1,p.t*1.3);otxt(ctx,p.txt,p.x,p.y,12,p.col);ctx.restore();}
  // 势力条
  const L=LV[li];let tot=0;const sh=[];for(let o=1;o<2+L.ai;o++){const s=shipsOf(o);sh.push([o,s]);tot+=s;}let x=10;ctx.fillStyle='rgba(0,0,0,.4)';rr(ctx,8,8,W-16,14,7);ctx.fill();for(const[o,s]of sh){const w=(W-20)*s/Math.max(1,tot);ctx.fillStyle=COL[o];ctx.fillRect(x,10,w,10);x+=w;}
- txt(ctx,L.name,W/2,34,12,'#cfe8ff');
+ txt(ctx,gx.name+' · '+L.name,W/2,34,12,'#cfe8ff');
  drawBurst(ctx,sparks);
  if(li===0&&G.t<10&&state==='play')otxt(ctx,'点蓝色母星，再点灰色星球派兵（也可拖拽）',W/2,H-10,12,'#e0f4ff');}
 // ---------- 菜单 ----------
