@@ -465,7 +465,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="ctl" id="seeds"></div>
 </div>
-<div class="overlay" id="startScr"><h1>花园保卫战</h1><p>虫群沿着 5 条草坪小路进攻你的小屋！<br>种向日葵攒阳光，再布置射手、坚果墙、樱桃炸弹……<br>15 关逐步解锁 10 种植物；第 5/10/15 关迎战巨像甲虫和虫后。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">保卫花园</button></div>
+<div class="overlay" id="startScr"><h1>花园保卫战</h1><p>虫群沿着 5 条草坪小路进攻你的小屋！<br>种向日葵攒阳光，再布置射手、坚果墙、樱桃炸弹……<br>15 关逐步解锁 10 种植物；第 5/10/15 关迎战巨像甲虫和虫后。<br><small style="opacity:.85">v3（Gemini 优化）：新增晨露/秋枫/月夜三季庭院配色与爆炸/收集光环特效</small></p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">保卫花园</button></div>
 <div class="overlay hidden" id="pickScr"><h2>选择出战植物（最多 6 种）</h2><p id="pickInfo"></p><div class="picks" id="picks"></div><div class="rowbtns"><button class="btn ghost" id="pickBack">返回</button><button class="btn" id="pickGo">开战！</button></div></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns" id="lvlBtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -634,8 +634,11 @@ function drawEnemy(e){const E=EN[e.k];const y=rowY(e.r),s=E.big===2?54:E.big?40:
  if(E.hat){box3d(ctx,e.x-9,y-20+bob,18,12,E.hat,4);}
  if(e.sh>0)box3d(ctx,e.x-20,y-14,8,32,'#adb5bd',3);
  if(e.hp<e.max){ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(e.x-16,y-s*.6,32,4);ctx.fillStyle=E.big?'#ff3d6e':'#80ed99';ctx.fillRect(e.x-16,y-s*.6,32*Math.max(0,e.hp/e.max),4);}}
-function render(dt){const L=LV[li];stage(ctx,W,H,L&&L.night?'#1b3a4b':'#74c69d','#2d6a4f');
- for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ctx.fillStyle=(r+c)%2?(L&&L.night?'rgba(20,60,50,.55)':'rgba(82,183,136,.55)'):(L&&L.night?'rgba(30,80,60,.55)':'rgba(149,213,178,.55)');ctx.fillRect(LEFT+c*CW,TOP+r*RH,CW,RH);}
+function render(dt){const L=LV[li];const autumn=li>=5&&li<10&&!(L&&L.night);
+ stage(ctx,W,H,L&&L.night?'#1b3a4b':autumn?'#d9a74a':'#74c69d',L&&L.night?'#0d2533':autumn?'#8c4a27':'#2d6a4f');
+ const c1=L&&L.night?'rgba(20,60,50,.55)':autumn?'rgba(186,120,56,.52)':'rgba(82,183,136,.55)';
+ const c2=L&&L.night?'rgba(30,80,60,.55)':autumn?'rgba(222,165,75,.52)':'rgba(149,213,178,.55)';
+ for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ctx.fillStyle=(r+c)%2?c1:c2;ctx.fillRect(LEFT+c*CW,TOP+r*RH,CW,RH);}
  ctx.fillStyle=L&&L.night?'#3d2c1e':'#9c6644';ctx.fillRect(0,TOP,LEFT,ROWS*RH);ctx.fillStyle='rgba(255,255,255,.15)';for(let y=TOP;y<TOP+ROWS*RH;y+=12)ctx.fillRect(2,y,LEFT-4,3);
  ctx.fillStyle='rgba(0,0,0,.15)';for(let r=0;r<=ROWS;r++)ctx.fillRect(0,TOP+r*RH-1,W,2);
  if(!G)return;
@@ -647,7 +650,7 @@ function render(dt){const L=LV[li];stage(ctx,W,H,L&&L.night?'#1b3a4b':'#74c69d',
  if(sel&&sel!=='shovel'){ctx.fillStyle='rgba(255,255,255,.12)';for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(!G.plants[r][c])ctx.fillRect(LEFT+c*CW+3,TOP+r*RH+3,CW-6,RH-6);}
  G.en.slice().sort((a,b)=>a.r-b.r).forEach(drawEnemy);
  for(const s of G.shots){const y=rowY(s.r)-6;if(s.fire)glowOn(ctx,'#ff7b00',10);ball3d(ctx,s.x,y,6,s.fire?'#ff7b00':s.ice?'#7ad7ff':'#8fe36b');glowOff(ctx);}
- for(const f of G.fx){if(f.mow!=null){emo(ctx,'🚜',f.x,rowY(f.mow)+10,26);}else{ctx.globalAlpha=1-f.t/.5;ctx.fillStyle='#ffb703';ctx.beginPath();ctx.arc(f.x,f.y,f.r*(.5+f.t),0,7);ctx.fill();ctx.globalAlpha=1;}}
+ for(const f of G.fx){if(f.mow!=null){emo(ctx,'🚜',f.x,rowY(f.mow)+10,26);}else{ctx.globalAlpha=1-f.t/.5;ctx.fillStyle='#ffb703';ctx.beginPath();ctx.arc(f.x,f.y,f.r*(.5+f.t),0,7);ctx.fill();ctx.strokeStyle='#fff59d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(f.x,f.y,f.r*(.7+f.t*1.6),0,7);ctx.stroke();ctx.globalAlpha=1;}}
  for(const s of G.suns){glowOn(ctx,'#ffd60a',16);ball3d(ctx,s.x,s.y,13,'#ffc300');glowOff(ctx);}
  drawBurst(ctx,sparks);
  if(li===0&&G.t<14&&state==='play')otxt(ctx,'选下方 🌻 点草坪种下 · 点 ☀️ 收集阳光',W/2,TOP+RH*ROWS-12,13,'#fffbe0');}

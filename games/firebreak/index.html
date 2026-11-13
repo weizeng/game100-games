@@ -455,7 +455,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">砍出隔离带、点逆风火或洒水，在风向变换中封住山火</p>
 </div>
-<div class="overlay" id="startScr"><h1>🔥 火线隔离</h1><p>沿着林线开辟隔离带，必要时点逆风火或洒水降温。<br>这是封控与隔离，不是炮塔射击。<br>首领关会遇到树冠火或飞火风暴。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🔥 火线隔离</h1><p>沿着林线开辟隔离带，必要时点逆风火或洒水降温。<br>这是封控与隔离，不是炮塔射击。<br>首领关会遇到树冠火或飞火风暴。<br><small style="opacity:.85">v2（Gemini 优化）：新增三大林区地貌、图标化地形、工具高亮与防线闭合提示</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -647,27 +647,35 @@ function onDown(p){
     else burnAt(x,y);
   }else inHit(p);
 }
+const BIOMES=[
+  {top:'#123526',bot:'#0c241b',fuel:'#28654e'},
+  {top:'#4a2c12',bot:'#231308',fuel:'#8d4e1f'},
+  {top:'#3a1414',bot:'#180606',fuel:'#5c2b29'}
+];
 function draw(){
-  hits=[];stage('#123526','#102f2b');
+  hits=[];const bm=BIOMES[Math.min(2,((lvl-1)/5)|0)];stage(bm.top,bm.bot);
   if(state!=='play'&&state!=='pause')return;
-  label((boss?'👑 ':'')+'第 '+lvl+' 关 · 风向 '+wind.k,14,18,'#f5fff9',13,'left');
+  const wArrow={N:'⬆️',S:'⬇️',E:'➡️',W:'⬅️'}[wind.k]||wind.k;
+  label((boss?'👑 ':'')+'第 '+lvl+' 关 · 风向 '+wArrow,14,18,'#f5fff9',13,'left');
   label('行动 '+acts+'/'+actMax,346,18,'#ffd34d',12,'right');
-  label('回合 '+turns+'/'+turnMax+'  水 '+water+(crown?'  树冠火':'')+(embers?'  飞火':''),16,40,'#d8ffb0',11,'left');
-  if(prog.windLv)label('下轮风 '+nextWind.k,250,40,'#fde68a',11,'left');
+  label('回合 '+turns+'/'+turnMax+'  💧'+water+(crown?'  🌲树冠火':'')+(embers?'  🔥飞火':''),16,40,'#d8ffb0',11,'left');
+  if(prog.windLv)label('下轮 '+({N:'⬆',S:'⬇',E:'➡',W:'⬅'}[nextWind.k]||nextWind.k),250,40,'#fde68a',11,'left');
   const gx=16,gy=86,cw=54,ch=44;
-  const colMap={0:'#c8dfd2',1:'#28654e',2:'#ef6b3a',3:'#4a3a32',4:'#f5e6a6',5:'#6b7280'};
+  const colMap={0:'#c8dfd2',1:bm.fuel,2:'#ef6b3a',3:'#4a3a32',4:'#f5e6a6',5:'#6b7280'};
+  const icoMap={0:'',1:'🌲',2:'🔥',3:'▪',4:'🏘',5:'🪨'};
   for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
     const v=cell(x,y),px=gx+x*cw,py=gy+y*ch;
     tile(px+2,py+2,cw-4,ch-4,colMap[v],6);
-    const mark=v===2?'火':v===4?'村':v===0?'空':v===3?'烬':v===5?'岩':'林';
-    label(mark,px+cw/2,py+ch/2,v===1||v===2?'#fff':'#203f35',11,'center');
+    label(icoMap[v],px+cw/2,py+ch/2,v===1||v===2?'#fff':'#203f35',v===0?11:15,'center');
   }
   const yb=H-116;
-  btn(16,yb,78,44,'隔离','#86efac',()=>{tool='cut';});
-  btn(100,yb,78,44,'洒水','#93c5fd',()=>{tool='water';});
-  btn(184,yb,78,44,'逆风火','#fde68a',()=>{tool='back';});
-  btn(266,yb,78,44,'回合','#fda4af',endTurn);
-  btn(16,H-62,328,48,'确认隔离','#ffd34d',confirm);
+  const drawTool=(x,txt,col,k)=>{btn(x,yb,78,44,txt,col,()=>{tool=k;});if(tool===k){ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.strokeRect(x+1,yb+1,76,42);}};
+  drawTool(16,'🪓隔离','#86efac','cut');
+  drawTool(100,'💧洒水','#93c5fd','water');
+  drawTool(184,'🔥逆风','#fde68a','back');
+  btn(266,yb,78,44,'⏭回合','#fda4af',endTurn);
+  const safe=!pathToTown();
+  btn(16,H-62,328,48,safe?'✅ 防线已闭合 · 确认隔离':'确认隔离',safe?'#4ade80':'#ffd34d',confirm);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 function win(){if(state!=='play')return;const s=water>0&&turns<=3?3:turns<=5?2:1;finishWin(s,40+lvl*3+(boss?30:0),'火线封住');}
