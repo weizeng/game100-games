@@ -455,7 +455,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="ctrl"><button class="ghost" id="rerollBtn">🎲 重掷 ×1</button><button class="btn" id="endBtn">结束回合 ▶</button></div>
 </div>
-<div class="overlay" id="startScr"><h1>六角争霸</h1><p>用骰子征服六角大陆！<br>点己方领地再点相邻敌方领地进攻，掷骰点数大者胜。<br>回合结束按最大连片领地数获得援军。15 场战役、3 位霸主。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始征战</button></div>
+<div class="overlay" id="startScr"><h1>六角争霸</h1><p>用骰子征服六角大陆！<br>点己方领地再点相邻敌方领地进攻，掷骰点数大者胜。<br>回合结束按最大连片领地数获得援军。15 场战役、3 位霸主。<br><small style="opacity:.85">v4（Gemini 优化）：新增三大战役海域配色、攻防连线与占领光环特效</small></p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始征战</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>战役地图</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">战役地图</button><button class="iconbtn muteBtn">🔊</button></div></div>
@@ -542,8 +542,11 @@ function gen(lv,seed){const R=mkRng(seed);let ok=false,tries=0;
 function groupSize(p){let best=0;const seen=new Set();for(const t of T){if(t.owner!==p||seen.has(t.id))continue;let n=0;const q=[t.id];seen.add(t.id);while(q.length){const k=q.pop();n++;for(const j of T[k].adj)if(!seen.has(j)&&T[j].owner===p){seen.add(j);q.push(j);}}best=Math.max(best,n);}return best;}
 function capsHeld(p){return T.filter(t=>t.cap>=0&&t.owner===p).length;}
 function rollD(n){let s=0;const a=[];for(let i=0;i<n;i++){const v=1+(Math.random()*6|0);a.push(v);s+=v;}return{s,a};}
+const SEAS=[['#bfe6ff','#7cc4ee'],['#9be7c4','#3ba88f'],['#8b9cf5','#3730a3']];
+let rings=[];
 function attack(from,to,re){const A=T[from],D=T[to];const ra=rollD(A.dice),rd=rollD(D.dice);const win=ra.s>rd.s;
  roll={p:A.owner,q:D.owner,ra,rd,win,t:1.4,from,to};
+ rings.push({x:D.cx,y:D.cy,r:10,a:1,col:win?'#ffe08a':'#ff6b6b'});
  if(win){const loser=D.owner;D.owner=A.owner;D.dice=A.dice-1;A.dice=1;if(FX)FX.burst(sparks,D.cx,D.cy,PC[A.owner],FAST?0:18);if(!FAST)tone(660,.12,'triangle',.08,990);checkDead(loser);}
  else{if(A.owner===0&&rer>0&&!re){roll.canRe=1;}else A.dice=1;if(!FAST)noise(.12,.08,900);}
  return win;}
@@ -586,7 +589,7 @@ $('fastBtn').onclick=()=>{fast=!fast;updBtns();};
 // ---------- 绘制 ----------
 let bgK=null,bgC=null;
 function hexPath(g,x,y,r){g.beginPath();for(let k=0;k<6;k++){const a=Math.PI/3*k+Math.PI/6;const px=x+r*Math.cos(a),py=y+r*Math.sin(a);k?g.lineTo(px,py):g.moveTo(px,py);}g.closePath();}
-function draw(dt){if(FX)FX.stage(ctx,W,H,'#bfe6ff','#7cc4ee');else{ctx.fillStyle='#9fd4f5';ctx.fillRect(0,0,W,H);}
+function draw(dt){const sea=SEAS[Math.min(2,Math.floor(li/5))]||SEAS[0];if(FX)FX.stage(ctx,W,H,sea[0],sea[1]);else{ctx.fillStyle=sea[1];ctx.fillRect(0,0,W,H);}
  if(!L){txt(ctx,'🏰',W/2,H/2,80);return;}
  const adjSel=sel>=0?T[sel].adj:null;
  for(const c of cells){if(c.t<0)continue;const t=T[c.t];let col=PC[t.owner];hexPath(ctx,c.x,c.y,HR+.6);ctx.fillStyle=col;ctx.fill();
@@ -598,6 +601,8 @@ function draw(dt){if(FX)FX.stage(ctx,W,H,'#bfe6ff','#7cc4ee');else{ctx.fillStyle
   const o=cellNear(c.x+HW*Math.cos(a1+Math.PI/6),c.y+HW*Math.sin(a1+Math.PI/6));if(!o||o.t!==c.t){ctx.beginPath();ctx.moveTo(c.x+HR*Math.cos(a1),c.y+HR*Math.sin(a1));ctx.lineTo(c.x+HR*Math.cos(a2),c.y+HR*Math.sin(a2));ctx.stroke();}}}
  for(const t of T){const x=t.cx,y=t.cy;if(t.cap>=0)txt(ctx,'★',x,y-17,13,t.cap===t.owner?'#fff':'#333');
   if(FX)FX.tile(ctx,x-13,y-11,26,22,'#fdfdfd',6);else{ctx.fillStyle='#fff';rr(ctx,x-13,y-11,26,22,6);ctx.fill();}txt(ctx,t.dice,x,y+1,14,t.owner===0?'#0b5f8a':'#333');}
+ for(let i=rings.length-1;i>=0;i--){const rg=rings[i];rg.r+=75*dt;rg.a-=2*dt;if(rg.a<=0){rings.splice(i,1);continue;}ctx.save();ctx.globalAlpha=Math.max(0,rg.a);ctx.strokeStyle=rg.col;ctx.lineWidth=3;ctx.beginPath();ctx.arc(rg.x,rg.y,rg.r,0,7);ctx.stroke();ctx.restore();}
+ if(roll&&roll.t>0&&T[roll.from]&&T[roll.to]){ctx.save();ctx.globalAlpha=Math.min(1,roll.t);ctx.strokeStyle=roll.win?'#ffe08a':'#ff6b6b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(T[roll.from].cx,T[roll.from].cy);ctx.lineTo(T[roll.to].cx,T[roll.to].cy);ctx.stroke();ctx.restore();}
  if(FX)FX.drawBurst(ctx,sparks);
  // 底部信息
  const by=H-62;ctx.fillStyle='rgba(10,20,50,.55)';rr(ctx,8,by,W-16,56,14);ctx.fill();

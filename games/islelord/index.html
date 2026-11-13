@@ -462,7 +462,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="pal" id="pal"></div>
   <div class="act"><button class="ghost" id="actA">🔍 查看</button><button class="btn" id="nextBtn2">下一天 ▶</button></div>
 </div>
-<div class="overlay" id="startScr"><h1>孤岛王国</h1><p>在小岛上种田伐木、采石建房，养活人口；<br>海盗会定期登陆，修箭塔、城墙、兵营守住城堡！<br>12 个岛屿剧本，3 次海盗王来袭。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始建国</button></div>
+<div class="overlay" id="startScr"><h1>孤岛王国</h1><p>在小岛上种田伐木、采石建房，养活人口；<br>海盗会定期登陆，修箭塔、城墙、兵营守住城堡！<br>12 个岛屿剧本，3 次海盗王来袭。<br>v4（Gemini 优化：新增三大海域地貌、资源/伤害飘字、光环特效与岛屿名称显示）</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始建国</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择岛屿</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择岛屿</button><button class="iconbtn muteBtn">🔊</button></div></div>
@@ -530,8 +530,16 @@ const SC=[
  {n:'无尽浪潮',raids:7,gap:3,first:6,res:{food:12,wood:28,stone:12,gold:4},lands:4,seed:113,size:.62},
  {n:'👑 海盗王的终局',raids:8,gap:4,first:6,res:{food:12,wood:28,stone:12,gold:4},lands:4,seed:127,size:.6,boss:1}];
 const FOE={pirate:{a:'🏴‍☠️',hp:12,sp:1.1,dmg:3,arm:0},brute:{a:'🪓',hp:20,sp:1.5,dmg:6,arm:0},shield:{a:'🛡️',hp:26,sp:.8,dmg:3,arm:2},thrower:{a:'💣',hp:12,sp:1,dmg:5,arm:0,rng:2},king:{a:'🦜',hp:220,sp:.7,dmg:12,arm:3,boss:1}};
+const SEAS=[
+  {name:'碧海晴沙',bg:'#3fa7e0',c1:'#45ade6',c2:'#3aa1da',foam:'rgba(255,255,255,.5)'},
+  {name:'珊瑚暮湾',bg:'#2c87b8',c1:'#3491c4',c2:'#267aa8',foam:'rgba(255,228,185,.48)'},
+  {name:'暴风黑海',bg:'#1c4768',c1:'#225275',c2:'#173c59',foam:'rgba(165,220,255,.42)'}
+];
+function seaTheme(){return SEAS[Math.min(2,Math.floor(si/4))];}
 let save=Store.get('save',{stars:[],tut:0});
-let state='menu',si=0,S=null,map=[],bld=[],res={},pop=0,day=1,raidN=0,nextRaid=0,lands=[],pick=null,foes=[],sold=[],shots=[],sparks=[],spd=1,rt=0,castle=null,log=[],FAST=false,info='';
+let state='menu',si=0,S=null,map=[],bld=[],res={},pop=0,day=1,raidN=0,nextRaid=0,lands=[],pick=null,foes=[],sold=[],shots=[],sparks=[],pops=[],rings=[],spd=1,rt=0,castle=null,log=[],FAST=false,info='';
+function addPop(x,y,txtStr,col){if(!FAST)pops.push({x,y,txt:txtStr,col:col||'#fff',t:1});}
+function addRing(x,y,col,maxR){if(!FAST)rings.push({x,y,col:col||'#ffe08a',r:6,maxR:maxR||42,t:1});}
 let rng=Math.random;
 // ---------- 地图 ----------
 function genMap(sc){const r=mkRng(sc.seed);map=[];for(let y=0;y<R;y++){map.push([]);for(let x=0;x<C;x++){const dx=(x-4)/4.6,dy=(y-5)/5.6;const n=Math.sqrt(dx*dx+dy*dy)+(r()-.5)*.35;map[y].push(n<sc.size+.36?2:0);}}
@@ -558,6 +566,7 @@ function prod(){const p={food:0,wood:0,stone:0,gold:0};staff();for(const b of bl
   if(b.k==='market')p.gold+=2;}
  p.food+=2;p.wood+=2;p.food-=pop;return p;}
 function newDay(){const p=prod();for(const k in p)res[k]+=p[k];
+ if(castle&&!FAST){const parts=[];if(p.food>0)parts.push('+'+p.food+'🍖');if(p.wood>0)parts.push('+'+p.wood+'🪵');if(p.stone>0)parts.push('+'+p.stone+'🪨');if(p.gold>0)parts.push('+'+p.gold+'🪙');if(parts.length)addPop((castle.x+.5)*TS,GY+castle.y*TS-4,parts.slice(0,2).join(' '),'#ffe98a');}
  if(res.food<0){const lose=Math.min(pop-1,Math.ceil(-res.food/2));pop-=lose;res.food=0;if(lose)toast('饥荒！人口 -'+lose);}
  else if(pop<popCap()&&res.food>=3){const g=Math.min(popCap()-pop,res.food>=12?2:1);pop+=g;}
  castle.hp=Math.min(castle.max,castle.hp+3);for(const b of bld)b.hp=Math.min(b.max,b.hp+2);
@@ -594,17 +603,17 @@ function stepRaid(dt){rt+=dt;const shrine=bld.some(b=>b.k==='shrine'&&b.on)?1.35
  // 防御
  for(const b of bld){if(!(b.k==='tower'||b.k==='castle')||(b.k==='tower'&&!b.on))continue;b.cd=(b.cd||0)-dt;if(b.cd>0)continue;const rg=b.k==='castle'?2.5:2.5+((b.lv||1)-1)*.5;
   let tg=null,td=1e9;for(const f of foes){if(f.delay>0)continue;const d=Math.hypot(f.x-b.x-.5,f.y-b.y-.5);if(d<=rg&&d<td){td=d;tg=f;}}
-  if(tg){const dm=(b.k==='castle'?5:6+((b.lv||1)-1)*4)*shrine;b.cd=b.k==='castle'?.8:.7;tg.hp-=Math.max(1,dm-tg.D.arm);tg.hit=.15;shots.push({x:b.x+.5,y:b.y+.3,tx:tg.x,ty:tg.y,t:.15,c:'#ffe066'});if(!FAST)tone(900,.03,'triangle',.03);}}
+  if(tg){const dm=(b.k==='castle'?5:6+((b.lv||1)-1)*4)*shrine;b.cd=b.k==='castle'?.8:.7;const realD=Math.max(1,dm-tg.D.arm);tg.hp-=realD;tg.hit=.15;shots.push({x:b.x+.5,y:b.y+.3,tx:tg.x,ty:tg.y,t:.15,c:'#ffe066'});addPop(tg.x*TS,GY+tg.y*TS-12,'-'+Math.round(realD),'#ffe066');if(!FAST)tone(900,.03,'triangle',.03);}}
  for(const s of sold){let tg=null,td=1e9;for(const f of foes){if(f.delay>0)continue;const d=Math.hypot(f.x-s.x,f.y-s.y);if(d<td){td=d;tg=f;}}
-  if(tg){if(td>.6){s.x+=(tg.x-s.x)/td*1.4*dt;s.y+=(tg.y-s.y)/td*1.4*dt;}else{s.cd-=dt;if(s.cd<=0){s.cd=.8;tg.hp-=Math.max(1,5-tg.D.arm);tg.hit=.15;}}}}
+  if(tg){if(td>.6){s.x+=(tg.x-s.x)/td*1.4*dt;s.y+=(tg.y-s.y)/td*1.4*dt;}else{s.cd-=dt;if(s.cd<=0){s.cd=.8;const realD=Math.max(1,5-tg.D.arm);tg.hp-=realD;tg.hit=.15;addPop(tg.x*TS,GY+tg.y*TS-12,'-'+Math.round(realD),'#9be8ff');}}}}
  sold=sold.filter(s=>s.hp>0);
- for(const f of foes)if(f.hp<=0){res.gold+=f.D.boss?15:1;if(FX)FX.burst(sparks,f.x*TS,GY+f.y*TS,f.D.boss?'#ffcf33':'#ff6b6b',f.D.boss?30:8);}
+ for(const f of foes)if(f.hp<=0){const g=f.D.boss?15:1;res.gold+=g;addPop(f.x*TS,GY+f.y*TS-18,'+'+g+'🪙','#ffd36b');if(f.D.boss)addRing(f.x*TS,GY+f.y*TS,'#ffd36b',70);if(FX)FX.burst(sparks,f.x*TS,GY+f.y*TS,f.D.boss?'#ffcf33':'#ff6b6b',f.D.boss?30:8);}
  foes=foes.filter(f=>f.hp>0);
  if(state==='raid'&&!foes.length)endRaid();}
 function endRaid(){raidN++;state='build';lands=[];if(!FAST){toast('✅ 击退海盗！'+(raidN<S.raids?'下一波在 '+S.gap+' 天后':''),2200);tone(660,.15,'triangle');}
  if(raidN>=S.raids){win();return;}nextRaid=day+S.gap;renderPal();hud();}
 // ---------- 流程 ----------
-function startLevel(i){si=i;S=SC[i];genMap(S);bld=[];castle={k:'castle',x:4,y:5,hp:B.castle.hp,max:B.castle.hp,lv:1};bld.push(castle);res={...S.res};pop=3;day=1;raidN=0;nextRaid=S.first;lands=[];foes=[];sold=[];shots=[];pick='farm';state='build';
+function startLevel(i){si=i;S=SC[i];genMap(S);bld=[];castle={k:'castle',x:4,y:5,hp:B.castle.hp,max:B.castle.hp,lv:1};bld.push(castle);res={...S.res};pop=3;day=1;raidN=0;nextRaid=S.first;lands=[];foes=[];sold=[];shots=[];pops=[];rings=[];pick='farm';state='build';
  ['lvlScr','overScr','pauseOv','startScr','bInfo'].forEach(k=>show(k,false));fit();renderPal();hud();bgK=null;if(S.tip&&!FAST)toast(S.tip,3000);}
 function hud(){$('lvT').textContent=si+1;$('dayT').textContent=day;$('score').textContent=save.stars.reduce((a,b)=>a+(b||0),0);$('nextBtn2').disabled=state!=='build';$('nextBtn2').textContent=state==='raid'?'⚔ 战斗中…':(day+1===nextRaid?'迎战海盗 ⚔':'下一天 ▶');
  const p=prod();$('info').textContent=info||('预计每天 🍖'+(p.food>=0?'+':'')+p.food+' 🪵+'+p.wood+' 🪨+'+p.stone+' 🪙+'+p.gold+' · 空闲人口 '+staff());info='';}
@@ -624,7 +633,7 @@ cv.addEventListener('pointerdown',e=>{e.preventDefault();if(state!=='build')retu
 function openB(b){selB=b;const D=B[b.k];$('biH').textContent=D.a+' '+D.n+(b.lv>1?' Lv'+b.lv:'');$('biP').innerHTML='耐久 '+Math.ceil(b.hp)+'/'+b.max+(D.w?'<br>'+(b.on?'✅ 已有工人':'💤 缺少工人（人口不足）'):'')+(D.d?'<br>'+D.d:'');
  const up=D.up&&(b.lv||1)<3;$('biUp').classList.toggle('hidden',!up);if(up){$('biUp').textContent='升级 '+costStr(D.up);$('biUp').disabled=!canPay(D.up);}
  $('biDel').classList.toggle('hidden',b.k==='castle');show('bInfo',true);}
-$('biUp').onclick=()=>{const b=selB,D=B[b.k];if(!canPay(D.up))return;pay(D.up);b.lv=(b.lv||1)+1;b.max=Math.round(b.max*1.5);b.hp=b.max;tone(880,.12,'triangle');show('bInfo',false);hud();};
+$('biUp').onclick=()=>{const b=selB,D=B[b.k];if(!canPay(D.up))return;pay(D.up);b.lv=(b.lv||1)+1;b.max=Math.round(b.max*1.5);b.hp=b.max;addRing((b.x+.5)*TS,GY+(b.y+.5)*TS,'#7df9ff',36);addPop((b.x+.5)*TS,GY+b.y*TS,'Lv'+b.lv+' ▲','#7df9ff');tone(880,.12,'triangle');show('bInfo',false);hud();};
 $('biDel').onclick=()=>{const b=selB;const D=B[b.k];for(const [k,v] of Object.entries(D.cost))res[k]+=Math.floor(v/2);bld.splice(bld.indexOf(b),1);staff();show('bInfo',false);hud();};
 $('biClose').onclick=()=>show('bInfo',false);
 $('nextBtn2').onclick=()=>{if(state==='build'){tone(440,.06,'triangle');newDay();}};
@@ -632,11 +641,11 @@ $('actA').onclick=()=>{pick=null;renderPal();info='点击建筑查看详情；�
 $('spdBtn').onclick=()=>{spd=spd===1?2:spd===2?3:1;$('spdBtn').textContent=spd+'×';};
 // ---------- 绘制 ----------
 let bgK=null,bgC=null;
-function drawBg(g){g.fillStyle='#3fa7e0';g.fillRect(0,0,W,H);for(let y=0;y<R;y++)for(let x=0;x<C;x++){const t=map[y][x];const px=x*TS,py=GY+y*TS;
-  if(!t){g.fillStyle=(x+y)%2?'#45ade6':'#3aa1da';g.fillRect(px,py,TS,TS);continue;}
+function drawBg(g){const st=seaTheme();g.fillStyle=st.bg;g.fillRect(0,0,W,H);for(let y=0;y<R;y++)for(let x=0;x<C;x++){const t=map[y][x];const px=x*TS,py=GY+y*TS;
+  if(!t){g.fillStyle=(x+y)%2?st.c1:st.c2;g.fillRect(px,py,TS,TS);continue;}
   g.fillStyle=TILE[t].c;g.fillRect(px,py,TS,TS);g.fillStyle='rgba(0,0,0,.05)';if((x+y)%2)g.fillRect(px,py,TS,TS);
   if(t===3){txt(g,'🌲',px+13,py+15,16);txt(g,'🌳',px+27,py+27,16);}if(t===4){txt(g,'⛰️',px+20,py+22,22);}if(t===5){g.strokeStyle='rgba(110,80,20,.25)';g.lineWidth=2;for(let i=8;i<40;i+=10){g.beginPath();g.moveTo(px+4,py+i);g.lineTo(px+36,py+i);g.stroke();}}}
- for(let y=0;y<R;y++)for(let x=0;x<C;x++)if(map[y][x]){for(const [a,b,dx,dy] of [[x+1,y,1,0],[x-1,y,-1,0],[x,y+1,0,1],[x,y-1,0,-1]]){if(a<0||b<0||a>=C||b>=R||!map[b][a]){g.fillStyle='rgba(255,255,255,.5)';g.fillRect(x*TS+(dx>0?TS-3:0),GY+y*TS+(dy>0?TS-3:0),dx?3:TS,dy?3:TS);}}}}
+ for(let y=0;y<R;y++)for(let x=0;x<C;x++)if(map[y][x]){for(const [a,b,dx,dy] of [[x+1,y,1,0],[x-1,y,-1,0],[x,y+1,0,1],[x,y-1,0,-1]]){if(a<0||b<0||a>=C||b>=R||!map[b][a]){g.fillStyle=st.foam;g.fillRect(x*TS+(dx>0?TS-3:0),GY+y*TS+(dy>0?TS-3:0),dx?3:TS,dy?3:TS);}}}}
 function draw(dt){if(!S){if(FX)FX.stage(ctx,W,H,'#7fd3ff','#2f8fd0');txt(ctx,'🏝️',W/2,H/2,80);return;}
  if(bgK!==si||!bgC){const d=FX?Math.max(1,Math.min(2.5,devicePixelRatio||1)):1;bgC=document.createElement('canvas');bgC.width=W*d;bgC.height=H*d;const g=bgC.getContext('2d');g.scale(d,d);drawBg(g);bgK=si;}
  ctx.drawImage(bgC,0,0,W,H);
@@ -653,12 +662,14 @@ function draw(dt){if(!S){if(FX)FX.stage(ctx,W,H,'#7fd3ff','#2f8fd0');txt(ctx,'�
  for(const f of foes){if(f.delay>0)continue;const px=f.x*TS,py=GY+f.y*TS;if(FX)FX.shadow(ctx,px,py+10,f.D.boss?14:8,3);ctx.globalAlpha=f.hit>0?.6:1;txt(ctx,f.D.a,px,py,f.D.boss?30:18);ctx.globalAlpha=1;
   ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(px-12,py-16,24,3);ctx.fillStyle='#ff4d4d';ctx.fillRect(px-12,py-16,24*f.hp/f.max,3);}
  for(const s of shots){ctx.strokeStyle=s.c;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(s.x*TS,GY+s.y*TS);ctx.lineTo(s.tx*TS,GY+s.ty*TS);ctx.stroke();s.t-=dt;}shots=shots.filter(s=>s.t>0);
+ for(let i=rings.length-1;i>=0;i--){const r=rings[i];r.t-=dt*1.8;if(r.t<=0){rings.splice(i,1);continue;}const rr2=r.r+(r.maxR-r.r)*(1-r.t);ctx.save();ctx.globalAlpha=r.t*.8;ctx.strokeStyle=r.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(r.x,r.y,rr2,0,7);ctx.stroke();ctx.restore();}
+ for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.t-=dt*1.15;p.y-=18*dt;if(p.t<=0){pops.splice(i,1);continue;}ctx.save();ctx.globalAlpha=Math.min(1,p.t*1.2);txt(ctx,p.txt,p.x,p.y,11,p.col,'center',900);ctx.restore();}
  if(FX)FX.drawBurst(ctx,sparks);
  // 资源栏
  ctx.fillStyle='rgba(15,40,70,.85)';ctx.fillRect(0,0,W,GY);const items=[['🍖',res.food],['🪵',res.wood],['🪨',res.stone],['🪙',res.gold],['👥',pop+'/'+popCap()]];
  items.forEach(([a,v],i)=>{txt(ctx,a,12+i*60,20,15,'#fff','left');txt(ctx,typeof v==='number'?String(Math.floor(v)):v,32+i*60,21,13,'#fff','left');});
  const left=nextRaid-day;txt(ctx,state==='raid'?'⚔ 战斗':left>0?'🏴‍☠️'+left+'天':'',W-6,20,12,left<=1||state==='raid'?'#ff8080':'#ffe9a8','right');
- txt(ctx,'波次 '+Math.min(raidN+1,S.raids)+'/'+S.raids,W-6,GY+10,10,'rgba(255,255,255,.85)','right');}
+ txt(ctx,S.n+' · 波次 '+Math.min(raidN+1,S.raids)+'/'+S.raids,W-6,GY+10,10,'rgba(255,255,255,.88)','right');}
 // ---------- 菜单 ----------
 function openLevels(){state='menu';['overScr','pauseOv'].forEach(i=>show(i,false));const g=$('lvgrid');g.innerHTML='';$('lvlInfo').textContent='★'+save.stars.reduce((a,b)=>a+(b||0),0)+' / '+SC.length*3+' · 👑 海盗王来袭';
  SC.forEach((s,i)=>{const b=document.createElement('button');b.className='lvl';const open=i===0||(save.stars[i-1]||0)>0||(save.stars[i]||0)>0;b.disabled=!open;b.innerHTML=(open?(s.boss?'👑':i+1):'🔒')+'<small>'+(open?starStr(save.stars[i]||0):'')+'</small>';b.title=s.n;b.onclick=()=>{tone(660,.08,'triangle');startLevel(i);};g.appendChild(b);});show('lvlScr',true);}

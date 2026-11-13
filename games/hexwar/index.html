@@ -453,6 +453,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">⬡ 六角战棋</span>
     <span class="stat">得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -461,7 +462,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <p class="hint" id="hint">点己方单位 → 点目标格移动/攻击 · 歼灭或占据点</p>
   <div class="endbar"><button class="btn" id="endTurnBtn">结束回合</button></div>
 </div>
-<div class="overlay" id="startScr"><h1>⬡ 六角战棋</h1><p>回合制六角格战棋：点己方再点目标移动或攻击。<br>步兵近战、射手远程、骑士冲锋；商店解锁法师。<br>20 关，每 5 关 Boss 指挥官会召唤援军。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>⬡ 六角战棋</h1><p>回合制六角格战棋：点己方再点目标移动或攻击。<br>步兵近战、射手远程、骑士冲锋；商店解锁法师。<br>20 关，每 5 关 Boss 指挥官会召唤援军。<br>v3（Gemini 优化：新增四大战区地貌、攻防光束与伤害飘字、已行动状态及AI倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -505,8 +506,15 @@ const UNIT={
   archerE:{name:'敌射手',icon:'🎯',move:2,atk:2,rng:2,hp:4}
 };
 const TER={plain:{def:0,col:'#5a3d8a'},forest:{def:1,col:'#2f6b4a'},mountain:{def:2,col:'#6a6a7a'},base:{def:1,col:'#c9a227'}};
+const BIOMES=[
+  {name:'紫晶高原',bg1:'#3a1d7a',bg2:'#120a2e',plain:'#5a3d8a'},
+  {name:'翡翠林谷',bg1:'#1d5e48',bg2:'#0b241c',plain:'#366858'},
+  {name:'霜雪要塞',bg1:'#234876',bg2:'#0d1c33',plain:'#46648c'},
+  {name:'熔岩王座',bg1:'#6b2135',bg2:'#210912',plain:'#733848'}
+];
+function getBiome(){return BIOMES[Math.min(3,Math.floor((lvl-1)/5))];}
 
-let state='menu',lvl=1,score=0,turn='player',sel=null,moves=[],attacks=[],cells=[],units=[],bases=[],sparks=[],last=0,aiBusy=false,turnsUsed=0,boss=false;
+let state='menu',lvl=1,score=0,turn='player',sel=null,moves=[],attacks=[],cells=[],units=[],bases=[],sparks=[],beams=[],pops=[],last=0,aiBusy=false,turnsUsed=0,boss=false,aiSpd=1;
 
 function key(q,r){return q+','+r;}
 function hexPx(q,r,size){return{x:size*Math.sqrt(3)*(q+r/2),y:size*1.5*r};}
@@ -586,11 +594,17 @@ function doMove(u,q,r){
   if(u.attacked||!attacks.length){u.attacked=true;sel=null;attacks=[];}
   checkWin();return true;
 }
+function addFx(u,t,dmg,col){
+  const a=hexCenter(u),b=hexCenter(t);
+  beams.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,col,life:1});
+  pops.push({x:b.x,y:b.y-10,txt:'-'+dmg,col,life:1});
+}
 function doAttack(u,t){
   if(!attackTargets(u).includes(t)&&!attacks.includes(t))return false;
   const def=cellAt(t.q,t.r);const defB=def?TER[def.t].def:0;
   const dmg=Math.max(1,u.atk-defB+(u.type==='mage'?1:0));
   t.hp-=dmg;beep(220,.1,'square');toast(u.icon+' 对 '+t.icon+' -'+dmg);
+  addFx(u,t,dmg,'#ffe08a');
   if(FX)FX.burst(sparks,hexCenter(t).x,hexCenter(t).y,'#ff6ad5',10);
   u.attacked=true;u.moved=true;sel=null;moves=[];attacks=[];
   if(t.hp<=0){toast(t.name+' 倒下');units=units.filter(x=>x.hp>0);score+=15;$('score').textContent=score;}
@@ -610,7 +624,7 @@ function endTurn(){
   units.filter(u=>u.side==='player').forEach(u=>{u.moved=false;u.attacked=false;});
   sel=null;moves=[];attacks=[];turn='enemy';turnsUsed++;aiBusy=true;
   $('hint').textContent='敌军行动中…';
-  setTimeout(aiTurn,280);
+  setTimeout(aiTurn,Math.round(280/aiSpd));
 }
 function aiTurn(){
   if(state!=='play'){aiBusy=false;return;}
@@ -634,9 +648,9 @@ function aiTurn(){
       checkWin();return;
     }
     const u=foes[i++];
-    if(!u||u.hp<=0){setTimeout(step,60);return;}
+    if(!u||u.hp<=0){setTimeout(step,Math.round(60/aiSpd));return;}
     const tgts=attackTargets(u);
-    if(tgts.length){tgts.sort((a,b)=>a.hp-b.hp);doAttackAI(u,tgts[0]);setTimeout(step,220);return;}
+    if(tgts.length){tgts.sort((a,b)=>a.hp-b.hp);doAttackAI(u,tgts[0]);setTimeout(step,Math.round(220/aiSpd));return;}
     const targets=units.filter(p=>p.side==='player'&&p.hp>0);
     const goal=targets.length?targets.sort((a,b)=>dist(u,a)-dist(u,b))[0]:bases.find(b=>b.home==='player');
     const opts=reachable(u);
@@ -647,13 +661,14 @@ function aiTurn(){
       const tg2=attackTargets(u);if(tg2.length){tg2.sort((a,b)=>a.hp-b.hp);doAttackAI(u,tg2[0]);}
       else u.attacked=true;
     }else{u.moved=true;u.attacked=true;}
-    setTimeout(step,180);
+    setTimeout(step,Math.round(180/aiSpd));
   }
   step();
 }
 function doAttackAI(u,t){
   const def=cellAt(t.q,t.r);const defB=def?TER[def.t].def:0;
   const dmg=Math.max(1,u.atk-defB);t.hp-=dmg;
+  addFx(u,t,dmg,'#ff5c8a');
   if(FX)FX.burst(sparks,hexCenter(t).x,hexCenter(t).y,'#ff5c8a',8);
   beep(180,.08,'sawtooth');
   u.attacked=true;u.moved=true;
@@ -662,7 +677,7 @@ function doAttackAI(u,t){
 }
 
 function startLevel(n){
-  lvl=n;boss=n%5===0;score=Math.max(0,score);turnsUsed=0;sel=null;moves=[];attacks=[];sparks=[];
+  lvl=n;boss=n%5===0;score=Math.max(0,score);turnsUsed=0;sel=null;moves=[];attacks=[];sparks=[];beams=[];pops=[];
   buildMap(n,mulberry32(n*7919+17));turn='player';aiBusy=false;state='play';last=performance.now();
   show('startScr',false);show('lvlScr',false);show('shopScr',false);show('tutScr',false);show('pauseOv',false);show('overScr',false);
   $('hint').textContent=boss?'👑 Boss指挥官：高血+召唤 · 歼灭或占敌据点':'点己方单位 → 目标格移动/攻击';
@@ -722,31 +737,53 @@ cv.addEventListener('pointerdown',e=>{
   if(u&&u.side==='player'){selectUnit(u);beep(520,.04);}
 });
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#3a1d7a','#120a2e');else{ctx.fillStyle='#1b1240';ctx.fillRect(0,0,W,H);}
-  const size=boardSize(),o=boardOrigin();
+  const bio=getBiome();
+  if(FX)FX.stage(ctx,W,H,bio.bg1,bio.bg2);else{ctx.fillStyle=bio.bg2;ctx.fillRect(0,0,W,H);}
+  const size=boardSize(),o=boardOrigin(),now=performance.now()*0.004;
   for(const c of cells){
     const p=hexPx(c.q,c.r,size);const x=o.x+p.x,y=o.y+p.y;
-    ctx.fillStyle=TER[c.t]?TER[c.t].col:'#5a3d8a';hexPath(ctx,x,y,size-1);ctx.fill();
+    ctx.fillStyle=c.t==='plain'?bio.plain:(TER[c.t]?TER[c.t].col:bio.plain);hexPath(ctx,x,y,size-1);ctx.fill();
     ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;hexPath(ctx,x,y,size-1);ctx.stroke();
-    if(c.t==='base'){ctx.fillStyle='#ffe08a';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('⚑',x,y+4);}
+    if(c.t==='base'){
+      const b=bases.find(x=>x.q===c.q&&x.r===c.r);
+      ctx.fillStyle=b&&b.owner==='player'?'#7df9ff':(b&&b.owner==='enemy'?'#ff6b9d':'#ffe08a');
+      ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('⚑',x,y+4);
+    }else if(c.t==='forest'||c.t==='mountain'){
+      ctx.save();ctx.globalAlpha=.32;ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText(c.t==='forest'?'🌲':'⛰',x,y+4);ctx.restore();
+    }
   }
   for(const m of moves){const p=hexPx(m.q,m.r,size);ctx.fillStyle='rgba(80,200,255,.35)';hexPath(ctx,o.x+p.x,o.y+p.y,size-2);ctx.fill();}
   for(const a of attacks){const p=hexPx(a.q,a.r,size);ctx.fillStyle='rgba(255,80,100,.4)';hexPath(ctx,o.x+p.x,o.y+p.y,size-2);ctx.fill();}
-  if(sel){const p=hexPx(sel.q,sel.r,size);ctx.strokeStyle='#ffe08a';ctx.lineWidth=3;hexPath(ctx,o.x+p.x,o.y+p.y,size-1);ctx.stroke();}
+  if(sel){
+    const p=hexPx(sel.q,sel.r,size);
+    ctx.strokeStyle='#ffe08a';ctx.lineWidth=2.5+Math.sin(now*2)*0.8;hexPath(ctx,o.x+p.x,o.y+p.y,size-1);ctx.stroke();
+  }
   for(const u of units){
     if(u.hp<=0)continue;
     const p=hexPx(u.q,u.r,size);const x=o.x+p.x,y=o.y+p.y;
+    const done=u.side==='player'&&u.moved&&u.attacked;
+    ctx.save();if(done)ctx.globalAlpha=0.58;
     if(FX)FX.shadow(ctx,x,y+size*0.55,size*0.45,size*0.18);
     const col=u.side==='player'?'#5B8CFF':'#FF5C8A';
     if(FX)FX.orb(ctx,x,y-2,size*0.55,col);else{ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y-2,size*0.55,0,7);ctx.fill();}
     ctx.font=(size*0.9|0)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(u.icon,x,y-2);
+    ctx.restore();
     ctx.fillStyle='#222';ctx.fillRect(x-14,y+size*0.55,28,4);
     ctx.fillStyle=u.side==='player'?'#3FC163':'#ff8a6a';
     ctx.fillRect(x-14,y+size*0.55,28*(u.hp/u.hpMax),4);
   }
+  for(let i=beams.length-1;i>=0;i--){
+    const b=beams[i];b.life-=0.07;if(b.life<=0){beams.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=b.life;ctx.strokeStyle=b.col;ctx.lineWidth=3.5*b.life;
+    ctx.beginPath();ctx.moveTo(b.x1,b.y1);ctx.lineTo(b.x2,b.y2);ctx.stroke();ctx.restore();
+  }
+  for(let i=pops.length-1;i>=0;i--){
+    const p=pops[i];p.life-=0.03;p.y-=0.7;if(p.life<=0){pops.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.col;ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();
+  }
   ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(8,8,W-16,48);
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.textBaseline='alphabetic';
-  ctx.fillText((boss?'👑 ':'')+'关'+lvl+' · '+(turn==='player'?'我方回合':'敌方回合')+' · 回合'+turnsUsed,16,28);
+  ctx.fillText((boss?'👑 ':'')+'关'+lvl+' · '+bio.name+' · '+(turn==='player'?'我方回合':'敌方回合')+' · R'+turnsUsed,16,28);
   const aliveP=units.filter(u=>u.side==='player'&&u.hp>0).length;
   const aliveE=units.filter(u=>u.side==='enemy'&&u.hp>0).length;
   ctx.fillText('我军 '+aliveP+' · 敌军 '+aliveE+(sel?(' · '+sel.name+' AT'+sel.atk+' 距'+sel.rng):''),16,46);
@@ -777,6 +814,7 @@ function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').text
     btn.onclick=()=>{prog.coins-=it.cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();};row.appendChild(btn);box.appendChild(row);}
 }
 $('startBtn').onclick=openLevels;$('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
+$('spdBtn').onclick=()=>{aiSpd=aiSpd===1?2:1;$('spdBtn').textContent=aiSpd+'×';toast('AI 回合速度 '+aiSpd+'×');};
 $('shopBtn').onclick=openShop;$('shopBack').onclick=openLevels;
 $('endTurnBtn').onclick=endTurn;
 $('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};

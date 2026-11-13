@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🚧 水闸守城</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">开关船闸、点岸位布塔，别让敌军摸到城门</p>
 </div>
-<div class="overlay" id="startScr"><h1>🚧 水闸守城</h1><p>点按船闸开合以滞留敌军，闸门右侧可泄洪冲走轻型舟。<br>岸上位置有限，把炮塔布在瓶颈处。<br>首领关会出现两栖部队和卡闸者。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🚧 水闸守城</h1><p>点按船闸开合以滞留敌军，闸门右侧可泄洪冲走轻型舟。<br>岸上位置有限，把炮塔布在瓶颈处。<br>首领关会出现两栖部队和卡闸者。<br><small style="opacity:.85">v2（Gemini 优化）：新增三大河道防线、泄洪蓄能条、炮塔光束与倍速切换</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -548,9 +549,12 @@ function placeTower(slot){
   if(gold<cost){toast('金币不足');return;}
   gold-=cost;slot.used=towers.length;towers.push({x:slot.x+14,y:slot.y+14,cd:0});beep(700,.08);addScore(6);
 }
+const RIVERS=[['#0b4a6e','#03121f'],['#133a5e','#051026'],['#3b1c4a','#10051c']];
+let beams=[],rings=[],fast=1;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 function flood(L){
   if(water<1){toast('水位不足');return;}
-  water=0;beep(320,.16,'triangle');
+  water=0;beep(320,.16,'triangle');rings.push({x:L.x,y:L.y,r:10,a:1,col:'#67e8f9'});
   enemies.forEach(e=>{if(Math.abs(e.x-L.x)<30&&Math.abs(e.y-L.y)<50&&e.kind==='boat'){e.hp-=18+lvl;addScore(4);}});
 }
 function onDown(p){
@@ -579,21 +583,26 @@ function update(dt){
     e.y+=e.spd*mul*dt;
     if(e.y>H-36){e.hp=0;lives--;beep(160,.2,'sawtooth');if(lives<=0)return lose('城门被突破');}
   }
+  for(let i=beams.length-1;i>=0;i--){beams[i].a-=dt*5;if(beams[i].a<=0)beams.splice(i,1);}
+  for(let i=rings.length-1;i>=0;i--){rings[i].r+=85*dt;rings[i].a-=2*dt;if(rings[i].a<=0)rings.splice(i,1);}
   const dmg=6+(prog.dmgLv|0)*2;
   towers.forEach(tw=>{
     tw.cd-=dt;
     if(tw.cd<=0){
       let best=null,bd=99;
       enemies.forEach(e=>{if(e.hp<=0)return;const d=Math.hypot(e.x-tw.x,e.y-tw.y);if(d<78&&d<bd){best=e;bd=d;}});
-      if(best){best.hp-=dmg;tw.cd=0.45;if(best.hp<=0){gold+=4;addScore(8+lvl);beep(880,.05);if(FX)FX.burst(sparks,best.x,best.y,'#ffd34d',10);}}
+      if(best){best.hp-=dmg;tw.cd=0.45;beams.push({x1:tw.x,y1:tw.y,x2:best.x,y2:best.y,a:1});if(best.hp<=0){gold+=4;addScore(8+lvl);beep(880,.05);if(FX)FX.burst(sparks,best.x,best.y,'#ffd34d',10);}}
     }
   });
   if(spawnI>=wave.length&&enemies.every(e=>e.hp<=0||e.y>H))win();
 }
 function draw(){
-  hits=[];stage('#0b4a6e','#03121f');
+  const rv=RIVERS[Math.min(2,((lvl-1)/5)|0)]||RIVERS[0];
+  hits=[];stage(rv[0],rv[1]);
   if(state!=='play'&&state!=='pause')return;
-  label((boss?'👑 ':'')+'第 '+lvl+' 关  金币 '+gold+'  城门 '+'❤'.repeat(Math.max(0,lives)),14,18,'#fff',13,'left');
+  label((boss?'👑 ':'')+'第 '+lvl+' 关  💰'+gold+'  '+'❤'.repeat(Math.max(0,lives)),14,18,'#fff',13,'left');
+  tile(236,10,110,12,'rgba(0,0,0,.35)',6);tile(236,10,110*water,12,water>=1?'#67e8f9':'#38bdf8',6);
+  label(water>=1?'🌊可泄洪':'蓄水',291,16,'#083344',9,'center');
   lanes.forEach(x=>{ctx.fillStyle='rgba(46,230,214,.18)';ctx.fillRect(x-22,30,44,H-70);});
   tile(16,H-36,328,28,'#334155',8);label('城门',W/2,H-22,'#e0f2fe',12,'center');
   locks.forEach(L=>{
@@ -605,6 +614,8 @@ function draw(){
     if(s.used<0)label('+',s.x+18,s.y+18,'#7dd3fc',16,'center');
   });
   towers.forEach(tw=>{if(FX)FX.shadow(ctx,tw.x,tw.y+12,12,4);orb(tw.x,tw.y,12,'#fbbf24');});
+  beams.forEach(bm=>{ctx.save();ctx.globalAlpha=Math.max(0,bm.a);ctx.strokeStyle='#fde047';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(bm.x1,bm.y1);ctx.lineTo(bm.x2,bm.y2);ctx.stroke();ctx.restore();});
+  rings.forEach(rg=>{ctx.save();ctx.globalAlpha=Math.max(0,rg.a);ctx.strokeStyle=rg.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(rg.x,rg.y,rg.r,0,7);ctx.stroke();ctx.restore();});
   enemies.forEach(e=>{
     if(e.hp<=0)return;
     const col=e.kind==='amph'?'#f472b6':e.kind==='jammer'?'#f87171':e.kind==='arm'?'#94a3b8':'#67e8f9';
@@ -634,6 +645,6 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')for(let k=0;k<fast;k++)update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 </script>
 </body></html>
