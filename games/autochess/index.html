@@ -450,6 +450,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">♟ 霓虹自走</span>
     <span class="stat">得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -457,7 +458,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">买棋 → 点空位放下 → 开战</p>
 </div>
-<div class="overlay" id="startScr"><h1>♟ 霓虹自走</h1><p>买棋布阵自动开战，羁绊叠加攻击。<br>15 回合经济成长，每 5 关强化 Boss。<br>商店升级利息与欧气。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>♟ 霓虹自走</h1><p>买棋布阵自动开战，羁绊叠加攻击。<br>15 回合经济成长，每 5 关强化 Boss。<br>商店升级利息与欧气。<br><small style="opacity:.85">v3（Gemini 优化）：新增三大霓虹棋盘、战前敌方预览、攻击光束与倍速切换</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -511,8 +512,14 @@ const UNITS=[
   {id:'assassin',name:'刺',syn:'shadow',atk:12,hp:8,cost:3,col:'#ff6b8a'},
   {id:'dragon',name:'龙',syn:'arcane',atk:15,hp:30,cost:4,col:'#ff9f2e'}
 ];
-let board=new Array(9).fill(null),enemyBoard=[],gold=0,life=20,round=0,shop=[],fighting=false,ft=0,selShop=-1,btnRects=[];
+const STAGES=[
+  {top:'#1a0a40',bot:'#05051a',tile:'#1a1446'},
+  {top:'#0c3456',bot:'#030f1e',tile:'#102a46'},
+  {top:'#4a0e28',bot:'#14030c',tile:'#381022'}
+];
+let board=new Array(9).fill(null),enemyBoard=[],gold=0,life=20,round=0,shop=[],fighting=false,ft=0,selShop=-1,btnRects=[],beams=[],fast=1,stg=STAGES[0];
 let myFighters=[],enFighters=[];
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 
 function rollShop(){
   shop=[];const rnd=mulberry32(lvl*131+round*17+gold);
@@ -524,9 +531,9 @@ function rollShop(){
   }
 }
 function startLevel(n){
-  lvl=n;boss=n%5===0;score=Math.max(0,score);
+  lvl=n;boss=n%5===0;score=Math.max(0,score);stg=STAGES[Math.min(2,((n-1)/5)|0)];beams=[];
   board=new Array(9).fill(null);gold=8+prog.econLv*2;life=20+prog.hpLv*5;
-  round=0;fighting=false;selShop=-1;rollShop();
+  round=0;fighting=false;selShop=-1;rollShop();spawnEnemy();
   state='play';last=performance.now();
   show('startScr',false);show('lvlScr',false);show('shopScr',false);show('tutScr',false);show('pauseOv',false);show('overScr',false);
   $('hint').textContent=boss?'👑 Boss 回合：买棋布阵后开战':'买棋 → 点空位放下 → 开战';
@@ -558,32 +565,38 @@ function startFight(){
   beep(700,.1);
 }
 function update(dt){
+  for(let i=beams.length-1;i>=0;i--){beams[i].a-=dt*5;if(beams[i].a<=0)beams.splice(i,1);}
   if(!fighting||state!=='play')return;
   ft+=dt;if(ft<0.45)return;ft=0;
+  const bs=70,ox=(W-3*bs)/2,oy=70;
   // each alive unit attacks random enemy
-  const attack=(from,to)=>{
+  const attack=(from,to,isMy)=>{
     if(!from.length||!to.length)return;
     const a=from[(Math.random()*from.length)|0];
-    const b=to[(Math.random()*to.length)|0];
+    const bi=(Math.random()*to.length)|0,b=to[bi];
     b.hp-=a.atk;score+=a.atk;$('score').textContent=score;
-    if(FX)FX.burst(sparks,180,200,a.col,4);
-    if(b.hp<=0){to.splice(to.indexOf(b),1);beep(520,.05);}
+    const ax=isMy?ox+(a.slot%3)*bs+bs/2:30+from.indexOf(a)*46;
+    const ay=isMy?oy+((a.slot/3)|0)*bs+bs/2:332;
+    const bx=isMy?30+bi*46:ox+(b.slot%3)*bs+bs/2;
+    const by=isMy?332:oy+((b.slot/3)|0)*bs+bs/2;
+    beams.push({x1:ax,y1:ay,x2:bx,y2:by,a:1,col:a.col});
+    if(FX)FX.burst(sparks,bx,by,a.col,4);
+    if(b.hp<=0){to.splice(bi,1);beep(520,.05);}
   };
-  attack(myFighters,enFighters);attack(enFighters,myFighters);
+  attack(myFighters,enFighters,true);attack(enFighters,myFighters,false);
   if(!enFighters.length||!myFighters.length){
     fighting=false;
     const winR=!enFighters.length&&myFighters.length;
     if(winR){
       round++;gold+=5+prog.econLv+(boss?3:0);score+=40+(boss?60:0);$('score').textContent=score;
       if(round>=Math.min(8,3+Math.floor(lvl/3))+(boss?0:0))return win();
-      // sync surviving board hp roughly
       board=board.map(u=>u?{...u}:null);
-      rollShop();toast('回合胜利！金币 '+gold);beep(900,.1);
+      rollShop();spawnEnemy();toast('回合胜利！金币 '+gold);beep(900,.1);
       if(boss&&round>=1)return win();
     }else{
       life-=boss?5:3;beep(180,.2,'sawtooth');
       if(life<=0)return lose('主公阵亡');
-      rollShop();toast('败北 -生命 剩'+life);
+      rollShop();spawnEnemy();toast('败北 -生命 剩'+life);
       board=board.map(u=>u?{...u}:null);
     }
   }
@@ -621,27 +634,30 @@ cv.addEventListener('pointerdown',e=>{
   for(let i=0;i<3;i++){const x=20+i*110,y=H-100;if(p.x>=x&&p.x<=x+100&&p.y>=y&&p.y<=y+70){buy(i);return;}}
 });
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#1a0a40','#05051a');else{ctx.fillStyle='#0a0620';ctx.fillRect(0,0,W,H);}
+  const st=stg||STAGES[0];
+  if(FX)FX.stage(ctx,W,H,st.top,st.bot);else{ctx.fillStyle=st.bot;ctx.fillRect(0,0,W,H);}
   if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.textAlign='left';
+  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';
   ctx.fillText('💰'+gold+'  ♥'+life+'  回合 '+(round+1)+'  羁绊+'+countSyn(board),12,24);
   const bs=70,ox=(W-3*bs)/2,oy=70;
   for(let i=0;i<9;i++){
     const x=ox+(i%3)*bs,y=oy+((i/3)|0)*bs;
-    if(FX)FX.tile(ctx,x+2,y+2,bs-4,bs-4,'#1a1446',8);else{ctx.fillStyle='#1a1446';ctx.fillRect(x+2,y+2,bs-4,bs-4);}
+    if(FX)FX.tile(ctx,x+2,y+2,bs-4,bs-4,st.tile,8);else{ctx.fillStyle=st.tile;ctx.fillRect(x+2,y+2,bs-4,bs-4);}
     const u=fighting?(myFighters.find(f=>f.slot===i)):board[i];
     if(u){
       if(FX)FX.orb(ctx,x+bs/2,y+bs/2-6,16,u.col);else{ctx.fillStyle=u.col;ctx.beginPath();ctx.arc(x+bs/2,y+bs/2-6,16,0,7);ctx.fill();}
-      ctx.fillStyle='#fff';ctx.font='11px sans-serif';ctx.textAlign='center';
+      ctx.fillStyle='#fff';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
       ctx.fillText(u.name,x+bs/2,y+bs-10);
-      if(fighting)ctx.fillText(Math.max(0,u.hp|0),x+bs/2,y+20);
+      if(fighting){ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(x+14,y+8,bs-28,4);ctx.fillStyle='#4ade80';ctx.fillRect(x+14,y+8,(bs-28)*Math.max(0,u.hp/u.max),4);}
     }
   }
-  // enemy preview strip
-  ctx.fillStyle='#ff8af0';ctx.font='11px sans-serif';ctx.textAlign='left';ctx.fillText(fighting?'敌方战斗中':'敌方预览',12,300);
-  if(fighting){
-    enFighters.forEach((u,i)=>{if(FX)FX.orb(ctx,30+i*40,330,12,u.col);ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText(Math.max(0,u.hp|0),30+i*40,350);});
-  }
+  // enemy preview / battle strip
+  ctx.fillStyle='#ff8af0';ctx.font='bold 11px sans-serif';ctx.textAlign='left';ctx.fillText(fighting?'⚔️ 敌方交战中':'👁 敌方下轮阵型',12,300);
+  const elist=fighting?enFighters:enemyBoard.filter(Boolean);
+  elist.forEach((u,i)=>{const ex=30+i*46,ey=332;if(FX)FX.orb(ctx,ex,ey,12,u.col);else{ctx.fillStyle=u.col;ctx.beginPath();ctx.arc(ex,ey,12,0,7);ctx.fill();}
+    ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText(fighting?(Math.max(0,u.hp|0)+''):u.name,ex,ey+22);
+    if(fighting){ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(ex-12,ey-18,24,3);ctx.fillStyle='#ff5252';ctx.fillRect(ex-12,ey-18,24*Math.max(0,u.hp/u.max),3);}});
+  for(const bm of beams){ctx.save();ctx.globalAlpha=Math.max(0,bm.a);ctx.strokeStyle=bm.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(bm.x1,bm.y1);ctx.lineTo(bm.x2,bm.y2);ctx.stroke();ctx.restore();}
   // shop
   if(!fighting)for(let i=0;i<3;i++){
     const x=20+i*110,y=H-100,u=shop[i];
@@ -699,6 +715,6 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')for(let k=0;k<fast;k++)update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 </script>
 </body></html>

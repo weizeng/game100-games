@@ -450,6 +450,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">⚔️ 时代远征</span>
     <span class="stat">得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -457,7 +458,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点兵种出兵 · 技能推线</p>
 </div>
-<div class="overlay" id="startScr"><h1>⚔️ 时代远征</h1><p>点兵种卡花食物出兵，沿单线自动行军交战。<br>贵兵与群兵取舍是关键；每 5 关时代跃迁。<br>15 关含 Boss 巨兽。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>⚔️ 时代远征</h1><p>点兵种卡花食物出兵，沿单线自动行军交战。<br>贵兵与群兵取舍是关键；每 5 关时代跃迁。<br>15 关含 Boss 巨兽。<br><small style="opacity:.85">v3（Gemini 优化）：新增三大时代战场、单位阵营血条、倍速切换与技能光环</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -498,29 +499,45 @@ const AGES=[
   {name:'铁器',units:[{n:'弩手',c:20,hp:40,atk:12,spd:46,k:'r'},{n:'剑士',c:28,hp:75,atk:14,spd:40,k:'m'},{n:'骑士',c:55,hp:160,atk:22,spd:34,k:'h'}]},
 ];
 const COL={r:'#5ad0ff',m:'#ffcf33',h:'#ff6b9d'};
-let food=0,foodRate=8,myBase=200,enBase=200,units=[],skillReady=1,skillKind=0,tAcc=0,age=0;
+const AGE_BG=[
+  {top:'#7cb342',bot:'#2e5e18',lane:'rgba(255,248,220,.18)'},
+  {top:'#f59e0b',bot:'#9a3412',lane:'rgba(255,237,213,.18)'},
+  {top:'#4f46e5',bot:'#1e1b4b',lane:'rgba(199,210,254,.18)'}
+];
+let food=0,foodRate=8,myBase=200,myMax=200,enBase=200,enMax=200,units=[],rings=[],skillReady=1,skillKind=0,tAcc=0,age=0,fast=1;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 function ageIdx(){return Math.min(2,((lvl-1)/5)|0);}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];age=ageIdx();food=30+(prog.foodLv|0)*5;foodRate=8*(1+(prog.foodLv|0)*.08)*(boss?0.9:1);myBase=200+(prog.baseLv|0)*40;enBase=160+lvl*18+(boss?120:0);units=[];skillReady=1;skillKind=lvl%3;tAcc=0;$('score').textContent=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('hint').textContent=AGES[age].name+' · 点卡出兵 · 技能'+(skillReady?'就绪':'冷却');}
-function spawn(side,u){const y=side>0?H-70:70;units.push({side,x:W/2+(Math.random()-0.5)*20,y,hp:u.hp*(1+(prog.atkLv|0)*.05*(side>0?1:0)),max:u.hp,atk:u.atk*(1+(prog.atkLv|0)*.1*(side>0?1:0)),spd:u.spd,k:u.k,n:u.n,cd:0});}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rings=[];age=ageIdx();food=30+(prog.foodLv|0)*5;foodRate=8*(1+(prog.foodLv|0)*.08)*(boss?0.9:1);myMax=200+(prog.baseLv|0)*40;myBase=myMax;enMax=160+lvl*18+(boss?120:0);enBase=enMax;units=[];skillReady=1;skillKind=lvl%3;tAcc=0;$('score').textContent=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('hint').textContent=AGES[age].name+' · 点卡出兵 · 技能'+(skillReady?'就绪':'冷却');}
+function spawn(side,u){const y=side>0?H-70:70;const hp=u.hp*(1+(prog.atkLv|0)*.05*(side>0?1:0));units.push({side,x:W/2+(Math.random()-0.5)*20,y,hp,max:hp,atk:u.atk*(1+(prog.atkLv|0)*.1*(side>0?1:0)),spd:u.spd,k:u.k,n:u.n,cd:0});}
 function enemyAI(dt){tAcc+=dt;const rate=1.2+lvl*0.08+(boss?0.4:0);if(tAcc>rate){tAcc=0;const pool=AGES[age].units;const u=pool[Math.random()*pool.length|0];spawn(-1,u);}}
 function beat(a,b){return(a.k==='m'&&b.k==='r')||(a.k==='r'&&b.k==='h')||(a.k==='h'&&b.k==='m');}
-function update(dt){food+=foodRate*dt;enemyAI(dt);const enRate=foodRate*(0.7+lvl*0.03);/*enemy virtual food not needed*/;
+function update(dt){food+=foodRate*dt;enemyAI(dt);
+  for(let i=rings.length-1;i>=0;i--){rings[i].r+=180*dt;rings[i].a-=1.8*dt;if(rings[i].a<=0)rings.splice(i,1);}
   for(const u of units){u.y+=u.side*(-u.spd)*dt;u.cd=Math.max(0,u.cd-dt);}
   for(let i=0;i<units.length;i++)for(let j=i+1;j<units.length;j++){const a=units[i],b=units[j];if(a.side===b.side)continue;if(Math.abs(a.y-b.y)<22&&Math.abs(a.x-b.x)<30){if(a.cd<=0){const mul=beat(a,b)?1.4:1;b.hp-=a.atk*mul;a.cd=0.45;score+=2;if(FX)FX.burst(sparks,(a.x+b.x)/2,(a.y+b.y)/2,COL[a.k],6);}if(b.cd<=0){const mul=beat(b,a)?1.4:1;a.hp-=b.atk*mul;b.cd=0.45;}}}
   units=units.filter(u=>{if(u.hp<=0){if(u.side<0)score+=10;$('score').textContent=score|0;return false;}if(u.side>0&&u.y<55){enBase-=u.atk*2;u.hp=0;beep(700,.05);return false;}if(u.side<0&&u.y>H-55){myBase-=u.atk*2;u.hp=0;beep(200,.08,'triangle');return false;}return true;});
   if(enBase<=0)win();else if(myBase<=0)lose('基地被破');}
 function win(){if(state!=='play')return;const stars=boss?3:(score>200?3:score>100?2:1);const gain=35+stars*15+(boss?70:0)+Math.floor(score/8);finishWin(stars,gain,'时代推进！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(p.y>H-90){const pool=AGES[age].units;const i=Math.max(0,Math.min(pool.length-1,((p.x/(W/pool.length))|0)));const u=pool[i];const cost=u.c;if(food>=cost){food-=cost;spawn(1,u);beep(760,.06);toast(u.n);}else toast('粮不足');return;}if(skillReady&&p.y<H-100&&p.y>60){skillReady=0;if(skillKind===0){units.filter(u=>u.side>0).forEach(u=>u.y-=40);toast('全军推进');}else if(skillKind===1){units.filter(u=>u.side<0).forEach(u=>u.spd*=0.4);toast('冻结敌军');}else{food+=40;toast('紧急补给');}beep(990,.12);$('hint').textContent=AGES[age].name+' · 技能已用';}});
-function draw(){if(FX)FX.stage(ctx,W,H,'#72cbff','#3b62ef');else{ctx.fillStyle='#3b62ef';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(W/2-18,50,36,H-100);
-  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('粮'+(food|0)+' 我'+(myBase|0)+' 敌'+(enBase|0)+(boss?' 👑':''),10,22);
-  ctx.fillText(AGES[age].name,W-70,22);
-  // bases
-  if(FX){FX.tile(ctx,W/2-28,28,56,28,'#5ad0ff');FX.tile(ctx,W/2-28,H-58,56,28,'#ffcf33');}else{ctx.fillStyle='#5ad0ff';ctx.fillRect(W/2-28,28,56,28);ctx.fillStyle='#ffcf33';ctx.fillRect(W/2-28,H-58,56,28);}
-  for(const u of units){const c=COL[u.k];if(FX)FX.orb(ctx,u.x,u.y,10,c);else{ctx.fillStyle=c;ctx.beginPath();ctx.arc(u.x,u.y,10,0,7);ctx.fill();}ctx.fillStyle='#fff';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.fillText((u.hp|0)+'',u.x,u.y-14);}
-  const pool=AGES[age].units;const tw=W/pool.length;pool.forEach((u,i)=>{const x=tw*i+8,y=H-78;ctx.fillStyle=food>=u.c?'rgba(255,255,255,.2)':'rgba(0,0,0,.25)';ctx.fillRect(x,y,tw-16,66);ctx.fillStyle=COL[u.k];ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText(u.n,x+(tw-16)/2,y+22);ctx.fillStyle='#fff';ctx.fillText(u.c+'粮',x+(tw-16)/2,y+42);});
-  if(skillReady){ctx.fillStyle='#ffe08a';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('点战场释技能',W/2,H-95);}
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(p.y>H-90){const pool=AGES[age].units;const i=Math.max(0,Math.min(pool.length-1,((p.x/(W/pool.length))|0)));const u=pool[i];const cost=u.c;if(food>=cost){food-=cost;spawn(1,u);beep(760,.06);toast(u.n);}else toast('粮不足');return;}if(skillReady&&p.y<H-100&&p.y>60){skillReady=0;rings.push({x:p.x,y:p.y,r:10,a:1,col:'#ffe08a'});if(skillKind===0){units.filter(u=>u.side>0).forEach(u=>u.y-=40);toast('全军推进');}else if(skillKind===1){units.filter(u=>u.side<0).forEach(u=>u.spd*=0.4);toast('冻结敌军');}else{food+=40;toast('紧急补给');}beep(990,.12);$('hint').textContent=AGES[age].name+' · 技能已用';}});
+function draw(){const ab=AGE_BG[age]||AGE_BG[0];if(FX)FX.stage(ctx,W,H,ab.top,ab.bot);else{ctx.fillStyle=ab.bot;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  ctx.fillStyle=ab.lane;ctx.fillRect(W/2-24,50,48,H-130);
+  ctx.strokeStyle='rgba(255,255,255,.2)';ctx.setLineDash([8,8]);ctx.beginPath();ctx.moveTo(W/2,56);ctx.lineTo(W/2,H-84);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('🌾'+(food|0)+'  🛡'+(myBase|0)+'  ⚔'+(enBase|0)+(boss?' 👑':''),10,22);
+  ctx.fillText(AGES[age].name+'时代',W-72,22);
+  // bases + hp bars
+  if(FX){FX.tile(ctx,W/2-30,28,60,26,'#5ad0ff');FX.tile(ctx,W/2-30,H-108,60,26,'#ffcf33');}else{ctx.fillStyle='#5ad0ff';ctx.fillRect(W/2-30,28,60,26);ctx.fillStyle='#ffcf33';ctx.fillRect(W/2-30,H-108,60,26);}
+  ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(W/2-30,20,60,5);ctx.fillRect(W/2-30,H-115,60,5);
+  ctx.fillStyle='#ff5252';ctx.fillRect(W/2-30,20,60*Math.max(0,enBase/enMax),5);
+  ctx.fillStyle='#4ade80';ctx.fillRect(W/2-30,H-115,60*Math.max(0,myBase/myMax),5);
+  for(const rg of rings){ctx.save();ctx.globalAlpha=Math.max(0,rg.a);ctx.strokeStyle=rg.col;ctx.lineWidth=3;ctx.beginPath();ctx.arc(rg.x,rg.y,rg.r,0,7);ctx.stroke();ctx.restore();}
+  for(const u of units){const c=COL[u.k];ctx.strokeStyle=u.side>0?'#ffd54f':'#ff5252';ctx.lineWidth=2;ctx.beginPath();ctx.arc(u.x,u.y,12,0,7);ctx.stroke();
+    if(FX)FX.orb(ctx,u.x,u.y,9,c);else{ctx.fillStyle=c;ctx.beginPath();ctx.arc(u.x,u.y,9,0,7);ctx.fill();}
+    ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(u.x-10,u.y-17,20,3);ctx.fillStyle=u.side>0?'#4ade80':'#ff5252';ctx.fillRect(u.x-10,u.y-17,20*Math.max(0,u.hp/u.max),3);}
+  const pool=AGES[age].units;const tw=W/pool.length;pool.forEach((u,i)=>{const x=tw*i+6,y=H-76,ok=food>=u.c;
+    if(FX&&ok)FX.tile(ctx,x,y,tw-12,64,COL[u.k],10);else{ctx.fillStyle=ok?'rgba(255,255,255,.22)':'rgba(0,0,0,.3)';ctx.fillRect(x,y,tw-12,64);}
+    ctx.fillStyle=ok?'#111':'#bbb';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(u.n,x+(tw-12)/2,y+26);ctx.fillText(u.c+'粮',x+(tw-12)/2,y+46);});
+  if(skillReady){ctx.fillStyle='#ffe08a';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText('✨ 点战场释技能',W/2,H-122);}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);enBase=0;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,food:food|0,myBase:myBase|0,enBase:enBase|0}}};
 
@@ -540,7 +557,7 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')for(let k=0;k<fast;k++)update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>
