@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">⛏️ 矿工远征</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点招兵 · 推毁敌雕像</p>
 </div>
-<div class="overlay" id="startScr"><h1>⛏️ 矿工远征</h1><p>采矿攒金招兵，切换进攻/防守/采矿阵型，<br>推毁敌方雕像获胜。<br>Boss：巨人族 / 法师族。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>⛏️ 矿工远征</h1><p>采矿攒金招兵，切换进攻/防守/采矿阵型，<br>推毁敌方雕像获胜。<br>Boss：巨人族 / 法师族。<br>v2（Gemini 优化：新增三大矿区地貌、兵种图标与血条、战斗粒子及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -489,7 +490,9 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 
 const TUT=[["采矿","矿工自动产金，人口有上限。"],["招兵","点兵种按钮消耗金币招募。"],["阵型","切换采矿/防守/进攻三态。"],["胜利","推掉敌方雕像；保住己方雕像。"]];
 const SHOP=[{k:'mineLv',name:'采矿速',max:3,cost(){return 40+(prog.mineLv|0)*30;},desc(){return '产金+'}},{k:'popLv',name:'人口',max:2,cost(){return 50+(prog.popLv|0)*40;},desc(){return '人口上限+'}},{k:'statHp',name:'雕像血',max:2,cost(){return 45+(prog.statHp|0)*35;},desc(){return '雕像生命+'}}];
-const UNITS=[{k:'spear',name:'枪',cost:25,hp:40,atk:8,spd:40,col:'#4fc3f7'},{k:'archer',name:'弓',cost:35,hp:28,atk:10,spd:35,col:'#33e1a0'},{k:'mage',name:'法',cost:50,hp:22,atk:16,spd:30,col:'#b26bff'},{k:'giant',name:'巨',cost:70,hp:90,atk:14,spd:22,col:'#ff9f2e'}];
+const UNITS=[{k:'spear',name:'枪',icon:'🔱',cost:25,hp:40,atk:8,spd:40,col:'#4fc3f7'},{k:'archer',name:'弓',icon:'🏹',cost:35,hp:28,atk:10,spd:35,col:'#33e1a0'},{k:'mage',name:'法',icon:'🔮',cost:50,hp:22,atk:16,spd:30,col:'#b26bff'},{k:'giant',name:'巨',icon:'🗿',cost:70,hp:90,atk:14,spd:22,col:'#ff9f2e'}];
+const ZONES=[{name:'蓝晶矿谷',bg1:'#5aa9ff',bg2:'#2948b8'},{name:'翠玉丛林',bg1:'#39b88c',bg2:'#165c45'},{name:'熔岩赤地',bg1:'#d45b4e',bg2:'#521a20'}];
+let spd=1;
 let gold,pop,popMax,mode,myUnits,enUnits,myStatue,enStatue,spawnT,mana,rng,btns;
 function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*9901+1);gold=80+n*5;pop=0;popMax=6+(prog.popLv|0)*2;mode='mine';myUnits=[];enUnits=[];mana=50;spawnT=2;
   myStatue={x:60,y:H/2,hp:200+(prog.statHp|0)*40,max:200+(prog.statHp|0)*40};
@@ -497,7 +500,7 @@ function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n
   btns=UNITS.map((u,i)=>({...u,x:20+i*85,y:H-50,w:78,h:36}));
   show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='招兵推雕像';}
 function spawnEnemy(){const pool=boss&&lvl>10?[3,2,1]:boss?[3,0]:[0,1,Math.min(3,(lvl/4)|0)];const t=UNITS[pool[(rng()*pool.length)|0]];
-  enUnits.push({k:t.k,x:W-100,y:80+rng()*(H-200),hp:t.hp*(1+lvl*.05),atk:t.atk,spd:t.spd,col:t.col,side:'en'});}
+  const max=t.hp*(1+lvl*.05);enUnits.push({k:t.k,icon:t.icon,x:W-100,y:115+rng()*(H-210),hp:max,max,atk:t.atk,spd:t.spd,col:t.col,side:'en'});}
 function win(){if(state!=='play')return;finishWin(3,55+(boss?40:0),'雕像倒下！');}
 function lose(m){if(state!=='play')return;finishLose(m);}
 function update(dt){const mineRate=8+(prog.mineLv|0)*3+(mode==='mine'?6:0);gold+=mineRate*dt;mana=Math.min(100,mana+5*dt);
@@ -507,23 +510,38 @@ function update(dt){const mineRate=8+(prog.mineLv|0)*3+(mode==='mine'?6:0);gold+
   for(const u of myUnits){u.x+=u.spd*dt*march;if(u.x>enStatue.x-20){enStatue.hp-=u.atk*dt;u.x=enStatue.x-20;score+=1;$('score').textContent=score|0;}}
   for(const u of enUnits){u.x-=u.spd*dt*(mode==='defend'?0.7:1);if(u.x<myStatue.x+20){myStatue.hp-=u.atk*dt*(mode==='defend'?0.6:1);u.x=myStatue.x+20;}}
   // unit clashes
-  for(const m of myUnits)for(const e of enUnits){if(Math.abs(m.x-e.x)<20&&Math.abs(m.y-e.y)<30){e.hp-=m.atk*dt;m.hp-=e.atk*dt*.8;}}
+  for(const m of myUnits)for(const e of enUnits){if(Math.abs(m.x-e.x)<20&&Math.abs(m.y-e.y)<30){e.hp-=m.atk*dt;m.hp-=e.atk*dt*.8;if(FX&&Math.random()<.12)FX.burst(sparks,(m.x+e.x)/2,(m.y+e.y)/2,'#ffe066',3);}}
+  for(const u of myUnits)if(u.hp<=0&&FX)FX.burst(sparks,u.x,u.y,'#7df9ff',8);
+  for(const u of enUnits)if(u.hp<=0&&FX)FX.burst(sparks,u.x,u.y,'#ff5c8a',8);
   myUnits=myUnits.filter(u=>u.hp>0);enUnits=enUnits.filter(u=>u.hp>0);pop=myUnits.length;
   if(enStatue.hp<=0)return win();if(myStatue.hp<=0)return lose('雕像被毁');}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
-  for(const b of btns){if(p.x>b.x&&p.x<b.x+b.w&&p.y>b.y&&p.y<b.y+b.h){if(gold<b.cost){toast('金币不足');return;}if(pop>=popMax){toast('人口满');return;}gold-=b.cost;myUnits.push({k:b.k,x:100,y:100+rng()*(H-220),hp:b.hp,atk:b.atk,spd:b.spd,col:b.col,side:'me'});pop++;beep(700,.05);return;}}
+  for(const b of btns){if(p.x>b.x&&p.x<b.x+b.w&&p.y>b.y&&p.y<b.y+b.h){if(gold<b.cost){toast('金币不足');return;}if(pop>=popMax){toast('人口满');return;}gold-=b.cost;myUnits.push({k:b.k,icon:b.icon,x:100,y:115+rng()*(H-210),hp:b.hp,max:b.hp,atk:b.atk,spd:b.spd,col:b.col,side:'me'});pop++;if(FX)FX.burst(sparks,100,myStatue.y,'#ffe066',6);beep(700,.05);return;}}
   // mode toggles
-  if(p.y>60&&p.y<100){if(p.x<120)mode='mine';else if(p.x<240)mode='defend';else mode='attack';toast(mode);beep(500,.03);}});
-function draw(){if(FX)FX.stage(ctx,W,H,'#72cbff','#3b62ef');else{ctx.fillStyle='#3b62ef';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  if(p.y>60&&p.y<100){if(p.x<120)mode='mine';else if(p.x<240)mode='defend';else mode='attack';toast(mode==='mine'?'采矿模式':mode==='defend'?'防守模式':'进攻模式');beep(500,.03);}});
+function draw(){const z=ZONES[Math.min(2,Math.floor((lvl-1)/5))];if(FX)FX.stage(ctx,W,H,z.bg1,z.bg2);else{ctx.fillStyle=z.bg2;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  ctx.fillStyle='rgba(0,0,0,.14)';ctx.fillRect(0,104,W,H-170);
   // statues
-  if(FX){FX.tile(ctx,myStatue.x-20,myStatue.y-40,40,80,'#3fc163',8);FX.tile(ctx,enStatue.x-20,enStatue.y-40,40,80,'#e74c3c',8);}
+  if(FX){FX.shadow(ctx,myStatue.x,myStatue.y+42,24,7);FX.shadow(ctx,enStatue.x,enStatue.y+42,24,7);FX.tile(ctx,myStatue.x-20,myStatue.y-40,40,80,'#3fc163',8);FX.tile(ctx,enStatue.x-20,enStatue.y-40,40,80,'#e74c3c',8);}
   else{ctx.fillStyle='#3fc163';ctx.fillRect(myStatue.x-20,myStatue.y-40,40,80);ctx.fillStyle='#e74c3c';ctx.fillRect(enStatue.x-20,enStatue.y-40,40,80);}
-  ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText((myStatue.hp|0)+'',myStatue.x,myStatue.y-45);ctx.fillText((enStatue.hp|0)+'',enStatue.x,enStatue.y-45);
-  for(const u of myUnits.concat(enUnits)){if(FX)FX.orb(ctx,u.x,u.y,10,u.col);else{ctx.fillStyle=u.col;ctx.beginPath();ctx.arc(u.x,u.y,10,0,7);ctx.fill();}}
+  ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🗿',myStatue.x,myStatue.y);ctx.fillText(boss?'👑':'🏯',enStatue.x,enStatue.y);
+  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(myStatue.x-22,myStatue.y-50,44,5);ctx.fillRect(enStatue.x-22,enStatue.y-50,44,5);
+  ctx.fillStyle='#3fc163';ctx.fillRect(myStatue.x-22,myStatue.y-50,44*Math.max(0,myStatue.hp/myStatue.max),5);
+  ctx.fillStyle='#ff5c8a';ctx.fillRect(enStatue.x-22,enStatue.y-50,44*Math.max(0,enStatue.hp/enStatue.max),5);
+  ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textBaseline='alphabetic';ctx.fillText((myStatue.hp|0)+'',myStatue.x,myStatue.y-54);ctx.fillText((enStatue.hp|0)+'',enStatue.x,enStatue.y-54);
+  for(const u of myUnits.concat(enUnits)){
+    const r=u.k==='giant'?14:11;
+    if(FX)FX.shadow(ctx,u.x,u.y+r*.85,r*.9,3.5);
+    ctx.strokeStyle=u.side==='me'?'#7df9ff':'#ff5c8a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(u.x,u.y,r+1.5,0,7);ctx.stroke();
+    if(FX)FX.orb(ctx,u.x,u.y,r,u.col);else{ctx.fillStyle=u.col;ctx.beginPath();ctx.arc(u.x,u.y,r,0,7);ctx.fill();}
+    ctx.font=(r+1)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(u.icon||'⚔',u.x,u.y);
+    if(u.max&&u.hp<u.max){ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(u.x-10,u.y-r-6,20,3);ctx.fillStyle=u.side==='me'?'#3fc163':'#ff5c8a';ctx.fillRect(u.x-10,u.y-r-6,20*Math.max(0,u.hp/u.max),3);}
+  }
+  ctx.textBaseline='alphabetic';
   // mode bar
-  [['采矿',60],['防守',180],['进攻',300]].forEach(([t,x],i)=>{const on=(mode==='mine'&&i===0)||(mode==='defend'&&i===1)||(mode==='attack'&&i===2);ctx.fillStyle=on?'#ffb21e':'#ffffff88';ctx.fillRect(x-40,65,80,28);ctx.fillStyle='#333';ctx.font='bold 12px sans-serif';ctx.fillText(t,x,84);});
-  for(const b of btns){if(FX)FX.tile(ctx,b.x,b.y,b.w,b.h,b.col,6);else{ctx.fillStyle=b.col;ctx.fillRect(b.x,b.y,b.w,b.h);}ctx.fillStyle='#fff';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText(b.name+b.cost,b.x+b.w/2,b.y+22);}
-  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';ctx.fillText('金'+(gold|0)+' 人'+pop+'/'+popMax+(boss?' 👑':''),10,22);
+  [['采矿',60],['防守',180],['进攻',300]].forEach(([t,x],i)=>{const on=(mode==='mine'&&i===0)||(mode==='defend'&&i===1)||(mode==='attack'&&i===2);ctx.fillStyle=on?'#ffb21e':'#ffffff88';ctx.fillRect(x-40,65,80,28);ctx.fillStyle='#333';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(t,x,84);});
+  for(const b of btns){if(FX)FX.tile(ctx,b.x,b.y,b.w,b.h,b.col,6);else{ctx.fillStyle=b.col;ctx.fillRect(b.x,b.y,b.w,b.h);}ctx.fillStyle='#fff';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText((b.icon||'')+b.name+b.cost,b.x+b.w/2,b.y+22);}
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';ctx.fillText('关'+lvl+' '+z.name+' · 金'+(gold|0)+' · 人'+pop+'/'+popMax+(boss?' 👑':''),10,22);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);enStatue.hp=0;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,gold:gold|0,enHp:enStatue.hp|0}}};
 
@@ -535,6 +553,7 @@ function openLevels(){state='menu';show('startScr',false);show('shopScr',false);
 function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;saveProg(prog);tutorial(TUT,go);}else go();}
 function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').textContent='金币：'+prog.coins;const box=$('shopList');box.innerHTML='';for(const it of SHOP){if(prog[it.k]==null)prog[it.k]=0;const row=document.createElement('div');row.className='row';row.innerHTML='<div><b>'+it.name+'</b><br><small>'+it.desc()+'</small></div>';const btn=document.createElement('button');btn.className='btn';const maxed=prog[it.k]>=it.max;const cost=it.cost();btn.textContent=maxed?'满':cost+'币';btn.disabled=maxed||prog.coins<cost;btn.onclick=()=>{prog.coins-=cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();};row.appendChild(btn);box.appendChild(row);}}
 $('startBtn').onclick=openLevels;$('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
+$('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';toast('战斗速度 '+spd+'×');};
 $('shopBtn').onclick=openShop;$('shopBack').onclick=openLevels;
 $('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};
 $('resumeBtn').onclick=()=>{state='play';last=performance.now();show('pauseOv',false);};
@@ -543,7 +562,7 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function'){for(let i=0;i<spd;i++){update(dt);if(state!=='play')break;}}if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>

@@ -461,7 +461,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <button class="btn" id="endBtn">⏭ 结束回合<small>敌人行动</small></button>
   </div>
 </div>
-<div class="overlay" id="startScr"><h1>机甲防线</h1><p>异虫正在入侵城市！指挥 <b>3 台机甲</b>保卫电网。<br>敌人的攻击会<b>提前显示</b>（红色警示）。用重拳、加农炮和火炮把虫子<b>推开、撞墙、推进水里</b>，让它们打空甚至误伤同伴。<br>坚持到回合结束即胜利；电网归零则失败。12 场战役，3 只巨型首领。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">出击</button></div>
+<div class="overlay" id="startScr"><h1>机甲防线</h1><p>异虫正在入侵城市！指挥 <b>3 台机甲</b>保卫电网。<br>敌人的攻击会<b>提前显示</b>（红色警示）。用重拳、加农炮和火炮把虫子<b>推开、撞墙、推进水里</b>，让它们打空甚至误伤同伴。<br>坚持到回合结束即胜利；电网归零则失败。12 场战役，3 只巨型首领。<br>v3（Gemini 优化：新增三大战区地貌配色、炮击光束、冲击光环与伤害飘字）</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">出击</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns" id="lvlBtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选关</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -522,7 +522,10 @@ const FOE={beetle:{n:'甲虫',e:'🪲',hp:2,mv:3,a:'melee',d:1},spitter:{n:'喷�
  titan:{n:'巨甲虫',e:'👾',hp:6,mv:2,a:'line2',d:2,boss:1},hive:{n:'母巢女王',e:'🕷️',hp:7,mv:1,a:'proj',d:2,boss:1,brood:1},lord:{n:'虫族主宰',e:'🐉',hp:9,mv:2,a:'artyp',d:2,boss:1}};
 let save=Store.get('save',{stars:[],tut:0});
 function perk(){const s=sumStars(save);return{punch:s>=6?3:2,hp:s>=12?1:0,smart:s>=18,mv:s>=24?1:0,grid:s>=30?1:0};}
-let G=null,li=0,state='menu',FAST=false,sel=-1,pend=null,anims=[],sparks=[],shake=0,resetSnap=null,BOT=false,msg='';
+let G=null,li=0,state='menu',FAST=false,sel=-1,pend=null,anims=[],sparks=[],beams=[],rings=[],pops=[],shake=0,resetSnap=null,BOT=false,msg='';
+function addBeam(x1,y1,x2,y2,col,w){if(!FAST)beams.push({x1:BX+x1*CS+CS/2,y1:BY+y1*CS+CS/2,x2:BX+x2*CS+CS/2,y2:BY+y2*CS+CS/2,col,w:w||4,t:1});}
+function addRing(x,y,col,maxR){if(!FAST)rings.push({x:BX+x*CS+CS/2,y:BY+y*CS+CS/2,col,maxR:maxR||36,t:1});}
+function addPop(x,y,txtStr,col){if(!FAST)pops.push({x:BX+x*CS+CS/2,y:BY+y*CS+CS/2-8,txt:txtStr,col:col||'#fff',t:1});}
 function rnd(){G.seed=(G.seed*16807)%2147483647;return G.seed/2147483647;}
 function inb(x,y){return x>=0&&y>=0&&x<N&&y<N;}
 function uAt(x,y){return G.u.find(u=>!u.dead&&u.x===x&&u.y===y);}
@@ -542,21 +545,21 @@ function planSpawns(){G.spawns=[];if(G.turn>=G.turns)return;const n=li<2&&G.turn
 function snap(){return JSON.stringify(G);}
 // ---------- 伤害与推动 ----------
 function fx(x,y,col,n){if(!FAST)for(let k=0;k<(n||8);k++)burst(sparks,BX+x*CS+CS/2,BY+y*CS+CS/2,col,2);}
-function dmgAt(x,y,n,src){if(!inb(x,y)||n<=0)return;const u=uAt(x,y);if(u){u.hp-=n;fx(x,y,'#ff7a3d',10);if(u.hp<=0){u.hp=0;u.dead=true;if(u.team==='e'){G.kills++;fx(x,y,'#7dff5a',18);}else{G.log.push('mech');}if(!FAST)tone(u.team==='e'?200:120,.25,'sawtooth',.1,60);}else if(!FAST)noise(.08,.1);return;}
- const t=tile(x,y);if(t==='b'){if(src==='smart')return;G.t[y][x]='r';G.power=Math.max(0,G.power-1);G.bLost++;fx(x,y,'#ffd23f',16);shake=.6;if(!FAST){tone(150,.3,'square',.1,70);noise(.25,.15);}}
+function dmgAt(x,y,n,src){if(!inb(x,y)||n<=0)return;const u=uAt(x,y);if(u){u.hp-=n;fx(x,y,'#ff7a3d',10);addPop(x,y,'-'+n,u.team==='e'?'#ffe066':'#ff5a5a');if(u.hp<=0){u.hp=0;u.dead=true;if(u.team==='e'){G.kills++;fx(x,y,'#7dff5a',18);if(u.boss)addRing(x,y,'#ffd23f',55);}else{G.log.push('mech');}if(!FAST)tone(u.team==='e'?200:120,.25,'sawtooth',.1,60);}else if(!FAST)noise(.08,.1);return;}
+ const t=tile(x,y);if(t==='b'){if(src==='smart')return;G.t[y][x]='r';G.power=Math.max(0,G.power-1);G.bLost++;fx(x,y,'#ffd23f',16);addPop(x,y,'-1⚡','#ff6b6b');addRing(x,y,'#ff6b6b',34);shake=.6;if(!FAST){tone(150,.3,'square',.1,70);noise(.25,.15);}}
  else if(t==='m'){const k=x+','+y;G.mh[k]=(G.mh[k]||2)-1;fx(x,y,'#b08a5a',8);if(G.mh[k]<=0)G.t[y][x]='g';}}
 function push(x,y,d){const u=uAt(x,y);if(!u||u.boss)return;const nx=x+DIRS[d][0],ny=y+DIRS[d][1];if(!inb(nx,ny))return;const b=uAt(nx,ny),t=tile(nx,ny);
- if(b||t==='b'||t==='m'){dmgAt(x,y,1);dmgAt(nx,ny,1);if(!FAST)tone(260,.08,'square',.08);return;}
- anims.push({u:u.id,fx:u.x,fy:u.y,t:0});u.x=nx;u.y=ny;if(t==='w'&&u.team==='e'){u.dead=true;u.hp=0;G.kills++;fx(nx,ny,'#5ac8ff',16);if(!FAST)tone(300,.3,'sine',.1,80);}}
+ if(b||t==='b'||t==='m'){addPop(nx,ny,'撞击!','#ff9f43');dmgAt(x,y,1);dmgAt(nx,ny,1);if(!FAST)tone(260,.08,'square',.08);return;}
+ anims.push({u:u.id,fx:u.x,fy:u.y,t:0});u.x=nx;u.y=ny;if(t==='w'&&u.team==='e'){u.dead=true;u.hp=0;G.kills++;fx(nx,ny,'#5ac8ff',16);addPop(nx,ny,'淹没!','#7df9ff');addRing(nx,ny,'#5ac8ff',34);if(!FAST)tone(300,.3,'sine',.1,80);}}
 function ray(x,y,d){let cx=x,cy=y;for(;;){cx+=DIRS[d][0];cy+=DIRS[d][1];if(!inb(cx,cy))return[cx-DIRS[d][0],cy-DIRS[d][1],true];if(uAt(cx,cy)||tile(cx,cy)==='b'||tile(cx,cy)==='m')return[cx,cy,false];}}
 // ---------- 机甲 ----------
 function reach(u){const out=new Map();out.set(u.x+','+u.y,0);const q=[[u.x,u.y,0]];while(q.length){const[x,y,s]=q.shift();if(s>=u.mv)continue;for(const[dx,dy]of DIRS){const nx=x+dx,ny=y+dy,k=nx+','+ny;if(out.has(k)||!free(nx,ny))continue;out.set(k,s+1);q.push([nx,ny,s+1]);}}return out;}
 function targets(u){const out=[];for(let d=0;d<4;d++){if(u.k==='punch'){const x=u.x+DIRS[d][0],y=u.y+DIRS[d][1];if(inb(x,y))out.push([x,y,d]);}
   else if(u.k==='cannon'){const r=ray(u.x,u.y,d);if(!(r[0]===u.x&&r[1]===u.y))out.push([r[0],r[1],d]);}
   else for(let s=2;s<N;s++){const x=u.x+DIRS[d][0]*s,y=u.y+DIRS[d][1]*s;if(!inb(x,y))break;out.push([x,y,d]);}}return out;}
-function mechAttack(u,x,y,d){const P=perk();if(u.k==='punch'){dmgAt(x,y,P.punch);push(x,y,d);if(!FAST)tone(180,.12,'square',.12,90);}
- else if(u.k==='cannon'){const r=ray(u.x,u.y,d);if(!r[2]){dmgAt(r[0],r[1],1);push(r[0],r[1],d);}if(!FAST)tone(520,.12,'sawtooth',.08,200);}
- else{dmgAt(x,y,1,P.smart?'smart':null);for(let k=0;k<4;k++)push(x+DIRS[k][0],y+DIRS[k][1],k);if(!FAST){tone(700,.2,'triangle',.08,150);noise(.15,.1);}}
+function mechAttack(u,x,y,d){const P=perk();if(u.k==='punch'){addBeam(u.x,u.y,x,y,'#ff6b6b',5);addRing(x,y,'#ff6b6b',30);dmgAt(x,y,P.punch);push(x,y,d);if(!FAST)tone(180,.12,'square',.12,90);}
+ else if(u.k==='cannon'){const r=ray(u.x,u.y,d);addBeam(u.x,u.y,r[0],r[1],'#5ac8ff',4);if(!r[2]){addRing(r[0],r[1],'#5ac8ff',30);dmgAt(r[0],r[1],1);push(r[0],r[1],d);}if(!FAST)tone(520,.12,'sawtooth',.08,200);}
+ else{addBeam(u.x,u.y,x,y,'#ffd23f',3);addRing(x,y,'#ffd23f',46);dmgAt(x,y,1,P.smart?'smart':null);for(let k=0;k<4;k++)push(x+DIRS[k][0],y+DIRS[k][1],k);if(!FAST){tone(700,.2,'triangle',.08,150);noise(.15,.1);}}
  u.acted=true;u.moved=true;}
 // ---------- 敌人 ----------
 function foeTargets(u){const f=FOE[u.k];const res=[];for(let d=0;d<4;d++){if(f.a==='arty'||f.a==='artyp'){for(let s=2;s<=4;s++)res.push({d,s});}else res.push({d,s:1});}return res;}
@@ -594,15 +597,22 @@ $('resetBtn').onclick=()=>{if(state!=='play'||!G.resetLeft)return;const left=G.r
 $('endBtn').onclick=()=>{if(state==='play'){tone(250,.15,'sawtooth',.08,500);endTurn();}};
 // ---------- 绘制 ----------
 const TC={g:'#5e8f6e',r:'#7a6f62',w:'#2f7fd1',b:'#e9e4ff',m:'#8b6a4a'};
+const THEATERS=[
+  {name:'海湾都市',bg1:'#1c3550',bg2:'#0c1424',board:'#2a3d5c',g1:'#5e8f6e',g2:'#679a77',w:'#1f5fa8'},
+  {name:'峡谷防线',bg1:'#422a24',bg2:'#1a0f0e',board:'#4d3632',g1:'#7e7159',g2:'#897b62',w:'#246896'},
+  {name:'极地荒原',bg1:'#213c59',bg2:'#0e1b2b',board:'#314f6e',g1:'#6b869e',g2:'#7591a8',w:'#1a508c'}
+];
+function theater(){return THEATERS[Math.min(2,Math.floor(li/4))];}
 function upos(u){const a=anims.find(a=>a.u===u.id);if(a){const t=Math.min(1,a.t);return[a.fx+(u.x-a.fx)*t,a.fy+(u.y-a.fy)*t];}return[u.x,u.y];}
 function draw(dt){for(const a of anims)a.t+=dt*7;anims=anims.filter(a=>a.t<1);
- stage(ctx,W,H,'#1c3550','#0c1424');ctx.save();if(shake>0){ctx.translate((Math.random()-.5)*8*shake,(Math.random()-.5)*8*shake);shake=Math.max(0,shake-dt*2);}
+ const th=theater();
+ stage(ctx,W,H,th.bg1,th.bg2);ctx.save();if(shake>0){ctx.translate((Math.random()-.5)*8*shake,(Math.random()-.5)*8*shake);shake=Math.max(0,shake-dt*2);}
  if(!G){ctx.restore();return;}
- shad(ctx,BX+CS*4,BY+CS*8+10,CS*4.3,12,.4);box3d(ctx,BX-6,BY-6,CS*N+12,CS*N+12,'#2a3d5c',14);
+ shad(ctx,BX+CS*4,BY+CS*8+10,CS*4.3,12,.4);box3d(ctx,BX-6,BY-6,CS*N+12,CS*N+12,th.board,14);
  const m=sel>=0?G.u[sel]:null;const R=m&&!m.moved?reach(m):null;const TG=m&&!m.acted?targets(m):[];
  for(let y=0;y<N;y++)for(let x=0;x<N;x++){const t=tile(x,y);const px=BX+x*CS,py=BY+y*CS;
-  if(t==='w'){ctx.fillStyle='#1f5fa8';rr(ctx,px+1,py+1,CS-2,CS-2,6);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=2;ctx.beginPath();for(let k=0;k<2;k++){const yy=py+14+k*12+Math.sin(performance.now()/500+x)*2;ctx.moveTo(px+8,yy);ctx.quadraticCurveTo(px+CS/2,yy-5,px+CS-8,yy);}ctx.stroke();}
-  else box3d(ctx,px+1,py+1,CS-2,CS-2,(x+y)%2?TC.g:'#679a77',6);
+  if(t==='w'){ctx.fillStyle=th.w;rr(ctx,px+1,py+1,CS-2,CS-2,6);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=2;ctx.beginPath();for(let k=0;k<2;k++){const yy=py+14+k*12+Math.sin(performance.now()/500+x)*2;ctx.moveTo(px+8,yy);ctx.quadraticCurveTo(px+CS/2,yy-5,px+CS-8,yy);}ctx.stroke();}
+  else box3d(ctx,px+1,py+1,CS-2,CS-2,(x+y)%2?th.g1:th.g2,6);
   if(t==='r')emo(ctx,'🧱',px+CS/2,py+CS/2,18);
   if(t==='b'){ctx.fillStyle='#55507a';rr(ctx,px+5,py+12,CS-10,CS-10,4);ctx.fill();box3d(ctx,px+5,py+4,CS-10,CS-14,'#d9d2ff',5);ctx.fillStyle='#ffd23f';for(let k=0;k<3;k++)for(let j=0;j<2;j++)ctx.fillRect(px+10+k*8,py+9+j*9,4,5);}
   if(t==='m'){ball3d(ctx,px+CS/2,py+CS/2+2,15,'#9a734d');emo(ctx,'⛰️',px+CS/2,py+CS/2,22);if((G.mh[x+','+y]||2)<2){ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(px+14,py+12);ctx.lineTo(px+22,py+24);ctx.lineTo(px+18,py+32);ctx.stroke();}}
@@ -619,11 +629,15 @@ function draw(dt){for(const a of anims)a.t+=dt*7;anims=anims.filter(a=>a.t<1);
   shad(ctx,px,py+r*.8,r,r*.35,.45);if(isM&&u.id===sel)glowOn(ctx,'#3dffb0',16);ball3d(ctx,px,py-3,r,isM?(u.acted?'#777':MECH[u.k].c):u.boss?'#c43dff':'#7a3d2a');glowOff(ctx);
   emo(ctx,isM?MECH[u.k].e:FOE[u.k].e,px,py-3,u.boss?22:17);
   for(let k=0;k<u.max;k++){ctx.fillStyle=k<u.hp?(isM?'#3dffb0':'#ff5a5a'):'rgba(0,0,0,.5)';ctx.fillRect(px-u.max*3.5+k*7,py+r-2,6,4);}}
- drawBurst(ctx,sparks);ctx.restore();
+ drawBurst(ctx,sparks);
+ for(let i=beams.length-1;i>=0;i--){const b=beams[i];b.t-=dt*4;if(b.t<=0){beams.splice(i,1);continue;}ctx.save();ctx.globalAlpha=b.t;ctx.strokeStyle=b.col;ctx.lineWidth=b.w*b.t;ctx.beginPath();ctx.moveTo(b.x1,b.y1);ctx.lineTo(b.x2,b.y2);ctx.stroke();ctx.restore();}
+ for(let i=rings.length-1;i>=0;i--){const r=rings[i];r.t-=dt*2.4;if(r.t<=0){rings.splice(i,1);continue;}ctx.save();ctx.globalAlpha=r.t*.85;ctx.strokeStyle=r.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(r.x,r.y,8+(r.maxR-8)*(1-r.t),0,7);ctx.stroke();ctx.restore();}
+ for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.t-=dt*1.2;p.y-=18*dt;if(p.t<=0){pops.splice(i,1);continue;}ctx.save();ctx.globalAlpha=Math.min(1,p.t*1.3);otxt(ctx,p.txt,p.x,p.y,12,p.col);ctx.restore();}
+ ctx.restore();
  // 信息面板
  const iy=BY+CS*N+14;box3d(ctx,10,iy,W-20,H-iy-8,'#24344f',12);
  const alive=G.u.filter(u=>u.team==='e'&&!u.dead).length;
- txt(ctx,LV[li].n+' · 敌人 '+alive+' · 击杀 '+G.kills+'/'+LV[li].kills,W/2,iy+18,13,'#cfe3ff');
+ txt(ctx,th.name+' · '+LV[li].n+' · 敌人 '+alive+' · 击杀 '+G.kills+'/'+LV[li].kills,W/2,iy+18,12,'#cfe3ff');
  const lines=(pend?'🎯 再点一次确认攻击（黄色框）':msg||'点机甲 → 点蓝格移动 → 点橙框攻击（点两次确认）').match(/.{1,22}/g)||[];lines.slice(0,2).forEach((l,k)=>txt(ctx,l,W/2,iy+42+k*18,12,'#fff',null,700));
  txt(ctx,'⚡电网 '+'■'.repeat(G.power)+'□'.repeat(Math.max(0,G.maxP-G.power)),W/2,iy+82,13,G.power<=2?'#ff6b6b':'#ffd23f');}
 let last=performance.now();function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(state!=='pause')draw(dt);requestAnimationFrame(loop);}requestAnimationFrame(loop);

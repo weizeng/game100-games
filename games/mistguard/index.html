@@ -448,6 +448,8 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🌫️ 雾卫防线</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="typeBtn" aria-label="建造类型">🔄</button>
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +457,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点空地放置灯塔或炮塔，再开始波次</p>
 </div>
-<div class="overlay" id="startScr"><h1>🌫️ 雾卫防线</h1><p>战场被迷雾覆盖，只有灯塔和炮塔周围能看见敌人。<br>点空地放置灯塔照明或炮塔开火，再开始波次。<br>首领接近后才现形，要提前用灯光堵住路口。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🌫️ 雾卫防线</h1><p>战场被迷雾覆盖，只有灯塔和炮塔周围才能看见敌人。<br>点空地放置灯塔照明或炮塔开火，再开始波次。<br>首领接近后才现形，要提前用灯光堵住路口。<br>v2（Gemini 优化：新增三大迷雾战区、照明光晕、炮塔光束、灯/炮切换及倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -506,7 +508,13 @@ const SHOP=[
   {k:'goldLv',name:'军饷',max:2,cost(){return 30+(prog.goldLv|0)*25;},desc(){return '开局金币 +15';}}
 ];
 const COLS=7, ROWS=9, CW=44, CH=40, OX=18, OY=50;
-let path=[], towers=[], gold=0, lives=0, enemies=[], spawnT=0, toSpawn=0, waveOn=false, ehp0=0, escMax=0;
+const MISTS=[
+  {name:'深海迷雾',bg1:'#0b4a6e',bg2:'#03121f',path:'#164e63',cell:'#0c2a40'},
+  {name:'幽林夜雾',bg1:'#134e4a',bg2:'#041a18',path:'#1e5e54',cell:'#0d2e29'},
+  {name:'暗影废墟',bg1:'#4c1d4f',bg2:'#16061a',path:'#5b2459',cell:'#290f2b'}
+];
+function mistTheme(){return MISTS[Math.min(2,Math.floor((lvl-1)/5))];}
+let path=[], towers=[], gold=0, lives=0, enemies=[], spawnT=0, toSpawn=0, waveOn=false, ehp0=0, escMax=0, beams=[], spd=1, buildMode='auto';
 function cellAt(p){return {c:Math.floor((p.x-OX)/CW), r:Math.floor((p.y-OY)/CH)};}
 function posCell(c,r){return {x:OX+c*CW+CW/2, y:OY+r*CH+CH/2};}
 function onPath(c,r){return path.some(q=>q.c===c&&q.r===r);}
@@ -520,7 +528,7 @@ function startLevel(n){
     if(dir && r+dir>=1 && r+dir<=ROWS-2 && !onPath(c,r+dir)) {r+=dir; path.push({c,r});}
     else {c++; path.push({c,r});}
   }
-  towers=[]; enemies=[]; waveOn=false; spawnT=0.6;
+  towers=[]; enemies=[]; beams=[]; waveOn=false; spawnT=0.6;
   gold=40+(prog.goldLv|0)*15+Math.max(0,6-lvl)*2; lives=3+(lvl<=2?1:0);
   toSpawn=6+lvl+(boss?3:0); ehp0=10+lvl*3+(boss?12:0);
   diff=lvl*10+toSpawn*3+(boss?24:0)+Math.max(0,50-gold);
@@ -537,12 +545,9 @@ function place(c,r){
   if(c<0||r<0||c>=COLS||r>=ROWS||onPath(c,r)) return;
   const i=towers.findIndex(t=>t.c===c&&t.r===r);
   if(i>=0){ gold+=Math.floor(towers[i].cost/2); towers.splice(i,1); beep(400,.05); return; }
-  if(waveOn){ /* still allow place */ }
-  const lanterns=towers.filter(t=>t.k==='lantern').length;
-  const want= lanterns===0 && towers.length===0? 'lantern' : (towers.filter(t=>t.c===c&&t.r===r).length?null:null);
-  // cycle via cheaper: if more cannons than lanterns, prefer lantern when tapping empty? Use two-step: first lantern if gold, else cannon.
-  // Simpler: long-enough: if player has no lantern, first build is lantern; otherwise alternate by cost affordance.
   const costL=15, costC=25;
+  if(buildMode==='lantern'){if(gold>=costL){towers.push({c,r,k:'lantern',cost:costL,cd:0});gold-=costL;beep(680,.06);return;}toast('金币不足(需15)');return;}
+  if(buildMode==='cannon'){if(gold>=costC){towers.push({c,r,k:'cannon',cost:costC,cd:0});gold-=costC;beep(740,.06);return;}toast('金币不足(需25)');return;}
   if(!towers.some(t=>t.k==='lantern') && gold>=costL){ towers.push({c,r,k:'lantern',cost:costL,cd:0}); gold-=costL; beep(680,.06); return; }
   if(gold>=costC){ towers.push({c,r,k:'cannon',cost:costC,cd:0}); gold-=costC; beep(740,.06); return; }
   if(gold>=costL){ towers.push({c,r,k:'lantern',cost:costL,cd:0}); gold-=costL; beep(680,.06); return; }
@@ -573,7 +578,7 @@ function update(dt){
       const d=Math.hypot(tp.x-p.x,tp.y-p.y);
       if(d<visRange()*CW+12 && d<bd){bd=d;best=e;}
     }
-    if(best){ best.hp-=dmg; tw.cd=0.55; score+=dmg; $('score').textContent=score; if(best.hp<=0){if(FX){const p=pathPos(best);FX.burst(sparks,p.x,p.y,'#2ee6d6',8);} } }
+    if(best){ best.hp-=dmg; tw.cd=0.55; score+=dmg; $('score').textContent=score; const bp=pathPos(best); beams.push({x1:tp.x,y1:tp.y,x2:bp.x,y2:bp.y,t:1}); if(best.hp<=0){if(FX){FX.burst(sparks,bp.x,bp.y,'#2ee6d6',8);} } }
   }
   for(const e of enemies){
     if(e.hp<=0) continue;
@@ -591,19 +596,27 @@ function pathPos(e){
   return {x:a.x+(b.x-a.x)*f, y:a.y+(b.y-a.y)*f};
 }
 function draw(){
-  hits=[]; stage('#0b4a6e','#03121f');
+  const mt=mistTheme();
+  hits=[]; stage(mt.bg1,mt.bg2);
   if(state!=='play'&&state!=='pause') return;
-  label((boss?'👑 ':'')+'金 '+gold+' · 生命 '+lives+' · 余敌 '+(toSpawn+enemies.filter(e=>e.hp>0).length),12,22,'#e6fffb',12,'left');
+  label((boss?'👑 ':'')+'关'+lvl+' '+mt.name+' · 金 '+gold+' · 命 '+lives+' · 敌 '+(toSpawn+enemies.filter(e=>e.hp>0).length),12,22,'#e6fffb',12,'left');
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
     const x=OX+c*CW, y=OY+r*CH;
-    tile(x+2,y+2,CW-4,CH-4, onPath(c,r)?'#164e63':'#0c2a40',6);
+    tile(x+2,y+2,CW-4,CH-4, onPath(c,r)?mt.path:mt.cell,6);
   }
+  for(let i=0;i<path.length;i++){const p=posCell(path[i].c,path[i].r);if(i===0)label('🚪',p.x,p.y,'#fde047',12,'center');else if(i===path.length-1)label('🛡',p.x,p.y,'#4ade80',12,'center');else{ctx.fillStyle='rgba(255,255,255,.16)';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('·',p.x,p.y);}}
   for(const tw of towers){
     const p=posCell(tw.c,tw.r);
+    const rg=visRange()*CW;
+    const g=ctx.createRadialGradient(p.x,p.y,4,p.x,p.y,rg);
+    g.addColorStop(0,tw.k==='lantern'?'rgba(253,224,71,.22)':'rgba(46,230,214,.14)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,rg,0,7);ctx.fill();
     orb(p.x,p.y,14, tw.k==='lantern'?'#fde047':'#fb7185');
     label(tw.k==='lantern'?'灯':'炮',p.x,p.y,'#1f2937',10,'center');
-    ctx.strokeStyle='rgba(253,224,71,.25)'; ctx.beginPath(); ctx.arc(p.x,p.y,visRange()*CW,0,7); ctx.stroke();
+    ctx.strokeStyle=tw.k==='lantern'?'rgba(253,224,71,.35)':'rgba(251,113,133,.3)'; ctx.beginPath(); ctx.arc(p.x,p.y,rg,0,7); ctx.stroke();
   }
+  for(let i=beams.length-1;i>=0;i--){const b=beams[i];b.t-=0.09;if(b.t<=0){beams.splice(i,1);continue;}ctx.save();ctx.globalAlpha=b.t;ctx.strokeStyle='#fde047';ctx.lineWidth=3*b.t;ctx.beginPath();ctx.moveTo(b.x1,b.y1);ctx.lineTo(b.x2,b.y2);ctx.stroke();ctx.restore();}
   for(const e of enemies){
     if(e.hp<=0) continue;
     const p=pathPos(e); const seen=visible(p.x,p.y) || (e.boss&&e.vis);
@@ -628,6 +641,8 @@ function openLevels(){state='menu';show('startScr',false);show('shopScr',false);
 function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;saveProg(prog);tutorial(TUT,go);}else go();}
 function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').textContent='金币：'+prog.coins;const box=$('shopList');box.innerHTML='';for(const it of SHOP){if(prog[it.k]==null)prog[it.k]=0;const row=document.createElement('div');row.className='row';row.innerHTML='<div><b>'+it.name+'</b><br><small>'+it.desc()+'</small></div>';const b=document.createElement('button');b.className='btn';const maxed=prog[it.k]>=it.max;const cost=it.cost();b.textContent=maxed?'满级':cost+'币';b.disabled=maxed||prog.coins<cost;b.onclick=()=>{prog.coins-=cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();};row.appendChild(b);box.appendChild(row);}}
 $('startBtn').onclick=openLevels;$('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
+$('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';toast('波次速度 '+spd+'×');};
+$('typeBtn').onclick=()=>{buildMode=buildMode==='auto'?'lantern':buildMode==='lantern'?'cannon':'auto';$('typeBtn').textContent=buildMode==='auto'?'🔄':buildMode==='lantern'?'💡':'💣';toast(buildMode==='auto'?'智能建造':buildMode==='lantern'?'指定建造：灯塔(15金)':'指定建造：炮塔(25金)');};
 $('shopBtn').onclick=openShop;$('shopBack').onclick=openLevels;
 $('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};
 $('resumeBtn').onclick=()=>{state='play';last=performance.now();show('pauseOv',false);};
@@ -636,6 +651,6 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function'){for(let i=0;i<spd;i++){update(dt);if(state!=='play')break;}}if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 </script>
 </body></html>
