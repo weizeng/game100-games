@@ -446,6 +446,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🐪 驿站商路</span>
     <span class="stat">得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -453,7 +454,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">派出商队沿路前进，在驿站雇卫兵护货。</p>
 </div>
-<div class="overlay" id="startScr"><h1>🐪 驿站商路</h1><p>派出商队沿路前进，在驿站雇卫兵护货。<br>在时限内送达货物配额，守住血量。<br>Boss：匪首来袭。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🐪 驿站商路</h1><p>派出商队沿路前进，在驿站雇卫兵护货。<br>在时限内送达货物配额，守住血量。<br>v3（Gemini 优化：三大商路地貌、卫兵拦截光束、送达光环与飘字、匪徒血条及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -483,36 +484,44 @@ if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==nu
 if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
 const TOTAL=15;
-let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
+const ROUTES=[{top:'#c9a050',bot:'#5e4010',name:'丝路黄沙'},{top:'#4a7c38',bot:'#1b3612',name:'草原古道'},{top:'#3e658a',bot:'#132336',name:'霜雪关隘'}];
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false,spd=1;
+$('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';};
 
 const TUT=[["发车","点底部派出商队。"],["雇卫","点驿站花金币雇卫兵。"],["匪徒","匪徒袭击商队，卫兵自动还击。"],["Boss","Boss 匪首更强。"]];
 const SHOP=[{k:'spdLv',name:'商队加速',max:3,cost(){return 40+(prog.spdLv|0)*30;},desc(){return '商队移动更快';}},{k:'gdLv',name:'卫兵伤害',max:3,cost(){return 50+(prog.gdLv|0)*35;},desc(){return '卫兵攻击力提升';}},{k:'postLv',name:'驿站槽位',max:3,cost(){return 45+(prog.postLv|0)*30;},desc(){return '可雇卫兵上限';}}];
-let path=[],caravans=[],bandits=[],posts=[],gold=0,hp=0,delivered=0,goal=0,timer=0,spawn=0,chief=null;
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];path=[];for(let i=0;i<8;i++)path.push({x:40+i*40,y:120+Math.sin(i*0.9)*60+i*28});posts=[{i:2,g:0,max:1+(prog.postLv|0)},{i:5,g:0,max:1+(prog.postLv|0)}];caravans=[];bandits=[];gold=30+lvl*2;hp=5;delivered=0;goal=4+((lvl/2)|0)+(boss?2:0);timer=70+lvl*2;spawn=0;chief=null;
-  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='发商队 · 雇卫兵护货';}
+let path=[],caravans=[],bandits=[],posts=[],gold=0,hp=0,delivered=0,goal=0,timer=0,spawn=0,chief=null,beams=[],rings=[],pops=[];
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];beams=[];rings=[];pops=[];path=[];for(let i=0;i<8;i++)path.push({x:40+i*40,y:120+Math.sin(i*0.9)*60+i*28});posts=[{i:2,g:0,max:1+(prog.postLv|0)},{i:5,g:0,max:1+(prog.postLv|0)}];caravans=[];bandits=[];gold=30+lvl*2;hp=5;delivered=0;goal=4+((lvl/2)|0)+(boss?2:0);timer=70+lvl*2;spawn=0;chief=null;
+  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;const rz=ROUTES[Math.min(2,((lvl-1)/5)|0)];$('hint').textContent=rz.name+' · 发商队 · 雇卫兵护货';}
 function win(){if(state!=='play')return;const stars=hp>=4?3:hp>=2?2:1;finishWin(stars,40+stars*15+(boss?55:0)+delivered*10,'商路畅通！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){timer-=dt;if(timer<=0){if(delivered>=goal)win();else lose('时限到');return;}
-  spawn-=dt;if(spawn<=0){const t=path[0];bandits.push({x:t.x+Math.random()*40-20,y:t.y-30,hp:2+((lvl/4)|0),spd:30+lvl});spawn=2.2-lvl*0.08-(boss?0.4:0);}
-  if(boss&&!chief&&timer<40){chief={x:path[3].x,y:path[3].y,hp:20+lvl,spd:20};toast('匪首！');}
-  const cspd=40+(prog.spdLv|0)*10;for(const c of caravans){c.t+=cspd*dt*0.01;const ix=Math.min(path.length-2,c.t|0);const f=c.t-ix;const a=path[ix],b=path[ix+1]||a;c.x=a.x+(b.x-a.x)*f;c.y=a.y+(b.y-a.y)*f;if(c.t>=path.length-1){c.dead=1;delivered++;score+=20;beep(900,.08);toast('送达');}}
+function update(dt){dt*=spd;beams=beams.filter(b=>(b.t-=dt)>0);rings=rings.filter(r=>(r.t-=dt)>0);pops=pops.filter(p=>{p.y-=18*dt;return(p.t-=dt)>0;});timer-=dt;if(timer<=0){if(delivered>=goal)win();else lose('时限到');return;}
+  spawn-=dt;if(spawn<=0){const t=path[0];const mhp=2+((lvl/4)|0);bandits.push({x:t.x+Math.random()*40-20,y:t.y-30,hp:mhp,max:mhp,spd:30+lvl});spawn=2.2-lvl*0.08-(boss?0.4:0);}
+  if(boss&&!chief&&timer<40){const chp=20+lvl;chief={x:path[3].x,y:path[3].y,hp:chp,max:chp,spd:20};toast('匪首！');}
+  const cspd=40+(prog.spdLv|0)*10;for(const c of caravans){c.t+=cspd*dt*0.01;const ix=Math.min(path.length-2,c.t|0);const f=c.t-ix;const a=path[ix],b=path[ix+1]||a;c.x=a.x+(b.x-a.x)*f;c.y=a.y+(b.y-a.y)*f;if(c.t>=path.length-1){c.dead=1;delivered++;score+=20;gold+=6;beep(900,.08);rings.push({x:c.x,y:c.y,r:26,t:0.35,m:0.35,c:'#ffd43b'});pops.push({x:c.x,y:c.y-12,txt:'+1货 +6币',c:'#ffd43b',t:0.7});toast('送达');}}
   caravans=caravans.filter(c=>!c.dead);
-  const gdmg=1+(prog.gdLv|0);for(const p of posts){if(p.g<=0)continue;const pos=path[p.i];for(const b of bandits){if(Math.hypot(b.x-pos.x,b.y-pos.y)<55){b.hp-=gdmg*dt;}}}
-  for(const b of bandits){b.y+=b.spd*dt*0.15;b.x+=Math.sin(b.y*0.05)*10*dt;for(const c of caravans){if(Math.hypot(c.x-b.x,c.y-b.y)<28){c.hp=(c.hp||2)-dt;if(c.hp<=0){c.dead=1;hp--;beep(180,.08,'triangle');if(hp<=0){lose('商队覆灭');return;}}}}if(b.hp<=0){b.dead=1;gold+=2;score+=8;}}
+  const gdmg=1+(prog.gdLv|0);for(const p of posts){p.bt=(p.bt||0)-dt;if(p.g<=0)continue;const pos=path[p.i];for(const b of bandits){if(Math.hypot(b.x-pos.x,b.y-pos.y)<62){b.hp-=gdmg*dt;if(p.bt<=0){beams.push({x1:pos.x,y1:pos.y,x2:b.x,y2:b.y,t:0.12,m:0.12,c:'#ffd43b'});p.bt=0.25;}}}}
+  for(const b of bandits){b.y+=b.spd*dt*0.15;b.x+=Math.sin(b.y*0.05)*10*dt;for(const c of caravans){if(Math.hypot(c.x-b.x,c.y-b.y)<28){c.hp=(c.hp||2)-dt;if(c.hp<=0){c.dead=1;hp--;beep(180,.08,'triangle');rings.push({x:c.x,y:c.y,r:22,t:0.3,m:0.3,c:'#ff6b6b'});if(hp<=0){lose('商队覆灭');return;}}}}if(b.hp<=0){b.dead=1;gold+=2;score+=8;pops.push({x:b.x,y:b.y-8,txt:'+2币',c:'#ffd43b',t:0.5});if(FX)FX.burst(sparks,b.x,b.y,'#ffd43b',4);}}
   bandits=bandits.filter(b=>!b.dead);
-  if(chief){chief.x+=Math.sin(timer)*20*dt;for(const c of caravans){if(Math.hypot(c.x-chief.x,c.y-chief.y)<35){c.dead=1;hp--;}}for(const p of posts){if(p.g>0&&Math.hypot(path[p.i].x-chief.x,path[p.i].y-chief.y)<60)chief.hp-=gdmg*dt*1.5;}if(chief.hp<=0){chief=null;score+=80;toast('匪首败退');gold+=15;}}
+  if(chief){chief.x+=Math.sin(timer)*20*dt;for(const c of caravans){if(Math.hypot(c.x-chief.x,c.y-chief.y)<35){c.dead=1;hp--;}}for(const p of posts){if(p.g>0&&Math.hypot(path[p.i].x-chief.x,path[p.i].y-chief.y)<65){chief.hp-=gdmg*dt*1.5;if((p.bt||0)<=0){beams.push({x1:path[p.i].x,y1:path[p.i].y,x2:chief.x,y2:chief.y,t:0.12,m:0.12,c:'#ff922b'});p.bt=0.22;}}}if(chief.hp<=0){rings.push({x:chief.x,y:chief.y,r:40,t:0.4,m:0.4,c:'#ffd43b'});pops.push({x:chief.x,y:chief.y-16,txt:'匪首退 +15币',c:'#ffd43b',t:0.9});chief=null;score+=80;toast('匪首败退');gold+=15;}}
   if(delivered>=goal)win();$('score').textContent=score|0;}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
   if(p.y>H-70){if(gold>=8){gold-=8;caravans.push({t:0,x:path[0].x,y:path[0].y,hp:2});beep(660,.05);toast('发车');}else toast('金币不足');return;}
-  for(const post of posts){const pos=path[post.i];if(Math.hypot(p.x-pos.x,p.y-pos.y)<30){if(post.g>=post.max){toast('已满员');return;}if(gold<10){toast('金币不足');return;}gold-=10;post.g++;beep(720,.05);toast('雇卫 +1');return;}}});
-function draw(){if(FX)FX.stage(ctx,W,H,'#e8d5b7','#8b6914');else{ctx.fillStyle='#8b6914';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('💰'+gold+' ❤'+hp+' 货'+delivered+'/'+goal+' ⏱'+(timer|0)+(boss?' 👑':''),10,22);
-  ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=8;ctx.beginPath();path.forEach((pt,i)=>{if(i===0)ctx.moveTo(pt.x,pt.y);else ctx.lineTo(pt.x,pt.y);});ctx.stroke();
-  for(const post of posts){const pos=path[post.i];ctx.fillStyle='#adb5bd';ctx.fillRect(pos.x-16,pos.y-16,32,32);ctx.fillStyle='#111';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText('卫'+post.g+'/'+post.max,pos.x,pos.y+4);}
-  for(const c of caravans){ctx.fillStyle='#ffd43b';ctx.beginPath();ctx.arc(c.x,c.y,10,0,7);ctx.fill();}
-  for(const b of bandits){ctx.fillStyle='#c92a2a';ctx.beginPath();ctx.arc(b.x,b.y,9,0,7);ctx.fill();}
-  if(chief){ctx.fillStyle='#861010';ctx.beginPath();ctx.arc(chief.x,chief.y,18,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText('首'+(chief.hp|0),chief.x,chief.y+3);}
-  ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(40,H-58,W-80,48);ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('派出商队 (8币)',W/2,H-28);
+  for(const post of posts){const pos=path[post.i];if(Math.hypot(p.x-pos.x,p.y-pos.y)<30){if(post.g>=post.max){toast('已满员');return;}if(gold<10){toast('金币不足');return;}gold-=10;post.g++;rings.push({x:pos.x,y:pos.y,r:24,t:0.28,m:0.28,c:'#ffd43b'});beep(720,.05);toast('雇卫 +1');return;}}});
+function draw(){const rz=ROUTES[Math.min(2,((lvl-1)/5)|0)];if(FX)FX.stage(ctx,W,H,rz.top,rz.bot);else{ctx.fillStyle=rz.bot;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(6,6,W-12,24);
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';ctx.fillText('💰'+gold+' ❤'+hp+' 货'+delivered+'/'+goal+' ⏱'+(timer|0)+(boss?' 👑':''),12,22);
+  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=12;ctx.lineCap='round';ctx.beginPath();path.forEach((pt,i)=>{if(i===0)ctx.moveTo(pt.x,pt.y);else ctx.lineTo(pt.x,pt.y);});ctx.stroke();
+  ctx.save();ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(255,212,59,.45)';ctx.lineWidth=2;ctx.beginPath();path.forEach((pt,i)=>{if(i===0)ctx.moveTo(pt.x,pt.y);else ctx.lineTo(pt.x,pt.y);});ctx.stroke();ctx.restore();
+  ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('🏕️',path[0].x,path[0].y+5);ctx.fillText('🏰',path[path.length-1].x,path[path.length-1].y+5);
+  for(const b of beams){ctx.save();ctx.globalAlpha=b.t/b.m;ctx.strokeStyle=b.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(b.x1,b.y1);ctx.lineTo(b.x2,b.y2);ctx.stroke();ctx.restore();}
+  for(const r of rings){ctx.save();ctx.globalAlpha=r.t/r.m;ctx.strokeStyle=r.c;ctx.lineWidth=2;ctx.beginPath();ctx.arc(r.x,r.y,r.r*(1.2-r.t/r.m),0,7);ctx.stroke();ctx.restore();}
+  for(const post of posts){const pos=path[post.i];if(FX){FX.shadow(ctx,pos.x,pos.y+16,18,5);FX.tile(ctx,pos.x-16,pos.y-16,32,32,'#adb5bd',8);}else{ctx.fillStyle='#adb5bd';ctx.fillRect(pos.x-16,pos.y-16,32,32);}ctx.fillStyle='#111';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('卫'+post.g+'/'+post.max,pos.x,pos.y+4);}
+  for(const c of caravans){if(FX){FX.shadow(ctx,c.x,c.y+10,10,3.5);FX.orb(ctx,c.x,c.y,10,'#ffd43b');}else{ctx.fillStyle='#ffd43b';ctx.beginPath();ctx.arc(c.x,c.y,10,0,7);ctx.fill();}ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText('🐪',c.x,c.y+3);}
+  for(const b of bandits){if(FX){FX.shadow(ctx,b.x,b.y+9,9,3);FX.orb(ctx,b.x,b.y,9,'#c92a2a');}else{ctx.fillStyle='#c92a2a';ctx.beginPath();ctx.arc(b.x,b.y,9,0,7);ctx.fill();}ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(b.x-9,b.y-14,18,3);ctx.fillStyle='#ff6b6b';ctx.fillRect(b.x-9,b.y-14,18*Math.max(0,b.hp/(b.max||3)),3);}
+  if(chief){if(FX){FX.shadow(ctx,chief.x,chief.y+18,18,5);FX.orb(ctx,chief.x,chief.y,18,'#861010');}else{ctx.fillStyle='#861010';ctx.beginPath();ctx.arc(chief.x,chief.y,18,0,7);ctx.fill();}ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('👑'+(chief.hp|0),chief.x,chief.y+3);}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.min(1,p.t*2);ctx.fillStyle=p.c;ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
+  ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(40,H-58,W-80,48);ctx.strokeStyle='#ffd43b';ctx.lineWidth=1.5;ctx.strokeRect(40,H-58,W-80,48);ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText('🐪 派出商队 (8币)',W/2,H-28);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);delivered=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,delivered,goal,hp,timer:timer|0}}};
 

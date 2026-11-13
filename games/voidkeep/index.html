@@ -447,14 +447,15 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🏰 虚空堡垒</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
   </div>
   <div class="stagebox"><canvas id="cv"></canvas></div>
-  <p class="hint" id="hint">点空位放守门人 · 底栏封裂隙</p>
+  <p class="hint" id="hint">点空位放守门人 · 点守门人升星 · 底栏封裂隙</p>
 </div>
-<div class="overlay" id="startScr"><h1>🏰 虚空堡垒</h1><p>三道门户放置守门人封裂隙。<br>虚空能有限，规划火力。<br>Boss：裂隙洪流更密。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🏰 虚空堡垒</h1><p>三道门户放置守门人封裂隙。<br>虚空能有限，规划火力。<br>v2（Gemini 优化：三大虚空秘境、点击守门人升星、虚空射线与封印波光环、怪物血条及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -484,26 +485,31 @@ if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==nu
 if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
 const TOTAL=15;
-let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
+const REALMS=[{top:'#2a1a5e',bot:'#120a28',name:'星界回廊'},{top:'#4a1230',bot:'#1e0614',name:'猩红裂渊'},{top:'#161b48',bot:'#07091c',name:'终焉虚空'}];
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false,spd=1;
+$('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';};
 
-const TUT=[["门户","虚空裂隙从三道涌来。"],["布防","点道旁空位放置守门人。"],["封印","点底栏释封印波清一波。"],["Boss","Boss关裂隙洪流更猛。"]];
+const TUT=[["门户","虚空裂隙从三道涌来。"],["布防","点道旁空位放置守门人，再点可升星。"],["封印","点底栏释封印波清一波。"],["Boss","Boss关裂隙洪流更猛。"]];
 const SHOP=[{k:'dmgLv',name:'守门火力',max:3,cost(){return 40+(prog.dmgLv|0)*30;},desc(){return '守门伤害+'}},{k:'sealLv',name:'封印充能',max:3,cost(){return 45+(prog.sealLv|0)*30;},desc(){return '封印冷却缩短'}},{k:'keepLv',name:'堡垒加固',max:3,cost(){return 50+(prog.keepLv|0)*35;},desc(){return '堡垒生命+'}}];
 const LX=[70,180,290];
-let towers=[],mobs=[],keep=0,kmax=0,energy=0,killed=0,goal=0,spawnT=0,sealCd=0,rng,slots=[];
+let towers=[],mobs=[],keep=0,kmax=0,energy=0,killed=0,goal=0,spawnT=0,sealCd=0,rng,slots=[],beams=[],rings=[],pops=[];
 function buildSlots(){slots=[];for(let lane=0;lane<3;lane++)for(let r=0;r<4;r++)slots.push({lane,r,x:LX[lane]+(lane===1?0:(lane===0?-36:36)),y:120+r*70,used:false});}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];towers=[];mobs=[];killed=0;rng=mulberry32(n*9101+7);buildSlots();kmax=42+(prog.keepLv|0)*12;keep=kmax;energy=52+(prog.dmgLv|0)*5;goal=10+lvl*2+(boss?12:0);spawnT=0.55;sealCd=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点空位放守门人 · 底栏封裂隙';}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];towers=[];mobs=[];beams=[];rings=[];pops=[];killed=0;rng=mulberry32(n*9101+7);buildSlots();kmax=42+(prog.keepLv|0)*12;keep=kmax;energy=52+(prog.dmgLv|0)*5;goal=10+lvl*2+(boss?12:0);spawnT=0.55;sealCd=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;const rz=REALMS[Math.min(2,((lvl-1)/5)|0)];$('hint').textContent=rz.name+' · 点空位布防/点塔升星 · 底栏封裂隙';}
 function spawn(){const lane=rng()*3|0;const flood=boss&&rng()<0.42;mobs.push({lane,y:-20,hp:flood?18+lvl*3:7+lvl*2,max:flood?18+lvl*3:7+lvl*2,spd:52+lvl*4+(boss?22:0),flood});}
 function win(){if(state!=='play')return;const stars=keep>kmax*0.5?3:keep>kmax*0.2?2:1;const gain=40+stars*15+(boss?55:0)+energy;finishWin(stars,gain,'裂隙封印！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){if(killed>=goal)return win();spawnT-=dt;sealCd=Math.max(0,sealCd-dt);if(spawnT<=0){spawn();spawnT=Math.max(0.34,1.0-lvl*0.04-(boss?0.25:0));}const dmg=5+(prog.dmgLv|0)*2;for(const tw of towers){tw.cd=(tw.cd||0)-dt;if(tw.cd>0)continue;let best=null,bd=1e9;for(const m of mobs){if(m.hp<=0||m.lane!==tw.lane)continue;const d=Math.abs(m.y-tw.y);if(d<90&&d<bd){bd=d;best=m;}}if(best){best.hp-=dmg*(best.flood?0.5:1);tw.cd=0.38;score+=2;$('score').textContent=score;beep(700,.03);if(FX)FX.burst(sparks,tw.x,best.y,'#b39dff',5);if(best.hp<=0){killed++;energy+=3;score+=10;$('score').textContent=score;}}}for(let i=mobs.length-1;i>=0;i--){const m=mobs[i];if(m.hp<=0){mobs.splice(i,1);continue;}m.y+=m.spd*dt;if(m.y>H-70){keep-=m.flood?8:4;mobs.splice(i,1);beep(180,.12,'triangle');if(keep<=0)lose('堡垒崩解');}}}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(p.y>H-56){if(sealCd<=0&&energy>=8){energy-=8;sealCd=8-(prog.sealLv|0)*1.5;for(const m of mobs){m.hp-=10+(prog.dmgLv|0)*2;if(m.hp<=0){killed++;score+=8;}}mobs=mobs.filter(m=>m.hp>0);beep(440,.15,'square');toast('封印波！');$('score').textContent=score;if(killed>=goal)win();}else toast(sealCd>0?'冷却中':'虚空能不足');return;}for(const s of slots){if(s.used)continue;if(Math.hypot(p.x-s.x,p.y-s.y)<28){if(energy<12){toast('虚空能不足');return;}energy-=12;s.used=true;towers.push({lane:s.lane,x:s.x,y:s.y,cd:0});beep(760,.06);return;}}});
-function draw(){if(FX)FX.stage(ctx,W,H,'#2a1a5e','#120a28');else{ctx.fillStyle='#120a28';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+function update(dt){dt*=spd;beams=beams.filter(b=>(b.t-=dt)>0);rings=rings.filter(r=>(r.t-=dt)>0);pops=pops.filter(p=>{p.y-=18*dt;return(p.t-=dt)>0;});if(killed>=goal)return win();spawnT-=dt;sealCd=Math.max(0,sealCd-dt);if(spawnT<=0){spawn();spawnT=Math.max(0.34,1.0-lvl*0.04-(boss?0.25:0));}const baseDmg=5+(prog.dmgLv|0)*2;for(const tw of towers){tw.cd=(tw.cd||0)-dt;if(tw.cd>0)continue;let best=null,bd=1e9;for(const m of mobs){if(m.hp<=0||m.lane!==tw.lane)continue;const d=Math.abs(m.y-tw.y);if(d<95&&d<bd){bd=d;best=m;}}if(best){const tdmg=baseDmg*(1+0.5*(tw.lv-1));best.hp-=tdmg*(best.flood?0.5:1);tw.cd=Math.max(0.2,0.38-0.06*(tw.lv-1));score+=2;$('score').textContent=score;beep(700,.03);beams.push({x1:tw.x,y1:tw.y,x2:LX[best.lane],y2:best.y,t:0.12,m:0.12,c:tw.lv>1?'#ffd43b':'#b39dff'});if(FX)FX.burst(sparks,LX[best.lane],best.y,'#b39dff',5);if(best.hp<=0){killed++;energy+=3;score+=10;$('score').textContent=score;rings.push({x:LX[best.lane],y:best.y,r:20,t:0.25,m:0.25,c:'#c9b6ff'});pops.push({x:LX[best.lane],y:best.y-8,txt:'+3能',c:'#c9b6ff',t:0.55});}}}for(let i=mobs.length-1;i>=0;i--){const m=mobs[i];if(m.hp<=0){mobs.splice(i,1);continue;}m.y+=m.spd*dt;if(m.y>H-70){keep-=m.flood?8:4;mobs.splice(i,1);beep(180,.12,'triangle');rings.push({x:LX[m.lane],y:H-70,r:24,t:0.3,m:0.3,c:'#ff6b6b'});if(keep<=0)lose('堡垒崩解');}}}
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(p.y>H-56){if(sealCd<=0&&energy>=8){energy-=8;sealCd=8-(prog.sealLv|0)*1.5;rings.push({x:W/2,y:H/2,r:170,t:0.45,m:0.45,c:'#7a5cff'});for(const m of mobs){m.hp-=10+(prog.dmgLv|0)*2;if(m.hp<=0){killed++;score+=8;}}mobs=mobs.filter(m=>m.hp>0);beep(440,.15,'square');toast('封印波！');$('score').textContent=score;if(killed>=goal)win();}else toast(sealCd>0?'冷却中':'虚空能不足');return;}for(const tw of towers){if(Math.hypot(p.x-tw.x,p.y-tw.y)<22){if(tw.lv>=3){toast('已满星');return;}const cost=14*tw.lv;if(energy<cost){toast('升星需 '+cost+' 能');return;}energy-=cost;tw.lv++;rings.push({x:tw.x,y:tw.y,r:24,t:0.3,m:0.3,c:'#ffd43b'});pops.push({x:tw.x,y:tw.y-14,txt:'★'+tw.lv,c:'#ffd43b',t:0.6});beep(880,.07);toast('守门人升至 '+tw.lv+' 星');return;}}for(const s of slots){if(s.used)continue;if(Math.hypot(p.x-s.x,p.y-s.y)<28){if(energy<12){toast('虚空能不足');return;}energy-=12;s.used=true;towers.push({lane:s.lane,x:s.x,y:s.y,cd:0,lv:1});rings.push({x:s.x,y:s.y,r:20,t:0.25,m:0.25,c:'#7a5cff'});beep(760,.06);return;}}});
+function draw(){const rz=REALMS[Math.min(2,((lvl-1)/5)|0)];if(FX)FX.stage(ctx,W,H,rz.top,rz.bot);else{ctx.fillStyle=rz.bot;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('堡'+Math.max(0,keep|0)+' 封'+killed+'/'+goal+' 能'+energy+(boss?' 👑':''),10,22);
   for(let i=0;i<3;i++){ctx.fillStyle='rgba(122,92,255,.08)';ctx.fillRect(LX[i]-42,50,84,H-130);}
   ctx.fillStyle='#7a5cff';ctx.fillRect(20,H-68,Math.max(0,keep/kmax)*(W-40),10);
   for(const s of slots){if(s.used)continue;ctx.strokeStyle='rgba(255,255,255,.25)';ctx.strokeRect(s.x-16,s.y-16,32,32);}
-  for(const tw of towers){if(FX)FX.orb(ctx,tw.x,tw.y,12,'#7a5cff');else{ctx.fillStyle='#7a5cff';ctx.beginPath();ctx.arc(tw.x,tw.y,12,0,7);ctx.fill();}}
-  for(const m of mobs){const x=LX[m.lane];if(FX)FX.orb(ctx,x,m.y,m.flood?12:9,m.flood?'#ff6b6b':'#c9b6ff');else{ctx.fillStyle=m.flood?'#ff6b6b':'#c9b6ff';ctx.beginPath();ctx.arc(x,m.y,m.flood?12:9,0,7);ctx.fill();}}
+  for(const b of beams){ctx.save();ctx.globalAlpha=b.t/b.m;ctx.strokeStyle=b.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(b.x1,b.y1);ctx.lineTo(b.x2,b.y2);ctx.stroke();ctx.restore();}
+  for(const r of rings){ctx.save();ctx.globalAlpha=r.t/r.m;ctx.strokeStyle=r.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(r.x,r.y,r.r*(1.2-r.t/r.m),0,7);ctx.stroke();ctx.restore();}
+  for(const tw of towers){const col=tw.lv===3?'#ffd43b':tw.lv===2?'#b39dff':'#7a5cff';if(FX){FX.shadow(ctx,tw.x,tw.y+12,12,4);FX.orb(ctx,tw.x,tw.y,12,col);}else{ctx.fillStyle=col;ctx.beginPath();ctx.arc(tw.x,tw.y,12,0,7);ctx.fill();}ctx.fillStyle='#fff';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.fillText('★'.repeat(tw.lv),tw.x,tw.y-14);}
+  for(const m of mobs){const x=LX[m.lane],rad=m.flood?12:9;if(FX){FX.shadow(ctx,x,m.y+rad,rad,3.5);FX.orb(ctx,x,m.y,rad,m.flood?'#ff6b6b':'#c9b6ff');}else{ctx.fillStyle=m.flood?'#ff6b6b':'#c9b6ff';ctx.beginPath();ctx.arc(x,m.y,rad,0,7);ctx.fill();}ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x-10,m.y-rad-6,20,3);ctx.fillStyle=m.flood?'#ff6b6b':'#c9b6ff';ctx.fillRect(x-10,m.y-rad-6,20*Math.max(0,m.hp/m.max),3);}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.min(1,p.t*2);ctx.fillStyle=p.c;ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
   ctx.fillStyle=sealCd>0?'rgba(255,255,255,.2)':'rgba(122,92,255,.55)';ctx.fillRect(W*0.2,H-52,W*0.6,44);ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText(sealCd>0?('封印 '+sealCd.toFixed(1)+'s'):'释封印波 (-8能)',W/2,H-24);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);killed=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,killed,goal,keep,energy}}};
