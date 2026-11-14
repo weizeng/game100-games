@@ -448,12 +448,12 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🏃<b id="lvT">1</b></span><span>🪙<b id="coinT">0</b></span><span>❤️<b id="lifeT">3</b></span><span>⏱<b id="timeT">0</b></span></span>
-    <span class="tools"><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="pad"><button class="ghost" id="bL" aria-label="向左">◀</button><button class="ghost" id="bR" aria-label="向右">▶</button><button class="ghost" id="bD" aria-label="冲刺">💨</button><button class="btn" id="bJ" aria-label="跳跃">⤒</button></div>
 </div>
-<div class="overlay" id="startScr"><h1>🏃 霓虹跑者</h1><p>横版跳跃大冒险！顶 ? 砖、踩扁巡逻怪、冲向终点旗🏁。<br>15 关：尖刺、弹簧、移动平台、飞行怪，<br>击败 3 位霓虹巨像解锁二段跳和冲刺！</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始冒险</button></div>
+<div class="overlay" id="startScr"><h1>🏃 霓虹跑者</h1><p>横版跳跃大冒险！顶 ? 砖、踩扁巡逻怪、冲向终点旗🏁，v4（Gemini 优化：踩怪/顶砖光环波纹、冲刺残影尾迹与 1×/2× 倍速）。<br>15 关：尖刺、弹簧、移动平台、飞行怪，<br>击败 3 位霓虹巨像解锁二段跳和冲刺！</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始冒险</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><p id="skillInfo" style="text-align:center"></p><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn">🔊</button></div></div>
@@ -495,7 +495,7 @@ const GR=1900,JV=640,RUN=185,ACC=1400;
 const LV=[];for(let i=0;i<15;i++)LV.push({n:i+1,boss:(i+1)%5===0,len:60+i*8,seed:7+i*131,time:120+i*5,th:Math.floor(i/5)});
 const THEME=[['#ff9ad5','#6a3fd1','#ff4d8d','#ffc531'],['#7fe3ff','#2b2f8f','#4fc3f7','#2ee6a0'],['#ffb37a','#5a1a4a','#ff6b3d','#ff4d8d']];
 let save=Store.get('save',{stars:[],coins:0,tut:0,best:[]});
-let state='menu',li=0,L=null,map=[],mw=0,P=null,ents=[],coinsGot=0,coinsTotal=0,lives=3,time=0,t=0,camX=0,keys={l:0,r:0,j:0,d:0},jumpBuf=0,cp=null,deaths=0,boss=null,sparks=[],floats=[],FAST=false,plats=[];
+let state='menu',li=0,L=null,map=[],mw=0,P=null,ents=[],coinsGot=0,coinsTotal=0,lives=3,time=0,t=0,camX=0,keys={l:0,r:0,j:0,d:0},jumpBuf=0,cp=null,deaths=0,boss=null,sparks=[],floats=[],waves=[],dtrail=[],spdMul=1,FAST=false,plats=[];
 const dbl=()=>(save.stars[4]||0)>0,dash=()=>(save.stars[9]||0)>0;
 // ---------- 关卡生成 ----------
 function gen(i){const r=mkRng(LV[i].seed),R=(a,b)=>a+Math.floor(r()*(b-a+1)),d=i/14;const len=LV[i].len;mw=len+20;map=[];for(let y=0;y<MH;y++)map.push(new Array(mw).fill('.'));ents=[];plats=[];
@@ -522,7 +522,7 @@ let cpPlaced=false;
 function tile(x,y){if(y<0)return'.';if(y>=MH)return'.';if(x<0||x>=mw)return'#';return map[y][x];}
 const solid=c=>c==='#'||c==='?'||c==='B'||c==='X';
 function startLevel(i,keepCp){li=i;L=LV[i];cpPlaced=false;const s=gen(i);coinsTotal=ents.filter(e=>e.k==='coin').length+countQ();if(!keepCp){cp=null;coinsGot=0;deaths=0;lives=L.boss?4:3;time=L.time;}
- const sp=cp||{x:s.sx*T,y:s.sy*T-10};P={x:sp.x,y:sp.y-20,w:20,h:26,vx:0,vy:0,on:false,jumps:0,face:1,inv:1,dashT:0,dashCd:0};camX=0;keys={l:0,r:0,j:0,d:0};jumpBuf=0;t=0;sparks=[];floats=[];
+ const sp=cp||{x:s.sx*T,y:s.sy*T-10};P={x:sp.x,y:sp.y-20,w:20,h:26,vx:0,vy:0,on:false,jumps:0,face:1,inv:1,dashT:0,dashCd:0};camX=0;keys={l:0,r:0,j:0,d:0};jumpBuf=0;t=0;sparks=[];floats=[];waves=[];dtrail=[];
  state='play';['lvlScr','overScr','pauseOv','startScr'].forEach(k=>show(k,false));$('bD').style.visibility=dash()?'visible':'hidden';fit();hud();if(!FAST&&!keepCp)toast(L.boss?'👾 霓虹巨像！它冲撞后会晕眩，踩它的头！':'第 '+(i+1)+' 关 · 冲向终点 🏁',2000);}
 function countQ(){let n=0;for(const row of map)for(const c of row)if(c==='?')n++;return n;}
 function hud(){$('lvT').textContent=li+1;$('coinT').textContent=coinsGot;$('lifeT').textContent=lives;$('timeT').textContent=Math.ceil(Math.max(0,time));}
@@ -530,7 +530,7 @@ function float(x,y,s,c){floats.push({x,y,s,c,l:1});}
 // ---------- 物理 ----------
 function moveX(b,dx){b.x+=dx;const y0=Math.floor(b.y/T),y1=Math.floor((b.y+b.h-1)/T);if(dx>0){const tx=Math.floor((b.x+b.w)/T);for(let y=y0;y<=y1;y++)if(solid(tile(tx,y))){b.x=tx*T-b.w-.01;b.vx=0;return true;}}else if(dx<0){const tx=Math.floor(b.x/T);for(let y=y0;y<=y1;y++)if(solid(tile(tx,y))){b.x=(tx+1)*T+.01;b.vx=0;return true;}}return false;}
 function moveY(b,dy,isP){b.y+=dy;const x0=Math.floor(b.x/T),x1=Math.floor((b.x+b.w-1)/T);b.on=false;if(dy>0){const ty=Math.floor((b.y+b.h)/T);for(let x=x0;x<=x1;x++)if(solid(tile(x,ty))){b.y=ty*T-b.h;b.vy=0;b.on=true;return;}}else if(dy<0){const ty=Math.floor(b.y/T);for(let x=x0;x<=x1;x++)if(solid(tile(x,ty))){b.y=(ty+1)*T;b.vy=0;if(isP)head(x,ty);return;}}}
-function head(x,y){const c=tile(x,y);if(c==='?'){map[y][x]='X';coinsGot++;tone(988,.06,'square',.04);tone(1319,.12,'square',.04,0,.06);float(x*T+15,y*T-8,'+1','#ffe066');if(FX)FX.burst(sparks,x*T+15,y*T,'#ffe066',8);hud();}else if(c==='B'){map[y][x]='.';noise(.08,.08,1200);if(FX)FX.burst(sparks,x*T+15,y*T+15,'#c08a5a',10);}}
+function head(x,y){const c=tile(x,y);if(c==='?'){map[y][x]='X';coinsGot++;waves.push({x:x*T+15,y:y*T+15,r:8,c:'#ffe066',a:1});tone(988,.06,'square',.04);tone(1319,.12,'square',.04,0,.06);float(x*T+15,y*T-8,'+1','#ffe066');if(FX)FX.burst(sparks,x*T+15,y*T,'#ffe066',8);hud();}else if(c==='B'){map[y][x]='.';noise(.08,.08,1200);if(FX)FX.burst(sparks,x*T+15,y*T+15,'#c08a5a',10);}}
 function jump(){jumpBuf=.12;}
 function hurt(){if(P.inv>0||state!=='play')return;lives--;deaths++;P.inv=1.5;P.vy=-380;noise(.2,.15,500);if(FX)FX.burst(sparks,P.x+10,P.y+13,'#ff4d6e',14);hud();if(lives<=0)end(false);}
 function fall(){if(state!=='play')return;lives--;deaths++;hud();noise(.25,.12,300);if(lives<=0){end(false);return;}const sp=cp||{x:2*T,y:10*T-10};P.x=sp.x;P.y=sp.y-30;P.vx=P.vy=0;P.inv=1.5;}
@@ -553,9 +553,9 @@ function tick(dt){if(state!=='play')return;t+=dt;time-=dt;if(time<=0){time=0;end
  for(const e of ents){if(e.dead)continue;if((e.k==='walker'||e.k==='spiky'||e.k==='flyer')&&!e.on){if(e.x<camX+W+40)e.on=1;else continue;}
   if(e.k==='walker'||e.k==='spiky'){const b={x:e.x,y:e.y,w:24,h:22,vx:e.vx,vy:e.vy||0};b.vy=Math.min(900,b.vy+GR*dt);if(moveX(b,e.vx*dt))e.vx*=-1;moveY(b,b.vy*dt);
     const ax=Math.floor((b.x+(e.vx>0?b.w+2:-2))/T),ay=Math.floor((b.y+b.h+4)/T);if(b.on&&!solid(tile(ax,ay)))e.vx*=-1;e.x=b.x;e.y=b.y;e.vy=b.vy;if(e.y>MH*T)e.dead=1;
-    if(ov(P,b)){if(e.k==='walker'&&P.vy>0&&P.y+P.h-b.y<14){e.dead=1;P.vy=-420;coinsGot+=0;tone(300,.1,'square',.05,120);float(e.x,e.y,'踩扁！','#fff');if(FX)FX.burst(sparks,e.x+12,e.y+10,'#ff4d8d',10);}else if(P.dashT>0&&e.k==='walker'){e.dead=1;}else hurt();}}
-  else if(e.k==='flyer'){e.ph+=dt*2;e.x+=Math.cos(e.ph*.5)*30*dt;e.y=e.y0+Math.sin(e.ph)*40;const b={x:e.x-12,y:e.y-10,w:24,h:20};if(ov(P,b)){if(P.vy>0&&P.y+P.h-b.y<14){e.dead=1;P.vy=-420;tone(300,.1,'square',.05,120);}else hurt();}}
-  else if(e.k==='coin'){if(Math.abs(P.x+10-e.x)<16&&Math.abs(P.y+13-e.y)<20){e.dead=1;coinsGot++;tone(988,.05,'square',.03);tone(1319,.1,'square',.03,0,.05);hud();}}
+    if(ov(P,b)){if(e.k==='walker'&&P.vy>0&&P.y+P.h-b.y<14){e.dead=1;P.vy=-420;waves.push({x:e.x+12,y:e.y+10,r:8,c:'#ff4d8d',a:1});tone(300,.1,'square',.05,120);float(e.x,e.y,'踩扁！','#fff');if(FX)FX.burst(sparks,e.x+12,e.y+10,'#ff4d8d',10);}else if(P.dashT>0&&e.k==='walker'){e.dead=1;waves.push({x:e.x+12,y:e.y+10,r:8,c:'#4fc3f7',a:1});}else hurt();}}
+  else if(e.k==='flyer'){e.ph+=dt*2;e.x+=Math.cos(e.ph*.5)*30*dt;e.y=e.y0+Math.sin(e.ph)*40;const b={x:e.x-12,y:e.y-10,w:24,h:20};if(ov(P,b)){if(P.vy>0&&P.y+P.h-b.y<14){e.dead=1;P.vy=-420;waves.push({x:e.x,y:e.y,r:8,c:'#ff4d8d',a:1});tone(300,.1,'square',.05,120);}else hurt();}}
+  else if(e.k==='coin'){if(Math.abs(P.x+10-e.x)<16&&Math.abs(P.y+13-e.y)<20){e.dead=1;coinsGot++;waves.push({x:e.x,y:e.y,r:6,c:'#ffc531',a:1});tone(988,.05,'square',.03);tone(1319,.1,'square',.03,0,.05);hud();}}
   else if(e.k==='spring'){if(Math.abs(P.x+10-e.x)<18&&P.y+P.h>=e.y-6&&P.y+P.h<=e.y+4&&P.vy>=0){P.vy=-JV*1.45;P.jumps=1;P.spr=1;tone(400,.2,'sine',.05,1200);e.sq=.2;}}
   else if(e.k==='check'){if(!e.got&&Math.abs(P.x-e.x)<20){e.got=1;cp={x:e.x,y:e.y-10};tone(660,.1,'triangle');tone(880,.15,'triangle',.08,0,.1);toast('🚩 存档点');}}
   else if(e.k==='flag'){if(P.x+P.w>e.x){end(true);return;}}
@@ -564,6 +564,9 @@ function tick(dt){if(state!=='play')return;t+=dt;time-=dt;if(time<=0){time=0;end
  if(boss)bossTick(dt);
  ents=ents.filter(e=>!e.dead||e.k==='check');
  camX=clamp(P.x-W*.38,0,Math.max(0,mw*T-W));
+ if(P.dashT>0)dtrail.push({x:P.x,y:P.y,a:.6});
+ waves=waves.filter(w=>{w.r+=dt*95;w.a-=dt*2.5;return w.a>0;});
+ dtrail=dtrail.filter(tr=>{tr.a-=dt*3.2;return tr.a>0;});
  for(const f of floats){f.y-=30*dt;f.l-=dt;}floats=floats.filter(f=>f.l>0);if(Math.floor(t*4)!==Math.floor((t-dt)*4))hud();}
 const ov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 function bossTick(dt){const b=boss;if(b.dead)return;b.tm-=dt;if(b.inv>0)b.inv-=dt;const ph2=b.hp<=b.max/2;
@@ -611,8 +614,10 @@ function draw(){const th=THEME[L?L.th:0];if(FX)FX.stage(ctx,W,H,th[0],th[1]);els
   else if(e.k==='wave'){ctx.fillStyle='rgba(255,224,102,.85)';ctx.beginPath();ctx.moveTo(e.x-12,e.y);ctx.quadraticCurveTo(e.x,e.y-26,e.x+12,e.y);ctx.fill();}}
  if(boss&&!boss.dead){const b=boss;if(FX)FX.shadow(ctx,b.x+b.w/2,b.y+b.h,30,6);ctx.globalAlpha=b.inv>0&&Math.sin(t*40)>0?.5:1;if(FX)FX.tile(ctx,b.x,b.y,b.w,b.h,b.st==='charge'?'#ff4d6e':b.st==='dizzy'?'#9aa':'#7c4dff',14);txt(ctx,b.st==='dizzy'?'😵':'😠',b.x+b.w/2,b.y+24,30);if(b.st==='charge'&&b.tm>0)otxt(ctx,'❗',b.x+b.w/2,b.y-14,18,'#fff');ctx.globalAlpha=1;}
  // 玩家
+ for(const tr of dtrail){ctx.save();ctx.globalAlpha=tr.a;ctx.fillStyle='#4fc3f7';ctx.fillRect(tr.x,tr.y+6,P.w,P.h-6);ctx.restore();}
  ctx.globalAlpha=P.inv>0&&Math.sin(t*30)>0?.4:1;if(FX)FX.shadow(ctx,P.x+10,P.y+P.h+1,10,3);if(P.dashT>0&&FX)FX.glow(ctx,'#4fc3f7',20);if(FX)FX.tile(ctx,P.x,P.y+6,P.w,P.h-6,'#ff4d8d',7);else{ctx.fillStyle='#ff4d8d';ctx.fillRect(P.x,P.y,P.w,P.h);}if(FX)FX.noGlow(ctx);
  ctx.save();ctx.translate(P.x+10,P.y+6);ctx.scale(P.face,1);txt(ctx,'🏃',0,2,26);ctx.restore();ctx.globalAlpha=1;
+ for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();ctx.restore();}
  if(FX)FX.drawBurst(ctx,sparks);for(const f of floats){ctx.globalAlpha=clamp(f.l,0,1);otxt(ctx,f.s,f.x,f.y,13,f.c);}ctx.globalAlpha=1;ctx.restore();
  if(boss&&!boss.dead){ctx.fillStyle='rgba(0,0,0,.35)';rr(ctx,60,10,W-120,14,7);ctx.fill();ctx.fillStyle='#ff4d6e';rr(ctx,60,10,(W-120)*boss.hp/boss.max,14,7);ctx.fill();txt(ctx,'霓虹巨像',W/2,17,10,'#fff');}
  else{const fl=ents.find(e=>e.k==='flag');if(fl){ctx.fillStyle='rgba(0,0,0,.3)';rr(ctx,60,10,W-120,8,4);ctx.fill();ctx.fillStyle='#ffe066';rr(ctx,60,10,(W-120)*clamp(P.x/fl.x,0,1),8,4);ctx.fill();}}
@@ -629,7 +634,8 @@ function pause(){if(state==='play'){state='pause';keys={l:0,r:0,j:0,d:0};show('p
 $('pauseBtn').onclick=pause;$('resumeBtn').onclick=()=>{show('pauseOv',false);state='play';last=performance.now();};$('restartBtn').onclick=()=>startLevel(li);$('menuBtn').onclick=openLevels;
 $('nextBtn').onclick=()=>startLevel(li+1);$('againBtn').onclick=()=>startLevel(li);$('menu2Btn').onclick=openLevels;
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
-let last=performance.now(),acc=0;function frame(tm){acc+=Math.min(.1,(tm-last)/1000);last=tm;while(acc>=1/60){tick(1/60);acc-=1/60;}draw();requestAnimationFrame(frame);}
+$('spdBtn').onclick=()=>{spdMul=spdMul===1?2:1;$('spdBtn').textContent=spdMul+'×';};
+let last=performance.now(),acc=0;function frame(tm){acc+=Math.min(.1,(tm-last)/1000)*spdMul;last=tm;while(acc>=1/60){tick(1/60);acc-=1/60;}draw();requestAnimationFrame(frame);}
 fit();requestAnimationFrame(frame);
 window.__nr={LV,startLevel,tick,jump,keys:()=>keys,setFast:v=>FAST=v,tile,solid,save:()=>save,get s(){return{state,li,P,lives,deaths,time,coinsGot,coinsTotal,boss,ents,plats}}};
 </script>

@@ -467,14 +467,14 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🪂<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>🎯<b id="landT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalT">高度</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
-  <div class="hint">点屏幕开伞 · 开伞后左右倾斜转向 · 落在靶心</div>
+  <div class="hint">点屏幕开伞 · 开伞后左右倾斜转向 · 顺路吃空中金币落在靶心</div>
 </div>
 
-<div class="overlay" id="startScr"><h1>🪂 极限跳伞</h1><p>跳伞挑战升级成 15 关：自由落体时点屏幕开伞，开伞后左右倾斜对准靶心着陆。<br>有侧风、移动靶、云层障碍；开太早/太晚都会偏。<br>第 5/10/15 关迎战移动的「风暴航母」！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始跳伞</button></div>
+<div class="overlay" id="startScr"><h1>🪂 极限跳伞</h1><p>跳伞挑战升级成 15 关：自由落体时点屏幕开伞，开伞后左右倾斜对准靶心着陆，v6（Gemini 优化：3 大跳伞空域、空中金币收集、着陆光环飘字与 1×/2× 倍速）。<br>有侧风、移动靶、云层障碍；开太早/太晚都会偏。<br>第 5/10/15 关迎战移动的「风暴航母」！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始跳伞</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -598,12 +598,16 @@ const LV=[
  {boss:{hp:6,name:'雷暴航母',t:85,tol:32}},
  {jumps:5,wind:48,mov:.65,tol:22,cloud:4},{jumps:6,wind:50,mov:.7,tol:20,cloud:4},{jumps:6,wind:52,mov:.7,tol:18,cloud:5},{jumps:6,wind:55,mov:.75,tol:18,cloud:5},
  {boss:{hp:8,name:'风暴母舰',t:95,tol:28}}];
-let L,x,y,vx,vy,open,alt,target,lives,score,ended,raf=0,last=0,fast=1,jumps,landed,sparks,boss,bossT,wind,clouds,tilt,miss,phase;
+const SKIES=[{bot:'#0a1a30',gnd:'#1b5e20'},{bot:'#4a148c',gnd:'#3e2723'},{bot:'#0d0826',gnd:'#1a237e'}];
+let L,x,y,vx,vy,open,alt,target,lives,score,ended,raf=0,last=0,fast=1,jumps,landed,sparks,boss,bossT,wind,clouds,coins,waves,pops,tilt,miss,phase;
+function addWave(wx,wy,c){waves.push({x:wx,y:wy,r:8,c,a:1});}
+function addPop(px,py,t,c){pops.push({x:px,y:py,t,c:c||'#fff',a:1});}
 function startJump(){x=W/2+(Math.random()*40-20);y=40;vx=0;vy=0;open=false;alt=1000;tilt=0;phase='fall';
   const tx=80+Math.random()*(W-160);target={x:tx,bx:tx,r:L.boss?L.boss.tol:(L.tol+Kit.up('tol')*4),mv:(L.mov||0)*(40+Math.random()*40),ph:Math.random()*6};
   wind=(L.wind||0)*(Math.random()<.5?-1:1)*(1-Kit.up('wind')*.2);clouds=[];for(let i=0;i<(L.cloud||0);i++)clouds.push({x:Math.random()*W,y:100+Math.random()*280,w:60+Math.random()*40});
+  coins=[];for(let i=0;i<2;i++)coins.push({x:60+Math.random()*(W-120),y:130+i*120+Math.random()*50,got:false});
   if(boss){target.x=W/2;target.bx=W/2;}Kit.toast(open?'':'自由落体，点屏幕开伞！',1000);}
-function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');jumps=0;landed=0;miss=0;sparks=[];tilt=0;
+function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');jumps=0;landed=0;miss=0;sparks=[];waves=[];pops=[];tilt=0;
   boss=L.boss?{hp:L.boss.hp,max:L.boss.hp,name:L.boss.name,flash:0}:null;bossT=boss?L.boss.t+Kit.up('time')*8:0;
   startJump();hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
 cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||ended||phase==='done')return;const r=cv.getBoundingClientRect();const px=(e.clientX-r.left)*W/r.width;
@@ -619,11 +623,14 @@ function upd(dt){if(phase==='done')return;
   const g=open?120:520;vy+=g*dt;vy=Math.min(open?140:420,vy);vx+=(wind*dt+(open?tilt*180*dt:0));vx*=Math.pow(open?.4:.85,dt);x+=vx*dt;y+=vy*dt;alt=Math.max(0,1000-(y-40)/(H-80)*1000);
   x=Math.max(20,Math.min(W-20,x));
   for(const c of clouds){if(!open&&Math.abs(x-c.x)<c.w/2&&Math.abs(y-c.y)<20){vx+=(Math.random()-.5)*200;Kit.tone(150,.1,'sawtooth',.05);}}
+  for(const cn of coins){if(!cn.got&&Math.hypot(x-cn.x,y-cn.y)<24){cn.got=true;score+=50;Kit.sfx('good');addWave(cn.x,cn.y,'#ffd54f');addPop(cn.x,cn.y-12,'+50🪙','#ffd54f');if(FX)FX.burst(sparks,cn.x,cn.y,'#ffd54f',8);}}
+  waves=waves.filter(w=>{w.r+=dt*90;w.a-=dt*2.4;return w.a>0;});
+  pops=pops.filter(p=>{p.y-=dt*28;p.a-=dt*1.5;return p.a>0;});
   if(y>=H-50){phase='done';const d=Math.abs(x-target.x);const tol=target.r;jumps++;
-    if(d<=tol*.35){const sc=200;score+=sc;landed++;Kit.sfx('win');if(FX)FX.burst(sparks,x,y,'#ffd34d',20);Kit.toast('🎯 靶心！',800);
+    if(d<=tol*.35){const sc=200;score+=sc;landed++;Kit.sfx('win');addWave(x,y,'#ffd34d');addPop(x,y-22,'🎯 靶心 +200','#ffd34d');if(FX)FX.burst(sparks,x,y,'#ffd34d',20);Kit.toast('🎯 靶心！',800);
       if(boss){boss.hp--;boss.flash=.4;if(boss.hp<=0){score+=Math.round(bossT)*12;return endLv(true);}}
       else if(landed>=(L.jumps||3))return endLv(true);}
-    else if(d<=tol){score+=100;landed++;Kit.sfx('good');Kit.toast('安全着陆',800);
+    else if(d<=tol){score+=100;landed++;Kit.sfx('good');addWave(x,y,'#69f0ae');addPop(x,y-22,'+100','#69f0ae');Kit.toast('安全着陆',800);
       if(boss){boss.hp--;if(boss.hp<=0)return endLv(true);}else if(landed>=L.jumps)return endLv(true);}
     else{miss++;lives--;Kit.sfx('bad');Kit.toast('偏了 '+Math.round(d)+'m',1000);if(lives<=0)return endLv(false,'跳伞失败');}
     if(!ended)setTimeout(()=>{if(!ended)startJump();},700);}
@@ -639,16 +646,20 @@ let paraBg=null,paraBgKey='';
 function ensureParaBg(top,bot){const k=W+'x'+H+top+bot;if(paraBg&&paraBgKey===k)return paraBg;paraBgKey=k;const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
   if(FX)FX.stage(g,W,H,top,bot);else{g.fillStyle=bot;g.fillRect(0,0,W,H);}
   paraBg=c;return paraBg;}
-function draw(){const sky=alt/1000;const top=`rgb(${(30+sky*40)|0},${(60+sky*80)|0},${(120+sky*80)|0})`;ctx.drawImage(ensureParaBg(top,'#0a1a30'),0,0);
+function draw(){const sk=SKIES[Math.min(2,(Kit.lv/5)|0)];const sky=alt/1000;const top=`rgb(${(30+sky*40)|0},${(60+sky*80)|0},${(120+sky*80)|0})`;ctx.drawImage(ensureParaBg(top,sk.bot),0,0);
   // clouds
   for(const c of clouds){ctx.fillStyle='rgba(255,255,255,.35)';ctx.beginPath();ctx.ellipse(c.x,c.y,c.w/2,14,0,0,7);ctx.fill();}
+  for(const cn of coins){if(cn.got)continue;if(FX){FX.glow(ctx,'#ffd54f',6);FX.orb(ctx,cn.x|0,cn.y|0,8,'#ffd54f');FX.noGlow(ctx);}else{ctx.fillStyle='#ffd54f';ctx.beginPath();ctx.arc(cn.x,cn.y,8,0,7);ctx.fill();}}
   // target
-  ctx.fillStyle='#1b5e20';ctx.fillRect(0,H-40,W,40);
+  ctx.fillStyle=sk.gnd;ctx.fillRect(0,H-40,W,40);
   const rings=['#f44336','#fff','#f44336','#fff','#f44336'];for(let i=0;i<5;i++){ctx.fillStyle=rings[i];ctx.beginPath();ctx.arc(target.x,H-40,target.r*(1-i*.18),0,7);ctx.fill();}
   if(boss){ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText('🚢',target.x,H-55);}
+  if(FX)FX.shadow(ctx,x,H-40,14*(1-alt/1200),4,.35);
   // jumper
   ctx.save();ctx.translate(x,y);ctx.rotate(tilt*.3);if(open){ctx.fillStyle='#039BE5';ctx.beginPath();ctx.ellipse(0,-18,28,12,0,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.beginPath();ctx.moveTo(-20,-14);ctx.lineTo(0,0);ctx.moveTo(20,-14);ctx.lineTo(0,0);ctx.stroke();}
   ctx.font='24px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(open?'🪂':'🧍',0,0);ctx.restore();
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
   ctx.fillStyle='#7cf3ff';ctx.font='12px sans-serif';ctx.textAlign='left';ctx.fillText('🌬 '+(wind>0?'→':'←')+Math.abs(wind|0),10,20);
   if(FX)FX.drawBurst(ctx,sparks);}
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
@@ -662,6 +673,7 @@ Kit.init({id:'parachute',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,st
   ups:[{k:'life',ic:'❤️',name:'备用命',desc:'+1',max:2,cost:l=>30+l*35},{k:'tol',ic:'🎯',name:'大靶',desc:'靶心更大',max:2,cost:l=>35+l*40},
        {k:'wind',ic:'🌬',name:'抗风',desc:'风力 −20%',max:2,cost:l=>40+l*40,stars:6},{k:'time',ic:'⏱',name:'加时',desc:'首领 +8 秒',max:2,cost:l=>25+l*30}]});
 window.__T.state=()=>({x,y,open,alt,tx:target&&target.x,landed,need:L&&(L.jumps||3),lives,ended,boss:boss&&{hp:boss.hp},phase,wind});
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 window.__T.open=()=>{if(!open){open=true;vy*=.3;phase='glide';}};window.__T.tilt=v=>{tilt=v;};window.__T.fast=k=>{fast=k;};
 window.__T.cheatLand=()=>{x=target.x;y=H-50;open=true;landed=L.jumps||3;endLv(true);};
 
