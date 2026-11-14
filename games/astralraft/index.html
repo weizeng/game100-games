@@ -447,6 +447,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🛸 星筏漂流</span>
     <span class="stat">得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -454,7 +455,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">拖转向 · 自动射击 · 收燃料</p>
 </div>
-<div class="overlay" id="startScr"><h1>🛸 星筏漂流</h1><p>驾驶星筏射击陨石海盗。<br>收集燃料续航清波次。<br>Boss：母舰弹幕。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🛸 星筏漂流</h1><p>驾驶星筏射击陨石海盗，收集燃料续航清波次。<br>v2（Gemini 优化：3 大星海主题与流动星空、爆裂波纹与飘字、1×/2× 倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -484,24 +485,33 @@ if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==nu
 if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
 const TOTAL=15;
-let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false,fast=1,waves=[],pops=[];
+const NEBULAS=[['#0a1840','#05081a'],['#3b0764','#0f041c'],['#064e3b','#021a14']];
+const STARS=Array.from({length:36},()=>({x:Math.random()*W,y:Math.random()*H,r:0.8+Math.random()*1.6,s:25+Math.random()*45}));
 
 const TUT=[["驾驶","拖动或点左右转向。"],["射击","自动射击，点加速火力。"],["燃料","收燃料续航。"],["Boss","母舰血厚弹幕密。"]];
 const SHOP=[{k:'hpLv',name:'筏体加固',max:3,cost(){return 40+(prog.hpLv|0)*30;},desc(){return '生命+'}},{k:'fireLv',name:'星炮强化',max:3,cost(){return 45+(prog.fireLv|0)*30;},desc(){return '射速/伤+'}},{k:'fuelLv',name:'燃料仓',max:3,cost(){return 50+(prog.fuelLv|0)*35;},desc(){return '燃料上限+'}}];
 let px=180,py=420,vx=0,hp=0,fuel=0,fmax=0,bullets=[],enemies=[],spawnT=0,waveKills=0,need=0,fireCd=0,rng;
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];px=W/2;py=H-120;vx=0;hp=3+(prog.hpLv|0);fmax=40+(prog.fuelLv|0)*15;fuel=fmax;bullets=[];enemies=[];spawnT=0.5;waveKills=0;need=8+lvl*2+(boss?8:0);fireCd=0;rng=mulberry32(n*1117+8);if(boss)enemies.push({x:W/2,y:80,hp:40+lvl*5,r:28,boss:true,t:0});show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='拖转向 · 自动射击 · 收燃料';}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];px=W/2;py=H-120;vx=0;hp=3+(prog.hpLv|0);fmax=40+(prog.fuelLv|0)*15;fuel=fmax;bullets=[];enemies=[];spawnT=0.5;waveKills=0;need=8+lvl*2+(boss?8:0);fireCd=0;rng=mulberry32(n*1117+8);if(boss)enemies.push({x:W/2,y:80,hp:40+lvl*5,r:28,boss:true,t:0});show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='拖转向 · 自动射击 · 收燃料';}
 function win(){if(state!=='play')return;const stars=hp>=3?3:hp>=2?2:1;const gain=40+stars*15+(boss?60:0)+fuel;finishWin(stars,gain,'星筏凯旋！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){px+=vx*dt;px=Math.max(20,Math.min(W-20,px));vx*=0.9;fuel-=dt*2;if(fuel<=0)lose('燃料耗尽');fireCd-=dt;const fr=Math.max(0.12,0.28-(prog.fireLv|0)*0.04);if(fireCd<=0){fireCd=fr;bullets.push({x:px,y:py-10,vy:-320});}for(let i=bullets.length-1;i>=0;i--){bullets[i].y+=bullets[i].vy*dt;if(bullets[i].y<-10)bullets.splice(i,1);}spawnT-=dt;if(spawnT<=0&&!boss){spawnT=Math.max(0.35,1.0-lvl*0.04);const kind=rng()<0.3?'fuel':'ast';enemies.push({x:30+rng()*(W-60),y:-20,hp:kind==='fuel'?1:4+((lvl/3)|0),r:kind==='fuel'?10:14,kind,vy:60+lvl*8+rng()*40});}if(boss){const b=enemies.find(e=>e.boss);if(b){b.t+=dt;b.x=W/2+Math.sin(b.t)*80;if(rng()<0.02+lvl*0.002)enemies.push({x:b.x,y:b.y+20,hp:3,r:10,kind:'ast',vy:100+lvl*5});}}for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];if(!e.boss)e.y+=(e.vy||80)*dt;for(let j=bullets.length-1;j>=0;j--){if(Math.hypot(bullets[j].x-e.x,bullets[j].y-e.y)<e.r+4){bullets.splice(j,1);e.hp-=1+(prog.fireLv|0);if(e.hp<=0){if(e.kind==='fuel'){fuel=Math.min(fmax,fuel+12);score+=8;}else{waveKills++;score+=15;} $('score').textContent=score;if(FX)FX.burst(sparks,e.x,e.y,'#7df9ff',10);beep(780,.05);enemies.splice(i,1);if(waveKills>=need||(boss&&e.boss))return win();break;}}}if(e.y>H+30){enemies.splice(i,1);continue;}if(Math.hypot(e.x-px,e.y-py)<e.r+12&&e.kind!=='fuel'){enemies.splice(i,1);hp--;beep(160,.15,'triangle');if(hp<=0)lose('星筏击毁');}}}
+function update(dt){for(const s of STARS){s.y+=s.s*dt;if(s.y>H){s.y=0;s.x=Math.random()*W;}}for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.8;if(waves[i].t>=1)waves.splice(i,1);}for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;pops[i].y-=dt*30;if(pops[i].t>=0.85)pops.splice(i,1);}px+=vx*dt;px=Math.max(20,Math.min(W-20,px));vx*=0.9;fuel-=dt*2;if(fuel<=0)lose('燃料耗尽');fireCd-=dt;const fr=Math.max(0.12,0.28-(prog.fireLv|0)*0.04);if(fireCd<=0){fireCd=fr;bullets.push({x:px,y:py-10,vy:-320});}for(let i=bullets.length-1;i>=0;i--){bullets[i].y+=bullets[i].vy*dt;if(bullets[i].y<-10)bullets.splice(i,1);}spawnT-=dt;if(spawnT<=0&&!boss){spawnT=Math.max(0.35,1.0-lvl*0.04);const kind=rng()<0.3?'fuel':'ast';enemies.push({x:30+rng()*(W-60),y:-20,hp:kind==='fuel'?1:4+((lvl/3)|0),r:kind==='fuel'?10:14,kind,vy:60+lvl*8+rng()*40});}if(boss){const b=enemies.find(e=>e.boss);if(b){b.t+=dt;b.x=W/2+Math.sin(b.t)*80;if(rng()<0.02+lvl*0.002)enemies.push({x:b.x,y:b.y+20,hp:3,r:10,kind:'ast',vy:100+lvl*5});}}for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];if(!e.boss)e.y+=(e.vy||80)*dt;for(let j=bullets.length-1;j>=0;j--){if(Math.hypot(bullets[j].x-e.x,bullets[j].y-e.y)<e.r+4){bullets.splice(j,1);e.hp-=1+(prog.fireLv|0);if(e.hp<=0){if(e.kind==='fuel'){fuel=Math.min(fmax,fuel+12);score+=8;pops.push({x:e.x,y:e.y,txt:'⛽+12',col:'#7dffb3',t:0});}else{waveKills++;score+=15;pops.push({x:e.x,y:e.y,txt:'+15',col:'#fde047',t:0});} waves.push({x:e.x,y:e.y,r:e.r,col:e.kind==='fuel'?'#7dffb3':'#7df9ff',t:0});$('score').textContent=score;if(FX)FX.burst(sparks,e.x,e.y,'#7df9ff',10);beep(780,.05);enemies.splice(i,1);if(waveKills>=need||(boss&&e.boss))return win();break;}}}if(e.y>H+30){enemies.splice(i,1);continue;}if(Math.hypot(e.x-px,e.y-py)<e.r+12&&e.kind!=='fuel'){enemies.splice(i,1);hp--;pops.push({x:px,y:py-16,txt:'-1❤',col:'#ff6b9d',t:0});waves.push({x:px,y:py,r:14,col:'#ff6b9d',t:0});beep(160,.15,'triangle');if(hp<=0)lose('星筏击毁');}}}
 let dragging=false;
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();dragging=true;const p=posOf(e);vx=(p.x-px)*8;});
 cv.addEventListener('pointermove',e=>{if(!dragging||state!=='play')return;const p=posOf(e);vx=(p.x-px)*10;});
 ['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,()=>dragging=false));
-function draw(){if(FX)FX.stage(ctx,W,H,'#0a1840','#05081a');else{ctx.fillStyle='#05081a';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+function draw(){const nb=NEBULAS[Math.min(2,Math.floor((lvl-1)/5))];if(FX)FX.stage(ctx,W,H,nb[0],nb[1]);else{ctx.fillStyle=nb[1];ctx.fillRect(0,0,W,H);}
+  ctx.fillStyle='rgba(255,255,255,.45)';for(const s of STARS){ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();}
+  if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('命'+hp+' 燃'+(fuel|0)+' 击'+waveKills+'/'+need+(boss?' 👑':''),10,22);
   for(const b of bullets){ctx.fillStyle='#ffe08a';ctx.fillRect(b.x-2,b.y,4,10);}
-  for(const e of enemies){const col=e.boss?'#ff6b9d':e.kind==='fuel'?'#7dffb3':'#a78bfa';if(FX)FX.orb(ctx,e.x,e.y,e.r,col);else{ctx.fillStyle=col;ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,7);ctx.fill();}}
-  if(FX)FX.orb(ctx,px,py,14,'#7df9ff');else{ctx.fillStyle='#7df9ff';ctx.beginPath();ctx.arc(px,py,14,0,7);ctx.fill();}
+  for(const e of enemies){const col=e.boss?'#ff6b9d':e.kind==='fuel'?'#7dffb3':'#a78bfa';if(FX){if(e.boss)FX.glow(ctx,'#ff6b9d',12);FX.orb(ctx,e.x,e.y,e.r,col);FX.noGlow(ctx);}else{ctx.fillStyle=col;ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,7);ctx.fill();}}
+  if(FX){FX.glow(ctx,'#7df9ff',10);FX.orb(ctx,px,py,14,'#7df9ff');FX.noGlow(ctx);}else{ctx.fillStyle='#7df9ff';ctx.beginPath();ctx.arc(px,py,14,0,7);ctx.fill();}
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2;ctx.beginPath();ctx.arc(wv.x,wv.y,wv.r+wv.t*24,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
+  ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+  for(const p of pops){ctx.globalAlpha=1-p.t/0.85;ctx.fillStyle=p.col;ctx.fillText(p.txt,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);waveKills=need;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,hp,fuel:(fuel|0),waveKills,need}}};
 
@@ -520,6 +530,7 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(660,.05);};
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000)*fast;last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 </script>
 </body></html>

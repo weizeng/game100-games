@@ -458,7 +458,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span id="iconT"></span><span>❤️<b id="lifeT">3</b></span><span id="hitLbl">摧毁 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">目标</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
@@ -597,7 +597,8 @@ const LV=[
   {boss:{name:'末日巨炮',hp:12,cols:9,maxH:6,bunker:0.6,ammo:4,aa:5,spd:186,drop:20,time:68}}
 ];
 
-let L,cfgB,lives,score,ended,raf=0,last=0,fast=1,timeLeft,totalBlocks,destroyedBlocks;
+let L,cfgB,lives,score,ended,raf=0,last=0,fast=1,timeLeft,totalBlocks,destroyedBlocks,waves=[];
+const CITIES=[['#0b1528','#1e293b'],['#451a03','#1e1b4b'],['#0f172a','#164e63']];
 let plane,columns,bombs,shells,sparks,floats,shakeT=0,aimOn=false,pullCd=0,shieldT=0,bombCd=0,bossCore=null;
 
 function buildCity(i){
@@ -630,7 +631,7 @@ function buildCity(i){
   }else bossCore=null;
 }
 
-function start(i){
+function start(i){waves=[];
   L=LV[i];cfgB=L.boss||L;score=0;ended=false;
   lives=UI.pick(3,2)+Kit.up('life');
   timeLeft=cfgB.time+Kit.up('time')*8;
@@ -645,6 +646,7 @@ function addFloat(x,y,txt,color){floats.push({x,y,txt,t:0,color:color||'#ffd54f'
 
 function damageColBlock(cIdx,dmg,chain){
   const col=columns[cIdx];if(!col||!col.blocks.length)return;
+  waves.push({x:col.x+col.w/2,y:GY-col.blocks.length*col.bh,r:10,t:0,col:chain?'#ff7043':'#ffd54f'});
   const topB=col.blocks[col.blocks.length-1];
   const by=GY-col.blocks.length*col.bh;
   topB.hp-=dmg;
@@ -711,6 +713,7 @@ function checkWin(){
 
 function upd(dt){
   if(ended)return;
+  for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.8;if(waves[i].t>=1)waves.splice(i,1);}
   timeLeft-=dt;if(timeLeft<=0){timeLeft=0;return endLv(false,'燃油耗尽，时间到');}
   if(bombCd>0)bombCd=Math.max(0,bombCd-dt);
   if(pullCd>0)pullCd=Math.max(0,pullCd-dt);
@@ -854,8 +857,9 @@ function draw(){
   if(shakeT>0){
     ctx.translate((Math.random()-0.5)*8,(Math.random()-0.5)*8);
   }
-  if(FX)FX.stage(ctx,W,H,'#0b1528','#1e293b');
-  else{ctx.fillStyle='#0f172a';ctx.fillRect(0,0,W,H);}
+  const ct=CITIES[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,ct[0],ct[1]);
+  else{ctx.fillStyle=ct[1];ctx.fillRect(0,0,W,H);}
 
   // Stars & distant skyline
   ctx.fillStyle='rgba(255,255,255,.45)';
@@ -864,6 +868,8 @@ function draw(){
   for(let i=0;i<9;i++){const sh=50+((i*29)%55);ctx.fillRect(i*42,GY-sh,38,sh);}
 
   // Ground
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(wv.x,wv.y,wv.r+wv.t*28,0,Math.PI*2);ctx.stroke();}
+  ctx.globalAlpha=1;
   if(FX)FX.tile(ctx,0,GY,W,H-GY,'#263238',2);
   else{ctx.fillStyle='#263238';ctx.fillRect(0,GY,W,H-GY);}
   ctx.fillStyle='#ff7043';ctx.fillRect(0,GY,W,2);
@@ -976,12 +982,13 @@ function layout(){
 addEventListener('resize',layout);layout();
 
 $('startH').textContent='✈️ 轰炸机';
-$('startP').innerHTML='15 关街机轰炸行动：精准投弹夷平敌军楼群！<br>引爆🧨弹药库触发连锁爆破，优先拔除🔫防空炮，第 5/10/15 关挑战装甲要塞首领！';
+$('startP').innerHTML='15 关街机轰炸行动：精准投弹夷平敌军楼群！<br>v9（Gemini 优化：3 大战区天色主题、爆破冲击波纹、1×/2× 倍速）';
+$('spdBtn').addEventListener('click',()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');});
 
 Kit.init({
   id:'bomber',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,
   start,stop:()=>{ended=true;},pause:()=>{},
-  note:()=>'点击画面或投弹键轰炸，引爆🧨弹药库可连锁摧毁邻楼',
+  note:()=>'v9（Gemini 优化：3 大战区天色主题、爆破冲击波纹、1×/2× 倍速）',
   tut:[
     ['高空投弹','战机自动横向巡航，每轮返场高度下降。点击画面或「💣投弹」即可抛投炸弹！','✈️'],
     ['连锁爆破','橙色🧨弹药库被炸毁时会引发剧烈连锁爆炸，顺带炸毁左右相邻楼层！','🧨'],

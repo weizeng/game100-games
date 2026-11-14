@@ -462,13 +462,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🎈<b id="lvT">1</b></span><span>⏱<b id="timeT">0</b></span><span id="heartT">❤❤❤</span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalT">目标 0</span><div class="prog"><i id="progI"></i></div><span id="comboT">x1</span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="aids"><span class="lvTag" id="escT">逃走 0/0</span><button class="btn ghost" id="reloadBtn">🔄 装弹</button><span class="lvTag" id="ammoT">●●●●●●</span></div>
 </div>
-<div class="overlay" id="startScr"><h1>🎈 打气球</h1><p>点哪打哪，别让气球飞走！<br>15 关：盔甲气球、金气球、冰冻气球、分裂气球、彩虹气球……<br>同色连打倍率更高，小心 💣，还要对付三艘气球飞艇首领。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🎈 打气球</h1><p>点哪打哪，别让气球飞走！15 关：盔甲、金气球、冰冻、分裂、彩虹……<br>v9（Gemini 优化：3 大天穹主题背景、爆裂冲击波纹、1×/2× 倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -602,10 +602,11 @@ const LV=[
  {t:55,goal:62,sp:.6,v:96,esc:6,mix:[7,6,2,5,1,3,2]},
  {t:60,goal:66,sp:.58,v:100,esc:6,mix:[6,7,2,5,1,4,2]},
  {t:80,goal:0,sp:.8,v:90,esc:7,mix:[7,4,2,5,1,3,1],boss:{hp:44,name:'霓虹巨舰',v:75,drop:2,armor:1,split:1}}];
-let L,items,sparks,shots,pops,score,timeLeft,hearts,esc,popped,combo,lastCol,ammo,reloadT,freeze,spawnT,boss,raf=0,last=0,ended,fast=1,hitsMade,shotsFired;
+let L,items,sparks,shots,pops,waves=[],score,timeLeft,hearts,esc,popped,combo,lastCol,ammo,reloadT,freeze,spawnT,boss,raf=0,last=0,ended,fast=1,hitsMade,shotsFired;
+const SKIES=[['#2a1460','#0b0620'],['#7c2d12','#1e1b4b'],['#0f766e','#082f49']];
 function magMax(){return 6+Kit.up('mag')*2;}
 function lvParam(i){const d=JSON.parse(JSON.stringify(LV[i]));d.t+=Kit.up('time')*5;d.v*=UI.pick(1,1.12);d.sp*=UI.pick(1,.88);return d;}
-function start(i){L=lvParam(i);items=[];sparks=[];shots=[];pops=[];score=0;timeLeft=L.t;hearts=3+Kit.up('heart');esc=0;popped=0;combo=0;lastCol=-1;
+function start(i){L=lvParam(i);items=[];sparks=[];shots=[];pops=[];waves=[];score=0;timeLeft=L.t;hearts=3+Kit.up('heart');esc=0;popped=0;combo=0;lastCol=-1;
   ammo=magMax();reloadT=0;freeze=0;spawnT=.4;ended=false;hitsMade=0;shotsFired=0;
   boss=L.boss?{x:W/2,y:96,w:120,h:56,hp:L.boss.hp,max:L.boss.hp,vx:L.boss.v,dt:L.boss.drop,name:L.boss.name,armor:L.boss.armor,split:L.boss.split,flash:0,shield:0,shT:6}:null;
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);
@@ -639,7 +640,7 @@ function hit(it){hitsMade++;it.hp--;if(it.hp>0){Kit.sfx('hit');if(FX)FX.burst(sp
   else if(it.k===5){for(let s=-1;s<=1;s++){const n=spawn(0,it.x+s*16,it.y,true);n.c=it.c;}Kit.sfx('good');}
   else if(it.k===6){const same=items.filter(o=>o.c===it.c&&o.k!==3&&o.k!==6);same.forEach(o=>{items.splice(items.indexOf(o),1);popped++;g+=10*m;if(FX)FX.burst(sparks,o.x,o.y,COL[o.c],8);});Kit.toast('🌈 同色全爆 ×'+same.length);Kit.sfx('combo',8);}
   else Kit.sfx(combo>2?'combo':'good',combo);
-  popped++;score+=g;pop(it.x,it.y,'+'+g,'#fff');if(FX)FX.burst(sparks,it.x,it.y,COL[it.c],12);
+  popped++;score+=g;pop(it.x,it.y,'+'+g,'#fff');waves.push({x:it.x,y:it.y,r:it.r,t:0,col:COL[it.c]});if(FX)FX.burst(sparks,it.x,it.y,COL[it.c],12);
   if(!boss&&popped>=L.goal){hud();endLv(true);}}
 function mult(){return Math.min(1+Math.floor((combo-1)/2),3+Kit.up('combo'));}
 function pop(x,y,t,c){pops.push({x,y,t,c,life:.8});}
@@ -657,6 +658,7 @@ function update(dt){timeLeft-=dt;if(timeLeft<=0){timeLeft=0;hud();return endLv(f
     if(boss.dt<=0&&!fz){boss.dt=L.boss.drop*(rage?.7:1)*UI.pick(1,.85);const b=spawn(3,boss.x,boss.y+boss.h/2);b.fall=1;b.vy=L.v*.9;
       if(boss.split&&rage){const e=spawn(1,boss.x-40,boss.y+20);e.fall=1;e.vy=L.v*.7;e.k=1;}Kit.tone(200,.15,'sawtooth',.06,120);}
     if(boss.armor&&rage){boss.shT-=dt;if(boss.shield>0)boss.shield-=dt;if(boss.shT<=0){boss.shT=5.5;boss.shield=1.8;Kit.toast('🛡 飞艇开启护盾！');}}}
+  for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*3;if(waves[i].t>=1)waves.splice(i,1);}
   for(let i=shots.length-1;i>=0;i--){shots[i].life-=dt;if(shots[i].life<=0)shots.splice(i,1);}
   for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.life-=dt;p.y-=40*dt;if(p.life<=0)pops.splice(i,1);}
   if(Math.floor(timeLeft*10)%3===0)hud();}
@@ -669,7 +671,7 @@ function endLv(won,why){ended=true;
     setTimeout(()=>Kit.win(st,score,(boss?'击落 '+boss.name+'！':'打爆 '+popped+' 个气球')+'　命中率 '+Math.round(acc*100)+'%<br>三星：逃走 ≤'+Math.floor(L.esc/3)+' 且没被炸 · 二星：逃走 ≤'+Math.floor(L.esc*2/3)),350);}
   else setTimeout(()=>Kit.lose(why,score),300);}
 /* ART T2-5 */var blBg=null,blBgKey='';
-function ensureBlBg(){var k=W+'x'+H;if(blBg&&blBgKey===k)return blBg;blBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#2a1460','#0b0620');else{g.fillStyle='#0b0620';g.fillRect(0,0,W,H);}blBg=c;return blBg;}
+function ensureBlBg(){const si=Math.min(2,Math.floor((Kit.lv||0)/5));var k=W+'x'+H+'_'+si;if(blBg&&blBgKey===k)return blBg;blBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');const sk=SKIES[si];if(FX)FX.stage(g,W,H,sk[0],sk[1]);else{g.fillStyle=sk[1];g.fillRect(0,0,W,H);}blBg=c;return blBg;}
 function drawBalloon(it){const x=it.x,y=it.y,r=it.r,c=it.k===2?'#ffd34d':it.k===4?'#9ae8ff':it.k===3?'#2a2f45':COL[it.c];
   if(it.k!==3){ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(x,y+r);ctx.quadraticCurveTo(x+6,y+r+16,x-3,y+r+30);ctx.stroke();}
   if(FX){if(it.k===6){FX.glow(ctx,'#fff',12);}FX.orb(ctx,x|0,y|0,r,c);FX.noGlow(ctx);}else{ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
@@ -688,12 +690,15 @@ function draw(){ctx.drawImage(ensureBlBg(),0,0);
   if(fz){ctx.fillStyle='rgba(150,220,255,.12)';ctx.fillRect(0,0,W,H);}
   for(const s of shots){ctx.globalAlpha=s.life/.15;ctx.strokeStyle='#ffe066';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(W/2,H);ctx.lineTo(s.x,s.y);ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s.x,s.y,7,0,7);ctx.fill();}
   ctx.globalAlpha=1;if(FX)FX.drawBurst(ctx,sparks);
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(wv.x,wv.y,wv.r+wv.t*24,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
   ctx.font='bold 16px sans-serif';ctx.textAlign='center';for(const p of pops){ctx.globalAlpha=Math.min(1,p.life*2);ctx.fillStyle=p.c;ctx.fillText(p.t,p.x,p.y);}ctx.globalAlpha=1;
   if(FX){FX.tile(ctx,W/2-26,H-24,52,24,'#3a4466',8);FX.tile(ctx,W/2-6,H-44,12,24,'#00d9ff',4);}else{ctx.fillStyle='#37474F';ctx.fillRect(W/2-26,H-24,52,24);}}
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();draw();
+$('spdBtn').addEventListener('click',()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');});
 Kit.init({id:'balloon',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},label:i=>String(i+1),
-  note:()=>'气球越来越快，允许逃走的数量越来越少',
+  note:()=>'v9（Gemini 优化：3 大天穹主题背景、爆裂冲击波纹、1×/2× 倍速）',
   tut:[['点哪打哪','气球从底部升起，<b>直接点</b>它就能打爆。<br>打爆规定数量就过关；飞走太多（看左下「逃走」）就失败。','🎈'],
        ['弹匣','每发子弹都算数：弹匣打空会自动装弹，也可以随时点 <b>🔄 装弹</b>。<br>装弹时开不了枪——别在气球扎堆时打空！','🔫'],
        ['特殊气球','🛡 盔甲要打两下 · ★ 金气球 +2 秒 · ❄ 冻结全场<br>✚ 分裂成三个小气球 · 🌈 同色气球全爆<br>💣 炸弹千万别点，会扣 ❤','💣'],

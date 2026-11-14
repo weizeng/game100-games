@@ -459,7 +459,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span id="iconT">🚀<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span id="hitLbl">陨石 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="mapBtn" aria-label="选择关卡">🗺️</button><button class="iconbtn" id="shopBtn" aria-label="道具商店">🛒</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="mapBtn" aria-label="选择关卡">🗺️</button><button class="iconbtn" id="shopBtn" aria-label="道具商店">🛒</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">碎星初航</span><div class="prog"><i id="progI"></i></div><span id="infoT">💥2</span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
@@ -612,7 +612,8 @@ const STARS=Array.from({length:42},(_,i)=>({
   a:0.3+(i%5)*0.14
 }));
 
-let L,cfgL,ship,rocks,bullets,ebullets,ufos,cores,novas,sparks,floats,bossUnit;
+let L,cfgL,ship,rocks,bullets,ebullets,ufos,cores,novas,sparks,floats,bossUnit,waves=[];
+const SECTORS=[['#1a1446','#05051a'],['#3b0a1e','#090412'],['#082f49','#030712']];
 let lives,novasLeft,score,ended,totalWeight,clearedWeight,ufoLeft,ufoTimer;
 let keys={left:false,right:false,up:false,fire:false},ptr={active:false,x:W/2,y:H/2};
 let raf=0,last=0,fast=1,shakeT=0,tAnim=0;
@@ -647,7 +648,7 @@ function makeRock(x,y,sz,kind){
   };
 }
 
-function start(i){
+function start(i){waves=[];
   L=LV[i];cfgL=L.boss||L;
   lives=UI.pick(3,2)+Kit.up('shield');
   novasLeft=2+Kit.up('nova');
@@ -722,7 +723,7 @@ function triggerNova(free=false){
 }
 
 function shatterRock(idx,byNova=false){
-  const rk=rocks[idx];
+  const rk=rocks[idx];waves.push({x:rk.x,y:rk.y,r:rk.r,t:0,col:rk.kind==='comet'?'#00d9ff':'#ffd54f'});
   if(!rk)return;
   rocks.splice(idx,1);
   clearedWeight++;
@@ -788,6 +789,7 @@ function endLv(won,why){
 
 function upd(dt){
   tAnim+=dt;
+  for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.8;if(waves[i].t>=1)waves.splice(i,1);}
   if(shakeT>0)shakeT=Math.max(0,shakeT-dt);
   if(ship.cd>0)ship.cd=Math.max(0,ship.cd-dt);
   if(ship.invuln>0)ship.invuln=Math.max(0,ship.invuln-dt);
@@ -1085,8 +1087,9 @@ function draw(){
   ctx.save();
   if(shakeT>0)ctx.translate((Math.random()-0.5)*7,(Math.random()-0.5)*7);
 
-  if(FX)FX.stage(ctx,W,H,'#1a1446','#05051a');
-  else{ctx.fillStyle='#080820';ctx.fillRect(0,0,W,H);}
+  const sec=SECTORS[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,sec[0],sec[1]);
+  else{ctx.fillStyle=sec[1];ctx.fillRect(0,0,W,H);}
 
   // 璀璨星空背景
   for(const st of STARS){
@@ -1095,6 +1098,8 @@ function draw(){
   }
 
   // 超新星冲击波光环
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(wv.x,wv.y,wv.r+wv.t*26,0,Math.PI*2);ctx.stroke();}
+  ctx.globalAlpha=1;
   for(const nv of novas){
     ctx.save();
     if(FX)FX.glow(ctx,'#00e5ff',14);
@@ -1225,7 +1230,8 @@ function layout(){
 addEventListener('resize',layout);layout();
 
 $('startH').textContent='🚀 小行星';
-$('startP').innerHTML='15 关 360° 矢量太空射击：旋转推进，发射等离子炮击碎大中小三级陨石！<br>释放💥超新星冲击波，迎战三大外星无畏舰首领！';
+$('startP').innerHTML='15 关 360° 矢量太空射击：旋转推进，发射等离子炮击碎大中小三级陨石！<br>v9（Gemini 优化：3 大星域主题配色、碎石冲击波纹、1×/2× 倍速）';
+$('spdBtn').addEventListener('click',()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');});
 
 Kit.init({
   id:'asteroid',
@@ -1235,7 +1241,7 @@ Kit.init({
   start,
   stop:()=>{ended=true;},
   pause:()=>{},
-  note:()=>'点按星空自动转向开火，击碎全部三级陨石与首领战舰即可过关',
+  note:()=>'v9（Gemini 优化：3 大星域主题配色、碎石冲击波纹、1×/2× 倍速）',
   tut:[
     ['360° 转向与推进','直接按住星空任意位置（或用下方 ⟲ ▲ ⟳ 按钮），战机将自动朝目标方向推进并连续发射等离子炮！','🚀'],
     ['三级陨石裂解','大型陨石被击中后会分裂为 2 颗中型陨石，中型再分裂为 2 颗小型陨石；彻底击碎可掉落⭐星核与⚡三向散射！','☄️'],
