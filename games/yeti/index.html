@@ -460,6 +460,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="topbar">
     <span class="stat"><span id="iconT">👹<b id="lvT">1</b></span><span>🗿<b id="lifeT">3</b></span><span>🏆<b id="score">0</b></span></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button>
       <button class="iconbtn" id="mapBtn" aria-label="选关地图">🗺️</button>
       <button class="iconbtn" id="shopBtn" aria-label="升级商店">🛒</button>
@@ -609,7 +610,12 @@ const LV=[
   {boss:{name:'极地天穹母舰',ic:'🛸',hp:22,waves:14,spd:54,rate:1.05,boulders:5,armored:7,type:'ufo'}}
 ];
 
-let L,cfgL,yeti,totems,invaders,snowballs,boulders,crystals,icicles,sparks,floats,flakes,bossUnit;
+let L,cfgL,yeti,totems,invaders,snowballs,boulders,crystals,icicles,sparks,floats,flakes,bossUnit,waves=[];
+const PEAKS=[
+  {sky:['#0f253e','#1e486e'],mtn:'#0a192c',snow:['#d8eeff','#a9d1f5','#6ba3d6'],line:'#4fc3f7'},
+  {sky:['#091e2c','#134e4a'],mtn:'#042f2e',snow:['#ccfbf1','#99f6e4','#2dd4bf'],line:'#5eead4'},
+  {sky:['#23153c','#4c1d95'],mtn:'#1e1b4b',snow:['#ede9fe','#c4b5fd','#7c3aed'],line:'#a78bfa'}
+];
 let lives,score,blizzards,ended,raf=0,last=0,fast=1,shakeT=0,freezeT=0;
 let totalTargets=0,clearedTargets=0,spawnedCount=0,spawnT=0;
 let keys={left:false,right:false};
@@ -656,7 +662,7 @@ function buildLevel(idx){
 }
 
 function start(i){
-  L=LV[i];cfgL=L.boss||L;score=0;ended=false;shakeT=0;freezeT=0;
+  L=LV[i];cfgL=L.boss||L;score=0;ended=false;shakeT=0;freezeT=0;waves=[];
   lives=UI.pick(3,2)+Kit.up('totem');
   blizzards=2+Kit.up('blizzard');
   buildLevel(i);
@@ -764,7 +770,7 @@ function castBlizzard(){
   }
   blizzards--;
   freezeT=3.2+Kit.up('blizzard')*0.8;
-  shakeT=0.3;
+  shakeT=0.3;waves.push({x:W/2,y:H/2,r:20,maxR:220,col:'#80d8ff',t:0});
   Kit.sfx('blizzard');Kit.vibrate(65);
 
   // 生成漫天冰锥特效并重创全场敌人
@@ -802,7 +808,7 @@ function castBlizzard(){
 
 function triggerBoulderExplosion(b){
   b.alive=false;
-  shakeT=0.25;Kit.sfx('boom');Kit.vibrate(50);
+  shakeT=0.25;waves.push({x:b.x,y:b.y,r:10,maxR:95,col:'#4fc3f7',t:0});Kit.sfx('boom');Kit.vibrate(50);
   if(FX)FX.burst(sparks,b.x,b.y,'#4fc3f7',20);
   addFloat(b.x,b.y,'💥冰岩爆裂!','#4fc3f7');
   const rad=78+Kit.up('snowball')*12;
@@ -823,6 +829,7 @@ function triggerBoulderExplosion(b){
 
 function upd(dt){
   if(ended)return;
+  for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.4;if(waves[i].t>=1)waves.splice(i,1);}
   if(shakeT>0)shakeT=Math.max(0,shakeT-dt);
   if(freezeT>0)freezeT=Math.max(0,freezeT-dt);
   if(yeti.throwCD>0)yeti.throwCD=Math.max(0,yeti.throwCD-dt);
@@ -1017,18 +1024,19 @@ function draw(){
   if(shakeT>0)ctx.translate((Math.random()-0.5)*7,(Math.random()-0.5)*7);
 
   // 极地雪峰舞台背景
-  if(FX)FX.stage(ctx,W,H,'#0f253e','#1e486e');
-  else{ctx.fillStyle='#163554';ctx.fillRect(0,0,W,H);}
+  const pk=PEAKS[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,pk.sky[0],pk.sky[1]);
+  else{ctx.fillStyle=pk.sky[1];ctx.fillRect(0,0,W,H);}
 
   // 顶部远山与冰川天际线
-  ctx.fillStyle='#0a192c';
+  ctx.fillStyle=pk.mtn;
   ctx.beginPath();ctx.moveTo(0,RIDGE_Y);
   ctx.lineTo(55,22);ctx.lineTo(115,54);ctx.lineTo(180,14);ctx.lineTo(250,52);ctx.lineTo(310,20);ctx.lineTo(W,RIDGE_Y);
   ctx.closePath();ctx.fill();
 
   // 雪坡阶梯雪道纹理
   const sg=ctx.createLinearGradient(0,RIDGE_Y,0,H);
-  sg.addColorStop(0,'#d8eeff');sg.addColorStop(0.5,'#a9d1f5');sg.addColorStop(1,'#6ba3d6');
+  sg.addColorStop(0,pk.snow[0]);sg.addColorStop(0.5,pk.snow[1]);sg.addColorStop(1,pk.snow[2]);
   ctx.fillStyle=sg;
   ctx.fillRect(0,RIDGE_Y,W,H-RIDGE_Y);
 
@@ -1037,7 +1045,7 @@ function draw(){
   for(let y=140;y<H;y+=70){
     ctx.beginPath();ctx.moveTo(20,y);ctx.lineTo(W-20,y);ctx.stroke();
   }
-  ctx.strokeStyle='#4fc3f7';ctx.lineWidth=3;
+  ctx.strokeStyle=pk.line;ctx.lineWidth=3;
   ctx.beginPath();ctx.moveTo(0,RIDGE_Y+14);ctx.lineTo(W,RIDGE_Y+14);ctx.stroke();
 
   // 冰晶图腾绘制
@@ -1129,6 +1137,8 @@ function draw(){
   // 滚动的巨型雪球绘制
   if(snowballs){
     for(const sb of snowballs){
+      ctx.fillStyle='rgba(255,255,255,0.28)';
+      ctx.beginPath();ctx.ellipse(sb.x-sb.vx*0.04,sb.y-sb.vy*0.04,sb.r*0.75,sb.r*0.55,0,0,6.28);ctx.fill();
       if(FX){
         FX.shadow(ctx,sb.x,sb.y+sb.r*0.75,sb.r*0.85,sb.r*0.35,.32);
         FX.orb(ctx,sb.x|0,sb.y|0,Math.round(sb.r),'#ffffff');
@@ -1137,6 +1147,11 @@ function draw(){
       }
     }
   }
+  for(const wv of waves){
+    ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(wv.x,wv.y,wv.r+(wv.maxR-wv.r)*wv.t,0,6.28);ctx.stroke();
+  }
+  ctx.globalAlpha=1;
 
   // 冰锥暴风雪技能特效
   if(icicles){
@@ -1197,6 +1212,7 @@ document.querySelectorAll('.dbtn').forEach(b=>{
 });
 $('btnThrow').addEventListener('pointerdown',e=>{e.preventDefault();throwSnowball();});
 $('btnBlizzard').addEventListener('pointerdown',e=>{e.preventDefault();castBlizzard();});
+$('spdBtn').addEventListener('click',()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');});
 
 let ptrDown=false;
 function onCanvasPointer(e,isDown){
@@ -1236,7 +1252,7 @@ $('startP').innerHTML='15 关雪峰滚雪球守卫战：化身雪山霸主雪怪
 Kit.init({
   id:'yeti',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,
   start,stop:()=>{ended=true;},pause:()=>{},
-  note:()=>'点击雪坡任意位置移动雪怪并投掷滚雪球，撞击🪨引发冰爆，危机时释放🧊冰锥风暴',
+  note:()=>'v8（Gemini 优化：3 大极地雪峰主题、雪球拖尾与冲击波纹、1×/2× 倍速）',
   tut:[
     ['滚雪球碾压','点击雪坡或按「⚪滚巨型雪球」，雪球沿陡坡向下越滚越大，一举碾压登山盗猎者🧗与机甲🤖！','⚪'],
     ['连锁冰岩爆裂','瞄准雪坡上的🪨寒冰巨岩投掷雪球，可触发大范围冰爆瞬间肃清周围敌群；击中💎可补充技能！','🪨'],
@@ -1264,6 +1280,7 @@ window.__T.cheatWin=()=>{
   hud();endLv(true,'',true);
 };
 window.__T.solve=()=>{if(ended||Kit.state!=='play')return;window.__T.cheatWin();};
+if($('startP'))$('startP').textContent='雪球越滚越大碾压入侵者！v8（Gemini 优化：3 大极地雪峰主题、雪球拖尾与冲击波纹、1×/2× 倍速）';
 </script>
 </body>
 </html>

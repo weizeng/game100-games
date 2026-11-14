@@ -460,13 +460,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🏹<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>环 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">射靶</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">按住拉弓松手射出 · 打满目标环分</div>
 </div>
-<div class="overlay" id="startScr"><h1>🏹 神射手</h1><p>15 关拉弓射靶：目标环分升、靶移动缩小有风。<br>第 5/10/15 关移动靶王 Boss！可升级稳手、多箭、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始射箭</button></div>
+<div class="overlay" id="startScr"><h1>🏹 神射手</h1><p>15 关拉弓射靶：目标环分升、靶移动缩小有风，连续高环触发连击加分。<br>v8（Gemini 优化：3 大靶场主题、高环连击加分与中靶波纹飘字、1×/2× 倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始射箭</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -590,8 +590,9 @@ const LV=[
  {need:52,arrows:5,size:34,move:45,wind:20},{need:55,arrows:5,size:32,move:50,wind:22},{need:58,arrows:4,size:30,move:55,wind:24},{need:60,arrows:4,size:28,move:60,wind:26},
  {boss:{name:'终末靶神',need:55,arrows:8,size:26,move:80,wind:30}}
 ];
-let L,target,arrow,charging,pow,aim,lives,score,ended,raf=0,last=0,fast=1,need,rings,left,boss,sparks,wind,steady;
-function start(i){L=LV[i];score=0;ended=false;charging=false;pow=0;arrow=null;sparks=[];lives=3+Kit.up('life');rings=0;
+let L,target,arrow,charging,pow,aim,lives,score,ended,raf=0,last=0,fast=1,need,rings,left,boss,sparks,wind,steady,combo=0,waves=[],pops=[];
+const FIELDS=[['#558b2f','#33691e'],['#b45309','#451a03'],['#1e1b4b','#090d1f']];
+function start(i){L=LV[i];score=0;ended=false;charging=false;pow=0;arrow=null;sparks=[];waves=[];pops=[];combo=0;lives=3+Kit.up('life');rings=0;
   const b=L.boss||L;need=b.need;left=b.arrows+Kit.up('arrows');wind=b.wind*(1-Kit.up('steady')*.2);steady=Kit.up('steady');
   target={x:W*0.72,y:H/2,r:b.size,vx:b.move,baseR:b.size};aim=-.2;boss=L.boss?{name:L.boss.name}:null;
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
@@ -603,12 +604,14 @@ cv.addEventListener('pointercancel',()=>{charging=false;});
 function fire(){if(left<=0)return;left--;const sp=320+pow*280;arrow={x:50,y:H-40,vx:Math.cos(aim)*sp,vy:Math.sin(aim)*sp};Kit.sfx('hit');hud();}
 function ringScore(d,R){if(d>R)return 0;if(d<R*.2)return 10;if(d<R*.4)return 8;if(d<R*.6)return 5;if(d<R*.8)return 3;return 1;}
 function upd(dt){if(ended)return;if(charging)pow=Math.min(1,pow+dt*1.1);
+  for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.4;if(waves[i].t>=1)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;pops[i].y-=dt*34;if(pops[i].t>=0.9)pops.splice(i,1);}
   if(target.vx){target.y+=target.vx*dt;if(target.y<60||target.y>H-60)target.vx*=-1;}
   if(arrow){arrow.vx+=wind*dt;arrow.vy+=40*dt;arrow.x+=arrow.vx*dt;arrow.y+=arrow.vy*dt;
     const d=Math.hypot(arrow.x-target.x,arrow.y-target.y);
-    if(d<target.r){const pts=ringScore(d,target.r);rings+=pts;score+=pts*5;Kit.sfx(pts>=8?'good':'tap');if(FX)FX.burst(sparks,arrow.x,arrow.y,'#aed581',8);arrow=null;
+    if(d<target.r){const pts=ringScore(d,target.r);combo=pts>=8?combo+1:0;const bonus=combo>=2?combo*5:0;rings+=pts;score+=pts*5+bonus;Kit.sfx(pts>=8?'good':'tap');if(FX)FX.burst(sparks,arrow.x,arrow.y,pts>=10?'#ffd54f':'#aed581',10);waves.push({x:arrow.x,y:arrow.y,t:0,col:pts>=10?'#ffd54f':'#86efac'});pops.push({x:arrow.x,y:arrow.y-12,txt:pts+'环'+(bonus?' 🔥×'+combo:''),col:pts>=10?'#fde047':'#fff',t:0});arrow=null;
       if(rings>=need)return endLv(true);if(left<=0)return endLv(false,'箭矢用尽');}
-    else if(arrow.x>W+20||arrow.y>H+20||arrow.y<-20){arrow=null;if(left<=0)return endLv(rings>=need,'箭矢用尽');}}
+    else if(arrow.x>W+20||arrow.y>H+20||arrow.y<-20){combo=0;pops.push({x:Math.min(W-30,arrow.x),y:Math.max(40,Math.min(H-30,arrow.y)),txt:'脱靶',col:'#fda4af',t:0});arrow=null;if(left<=0)return endLv(rings>=need,'箭矢用尽');}}
   hud();}
 function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('hitT').textContent=rings+'/'+need;$('score').textContent=score;
   $('goalLbl').textContent=boss?'👑 '+boss.name:'环分 '+rings+'/'+need;$('progI').style.width=Math.min(100,rings/need*100)+'%';
@@ -618,10 +621,14 @@ function endLv(won,why){if(ended)return;ended=true;charging=false;
   else setTimeout(()=>Kit.lose(why||'未达标',score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#558b2f','#33691e');else{ctx.fillStyle='#33691e';ctx.fillRect(0,0,W,H);}
+  const fd=FIELDS[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,fd[0],fd[1]);else{ctx.fillStyle=fd[1];ctx.fillRect(0,0,W,H);}
+  if(FX)FX.shadow(ctx,target.x,target.y+target.r+6,target.r*.7,6,.3);
   // target rings
   const cols=['#fff','#ef5350','#fff','#42a5f5','#ffee58'];
   for(let i=5;i>=1;i--){ctx.fillStyle=cols[i-1];ctx.beginPath();ctx.arc(target.x,target.y,target.r*i/5,0,7);ctx.fill();ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.stroke();}
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(wv.x,wv.y,6+wv.t*28,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
   // bow
   ctx.strokeStyle='#ffe0b2';ctx.lineWidth=3;ctx.beginPath();ctx.arc(50,H-40,28,-1.2,1.2);ctx.stroke();
   if(charging){ctx.strokeStyle='#fff';ctx.beginPath();ctx.moveTo(50,H-40);ctx.lineTo(50+Math.cos(aim)*40*pow,H-40+Math.sin(aim)*40*pow);ctx.stroke();
@@ -630,11 +637,15 @@ function draw(){
     if(FX)FX.orb(ctx,arrow.x|0,arrow.y|0,4,'#ffd54f');}
   ctx.font='16px serif';ctx.textAlign='center';ctx.fillText('🏹',50,H-30);
   if(FX)FX.drawBurst(ctx,sparks);
+  ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+  for(const p of pops){ctx.globalAlpha=1-p.t/0.9;ctx.strokeStyle='rgba(0,0,0,.65)';ctx.lineWidth=3;ctx.strokeText(p.txt,p.x,p.y);ctx.fillStyle=p.col;ctx.fillText(p.txt,p.x,p.y);}
+  ctx.globalAlpha=1;
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
+$('spdBtn').addEventListener('click',()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');});
 Kit.init({id:'archery',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;charging=false;},pause:()=>{charging=false;},
-  note:()=>'拉弓瞄准射出，打满目标环分',
+  note:()=>'v8（Gemini 优化：3 大靶场主题、高环连击加分与中靶波纹飘字、1×/2× 倍速）',
   tut:[['拉弓','按住蓄力并瞄准。','🏹'],
        ['射出','松手箭飞向靶心。','➡️'],
        ['环分','越靠近中心环分越高。','🎯'],

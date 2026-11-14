@@ -453,11 +453,11 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>房间<b id="roomT">1</b></span><span>❤<b id="hpT">100</b></span><span>💰<b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
 </div>
-<div class="overlay" id="startScr"><h1>霓虹弓手</h1><p>按住屏幕任意位置拖动摇杆移动，<b>松手站定就会自动射箭</b>。<br>每清空一个房间就从 3 个技能里选 1 个：多重箭、反弹、穿透、冰火箭……<br>4 个章节 × 10 个房间，每章第 5、10 间是首领房。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">出发冒险</button></div>
+<div class="overlay" id="startScr"><h1>霓虹弓手</h1><p>按住屏幕任意位置拖动摇杆移动，<b>松手站定就会自动射箭</b>。<br>4 个章节 × 10 个房间，每章第 5、10 间是首领房。<br>v3（Gemini 优化：伤害暴击飘字与清房光环、章节氛围粒子、1×/2× 倍速）</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">出发冒险</button></div>
 <div class="overlay hidden" id="skillScr"><h2>✨ 选择技能</h2><p id="skillInfo"></p><div id="skills" style="display:flex;flex-direction:column;gap:10px;width:100%;align-items:center"></div></div>
 <div class="overlay hidden" id="upScr"><h2>🏛 永久强化 · 💰<span id="upCoins">0</span></h2><div id="ups" style="display:flex;flex-direction:column;gap:8px;width:100%;align-items:center"></div><button class="btn" id="upBack">返回</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns" id="lvlBtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -534,8 +534,9 @@ const SK=[
  ['maxhp','生命上限','❤️','最大生命 +25%，并回复等量生命',3],['orb','守护法球','🔮','获得一颗环绕法球，伤害接触的敌人',2],['vamp','嗜血','🩸','击杀敌人回复 2% 最大生命',1]];
 let save=Store.get('save',{stars:[],tut:0,coins:0,up:{atk:0,hp:0,spd:0},bestRoom:0});save.up=save.up||{atk:0,hp:0,spd:0};
 const UPS=[['atk','攻击力','每级 +10%'],['hp','生命值','每级 +20'],['spd','攻速','每级 +6%']];const upCost=l=>20+l*20;
-let G=null,li=0,state='menu',FAST=false,sparks=[],joy=null,BOT=null;
-function startLevel(i){li=i;const u=save.up;const mh=100+u.hp*20;G={room:1,hero:{x:W/2,y:H-60,r:13,hp:mh,max:mh,atk:20*(1+u.atk*.1),rate:1.25*(1+u.spd*.06),cd:0,face:-Math.PI/2,inv:0},sk:{},orbA:0,coins:0,arrows:[],bullets:[],en:[],walls:[],door:false,t:0,dmgTaken:0,kills:0};
+let G=null,li=0,state='menu',FAST=false,speedMul=1,sparks=[],waves=[],pops=[],motes=Array.from({length:18},()=>({x:Math.random()*W,y:TOPY+Math.random()*(H-TOPY),vy:-12-Math.random()*18,r:1+Math.random()*1.8})),joy=null,BOT=null;
+function addPop(x,y,t,c){if(!FAST)pops.push({x,y,t,c:c||'#fff',a:0});}
+function startLevel(i){li=i;const u=save.up;const mh=100+u.hp*20;waves=[];pops=[];G={room:1,hero:{x:W/2,y:H-60,r:13,hp:mh,max:mh,atk:20*(1+u.atk*.1),rate:1.25*(1+u.spd*.06),cd:0,face:-Math.PI/2,inv:0},sk:{},orbA:0,coins:0,arrows:[],bullets:[],en:[],walls:[],door:false,t:0,dmgTaken:0,kills:0};
  ['lvlScr','overScr','pauseOv','tutScr','startScr','skillScr','upScr'].forEach(x=>show(x,false));buildRoom();state='play';hud();toast('第 '+(i+1)+' 章 · '+CH[i].n,1800);tone(523,.1,'triangle');}
 function buildRoom(){const r=G.room,ch=li;const rnd=Math.random;G.arrows=[];G.bullets=[];G.en=[];G.door=false;G.hero.x=W/2;G.hero.y=H-50;
  G.walls=[];const lay=r%5===0?0:1+Math.floor(rnd()*4);
@@ -554,6 +555,9 @@ function nearest(){let b=null,bd=1e9;for(const e of G.en){const d=Math.hypot(e.x
 function hurt(d){const h=G.hero;if(h.inv>0)return;h.hp-=d;G.dmgTaken+=d;h.inv=.8;if(!FAST){tone(180,.12,'square',.08);burst(sparks,h.x,h.y,'#ff4d6d',10);}if(h.hp<=0)lose();}
 function eb(x,y,a,sp,d){G.bullets.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,d,r:5});}
 function step(dt){const h=G.hero,s=G.sk;G.t+=dt;if(h.inv>0)h.inv-=dt;
+ for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.4;if(waves[i].t>=1)waves.splice(i,1);}
+ for(let i=pops.length-1;i>=0;i--){pops[i].a+=dt;pops[i].y-=dt*28;if(pops[i].a>=0.75)pops.splice(i,1);}
+ for(const m of motes){m.y+=m.vy*dt;if(m.y<TOPY){m.y=H;m.x=Math.random()*W;}}
  // 移动
  let mx=0,my=0;if(BOT){const v=BOT(G);mx=v[0];my=v[1];}else if(joy&&joy.dx!=null){const l=Math.hypot(joy.dx,joy.dy);if(l>6){mx=joy.dx/l*Math.min(1,l/40);my=joy.dy/l*Math.min(1,l/40);}}
  const moving=Math.hypot(mx,my)>.1;if(moving){moveC(h,mx*140*dt,my*140*dt,h.r);h.face=Math.atan2(my,mx);}
@@ -564,7 +568,7 @@ function step(dt){const h=G.hero,s=G.sk;G.t+=dt;if(h.inv>0)h.inv-=dt;
  for(let i=G.arrows.length-1;i>=0;i--){const a=G.arrows[i];a.x+=a.vx*dt;a.y+=a.vy*dt;
   if(hitWall(a.x,a.y,2)){if(a.b>0){a.b--;const ox=a.x-a.vx*dt,oy=a.y-a.vy*dt;if(hitWall(a.x,oy,2))a.vx*=-1;if(hitWall(ox,a.y,2))a.vy*=-1;a.x=ox;a.y=oy;}else{G.arrows.splice(i,1);continue;}}
   for(const e of G.en){if(a.hit.has(e))continue;if(Math.hypot(e.x-a.x,e.y-a.y)<e.r+3){let d=a.d;const cr=Math.random()<(s.crit||0)*.15;if(cr)d*=2;e.hp-=d;a.hit.add(e);if(s.fire)e.burn=2;if(s.ice)e.slow=1.5;
-    if(!FAST){burst(sparks,a.x,a.y,cr?'#ffd34d':'#7af5ff',3);}if(a.p>0)a.p--;else{a.dead=1;}break;}}
+    if(!FAST){burst(sparks,a.x,a.y,cr?'#ffd34d':'#7af5ff',3);addPop(e.x,e.y-e.r-4,(cr?'💥':'-')+Math.round(d),cr?'#ffd34d':'#e0fbff');}if(a.p>0)a.p--;else{a.dead=1;}break;}}
   if(a.dead)G.arrows.splice(i,1);}
  // 敌人
  for(let i=G.en.length-1;i>=0;i--){const e=G.en[i],E=EN[e.k];e.t+=dt;if(e.burn>0){e.burn-=dt;e.hp-=h.atk*.15*dt;}if(e.slow>0)e.slow-=dt;const sl=e.slow>0?.5:1;
@@ -582,7 +586,7 @@ function step(dt){const h=G.hero,s=G.sk;G.t+=dt;if(h.inv>0)h.inv-=dt;
   if(d<e.r+h.r)hurt(e.dmg);}
  if(state!=='play')return;
  for(let i=G.bullets.length-1;i>=0;i--){const b=G.bullets[i];b.x+=b.vx*dt;b.y+=b.vy*dt;if(hitWall(b.x,b.y,2)){G.bullets.splice(i,1);continue;}if(Math.hypot(b.x-h.x,b.y-h.y)<b.r+h.r-3){G.bullets.splice(i,1);hurt(b.d);if(state!=='play')return;}}
- if(!G.en.length&&!G.door){G.door=true;G.bullets=[];if(!FAST)tone(880,.15,'triangle');}
+ if(!G.en.length&&!G.door){G.door=true;G.bullets=[];if(!FAST){tone(880,.15,'triangle');waves.push({x:W/2,y:TOPY+5,t:0,col:'#3fc163',max:90});}}
  if(G.door&&h.y<TOPY+30&&Math.abs(h.x-W/2)<40)nextRoom();}
 function nextRoom(){if(G.room>save.bestRoom+li*0)save.bestRoom=Math.max(save.bestRoom,li*10+G.room);if(G.room>=10)return win();G.room++;G.hero.hp=Math.min(G.hero.max,G.hero.hp+G.hero.max*.1);state='skill';offerSkills();}
 function offerSkills(){const opts=[];const pool=SK.filter(s=>(G.sk[s[0]]||0)<s[4]);while(opts.length<3&&pool.length){opts.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);}
@@ -601,6 +605,7 @@ cv.addEventListener('pointermove',e=>{if(!joy)return;const p=posOf(e,cv,W,H);joy
 ['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,()=>{joy=null;}));
 // ---------- 绘制 ----------
 function render(dt){const C=CH[li]||CH[0];stage(ctx,W,H,C.bg[0],C.bg[1]);ctx.strokeStyle=FX?FX.rgba(C.col,.12):'rgba(255,255,255,.1)';ctx.lineWidth=1;for(let x=0;x<W;x+=30){ctx.beginPath();ctx.moveTo(x,TOPY);ctx.lineTo(x,H);ctx.stroke();}for(let y=TOPY;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+ ctx.fillStyle=FX?FX.rgba(C.col,.25):'rgba(255,255,255,.18)';for(const m of motes){ctx.beginPath();ctx.arc(m.x,m.y,m.r,0,7);ctx.fill();}
  if(!G)return;const h=G.hero;
  // 门
  box3d(ctx,W/2-40,TOPY-6,80,22,G.door?'#3fc163':'#5c5470',8);if(G.door){glowOn(ctx,'#3fc163',20);otxt(ctx,'⬆ 前进',W/2,TOPY+5,12,'#fff');glowOff(ctx);}
@@ -616,6 +621,9 @@ function render(dt){const C=CH[li]||CH[0];stage(ctx,W,H,C.bg[0],C.bg[1]);ctx.str
  if(joy){ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(joy.ox,joy.oy,40,0,7);ctx.stroke();ball3d(ctx,joy.ox+Math.max(-40,Math.min(40,joy.dx)),joy.oy+Math.max(-40,Math.min(40,joy.dy)),16,'#ffffff');}
  otxt(ctx,CH[li].n+' · '+G.room+'/10'+(G.room%5===0?' 首领':''),W/2,16,13,'#fff');
  drawBurst(ctx,sparks);
+ for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(wv.x,wv.y,10+wv.t*(wv.max||40),0,7);ctx.stroke();}
+ ctx.globalAlpha=1;
+ for(const p of pops){ctx.globalAlpha=1-p.a/0.75;otxt(ctx,p.t,p.x,p.y,12,p.c);ctx.globalAlpha=1;}
  if(li===0&&G.room===1&&G.t<6&&state==='play')otxt(ctx,'拖动移动 · 松手站定自动射击',W/2,TOPY+44,13,'#e0fbff');}
 // ---------- 菜单 ----------
 function openLevels(){state='menu';levelMenu(LV,save,startLevel,'★'+sumStars(save)+' / 12 · 每章 10 个房间（第 5、10 间首领）<br>💰'+save.coins+' · 最远到达第 '+save.bestRoom+' 间');
@@ -631,7 +639,8 @@ function pause(){if(state==='play'){state='pause';joy=null;show('pauseOv',true);
 $('pauseBtn').onclick=pause;$('resumeBtn').onclick=()=>{show('pauseOv',false);state='play';};$('restartBtn').onclick=()=>startLevel(li);$('menuBtn').onclick=openLevels;
 $('nextBtn').onclick=()=>startLevel(li+1);$('againBtn').onclick=()=>startLevel(li);$('menu2Btn').onclick=openLevels;
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
-let last=performance.now(),uiT=0;function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(state==='play'){step(dt);uiT+=dt;if(uiT>.2){uiT=0;hud();}}render(dt);requestAnimationFrame(frame);}
+$('spdBtn').onclick=()=>{speedMul=speedMul===1?2:1;$('spdBtn').textContent=speedMul+'×';tone(660,.05,'triangle');};
+let last=performance.now(),uiT=0;function frame(t){const dt=Math.min(.033,(t-last)/1000)*speedMul;last=t;if(state==='play'){step(dt);uiT+=dt;if(uiT>.2){uiT=0;hud();}}render(dt);requestAnimationFrame(frame);}
 fit();requestAnimationFrame(frame);
 window.__ar={startLevel,setBot:b=>BOT=b,setFast:v=>FAST=v,tick:(n,dt)=>{for(let i=0;i<n&&(state==='play');i++)step(dt||1/30);},applySkill,get G(){return G},get state(){return state},save:()=>save};
 </script>

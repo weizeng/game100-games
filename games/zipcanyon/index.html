@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🪂 峡谷滑索</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">在锚点之间把握释放时机，太早会够不着，太晚会冲出峡谷</p>
 </div>
-<div class="overlay" id="startScr"><h1>🪂 峡谷滑索</h1><p>沿着峡谷锚点滑行，在绿色窗口内松开滑索才能落到下一座锚点。<br>太早会掉进谷底，太晚会冲过对岸。<br>首领关会遇到侧风或断裂锚点。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🪂 峡谷滑索</h1><p>沿着峡谷锚点滑行，在绿色窗口内松开滑索才能落到下一座锚点。<br>v2（Gemini 优化：3 大峡谷地貌主题、滑索宝石收集与光环飘字、1×/2× 倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -486,7 +487,12 @@ function saveProg(p){UI.storageSet(PK,JSON.stringify(p));}
 let prog=loadProg();
 if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==null)prog.unlock=1;if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;if($('bestLine'))$('bestLine').textContent='解锁 '+prog.unlock+'/'+TOTAL+' · 币 '+prog.coins;
-let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false,diff=1;
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false,diff=1,fast=1,waves=[],pops=[],trail=[];
+const CANYONS=[
+  {sky:['#87b4e8','#3a62ad'],cliff:'#5c4030',river:'#2f6b3a',ink:'#1c304e'},
+  {sky:['#f59e0b','#7c2d12'],cliff:'#451a03',river:'#0f766e',ink:'#fff7ed'},
+  {sky:['#1e1b4b','#090d1f'],cliff:'#312e81',river:'#0e7490',ink:'#e0f2fe'}
+];
 let hits=[],pointer={down:false,x:0,y:0};
 function addHit(x,y,w,h,fn){hits.push({x,y,w,h,fn});}
 function inHit(p){for(let i=hits.length-1;i>=0;i--){const h=hits[i];if(p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h){h.fn(p);return true;}}return false;}
@@ -515,7 +521,7 @@ const SHOP=[
   {k:'visLv',name:'风标',max:1,cost(){return 40;},desc(){return '显示侧风造成的窗口偏移';}},
   {k:'slowLv',name:'控速',max:2,cost(){return 30+(prog.slowLv|0)*25;},desc(){return '滑行略慢，窗口更好抓';}}
 ];
-let anchors,seg,u,spd,wind,broken,lives,released,landed,failing;
+let anchors,seg,u,spd,wind,broken,lives,released,landed,failing,gems=[];
 function windowOf(i){
   const base=0.62,w=0.22+(prog.brkLv|0)*0.05-(lvl-1)*0.008-(boss?0.04:0)+(lvl===1?0.08:0);
   const shift=wind*0.08;
@@ -529,9 +535,10 @@ function startLevel(n){
   wind=(boss&&(lvl===5||lvl===15)||lvl>=9)?(lvl%2?1:-1):0;
   broken=boss&&(lvl===10||lvl===15)?1:-1;
   const nA=3+Math.min(4,Math.floor((lvl-1)/3));
-  anchors=[];
+  anchors=[];waves=[];pops=[];trail=[];gems=[];
   for(let i=0;i<nA;i++)anchors.push({x:30+i*(280/(nA-1)),y:180+((i%2)?40:-20)+(lvl===1?0:((i*17+lvl*3)%30))});
   if(lvl===1)anchors=[{x:30,y:160},{x:150,y:200},{x:280,y:150},{x:330,y:190}];
+  for(let i=0;i<anchors.length-1;i++)gems.push({seg:i,u:0.32+((i*19+lvl*7)%24)/100,got:false});
   diff=lvl*10+anchors.length*8+(boss?28:0)+Math.round(spd*20)+Math.abs(wind)*10+(broken>=0?14:0)+Math.round((0.3-(windowOf(0).b-windowOf(0).a))*80);
   beginPlay(boss?(broken>=0?'有一座锚点断裂，必须改滑更远的索':'侧风会把释放窗口推偏，对准绿区再松手'):'在绿色窗口内释放滑索，落向下一个锚点');
 }
@@ -542,29 +549,40 @@ function release(){
   released=true;
   if(u<w.a){failing=1;addScore(0);beep(200,.15,'triangle');return false;}
   if(u>w.b){failing=2;addScore(0);beep(200,.15,'triangle');return false;}
-  addScore(10);beep(820,.08);return true;
+  addScore(10);beep(820,.08);
+  const a=anchors[seg],b=anchors[seg+1];
+  if(a&&b){const px=a.x+(b.x-a.x)*clamp(u,0,1),py=a.y+(b.y-a.y)*clamp(u,0,1);waves.push({x:px,y:py,t:0,col:'#22c55e'});pops.push({x:px,y:py-18,txt:'完美释放 +10',col:'#4ade80',t:0});}
+  return true;
 }
 function update(dt){
+  for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.4;if(waves[i].t>=1)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;pops[i].y-=dt*32;if(pops[i].t>=0.9)pops.splice(i,1);}
   if(failing){failing+=dt;if(failing>2.2){if(lives>1){lives--;failing=0;released=false;u=Math.max(0,windowOf(seg).a-0.05);toast('双索补救！');}else lose(u<windowOf(seg).a?'释放太早，没有够到锚点':'释放太晚，冲出峡谷');}return;}
   if(released){
     u+=dt*1.8;if(u>=1){
-      landed++;seg++;released=false;u=0;
+      landed++;seg++;released=false;u=0;trail=[];
       if(broken===seg){seg++;toast('锚点断裂，改滑下一索');}
       if(seg>=anchors.length-1)win();
     }
     return;
   }
   u+=dt*spd;
+  const a=anchors[seg],b=anchors[seg+1];
+  if(a&&b){
+    const gx=a.x+(b.x-a.x)*clamp(u,0,1),gy=a.y+(b.y-a.y)*clamp(u,0,1)-8;
+    trail.push({x:gx,y:gy,t:0});if(trail.length>10)trail.shift();
+    for(const g of gems){if(!g.got&&g.seg===seg&&Math.abs(u-g.u)<0.06){g.got=true;addScore(15);beep(1040,.07);const mx=a.x+(b.x-a.x)*g.u,my=a.y+(b.y-a.y)*g.u-14;waves.push({x:mx,y:my,t:0,col:'#ffd34d'});pops.push({x:mx,y:my-10,txt:'💎 +15',col:'#fde047',t:0});}}
+  }
   if(u>=1.02){failing=2;beep(160,.2,'triangle');}
 }
 function draw(){
-  hits=[];stage('#87b4e8','#3a62ad');
+  hits=[];const cy=CANYONS[Math.min(2,Math.floor((lvl-1)/5))];stage(cy.sky[0],cy.sky[1]);
   if(state!=='play'&&state!=='pause')return;
-  label((boss?'👑 ':'')+'第 '+lvl+' 关 · 索 '+(seg+1)+'/'+(anchors.length-1),14,18,'#1c304e',13,'left');
-  label(inWin()?'窗口内':'滑行中',346,18,inWin()?'#166534':'#1c304e',12,'right');
+  label((boss?'👑 ':'')+'第 '+lvl+' 关 · 索 '+(seg+1)+'/'+(anchors.length-1),14,18,cy.ink,13,'left');
+  label(inWin()?'窗口内':'滑行中',346,18,inWin()?'#22c55e':cy.ink,12,'right');
   // canyon
-  ctx.fillStyle='#5c4030';ctx.beginPath();ctx.moveTo(0,H);ctx.lineTo(0,360);ctx.quadraticCurveTo(180,420,360,340);ctx.lineTo(360,H);ctx.fill();
-  ctx.fillStyle='#2f6b3a';ctx.fillRect(0,500,360,40);
+  ctx.fillStyle=cy.cliff;ctx.beginPath();ctx.moveTo(0,H);ctx.lineTo(0,360);ctx.quadraticCurveTo(180,420,360,340);ctx.lineTo(360,H);ctx.fill();
+  ctx.fillStyle=cy.river;ctx.fillRect(0,500,360,40);
   for(let i=0;i<anchors.length;i++){
     const a=anchors[i];
     if(broken===i){label('×',a.x,a.y-16,'#fda4af',18,'center');continue;}
@@ -573,16 +591,24 @@ function draw(){
     if(i<anchors.length-1&&broken!==i+1){
       const b=anchors[i+1];
       ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+      for(const g of gems){if(!g.got&&g.seg===i){const gx=a.x+(b.x-a.x)*g.u,gy=a.y+(b.y-a.y)*g.u-14;if(FX)FX.glow(ctx,'#ffd34d',10);orb(gx,gy,6,'#fde047');if(FX)FX.noGlow(ctx);}}
       if(i===seg){
         const w=windowOf(i);
         const xa=a.x+(b.x-a.x)*w.a,ya=a.y+(b.y-a.y)*w.a,xb=a.x+(b.x-a.x)*w.b,yb=a.y+(b.y-a.y)*w.b;
+        if(inWin()&&FX)FX.glow(ctx,'#22c55e',12);
         ctx.strokeStyle='#22c55e';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(xa,ya);ctx.lineTo(xb,yb);ctx.stroke();
+        if(FX)FX.noGlow(ctx);
+        for(let ti=0;ti<trail.length;ti++){ctx.fillStyle='rgba(255,255,255,'+(ti/trail.length*0.35)+')';ctx.beginPath();ctx.arc(trail[ti].x,trail[ti].y,4*(ti+1)/trail.length,0,7);ctx.fill();}
         const x=a.x+(b.x-a.x)*clamp(u,0,1),y=a.y+(b.y-a.y)*clamp(u,0,1)+(failing?failing*40:0);
         orb(x,y-8,12,'#fff');label('🪂',x,y-8,'#1c304e',12,'center');
       }
     }
   }
-  if(wind&&prog.visLv)label('侧风 '+(wind>0?'→':'←'),W/2,70,'#1c304e',12,'center');
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(wv.x,wv.y,8+wv.t*28,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
+  for(const p of pops){ctx.globalAlpha=1-p.t/0.9;label(p.txt,p.x,p.y,p.col,13,'center');}
+  ctx.globalAlpha=1;
+  if(wind&&prog.visLv)label('侧风 '+(wind>0?'→':'←'),W/2,70,cy.ink,12,'center');
   btn(16,H-62,328,48,inWin()?'释放滑索':'等待窗口','#ffd34d',release);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
@@ -606,7 +632,8 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(660,.05);};
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000)*fast;last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>
