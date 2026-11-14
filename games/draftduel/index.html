@@ -455,9 +455,9 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     </span>
   </div>
   <div class="stagebox"><canvas id="cv"></canvas></div>
-  <p class="hint" id="hint">点卡选秀 · 确认开战</p>
+  <p class="hint" id="hint">点卡加入军队 · 看清类型与克制</p>
 </div>
-<div class="overlay" id="startScr"><h1>🎴 选秀对决</h1><p>开战前 3 轮三选一挑牌组军，然后双方自动交战。<br>落后方触发第 4 抽翻盘机会。<br>15 场阶梯赛，AI 越来越会克制。<br><small style="opacity:.85">v3（Gemini 优化）：新增三大竞技场主题、立体卡牌造型与交战弹道特效</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🎴 选秀对决</h1><p>每轮三选一点一张组军，3 轮后自动交战。<br>重盾克近战，近战克箭系，箭系克骑兵；爆破打爆发，治疗可回血。<br>落后时会暂停，让你再抽第 4 张翻盘。<br>15 场阶梯赛，第 5/10/15 场迎战首领。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -488,7 +488,7 @@ if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
 const TOTAL=15;
 let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
-const TUT=[["选秀","每轮三选一，凑克制与爆发。"],["交战","选完后军队自动对轰。"],["翻盘","落后时触发第4抽补强。"],["Boss","第 5/10/15 场 AI 针对性更强。"]];
+const TUT=[["怎么玩","先选秀再开战：每轮三张牌里点一张加入军队，点满 3 张后双方自动交战。"],["克制循环","重盾🛡️克近战⚔️，近战克箭系🏹，箭系克骑兵🐎。卡面上会写类型和克谁。"],["特殊牌","💥爆破高爆发，💗治疗会在交战中缓慢回血。尽量凑克制和战力。"],["第4抽翻盘","交战中若你落后，会暂停并再给你一次三选一。点卡加入军队后继续打。"],["首领战","第 5/10/15 场是首领战，AI 更会针对你的牌组。"]];
 const SHOP=[{k:'poolLv',name:'牌池扩展',max:3,cost(){return 40+(prog.poolLv|0)*30;},desc(){return '解锁更高档牌';}},{k:'luckLv',name:'幸运选秀',max:3,cost(){return 45+(prog.luckLv|0)*35;},desc(){return '高稀有率提升';}},{k:'hpLv',name:'基地血量',max:3,cost(){return 50+(prog.hpLv|0)*40;},desc(){return '基地血量提升';}}];
 
 
@@ -503,24 +503,27 @@ const ARENAS=[
   {top:'#f97316',bot:'#7c2d12'}
 ];
 const KICO={r:'🏹',m:'⚔️',h:'🛡️',b:'💥',c:'🐎',heal:'💗'};
+const KNAME={r:'箭系',m:'近战',h:'重盾',b:'爆破',c:'骑兵',heal:'治疗'};
+const KHINT={r:'克 🐎骑兵',m:'克 🏹箭系',h:'克 ⚔️近战',b:'高爆发伤害',c:'突击冲阵',heal:'持续回血'};
 let phase='draft',round=0,choices=[],myDeck=[],aiDeck=[],myHp=100,myMax=100,aiHp=100,aiMax=100,fightT=0,fourth=0,bolts=[],shotT=0,arena=ARENAS[0];
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];bolts=[];arena=ARENAS[Math.min(2,((lvl-1)/5)|0)];phase='draft';round=0;myDeck=[];aiDeck=[];myMax=100+(prog.hpLv|0)*25;myHp=myMax;aiMax=100+lvl*8+(boss?40:0);aiHp=aiMax;fightT=0;fourth=0;shotT=0;makeChoices();show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='选秀 '+(round+1)+'/3 · 点卡';}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];bolts=[];arena=ARENAS[Math.min(2,((lvl-1)/5)|0)];phase='draft';round=0;myDeck=[];aiDeck=[];myMax=100+(prog.hpLv|0)*25;myHp=myMax;aiMax=100+lvl*8+(boss?40:0);aiHp=aiMax;fightT=0;fourth=0;shotT=0;makeChoices();show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='选秀 '+(round+1)+'/3 · 点一张加入军队';}
 function unlocked(){return POOL.slice(0,6+Math.min(3,prog.poolLv|0)+((lvl>8)?0:0));}
 function makeChoices(){const pool=unlocked();choices=[];const rng=mulberry32(lvl*99+round*7+Date.now()%99);for(let i=0;i<3;i++){let c=pool[rng()*pool.length|0];if(rng()<0.2+(prog.luckLv|0)*0.08)c=pool[pool.length-1-(rng()*3|0)]||c;choices.push({...c});}}
 function aiPick(){const pool=unlocked();let best=pool[0],scoreB=-1;for(const c of pool){let s=c.pow;if(boss&&myDeck.length){const last=myDeck[myDeck.length-1];if((c.k==='h'&&last.k==='m')||(c.k==='m'&&last.k==='r')||(c.k==='r'&&last.k==='c'))s+=8;}if(s>scoreB){scoreB=s;best=c;}}aiDeck.push({...best});}
-function pick(i){if(phase!=='draft'||i<0||i>2)return;myDeck.push({...choices[i]});aiPick();round++;beep(780,.06);if(round>=3){phase='fight';fightT=0;toast('开战！');$('hint').textContent='交战中…';}else{makeChoices();$('hint').textContent='选秀 '+(round+1)+'/3';}}
+function cardHit(p){const y0=H-174,ch=132,cw=W/3-16;for(let i=0;i<3;i++){const x=i*(W/3)+8;if(p.x>=x&&p.x<=x+cw&&p.y>=y0&&p.y<=y0+ch)return i;}return -1;}
+function pick(i){if((phase!=='draft'&&phase!=='fourth')||i<0||i>2||!choices[i])return false;myDeck.push({...choices[i]});beep(780,.06);if(phase==='fourth'){choices=[];phase='fight';fightT=0;shotT=0;toast('补牌开战！');$('hint').textContent='交战中…加赛';return true;}aiPick();round++;if(round>=3){phase='fight';fightT=0;toast('开战！');$('hint').textContent='交战中…';}else{makeChoices();$('hint').textContent='选秀 '+(round+1)+'/3 · 点一张加入军队';}return true;}
 function power(deck){return deck.reduce((s,c)=>s+c.pow+(c.k==='heal'?5:0),0)*(1+lvl*0.01);}
 function update(dt){
   for(let i=bolts.length-1;i>=0;i--){const b=bolts[i];b.t+=dt*3.5;if(b.t>=1){if(FX)FX.burst(sparks,b.x2,b.y2,b.col,5);bolts.splice(i,1);}}
-  if(phase!=='fight'&&phase!=='fourth')return;fightT+=dt;shotT+=dt;const mp=power(myDeck),ap=power(aiDeck);const tick=dt*18;myHp-=ap*0.015*tick;aiHp-=mp*0.015*tick;if(myDeck.some(c=>c.k==='heal'))myHp=Math.min(myMax,myHp+dt*4);score+=dt*10;$('score').textContent=score|0;
+  if(phase!=='fight')return;fightT+=dt;shotT+=dt;const mp=power(myDeck),ap=power(aiDeck);const tick=dt*18;myHp-=ap*0.015*tick;aiHp-=mp*0.015*tick;if(myDeck.some(c=>c.k==='heal'))myHp=Math.min(myMax,myHp+dt*4);score+=dt*10;$('score').textContent=score|0;
   if(shotT>.24&&myDeck.length&&aiDeck.length){shotT=0;const mi=(Math.random()*myDeck.length)|0,ai=(Math.random()*aiDeck.length)|0;
     bolts.push({x1:40+mi*44,y1:H*0.56,x2:40+ai*44,y2:H*0.26,t:0,col:myDeck[mi].c});
     bolts.push({x1:40+ai*44,y1:H*0.26,x2:40+mi*44,y2:H*0.56,t:0,col:'#ff5252'});}
-  if(myHp<=0||aiHp<=0||fightT>8){if(!fourth&&myHp<aiHp&&myHp>0){fourth=1;phase='draft';round=3;makeChoices();toast('第4抽翻盘！');$('hint').textContent='第4抽 · 三选一';phase='fourth';return;}
-    if(phase==='fourth'&&round>=3){/* waiting pick */}else if(myHp>aiHp)win();else if(aiHp>myHp)lose('基地被破');else if(fightT>8){if(myHp>=aiHp)win();else lose('惜败');}}}
+  if(myHp<=0||aiHp<=0||fightT>8){if(!fourth&&myHp<aiHp&&myHp>0){fourth=1;round=3;makeChoices();phase='fourth';toast('第4抽翻盘！点一张补牌');$('hint').textContent='⚡ 第4抽翻盘 · 点卡加入军队（交战已暂停）';return;}
+    if(myHp>aiHp)win();else if(aiHp>myHp)lose('基地被破');else if(fightT>8){if(myHp>=aiHp)win();else lose('惜败');}}}
 function win(){if(state!=='play')return;const stars=myHp>60?3:myHp>30?2:1;const gain=35+stars*15+(boss?65:0)+Math.floor(score/12);finishWin(stars,gain,'选秀完胜！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(phase==='draft'||phase==='fourth'){if(p.y>H-160){const i=((p.x/(W/3))|0);pick(i);if(phase==='fourth'){phase='fight';fightT=0;toast('加赛开战');}}}});
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(phase==='draft'||phase==='fourth'){const i=cardHit(p);if(i>=0)pick(i);}});
 function draw(){const ar=arena||ARENAS[0];if(FX)FX.stage(ctx,W,H,ar.top,ar.bot);else{ctx.fillStyle=ar.bot;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(14,14,W-28,10);ctx.fillRect(14,H-28,W-28,10);
   ctx.fillStyle='#ff5252';ctx.fillRect(14,14,(W-28)*Math.max(0,aiHp/aiMax),10);
@@ -531,14 +534,21 @@ function draw(){const ar=arena||ARENAS[0];if(FX)FX.stage(ctx,W,H,ar.top,ar.bot);
   myDeck.forEach((c,i)=>{const x=40+i*44,y=H*0.56;if(FX)FX.orb(ctx,x,y,16,c.c);else{ctx.fillStyle=c.c;ctx.beginPath();ctx.arc(x,y,16,0,7);ctx.fill();}ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText(KICO[c.k]||'⚔️',x,y+5);});
   aiDeck.forEach((c,i)=>{const x=40+i*44,y=H*0.26;if(FX)FX.orb(ctx,x,y,16,c.c);else{ctx.fillStyle=c.c;ctx.beginPath();ctx.arc(x,y,16,0,7);ctx.fill();}ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText(KICO[c.k]||'⚔️',x,y+5);});
   for(const b of bolts){const x=b.x1+(b.x2-b.x1)*b.t,y=b.y1+(b.y2-b.y1)*b.t;if(FX)FX.orb(ctx,x,y,5,b.col);else{ctx.fillStyle=b.col;ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fill();}}
-  if(phase==='draft'||phase==='fourth'){choices.forEach((c,i)=>{const x=i*(W/3)+8,y=H-174,cw=W/3-16;
-    if(FX)FX.tile(ctx,x,y,cw,132,'rgba(255,255,255,.22)',14);else{ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(x,y,cw,132);}
-    if(FX)FX.tile(ctx,x+10,y+12,cw-20,52,c.c,10);else{ctx.fillStyle=c.c;ctx.fillRect(x+10,y+12,cw-20,52);}
-    ctx.font='24px sans-serif';ctx.textAlign='center';ctx.fillText(KICO[c.k]||'⚔️',x+cw/2,y+46);
-    ctx.fillStyle='#fff';ctx.font='bold 14px sans-serif';ctx.fillText(c.n,x+cw/2,y+90);ctx.fillStyle='#ffe08a';ctx.font='bold 12px sans-serif';ctx.fillText('战力 '+c.pow,x+cw/2,y+114);});}
+  if(phase==='draft'||phase==='fourth'){const pulse=0.55+0.45*Math.sin(performance.now()/180);
+    if(phase==='fourth'){const by=H-220;ctx.fillStyle='rgba(0,0,0,.55)';if(ctx.roundRect){ctx.beginPath();ctx.roundRect(16,by,W-32,40,10);ctx.fill();}else ctx.fillRect(16,by,W-32,40);ctx.fillStyle='#ffe08a';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText('⚡ 第4抽翻盘 · 点一张加入军队',W/2,by+26);}
+    choices.forEach((c,i)=>{const x=i*(W/3)+8,y=H-174,cw=W/3-16,ch=132;
+    if(FX)FX.tile(ctx,x,y,cw,ch,'rgba(255,255,255,.22)',14);else{ctx.fillStyle='rgba(255,255,255,.18)';ctx.fillRect(x,y,cw,ch);}
+    ctx.strokeStyle='rgba(255,224,138,'+pulse+')';ctx.lineWidth=3;if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x+1,y+1,cw-2,ch-2,12);ctx.stroke();}else ctx.strokeRect(x+1,y+1,cw-2,ch-2);
+    if(FX)FX.tile(ctx,x+10,y+10,cw-20,44,c.c,10);else{ctx.fillStyle=c.c;ctx.fillRect(x+10,y+10,cw-20,44);}
+    ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText(KICO[c.k]||'⚔️',x+cw/2,y+40);
+    ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.fillText(c.n,x+cw/2,y+68);
+    ctx.fillStyle='#ffe08a';ctx.font='bold 11px sans-serif';ctx.fillText((KNAME[c.k]||'')+' · '+(KHINT[c.k]||''),x+cw/2,y+84);
+    ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.fillText('战力 '+c.pow,x+cw/2,y+102);
+    ctx.fillStyle='rgba(255,224,138,'+(0.25+0.35*pulse)+')';if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x+12,y+110,cw-24,16,8);ctx.fill();}else ctx.fillRect(x+12,y+110,cw-24,16);
+    ctx.fillStyle='#3a2200';ctx.font='bold 11px sans-serif';ctx.fillText('点选这张 ▸',x+cw/2,y+122);});}
   if(phase==='fight'){ctx.fillStyle='#ffe08a';ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.fillText('⚔️ 交战 '+(fightT|0)+'s',W/2,H*0.41);}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
-window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);myHp=80;aiHp=10;phase='fight';fourth=1;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,phase,myHp:myHp|0,aiHp:aiHp|0}}};
+window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);myHp=80;aiHp=10;phase='fight';fourth=1;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,phase,myHp:myHp|0,aiHp:aiHp|0,round,fourth,myLen:myDeck.length,aiLen:aiDeck.length,choiceN:choices.length}},pick(i){return pick(i);},armFourth(){if(state!=='play')startLevel(lvl||1);while(phase==='draft')pick(0);myHp=Math.max(25,myMax*0.35);aiHp=Math.max(myHp+30,aiMax*0.8);fourth=0;round=3;makeChoices();phase='fourth';fourth=1;return this.state();}};
 
 
 function finishWin(stars,gain,title){if(state!=='play'&&state!=='over'){/*allow*/}state='over';const prev=prog.stars[lvl]|0;if(stars>prev)prog.stars[lvl]=stars;prog.coins+=gain;if(lvl>=prog.unlock&&lvl<TOTAL)prog.unlock=lvl+1;saveProg(prog);if(score>best){best=score;UI.storageSet(HK,best);$('best').textContent=best;}$('overH').textContent=title||'选秀完胜！';$('finalScore').textContent='★'.repeat(stars);$('overText').textContent='关卡 '+lvl+' · +'+gain+'币';show('overScr',true);beep(880,.2);}

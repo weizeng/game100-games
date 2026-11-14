@@ -7,13 +7,17 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
-.wrap{width:100%;max-width:480px;height:100%;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.wrap{width:100%;max-width:480px;height:100%;padding:10px;display:flex;flex-direction:column;align-items:center;gap:8px}
 .topbar{width:100%;display:flex;justify-content:space-between;align-items:center}
 .topbar .tools{display:flex;gap:8px}
 .topbar .tools .iconbtn{min-width:44px;min-height:44px}
-.stagebox{width:100%;display:flex;justify-content:center}
-#cv{width:100%;max-height:calc(100svh - 170px);aspect-ratio:360/540;object-fit:contain;touch-action:none;border-radius:16px}
-.hint{font-size:13px;text-align:center}
+.stagebox{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+#cv{touch-action:none;display:block;border-radius:16px;max-width:100%;max-height:100%}
+.hint{font-size:12px;text-align:center;min-height:16px;font-weight:700}
+.pad{width:100%;display:flex;justify-content:center;align-items:center;flex:none}
+.dpad{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,56px);gap:6px;justify-content:center}
+.dpad .dbtn{min-width:56px;min-height:56px;font-size:22px;padding:0;touch-action:none}
+@media (max-height:700px){.dpad{grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:5px}.dpad .dbtn{min-width:48px;min-height:48px;font-size:20px}.hint{font-size:11px;min-height:0}}
 .overlay{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:20;padding:24px;text-align:center}
 .overlay.hidden{display:none}
 .lvgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:min(360px,92vw)}
@@ -454,9 +458,19 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     </span>
   </div>
   <div class="stagebox"><canvas id="cv"></canvas></div>
-  <p class="hint" id="hint">滑动转向 · 吃光豆子过关</p>
+  <div class="pad" aria-label="方向键">
+    <div class="dpad">
+      <span></span>
+      <button type="button" class="dbtn" data-dir="up" aria-label="上">▲</button>
+      <span></span>
+      <button type="button" class="dbtn" data-dir="left" aria-label="左">◀</button>
+      <button type="button" class="dbtn" data-dir="down" aria-label="下">▼</button>
+      <button type="button" class="dbtn" data-dir="right" aria-label="右">▶</button>
+    </div>
+  </div>
+  <p class="hint" id="hint">滑动 / 方向键转向 · 吃光豆子过关</p>
 </div>
-<div class="overlay" id="startScr"><h1>👻 吃豆人</h1><p>经典迷宫吃豆：滑动或点方向转向。<br>吃能量豆可反杀幽灵。<br>第 5/10/15 关迎战幽灵王！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>👻 吃豆人</h1><p>经典迷宫吃豆：滑动屏幕、点下方方向键，或用方向键 / WASD 转向。<br>转向会在路口生效。吃能量豆可反杀幽灵。<br>第 5/10/15 关迎战幽灵王！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -490,7 +504,7 @@ let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textCont
 const TOTAL=15;
 let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 
-const TUT=[['滑动转向','在迷宫中滑动或点方向键转向吃豆。','🟡'],['能量豆','大能量豆可让幽灵变蓝，短暂反杀。','⚪'],['过关','吃光全部豆子即可过关。','✨'],['Boss','首领关幽灵更快，还有幽灵王追击。','👑']];
+const TUT=[['转向','滑动屏幕、点下方方向键，或用方向键/WASD 转向。转向会在路口生效。','🟡'],['能量豆','大能量豆可让幽灵变蓝，短暂反杀。','⚪'],['过关','吃光全部豆子即可过关。','✨'],['Boss','首领关幽灵更快，还有幽灵王追击。','👑']];
 const SHOP=[{k:'spdLv',name:'移速',max:3,cost(){return 35+(prog.spdLv|0)*28;},desc(){return '移动加速'}},{k:'powerLv',name:'能量延长',max:3,cost(){return 40+(prog.powerLv|0)*30;},desc(){return '反杀时间+'}},{k:'lifeLv',name:'额外命',max:2,cost(){return 45+(prog.lifeLv|0)*35;},desc(){return '生命+1'}}];
 const COLS=13,ROWS=15,T=Math.floor(Math.min(W/COLS,(H-40)/ROWS));
 let grid=[],dots={},dotsLeft=0,player,ghosts=[],lives=3,powerT=0,dir={x:1,y:0},nextDir={x:1,y:0},rng,ox,oy,keys={};
@@ -506,7 +520,7 @@ function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];powerT=0;lives=3
   ox=(W-COLS*T)/2;oy=28;player={x:1,y:1,px:1,py:1,t:0};dir={x:1,y:0};nextDir={x:1,y:0};
   const gN=2+Math.min(3,(lvl/3)|0)+(boss?1:0);ghosts=[];const spots=[[COLS-2,1],[1,ROWS-2],[COLS-2,ROWS-2],[(COLS/2)|0,(ROWS/2)|0],[3,3]];
   for(let i=0;i<gN;i++){const s=spots[i%spots.length];ghosts.push({x:s[0],y:s[1],px:s[0],py:s[1],t:0,col:['#ff5252','#ff80ab','#40c4ff','#69f0ae','#ea80fc'][i%5],king:boss&&i===0,spd:2.2+lvl*0.08+(boss?0.35:0)+(i===0&&boss?0.25:0)});}
-  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=boss?'👑 幽灵王追击中':'滑动转向吃豆';}
+  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=boss?'👑 幽灵王追击中':'滑动 / 方向键转向吃豆';}
 function walkable(x,y){if(y===(ROWS/2|0)&&(x<0||x>=COLS))return true;x=(x+COLS)%COLS;return x>=0&&y>=0&&x<COLS&&y<ROWS&&grid[y][x]===0;}
 function tryTurn(ent,nd){const nx=Math.round(ent.x)+nd.x,ny=Math.round(ent.y)+nd.y;return walkable(nx,ny);}
 function stepEnt(ent,d,spd,dt){ent.t+=dt*spd;if(ent.t>=1){ent.t=0;ent.x=Math.round(ent.x)+d.x;ent.y=Math.round(ent.y)+d.y;if(ent.x<0)ent.x=COLS-1;if(ent.x>=COLS)ent.x=0;ent.px=ent.x;ent.py=ent.y;}
@@ -525,8 +539,19 @@ function update(dt){if(powerT>0)powerT-=dt;
   for(const g of ghosts){const gd=ghostAI(g);stepEnt(g,gd,g.spd*(powerT>0?0.55:1),dt);
     if(Math.hypot(g.px-player.px,g.py-player.py)<0.55){if(powerT>0){score+=200;$('score').textContent=score;g.x=COLS-2;g.y=1;g.px=g.x;g.py=g.y;g.t=0;beep(990,.12);if(FX)FX.burst(sparks,ox+(g.px+0.5)*T,oy+(g.py+0.5)*T,'#40c4ff',10);}
       else{lives--;beep(180,.25,'sawtooth');player.x=1;player.y=1;player.px=1;player.py=1;player.t=0;dir={x:1,y:0};if(lives<=0)return lose('被幽灵抓住');}}}}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);const cx=ox+(player.px+0.5)*T,cy=oy+(player.py+0.5)*T;const dx=p.x-cx,dy=p.y-cy;if(Math.abs(dx)>Math.abs(dy))nextDir={x:dx>0?1:-1,y:0};else nextDir={x:0,y:dy>0?1:-1};});
-let swipe=null;cv.addEventListener('pointerdown',e=>{swipe=posOf(e);});cv.addEventListener('pointerup',e=>{if(!swipe||state!=='play')return;const p=posOf(e);const dx=p.x-swipe.x,dy=p.y-swipe.y;if(Math.hypot(dx,dy)<18)return;if(Math.abs(dx)>Math.abs(dy))nextDir={x:dx>0?1:-1,y:0};else nextDir={x:0,y:dy>0?1:-1};swipe=null;});
+const SWIPE_MIN=8;
+const DIRMAP={ArrowUp:{x:0,y:-1},ArrowDown:{x:0,y:1},ArrowLeft:{x:-1,y:0},ArrowRight:{x:1,y:0},w:{x:0,y:-1},s:{x:0,y:1},a:{x:-1,y:0},d:{x:1,y:0},W:{x:0,y:-1},S:{x:0,y:1},A:{x:-1,y:0},D:{x:1,y:0}};
+function setNext(nd){if(!nd)return;nextDir={x:nd.x,y:nd.y};}
+function dirFromDelta(dx,dy){if(Math.abs(dx)>Math.abs(dy))return{x:dx>0?1:-1,y:0};return{x:0,y:dy>0?1:-1};}
+let swipe=null;
+function endSwipe(e){if(!swipe||state!=='play')return;if(e)e.preventDefault();const p=e?posOf(e):{x:swipe.x,y:swipe.y};const dx=p.x-swipe.x,dy=p.y-swipe.y;if(swipe.moved){if(Math.hypot(dx,dy)>=SWIPE_MIN)setNext(dirFromDelta(dx,dy));}else setNext(dirFromDelta(p.x-(ox+(player.px+0.5)*T),p.y-(oy+(player.py+0.5)*T)));swipe=null;}
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);swipe={x:p.x,y:p.y,moved:false};try{cv.setPointerCapture(e.pointerId);}catch(_){}});
+cv.addEventListener('pointermove',e=>{if(!swipe||state!=='play')return;e.preventDefault();const p=posOf(e);const dx=p.x-swipe.x,dy=p.y-swipe.y;if(Math.hypot(dx,dy)>=SWIPE_MIN){swipe.moved=true;setNext(dirFromDelta(dx,dy));}});
+cv.addEventListener('pointerup',endSwipe);
+cv.addEventListener('pointercancel',endSwipe);
+document.addEventListener('keydown',e=>{const nd=DIRMAP[e.key]||DIRMAP[e.key.length===1?e.key.toLowerCase():''];if(!nd)return;e.preventDefault();if(state==='play')setNext(nd);});
+const PADDIR={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
+document.querySelectorAll('.dbtn').forEach(btn=>{btn.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(state==='play')setNext(PADDIR[btn.dataset.dir]);});});
 function draw(){if(FX)FX.stage(ctx,W,H,'#1a237e','#0d0d2b');else{ctx.fillStyle='#0d0d2b';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const px=ox+x*T,py=oy+y*T;if(grid[y][x]===1){if(FX)FX.tile(ctx,px+1,py+1,T-2,T-2,'#3949ab',4);else{ctx.fillStyle='#3949ab';ctx.fillRect(px+1,py+1,T-2,T-2);}}
     const d=dots[x+','+y];if(d){ctx.fillStyle='#ffe082';ctx.beginPath();ctx.arc(px+T/2,py+T/2,d==='o'?5:2.2,0,7);ctx.fill();}}
@@ -534,7 +559,7 @@ function draw(){if(FX)FX.stage(ctx,W,H,'#1a237e','#0d0d2b');else{ctx.fillStyle='
   ghosts.forEach(g=>{const gx=ox+(g.px+0.5)*T,gy=oy+(g.py+0.5)*T;const col=powerT>0?'#82b1ff':g.col;if(FX)FX.orb(ctx,gx,gy,T*(g.king?0.4:0.32),col);else{ctx.fillStyle=col;ctx.beginPath();ctx.arc(gx,gy,T*(g.king?0.4:0.32),0,7);ctx.fill();}if(g.king){ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText('王',gx,gy+3);}});
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('❤'+lives+' 豆'+dotsLeft+(powerT>0?' ⚡'+powerT.toFixed(1):'')+(boss?' 👑':''),10,18);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
-window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);dots={};dotsLeft=0;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,dotsLeft,lives}}};
+window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);dots={};dotsLeft=0;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,dotsLeft,lives,dir:{...dir},nextDir:{...nextDir},px:player?player.px:0,py:player?player.py:0}},setDir(x,y){nextDir={x,y};}};
 
 
 function finishWin(stars,gain,title){state='over';const prev=prog.stars[lvl]|0;if(stars>prev)prog.stars[lvl]=stars;prog.coins+=gain;if(lvl>=prog.unlock&&lvl<TOTAL)prog.unlock=lvl+1;saveProg(prog);if(score>best){best=score;UI.storageSet(HK,best);$('best').textContent=best;}$('overH').textContent=title||'过关！';$('finalScore').textContent='★'.repeat(stars);$('overText').textContent='关卡 '+lvl+' · +'+gain+'币';show('overScr',true);beep(880,.2);}
