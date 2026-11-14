@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">⛲ 喷泉跃升</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">喷发时点按跃向下一座喷泉</p>
 </div>
-<div class="overlay" id="startScr"><h1>⛲ 喷泉跃升</h1><p>喷泉喷发出现金色水柱时点按，借力跳到下一座。<br>没喷发时乱点会失足，可以等下一轮再跳。<br>首领关喷发极短，还不断落石。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>⛲ 喷泉跃升</h1><p>喷泉喷发出现金色水柱时点按，借力跳到下一座。<br>没喷发时乱点会失足，可以等下一轮再跳。<br>v2（Gemini 优化：三大地热喷泉地貌、连跳Combo加分、跃升光环飘字、立体阴影及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -505,12 +506,14 @@ const SHOP=[
   {k:'winLv',name:'宽喷口',max:2,cost(){return 40+(prog.winLv|0)*30;},desc(){return '喷发窗口更长';}},
   {k:'slowLv',name:'观潮',max:1,cost(){return 50;},desc(){return '喷泉周期稍慢';}}
 ];
-let nodes=[], idx=0, anim=null, lives=3, rocks=[];
+const GEYSERS=[{top:'#86d8ff',bot:'#5875ff',name:'碧泉峡谷'},{top:'#f59e0b',bot:'#78350f',name:'琥珀热泉'},{top:'#e11d48',bot:'#4c0519',name:'熔岩喷口'}];
+let nodes=[], idx=0, anim=null, lives=3, rocks=[], spd=1, combo=0, rings=[], pops=[];
+$('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';};
 function startLevel(n){
   lvl=n|0; boss=lvl%5===0;
   const rng=mulberry32(lvl*271+1);
   const count=6+Math.floor(lvl/2)+(boss?2:0);
-  nodes=[]; lives=2+(prog.lifeLv|0)+(lvl<=2?1:0); idx=0; anim=null; rocks=[];
+  nodes=[]; lives=2+(prog.lifeLv|0)+(lvl<=2?1:0); idx=0; anim=null; rocks=[]; combo=0; rings=[]; pops=[];
   for(let i=0;i<count;i++){
     const period=(boss?1.15:1.6)-lvl*0.03+(prog.slowLv?0.25:0);
     const duty=clamp(0.46-lvl*0.015+(prog.winLv|0)*0.06,0.16,0.55);
@@ -519,22 +522,29 @@ function startLevel(n){
   diff=lvl*10+count*3+(boss?24:0)+Math.round((0.5-nodes[0].duty)*40);
   score=0; sparks=[]; show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);
   state='play'; last=performance.now(); beep(660,.1); $('score').textContent=0;
-  $('hint').textContent=boss?'首领火山：短喷发+落石':'喷发时点按跃向下一座喷泉';
+  const gz=GEYSERS[Math.min(2,((lvl-1)/5)|0)];
+  $('hint').textContent=boss?'首领火山：短喷发+落石':(gz.name+' · 喷发时点按跃向下一座喷泉');
 }
 function erupting(n){return ((n.t%n.period)/n.period)<n.duty;}
 function onDown(){
   if(anim||state!=='play') return;
   const n=nodes[idx];
-  if(n.spike && erupting(n)){ lives--; beep(180,.1,'sawtooth'); if(lives<=0)lose('踩上尖刺'); return; }
+  if(n.spike && erupting(n)){ combo=0; lives--; beep(180,.1,'sawtooth'); if(lives<=0)lose('踩上尖刺'); return; }
   if(erupting(n)){
-    if(idx>=nodes.length-1){score+=20; $('score').textContent=score; win(); return;}
-    anim={from:idx,to:idx+1,t:0}; score+=10; $('score').textContent=score; beep(820,.08);
+    combo++;
+    const pts=10+Math.min(20,(combo-1)*5);
+    if(idx>=nodes.length-1){score+=pts+10; $('score').textContent=score; win(); return;}
+    anim={from:idx,to:idx+1,t:0}; score+=pts; $('score').textContent=score; beep(820,.08);
+    rings.push({x:n.x,y:n.y-18,r:28,t:0.3,m:0.3,c:'#fde047'});
+    pops.push({x:n.x,y:n.y-32,txt:combo>1?('+'+pts+' 🔥x'+combo):('+'+pts),c:'#fde047',t:0.65});
     if(FX)FX.burst(sparks,n.x,n.y,'#7dd3fc',10);
   } else {
-    lives--; beep(200,.1,'sawtooth'); if(lives<=0) lose('没踩准喷泉');
+    combo=0; lives--; beep(200,.1,'sawtooth'); rings.push({x:n.x,y:n.y,r:24,t:0.25,m:0.25,c:'#fb7185'}); if(lives<=0) lose('没踩准喷泉');
   }
 }
 function update(dt){
+  dt*=spd;
+  rings=rings.filter(r=>(r.t-=dt)>0); pops=pops.filter(p=>{p.y-=18*dt;return(p.t-=dt)>0;});
   for(const n of nodes) n.t+=dt;
   if(anim){ anim.t+=dt/0.38; if(anim.t>=1){ idx=anim.to; anim=null; if(idx>=nodes.length-1){ /* landed on last, still need a launch? last is flag */ } } }
   if(boss){
@@ -542,7 +552,7 @@ function update(dt){
     for(let i=rocks.length-1;i>=0;i--){
       const r=rocks[i]; r.y+=r.v*dt;
       const p=posPlayer();
-      if(Math.hypot(p.x-r.x,p.y-r.y)<18){ rocks.splice(i,1); lives--; beep(160,.1,'sawtooth'); if(lives<=0)lose('被落石击中'); }
+      if(Math.hypot(p.x-r.x,p.y-r.y)<18){ rocks.splice(i,1); combo=0; lives--; beep(160,.1,'sawtooth'); if(lives<=0)lose('被落石击中'); }
       else if(r.y>H+20) rocks.splice(i,1);
     }
   }
@@ -554,23 +564,27 @@ function posPlayer(){
   return {x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t-18-lift};
 }
 function draw(){
-  hits=[]; stage('#86d8ff','#5875ff');
+  const gz=GEYSERS[Math.min(2,((lvl-1)/5)|0)];
+  hits=[]; stage(gz.top,gz.bot);
   if(state!=='play'&&state!=='pause') return;
-  label((boss?'👑 ':'')+'高度 '+(idx+1)+'/'+nodes.length+' · 生命 '+lives,14,22,'#fff',13,'left');
+  label((boss?'👑 ':'')+'高度 '+(idx+1)+'/'+nodes.length+' · 生命 '+lives+(combo>1?' · 🔥x'+combo:''),14,22,'#fff',13,'left');
   const cam=Math.max(0, (H-120)-posPlayer().y);
   ctx.save(); ctx.translate(0,cam);
   for(const n of nodes){
     const on=erupting(n);
+    if(FX&&FX.shadow)FX.shadow(ctx,n.x,n.y+16,28,4,0.25);
     tile(n.x-28,n.y,56,14,n.spike?'#fb7185':'#38bdf8',8);
     if(on){ tile(n.x-10,n.y-70,20,70,n.spike?'#fda4af':'#fde047',8); orb(n.x,n.y-74,12,n.spike?'#fb7185':'#fff176'); }
     else orb(n.x,n.y-6,8,'#7dd3fc');
   }
   const top=nodes[nodes.length-1];
   label('🚩',top.x,top.y-92,'#fff',22,'center');
+  for(const r of rings){ctx.save();ctx.globalAlpha=r.t/r.m;ctx.strokeStyle=r.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(r.x,r.y,r.r*(1.2-r.t/r.m),0,7);ctx.stroke();ctx.restore();}
   const p=posPlayer();
   if(FX&&FX.shadow) FX.shadow(ctx,p.x,p.y+16,14,5,0.25);
   orb(p.x,p.y,14,'#ffd02e'); label('🙂',p.x,p.y,'#3a2200',12,'center');
   for(const r of rocks){ orb(r.x,r.y,8,'#78716c'); }
+  for(const pop of pops){ctx.save();ctx.globalAlpha=Math.min(1,pop.t*2);ctx.fillStyle=pop.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(pop.txt,pop.x,pop.y);ctx.restore();}
   ctx.restore();
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }

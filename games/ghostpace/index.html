@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">👻 残影竞速</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点按跳跃、下滑躲避，残影可借力也可碰撞</p>
 </div>
-<div class="overlay" id="startScr"><h1>👻 残影竞速</h1><p>沿赛道奔跑，点按跳跃、下滑躲避障碍。<br>上一轮的残影既会挡路也可能让你借气流加速。<br>首领关残影更快更敌对，商店可解锁新招式。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>👻 残影竞速</h1><p>沿赛道奔跑，点按跳跃、下滑躲避障碍。<br>上一轮的残影既会挡路也可能让你借气流加速。<br>v2（Gemini 优化：三大赛道地貌、借气流加速光环与飘字、立体阴影、速度尾迹及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -504,8 +505,10 @@ const SHOP=[
   {k:'dashLv',name:'冲刺',max:1,cost(){return 45;},desc(){return '下滑后短暂加速';}},
   {k:'lifeLv',name:'护膝',max:2,cost(){return 30+(prog.lifeLv|0)*25;},desc(){return '可多承受一次碰撞';}}
 ];
-let t=0,x=0,y=0,vy=0,onG=1,slide=0,spd=0,goal=1400,obs=[],runLog=[],ghost=[],gi=0,hitsL=0,hitMax=2,airJ=0,done=0,rec=[];
-function beginPlay(hint){score=0;sparks=[];show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
+const TRACKS=[{top:'#1a0a32',bot:'#070415',gnd:'#2a1650',name:'暗夜星道'},{top:'#0f3460',bot:'#071226',gnd:'#164e63',name:'霓虹幻廊'},{top:'#4a1228',bot:'#18040c',gnd:'#5c162e',name:'绯红终途'}];
+let t=0,x=0,y=0,vy=0,onG=1,slide=0,spd=0,goal=1400,obs=[],runLog=[],ghost=[],gi=0,hitsL=0,hitMax=2,airJ=0,done=0,rec=[],playSpd=1,rings=[],pops=[],draftCd=0;
+$('spdBtn').onclick=()=>{playSpd=playSpd===1?2:1;$('spdBtn').textContent=playSpd+'×';};
+function beginPlay(hint){score=0;sparks=[];rings=[];pops=[];draftCd=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
 function makeCourse(n){
   const rng=mulberry32(n*419+3), arr=[];
   let p=220;
@@ -547,12 +550,15 @@ function startLevel(n){
   diff=lvl*10+obs.length*4+(boss?26:0)+Math.round((goal-1200)/10);
   beginPlay(boss?'敌对残影加速冲撞，保持距离或借气流':'点按跳跃，按住下滑，残影可借力也可碰撞');
 }
-function jump(){if(onG){vy=260;onG=0;slide=0;airJ=0;beep(700,.05);}else if(prog.jumpLv&&!airJ){vy=230;airJ=1;beep(820,.05);}}
+function jump(){if(onG){vy=260;onG=0;slide=0;airJ=0;beep(700,.05);rings.push({x:90,y:groundY(),r:18,t:0.24,m:0.24,c:'#ff3d9a'});}else if(prog.jumpLv&&!airJ){vy=230;airJ=1;beep(820,.05);rings.push({x:90,y:groundY()-y,r:20,t:0.24,m:0.24,c:'#ffd34d'});}}
 function onDown(p){if(p.y>H*0.62&&onG){slide=0.42;if(prog.dashLv)spd+=40;}else jump();}
 function onUp(){}
 function groundY(){return 430;}
 function update(dt){
   if(done)return;
+  dt*=playSpd;
+  rings=rings.filter(r=>(r.t-=dt)>0);pops=pops.filter(p=>{p.y-=18*dt;return(p.t-=dt)>0;});
+  draftCd=Math.max(0,draftCd-dt);
   t+=dt;slide=Math.max(0,slide-dt);if(prog.dashLv&&slide<=0)spd=125+lvl*3+(boss?8:0);
   x+=spd*dt;vy-=760*dt;y+=vy*dt;if(y<=0){y=0;vy=0;onG=1;airJ=0;}
   rec.push({x,y,sl:slide>0});
@@ -566,6 +572,8 @@ function update(dt){
     }else if(px+pw>ox&&px<ox+(o.kind==='bar'?46:o.w)&&py+ph>oy&&py<oy+(o.kind==='bar'?36:o.h)){
       if(o.kind==='bar'&&slide>0)continue;
       hitsL++;spd=Math.max(70,spd-35);beep(180,.1,'sawtooth');o._hit=1;
+      rings.push({x:px+10,y:py+12,r:28,t:0.3,m:0.3,c:'#fb7185'});
+      if(FX)FX.burst(sparks,px+10,py+12,'#fb7185',8);
       if(hitsL>hitMax){lose('撞击过多');return;}
     }
   }
@@ -576,7 +584,7 @@ function update(dt){
     const gx=200+(g.x-x),gy=groundY()-g.y-(g.sl?10:22);
     const d=Math.hypot(gx-px,gy-py);
     if(d<24){
-      if(g.x>x+8&&Math.abs(g.y-y)<20){spd=Math.min(spd+30*dt*10,190);score+=1;}
+      if(g.x>x+8&&Math.abs(g.y-y)<20){spd=Math.min(spd+30*dt*10,190);score+=1;if(draftCd<=0){draftCd=0.8;rings.push({x:px+10,y:py+12,r:24,t:0.28,m:0.28,c:'#7dd3fc'});pops.push({x:px+10,y:py-10,txt:'💨气流加速',c:'#7dd3fc',t:0.6});}}
       else{spd=Math.max(70,spd-20);if(boss){hitsL+=0.015;if(hitsL>hitMax){lose('被残影冲撞');return;}}}
     }
   }
@@ -584,13 +592,14 @@ function update(dt){
   if(x>=goal){done=1;if(!prog.ghost)prog.ghost={};prog.ghost[lvl]=rec.slice();saveProg(prog);win();}
 }
 function draw(){
-  hits=[];stage('#1a0a32','#070415');
+  const tz=TRACKS[Math.min(2,((lvl-1)/5)|0)];
+  hits=[];stage(tz.top,tz.bot);
   if(state!=='play'&&state!=='pause')return;
-  tile(0,groundY(),W,H-groundY(),'#2a1650',0);
+  tile(0,groundY(),W,H-groundY(),tz.gnd,0);
   for(const o of obs){
     const ox=200+(o.x-x);
     if(ox<-80||ox>W+80)continue;
-    if(o.kind==='gap'){ctx.clearRect?null:0;ctx.fillStyle='#070415';ctx.fillRect(ox,groundY()-2,o.w,H-groundY()+2);}
+    if(o.kind==='gap'){ctx.clearRect?null:0;ctx.fillStyle=tz.bot;ctx.fillRect(ox,groundY()-2,o.w,H-groundY()+2);}
     else if(o.kind==='bar')tile(ox,groundY()-50,46,36,'#fb7185',6);
     else tile(ox,groundY()-o.h,o.w,o.h,'#fda4af',6);
   }
@@ -599,8 +608,11 @@ function draw(){
     const gx=200+(g.x-x),gy=groundY()-g.y-(g.sl?10:22);
     ctx.globalAlpha=0.45;orb(gx+10,gy+10,12,'#e0e7ff');ctx.globalAlpha=1;
   }
+  for(const r of rings){ctx.save();ctx.globalAlpha=r.t/r.m;ctx.strokeStyle=r.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(r.x,r.y,r.r*(1.2-r.t/r.m),0,7);ctx.stroke();ctx.restore();}
   const px=80,py=groundY()-y-(slide>0?10:22);
+  if(FX&&FX.shadow)FX.shadow(ctx,px+10,groundY()+2,14,4,0.3);
   orb(px+10,py+12,14,'#ff3d9a');
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.min(1,p.t*2);ctx.fillStyle=p.c;ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
   tile(W*clamp(x/goal,0,1)-2,12,4,8,'#ffd34d',2);
   tile(16,12,328,8,'#312e81',4);tile(16,12,328*clamp(x/goal,0,1),8,'#ffd34d',4);
   label((boss?'👑 ':'')+'碰撞 '+(hitsL|0)+'/'+hitMax+'  速度 '+Math.round(spd),16,36,'#fff',12,'left');

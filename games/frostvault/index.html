@@ -447,14 +447,15 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">❄️ 霜窟远征</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
   </div>
   <div class="stagebox"><canvas id="cv"></canvas></div>
-  <p class="hint" id="hint">点跳 · 落平台续航</p>
+  <p class="hint" id="hint">点跳 · 落平台续航 · 收集💎冰晶加分</p>
 </div>
-<div class="overlay" id="startScr"><h1>❄️ 霜窟远征</h1><p>霜窟中连续跳跃爬升。<br>落空扣命，平台越来越窄。<br>Boss：冰泰坦路段更险。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>❄️ 霜窟远征</h1><p>霜窟中连续跳跃爬升。<br>落空扣命，平台越来越窄。<br>v2（Gemini 优化：三大冰窟地貌、💎冰晶收集、飘雪与跳跃光环飘字、立体平台及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -488,22 +489,29 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 
 const TUT=[["跳跃","点屏起跳。"],["平台","落在霜平台上续航。"],["爬升","向上推进达成目标高度。"],["Boss","Boss关平台更窄更快。"]];
 const SHOP=[{k:'jumpLv',name:'弹跳强化',max:3,cost(){return 40+(prog.jumpLv|0)*30;},desc(){return '跳得更高'}},{k:'lifeLv',name:'额外生命',max:3,cost(){return 45+(prog.lifeLv|0)*30;},desc(){return '生命+'}},{k:'widthLv',name:'踏板加宽',max:3,cost(){return 50+(prog.widthLv|0)*35;},desc(){return '平台更宽'}}];
-let px=180,py=400,vy=0,plats=[],cam=0,lives=0,climbed=0,goal=0,rng,onGround=false,jumpCd=0;
+const CAVERNS=[{top:'#0c3a4a',bot:'#061820',plat:'#7df9ff',name:'寒霜浅窟'},{top:'#12355b',bot:'#07162a',plat:'#60a5fa',name:'极光冰隙'},{top:'#2d1a4a',bot:'#10081c',plat:'#c084fc',name:'永冻深渊'}];
+let px=180,py=400,vy=0,plats=[],cam=0,lives=0,climbed=0,goal=0,rng,onGround=false,jumpCd=0,spd=1,gems=[],rings=[],pops=[],bonus=0;
+$('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';};
 function makePlat(y,w){return{x:30+rng()*(W-60-w),y,w};}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*1187+6);px=180;py=400;vy=0;cam=0;lives=3+(prog.lifeLv|0);climbed=0;goal=400+lvl*80+(boss?200:0);jumpCd=0;onGround=true;
-  plats=[{x:W/2-50,y:460,w:100}];const baseW=90+(prog.widthLv|0)*10-(boss?20:0);for(let i=1;i<18;i++)plats.push(makePlat(460-i*(70+lvl*2+(boss?8:0)),Math.max(44,baseW-i*2)));
-  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点跳 · 落平台续航';}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;bonus=0;sparks=[];gems=[];rings=[];pops=[];rng=mulberry32(n*1187+6);px=180;py=400;vy=0;cam=0;lives=3+(prog.lifeLv|0);climbed=0;goal=400+lvl*80+(boss?200:0);jumpCd=0;onGround=true;
+  plats=[{x:W/2-50,y:460,w:100}];const baseW=90+(prog.widthLv|0)*10-(boss?20:0);for(let i=1;i<18;i++){const pl=makePlat(460-i*(70+lvl*2+(boss?8:0)),Math.max(44,baseW-i*2));plats.push(pl);if(rng()<0.45)gems.push({x:pl.x+pl.w/2,y:pl.y-24,got:false});}
+  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;const cz=CAVERNS[Math.min(2,((lvl-1)/5)|0)];$('hint').textContent=cz.name+' · 点跳 · 落平台收集💎';}
 function win(){if(state!=='play')return;const stars=lives>=3?3:lives>=2?2:1;const gain=40+stars*15+(boss?55:0);finishWin(stars,gain,'霜窟登顶！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){if(climbed>=goal)return win();jumpCd=Math.max(0,jumpCd-dt);vy+=980*dt;py+=vy*dt;onGround=false;
-  const viewY=py;for(const p of plats){if(vy>=0&&px+10>p.x&&px-10<p.x+p.w&&py>=p.y-12&&py<=p.y+8){py=p.y-12;vy=0;onGround=true;const h=Math.max(0,460-p.y);if(h>climbed){climbed=h|0;score=climbed;$('score').textContent=score;}}}
+function update(dt){dt*=spd;rings=rings.filter(r=>(r.t-=dt)>0);pops=pops.filter(p=>{p.y-=18*dt;return(p.t-=dt)>0;});if(climbed>=goal)return win();jumpCd=Math.max(0,jumpCd-dt);vy+=980*dt;py+=vy*dt;onGround=false;
+  const viewY=py;for(const p of plats){if(vy>=0&&px+10>p.x&&px-10<p.x+p.w&&py>=p.y-12&&py<=p.y+8){py=p.y-12;vy=0;onGround=true;const h=Math.max(0,460-p.y);if(h>climbed){climbed=h|0;score=climbed+bonus;$('score').textContent=score;}}}
+  for(const g of gems){if(!g.got&&Math.hypot(px-g.x,py-g.y)<22){g.got=true;bonus+=30;score=climbed+bonus;$('score').textContent=score;beep(920,.06);rings.push({x:g.x,y:g.y,r:22,t:0.28,m:0.28,c:'#7df9ff'});pops.push({x:g.x,y:g.y-10,txt:'+30💎',c:'#7df9ff',t:0.6});if(FX)FX.burst(sparks,g.x,g.y,'#7df9ff',6);}}
   cam=Math.min(cam,py-280);if(py>cam+H+40){lives--;beep(160,.12,'triangle');toast('坠落');px=180;py=plats[0].y-12;vy=0;cam=0;if(lives<=0)lose('冻毙窟底');}
   if(climbed>=goal)win();}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();if(jumpCd>0)return;if(!onGround&&vy>-50)return;jumpCd=0.15;const j=320+(prog.jumpLv|0)*40;vy=-j;onGround=false;beep(600,.05);const p=posOf(e);px=Math.max(20,Math.min(W-20,p.x));});
-function draw(){if(FX)FX.stage(ctx,W,H,'#0c3a4a','#061820');else{ctx.fillStyle='#061820';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();if(jumpCd>0)return;if(!onGround&&vy>-50)return;jumpCd=0.15;const j=320+(prog.jumpLv|0)*40;vy=-j;onGround=false;beep(600,.05);const p=posOf(e);px=Math.max(20,Math.min(W-20,p.x));rings.push({x:px,y:py+10,r:18,t:0.24,m:0.24,c:'#e8fbff'});});
+function draw(){const cz=CAVERNS[Math.min(2,((lvl-1)/5)|0)];if(FX)FX.stage(ctx,W,H,cz.top,cz.bot);else{ctx.fillStyle=cz.bot;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  ctx.fillStyle='rgba(255,255,255,.35)';for(let i=0;i<20;i++){ctx.beginPath();ctx.arc((i*83+performance.now()*0.02)%W,(i*67+performance.now()*0.03)%H,1.5,0,7);ctx.fill();}
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('命'+lives+' 高'+climbed+'/'+goal+(boss?' 👑':''),10,22);
-  for(const p of plats){const sy=p.y-cam;if(sy<-20||sy>H+20)continue;ctx.fillStyle=boss?'#a8e6ff':'#7df9ff';ctx.fillRect(p.x,sy,p.w,12);}
-  const sy=py-cam;if(FX)FX.orb(ctx,px,sy,12,'#e8fbff');else{ctx.fillStyle='#e8fbff';ctx.beginPath();ctx.arc(px,sy,12,0,7);ctx.fill();}
+  for(const p of plats){const sy=p.y-cam;if(sy<-20||sy>H+20)continue;if(FX){FX.shadow(ctx,p.x+p.w/2,sy+14,p.w*.4,3.5);FX.tile(ctx,p.x,sy,p.w,12,boss?'#a8e6ff':cz.plat,5);}else{ctx.fillStyle=boss?'#a8e6ff':cz.plat;ctx.fillRect(p.x,sy,p.w,12);}}
+  for(const g of gems){if(g.got)continue;const gy=g.y-cam;if(gy<-20||gy>H+20)continue;if(FX)FX.orb(ctx,g.x,gy,8,'#7df9ff');ctx.font='14px serif';ctx.textAlign='center';ctx.fillText('💎',g.x,gy+5);}
+  for(const r of rings){ctx.save();ctx.globalAlpha=r.t/r.m;ctx.strokeStyle=r.c;ctx.lineWidth=2;ctx.beginPath();ctx.arc(r.x,r.y-cam,r.r*(1.2-r.t/r.m),0,7);ctx.stroke();ctx.restore();}
+  const sy=py-cam;if(FX){FX.shadow(ctx,px,sy+13,12,3.5);FX.orb(ctx,px,sy,12,'#e8fbff');}else{ctx.fillStyle='#e8fbff';ctx.beginPath();ctx.arc(px,sy,12,0,7);ctx.fill();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.min(1,p.t*2);ctx.fillStyle=p.c;ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y-cam);ctx.restore();}
   ctx.fillStyle='rgba(125,249,255,.35)';ctx.fillRect(W*0.2,H-52,W*0.6,44);ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('点跳 (落点随触)',W/2,H-24);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);climbed=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,climbed,goal,lives}}};
