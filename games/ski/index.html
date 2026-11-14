@@ -461,7 +461,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>⛷<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span id="hitLbl">值 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">目标</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
@@ -469,7 +469,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   
   <div class="hint">左右拖动滑雪 · 穿过旗门躲开树木</div>
 </div>
-<div class="overlay" id="startScr"><h1>⛷ 滑雪</h1><p>15 关拖动滑雪穿旗门躲树：更快更密。<br>第 5/10/15 关雪崩首领！可升级护盾、宽道、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始</button></div>
+<div class="overlay" id="startScr"><h1>⛷ 滑雪</h1><p>15 关拖动滑雪穿旗门躲树：更快更密，v8（Gemini 优化：3 大雪山时段主题、穿门连击光环飘字、雪板尾迹与 1×/2× 倍速）。<br>第 5/10/15 关雪崩首领！可升级护盾、宽道、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -594,8 +594,13 @@ const LV=[
  {need:22,dist:1300,spd:320,dens:1.45},{need:24,dist:1400,spd:340,dens:1.55},{need:26,dist:1500,spd:360,dens:1.65},{need:28,dist:1600,spd:380,dens:1.75},
  {boss:{name:'终末雪崩王',need:24,dist:1500,spd:420,dens:2.1}}
 ];
-let L,px,tx,lives,score,ended,raf=0,last=0,fast=1,need,dist,gates,boss,trees,inv,sparks,spd,dens,obT,gateT,dragging,passed;
-function start(i){L=LV[i];const b=L.boss||L;ended=false;score=0;dist=0;passed=0;trees=[];gates=[];sparks=[];inv=0;dragging=false;lives=3+Kit.up('life');
+const SLOPES=[
+  {c1:'#e3f2fd',c2:'#90caf9',snow:'rgba(255,255,255,.9)'},
+  {c1:'#ffe0b2',c2:'#f48fb1',snow:'rgba(255,245,238,.85)'},
+  {c1:'#7986cb',c2:'#1a237e',snow:'rgba(225,245,254,.78)'}
+];
+let L,px,tx,lives,score,combo,waves,pops,tracks,ended,raf=0,last=0,fast=1,need,dist,gates,boss,trees,inv,sparks,spd,dens,obT,gateT,dragging,passed;
+function start(i){L=LV[i];const b=L.boss||L;ended=false;score=0;combo=0;waves=[];pops=[];tracks=[];dist=0;passed=0;trees=[];gates=[];sparks=[];inv=0;dragging=false;lives=3+Kit.up('life');
   need=b.need;spd=b.spd;dens=b.dens;boss=L.boss?{name:L.boss.name}:null;px=W/2;tx=W/2;obT=.2;gateT=.5;
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
 function pos(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};}
@@ -609,7 +614,12 @@ function upd(dt){if(ended)return;px+=(tx-px)*Math.min(1,12*dt);px=Math.max(30,Ma
   for(let i=trees.length-1;i>=0;i--){const o=trees[i];o.y+=spd*dt;if(o.y>H+60){trees.splice(i,1);continue;}
     if(inv<=0&&Math.abs(o.x-px)<22&&Math.abs(o.y-(H-90))<28){lives--;inv=.8+Kit.up('shield')*.4;Kit.sfx('bad');Kit.vibrate(80);if(FX)FX.burst(sparks,px,H-90,'#ef5350',10);if(lives<=0)return endLv(false,'撞树');}}
   for(let i=gates.length-1;i>=0;i--){const g=gates[i];g.y+=spd*dt;if(g.y>H+40){gates.splice(i,1);continue;}
-    if(!g.hit&&Math.abs(g.y-(H-90))<20){if(px>=g.x&&px<=g.x+g.w){g.hit=1;passed++;Kit.sfx('good');if(FX)FX.burst(sparks,px,H-90,'#ffd54f',6);}else{g.hit=-1;}}}
+    if(!g.hit&&Math.abs(g.y-(H-90))<20){if(px>=g.x&&px<=g.x+g.w){g.hit=1;passed++;combo++;score+=combo*10;Kit.sfx('good');waves.push({x:px,y:H-90,r:10,c:'#ffd54f',a:1});pops.push({x:px,y:H-115,t:combo>1?'连门×'+combo:'穿门 +15',c:'#ffd54f',a:1});if(FX)FX.burst(sparks,px,H-90,'#ffd54f',6);}else{g.hit=-1;combo=0;}}}
+  tracks.push({x:px,y:H-82,a:.45});
+  for(const tr of tracks){tr.y+=spd*dt;tr.a-=dt*1.2;}
+  tracks=tracks.filter(tr=>tr.y<H+10&&tr.a>0);
+  waves=waves.filter(w=>{w.r+=dt*95;w.a-=dt*2.4;return w.a>0;});
+  pops=pops.filter(p=>{p.y-=dt*28;p.a-=dt*1.5;return p.a>0;});
   if(inv>0)inv-=dt;hud();
   if(passed>=need&&dist>=(L.boss||L).dist)return endLv(true);
   if(dist>=(L.boss||L).dist*1.4&&passed<need)return endLv(false,'旗门不够');}
@@ -622,13 +632,17 @@ function endLv(won,why){if(ended)return;ended=true;
   else setTimeout(()=>Kit.lose(why||'摔倒',score|0),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#e3f2fd','#90caf9');else{ctx.fillStyle='#90caf9';ctx.fillRect(0,0,W,H);}
-  ctx.fillStyle='rgba(255,255,255,.9)';ctx.fillRect(0,0,W,H);ctx.fillStyle='rgba(200,230,255,.5)';
+  const sl=SLOPES[Math.min(2,(Kit.lv/5)|0)];
+  if(FX)FX.stage(ctx,W,H,sl.c1,sl.c2);else{ctx.fillStyle=sl.c2;ctx.fillRect(0,0,W,H);}
+  ctx.fillStyle=sl.snow;ctx.fillRect(0,0,W,H);ctx.fillStyle='rgba(200,230,255,.5)';
   for(let i=0;i<20;i++){ctx.fillRect((i*47+(dist*.3))%W, (i*73)%H, 3, 8);}
+  for(const tr of tracks){ctx.save();ctx.globalAlpha=Math.max(0,tr.a);ctx.fillStyle='#90caf9';ctx.fillRect(tr.x-6,tr.y,3,10);ctx.fillRect(tr.x+3,tr.y,3,10);ctx.restore();}
   for(const g of gates){ctx.fillStyle='#ef5350';ctx.fillRect(g.x,g.y,8,40);ctx.fillRect(g.x+g.w-8,g.y,8,40);ctx.fillStyle='#fff';ctx.fillRect(g.x+8,g.y+8,g.w-16,6);}
   for(const o of trees){ctx.font=(36*o.s|0)+'px serif';ctx.textAlign='center';ctx.fillText('🌲',o.x,o.y);}
-  const py=H-90;if(inv>0&&(inv*10|0)%2===0)ctx.globalAlpha=.5;
+  const py=H-90;if(FX)FX.shadow(ctx,px,py+10,14,4,.3);if(inv>0&&(inv*10|0)%2===0)ctx.globalAlpha=.5;
   ctx.font='36px serif';ctx.textAlign='center';ctx.fillText('⛷',px,py);ctx.globalAlpha=1;
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layoutFit(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
@@ -645,6 +659,7 @@ Kit.init({id:'ski',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start,st
 window.__T.state=()=>({dist:dist|0,need,passed,lives,ended,spd});
 window.__T.cheatWin=()=>{passed=need;dist=(L.boss||L).dist;endLv(true);};
 window.__T.solve=()=>{if(ended||Kit.state!=='play')return;passed=need;dist=(L.boss||L).dist;endLv(true);};
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 window.__T.fast=k=>{fast=k;};
 
 </script>

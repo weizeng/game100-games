@@ -459,13 +459,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🏎️<b id="lvT">1</b></span><span>🛡<b id="shT">0</b></span><span>⛽<b id="nitroT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">里程</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">点左/右变道 · 躲车捡油桶 · 硝基加速</div>
 </div>
-<div class="overlay" id="startScr"><h1>🏎️ 狂野赛车</h1><p>变道躲车升级成 15 关：里程目标、油桶硝基、车流加密。<br>第 5/10/15 关对手车贴身逼车！可升级护盾、宽道感、硝基时长。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始狂飙</button></div>
+<div class="overlay" id="startScr"><h1>🏎️ 狂野赛车</h1><p>变道躲车升级成 15 关：里程目标、油桶硝基、车流加密，v9（Gemini 优化：3 大赛道主题、氮气尾焰与光环飘字、1×/2× 倍速）。<br>第 5/10/15 关对手车贴身逼车！可升级护盾、宽道感、硝基时长。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始狂飙</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -589,9 +589,10 @@ const LV=[
  {dist:2200,spd:380,dens:1.25},{dist:2400,spd:400,dens:1.3},{dist:2600,spd:420,dens:1.35},{dist:2800,spd:440,dens:1.4},
  {boss:{hp:8,name:'终极车神',spd:460}}
 ];
-let L,lane,cars,pickups,dist,goal,shield,nitro,nitroT,ended,raf=0,last=0,fast=1,spawn,lineOff,score,lives,boss,bossT,bossCar,sparks,wide;
+const TRACKS=[{c1:'#2a2a4a',c2:'#0a0a18',road:'#333'},{c1:'#6d3b1a',c2:'#231109',road:'#3e2723'},{c1:'#1a237e',c2:'#05081c',road:'#263238'}];
+let L,lane,cars,pickups,dist,goal,shield,nitro,nitroT,ended,raf=0,last=0,fast=1,spawn,lineOff,score,lives,boss,bossT,bossCar,sparks,waves,pops,ntrail,wide;
 function laneX(l){return ROAD_L+LW*l+LW/2;}
-function start(i){L=LV[i];score=0;ended=false;lane=1;cars=[];pickups=[];dist=0;spawn=0;lineOff=0;sparks=[];
+function start(i){L=LV[i];score=0;ended=false;lane=1;cars=[];pickups=[];dist=0;spawn=0;lineOff=0;sparks=[];waves=[];pops=[];ntrail=[];
   shield=Kit.up('shield');nitro=0;nitroT=0;wide=Kit.up('wide');
   goal=L.boss?9999:(L.dist||800);boss=L.boss?{hp:L.boss.hp,max:L.boss.hp,name:L.boss.name}:null;bossT=boss?50:0;
   bossCar=boss?{lane:0,y:120,flash:0}:null;
@@ -615,7 +616,12 @@ function upd(dt){if(ended)return;const base=L.boss?L.boss.spd:L.spd;const spd=(b
   const py=H-90;
   for(const c of cars){c.y+=spd*dt;if(c.lane===lane&&c.y+c.h>py-30&&c.y<py+30){c.y=H+100;if(hit())return;}}
   for(const p of pickups){p.y+=spd*dt;if(p.lane===lane&&p.y>py-40&&p.y<py+20){p.y=H+100;Kit.sfx('coin');
-    if(p.type==='gas'){shield++;Kit.toast('🛡 护盾',600);}else{nitroT=1.2+Kit.up('nitro')*.5;Kit.toast('🚀 硝基',600);}}}
+    const px=laneX(lane);waves.push({x:px,y:py,r:10,c:p.type==='gas'?'#ffd34d':'#ff5fa2',a:1});
+    if(p.type==='gas'){shield++;pops.push({x:px,y:py-26,t:'+1🛡️',c:'#ffd34d',a:1});Kit.toast('🛡 护盾',600);}else{nitroT=1.2+Kit.up('nitro')*.5;pops.push({x:px,y:py-26,t:'🚀 加速!',c:'#ff5fa2',a:1});Kit.toast('🚀 硝基',600);}}}
+  if(nitroT>0)ntrail.push({x:laneX(lane)+(Math.random()-.5)*12,y:py+36,r:6,a:.8});
+  waves=waves.filter(w=>{w.r+=dt*95;w.a-=dt*2.4;return w.a>0;});
+  pops=pops.filter(p=>{p.y-=dt*28;p.a-=dt*1.5;return p.a>0;});
+  ntrail=ntrail.filter(n=>{n.y+=spd*.5*dt;n.r=Math.max(1,n.r-dt*12);n.a-=dt*3;return n.a>0;});
   cars=cars.filter(c=>c.y<H+80);pickups=pickups.filter(p=>p.y<H+40);
   if(!boss&&dist>=goal){endLv(true);return;}
   if(boss&&dist>400){ // damage boss by overtaking near
@@ -635,14 +641,18 @@ function drawCar(x,y,w,h,color,isP){
     FX.tile(ctx,(x-w/2+6)|0,(y-h/2+8)|0,(w-12)|0,(h*.28)|0,'#c9e8ff',6);}
   else{ctx.fillStyle=color;ctx.fillRect(x-w/2,y-h/2,w,h);}}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#2a2a4a','#0a0a18');else{ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);}
-  ctx.fillStyle='#333';ctx.fillRect(ROAD_L-wide*8,0,LANES*LW+wide*16,H);
+  const tr=TRACKS[Math.min(2,(Kit.lv/5)|0)];
+  if(FX)FX.stage(ctx,W,H,tr.c1,tr.c2);else{ctx.fillStyle=tr.c2;ctx.fillRect(0,0,W,H);}
+  ctx.fillStyle=tr.road;ctx.fillRect(ROAD_L-wide*8,0,LANES*LW+wide*16,H);
   for(let i=1;i<LANES;i++){const x=ROAD_L+LW*i;for(let y=-60;y<H;y+=60){if(FX)FX.tile(ctx,(x-2)|0,(y+lineOff)|0,4,28,'#fff8e0',2);else{ctx.fillStyle='#fff8';ctx.fillRect(x-2,y+lineOff,4,28);}}}
   for(const p of pickups){const x=laneX(p.lane),y=p.y;if(FX){FX.glow(ctx,'#ffd34d',12);FX.orb(ctx,x|0,y|0,12,p.type==='nitro'?'#ff5fa2':'#ffd34d');FX.noGlow(ctx);}
     else{ctx.font='20px sans-serif';ctx.textAlign='center';ctx.fillText(p.type==='nitro'?'🚀':'⛽',x,y);}}
   for(const c of cars)drawCar(laneX(c.lane),c.y,c.w||48,c.h||70,c.c,false);
   if(bossCar)drawCar(laneX(bossCar.lane),bossCar.y,52,74,'#7c4dff',false);
+  for(const n of ntrail){ctx.save();ctx.globalAlpha=Math.max(0,n.a);ctx.fillStyle='#ff9100';ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,7);ctx.fill();ctx.restore();}
   drawCar(laneX(lane),H-90,48+wide*6,72,'#ff5fa2',true);
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
   if(boss){ctx.fillStyle='#ff5fa2';ctx.fillRect(W/2-40,8,80*(boss.hp/boss.max),6);}
   if(FX)FX.drawBurst(ctx,sparks);
 }
@@ -657,6 +667,7 @@ Kit.init({id:'racing',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start
   ups:[{k:'shield',ic:'🛡',name:'护盾',desc:'开局护盾',max:2,cost:l=>30+l*35},
        {k:'wide',ic:'🛣️',name:'宽道感',desc:'车体更易躲',max:2,cost:l=>35+l*40},
        {k:'nitro',ic:'🚀',name:'硝基时长',desc:'硝基更久',max:2,cost:l=>40+l*40,stars:6}]});
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 window.__T.state=()=>({lane,dist,goal,shield,ended,boss:boss&&{hp:boss.hp},cars:cars.length});
 window.__T.fast=k=>{fast=k;};window.__T.setLane=l=>{lane=Math.max(0,Math.min(LANES-1,l));};
 window.__T.cheatWin=()=>{if(boss)boss.hp=0;dist=goal;endLv(true);};
