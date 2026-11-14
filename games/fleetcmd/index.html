@@ -450,6 +450,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🚀 舰队指令</span>
     <span class="stat">得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -457,7 +458,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点舰队再点目标开火</p>
 </div>
-<div class="overlay" id="startScr"><h1>🚀 舰队指令</h1><p>点选己方舰只，再点屏幕目标开火。<br>管理能量清完所有波次。<br>15 关波次与敌血递增。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🚀 舰队指令</h1><p>点选己方舰只，再点屏幕目标开火，管理能量清完所有波次。<br>v3（Gemini 优化：3 大星域主题与星空、击毁波纹飘字、1×/2× 倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -487,21 +488,23 @@ if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==nu
 if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
 const TOTAL=15;
-let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false,fast=1,waves=[],pops=[];
+const GALAXIES=[['#2a1166','#05051a'],['#451a03','#14080e'],['#082f49','#030712']];
+const STARS=Array.from({length:30},()=>({x:Math.random()*W,y:Math.random()*H,r:0.8+Math.random()*1.5}));
 const TUT=[["选舰","先点自己的飞船选中。"],["开火","再点敌方或方向开火。"],["能量","开火耗能，能量自动恢复。"],["Boss","末波出现血厚旗舰。"]];
 const SHOP=[{k:'fleetLv',name:'增编舰只',max:2,cost(){return 60+(prog.fleetLv|0)*50;},desc(){return '开局多一艘舰';}},{k:'enLv',name:'能源升级',max:4,cost(){return 40+(prog.enLv|0)*30;},desc(){return '能量上限与回复';}},{k:'atkLv',name:'火控强化',max:3,cost(){return 50+(prog.atkLv|0)*35;},desc(){return '伤害与射速';}},{k:'hpLv',name:'舰体加固',max:3,cost(){return 45+(prog.hpLv|0)*35;},desc(){return '舰只血量提升';}}];
 
 
 let ships=[],enemies=[],bullets=[],energy=0,wave=0,maxWave=0,spawnT=0,sel=-1;
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];ships=[];enemies=[];bullets=[];energy=50+(prog.enLv|0)*10;wave=0;maxWave=4+Math.min(4,(lvl/3|0))+(boss?1:0);spawnT=0;sel=-1;
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];ships=[];enemies=[];bullets=[];energy=50+(prog.enLv|0)*10;wave=0;maxWave=4+Math.min(4,(lvl/3|0))+(boss?1:0);spawnT=0;sel=-1;
   const nShip=2+(prog.fleetLv|0);for(let i=0;i<nShip;i++)ships.push({x:60+i*70,y:H-90,hp:40+(prog.hpLv|0)*10,cd:0,atk:8+(prog.atkLv|0)*2});
   show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点舰队再点目标开火 · 波次';}
 function spawnWave(){wave++;const n=3+wave+((lvl-1)/2|0)+(boss&&wave===maxWave?1:0);for(let i=0;i<n;i++){const isBoss=boss&&wave===maxWave&&i===n-1;enemies.push({x:40+Math.random()*(W-80),y:-30-i*25,hp:isBoss?80+lvl*8:18+lvl*3+wave*4,spd:30+lvl*2+(isBoss?10:0),boss:isBoss,r:isBoss?18:10});}toast('波次 '+wave+'/'+maxWave);beep(500,.1);}
-function update(dt){spawnT+=dt;if(enemies.length===0&&wave<maxWave&&spawnT>0.6){spawnT=0;spawnWave();}
+function update(dt){spawnT+=dt;for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.8;if(waves[i].t>=1)waves.splice(i,1);}for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;pops[i].y-=dt*30;if(pops[i].t>=0.85)pops.splice(i,1);}if(enemies.length===0&&wave<maxWave&&spawnT>0.6){spawnT=0;spawnWave();}
   energy=Math.min(100+(prog.enLv|0)*10,energy+dt*(6+(prog.enLv|0)));
   for(const e of enemies){e.y+=e.spd*dt;if(e.y>H-50){ships.forEach(s=>s.hp-=5);e.hp=0;beep(160,.05,'triangle');}}
   enemies=enemies.filter(e=>e.hp>0);
-  for(const b of bullets){b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;for(const e of enemies){if(Math.hypot(b.x-e.x,b.y-e.y)<e.r+4){e.hp-=b.dmg;b.life=0;score+=3;if(FX)FX.burst(sparks,e.x,e.y,'#5ad0ff',6);}}}
+  for(const b of bullets){b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;for(const e of enemies){if(Math.hypot(b.x-e.x,b.y-e.y)<e.r+4){e.hp-=b.dmg;b.life=0;score+=3;if(e.hp<=0){waves.push({x:e.x,y:e.y,r:e.r,col:e.boss?'#ff3d6e':'#5ad0ff',t:0});pops.push({x:e.x,y:e.y-10,txt:e.boss?'👑 击沉!':'+3',col:'#fde047',t:0});}if(FX)FX.burst(sparks,e.x,e.y,'#5ad0ff',6);}}}
   bullets=bullets.filter(b=>b.life>0&&b.y>-20);
   ships.forEach(s=>s.cd=Math.max(0,s.cd-dt));
   if(ships.every(s=>s.hp<=0))lose('舰队覆灭');
@@ -511,11 +514,18 @@ function fire(sx,sy,tx,ty,atk){const ang=Math.atan2(ty-sy,tx-sx);bullets.push({x
 function win(){if(state!=='play')return;const stars=ships.filter(s=>s.hp>0).length>=ships.length?3:ships.some(s=>s.hp>0)?2:1;const gain=35+stars*15+(boss?70:0)+Math.floor(score/8);finishWin(stars,gain,'航道肃清！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);let hit=-1;ships.forEach((s,i)=>{if(Math.hypot(s.x-p.x,s.y-p.y)<28)hit=i;});if(hit>=0){sel=hit;beep(600,.04);return;}if(sel>=0&&energy>=8){const s=ships[sel];if(s.hp>0&&s.cd<=0){fire(s.x,s.y,p.x,p.y,s.atk);s.cd=0.25-(prog.atkLv|0)*0.03;}}});
-function draw(){if(FX)FX.stage(ctx,W,H,'#2a1166','#05051a');else{ctx.fillStyle='#05051a';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+function draw(){const gx=GALAXIES[Math.min(2,Math.floor((lvl-1)/5))];if(FX)FX.stage(ctx,W,H,gx[0],gx[1]);else{ctx.fillStyle=gx[1];ctx.fillRect(0,0,W,H);}
+  ctx.fillStyle='rgba(255,255,255,.45)';for(const s of STARS){ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();}
+  if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('能'+(energy|0)+' 波'+wave+'/'+maxWave+(boss?' 👑':''),10,22);
   for(const e of enemies){if(FX)FX.orb(ctx,e.x,e.y,e.r,e.boss?'#ff3d6e':'#ff6b9d');else{ctx.fillStyle=e.boss?'#ff3d6e':'#ff6b9d';ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,7);ctx.fill();}}
   for(const b of bullets){ctx.fillStyle='#5ad0ff';ctx.fillRect(b.x-2,b.y-2,4,4);}
   ships.forEach((s,i)=>{if(s.hp<=0)return;if(FX)FX.orb(ctx,s.x,s.y,14,'#00d9ff');else{ctx.fillStyle='#00d9ff';ctx.beginPath();ctx.arc(s.x,s.y,14,0,7);ctx.fill();}if(sel===i){ctx.strokeStyle='#ffe08a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(s.x,s.y,18,0,7);ctx.stroke();}ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText(s.hp|0,s.x,s.y+4);});
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2;ctx.beginPath();ctx.arc(wv.x,wv.y,wv.r+wv.t*22,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
+  ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  for(const p of pops){ctx.globalAlpha=1-p.t/0.85;ctx.fillStyle=p.col;ctx.fillText(p.txt,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);wave=maxWave;enemies=[];win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,wave,maxWave,energy:energy|0}}};
 
@@ -535,7 +545,8 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(660,.05);};
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000)*fast;last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>

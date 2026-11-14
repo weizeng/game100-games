@@ -462,13 +462,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🐙<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>蟹 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">击退</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">拖章鱼瞄准 · 点按喷墨打螃蟹</div>
 </div>
-<div class="overlay" id="startScr"><h1>🐙 章鱼喷墨</h1><p>15 关喷墨打蟹：密度与血量升。<br>第 5/10/15 关蟹王 Boss！可升级射速、墨量、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始战斗</button></div>
+<div class="overlay" id="startScr"><h1>🐙 章鱼喷墨</h1><p>15 关喷墨打蟹：密度与血量升，第 5/10/15 关蟹王 Boss！<br>v6（Gemini 优化：3 大海底主题、墨汁飞溅波纹与飘字、1×/2× 倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始战斗</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -592,8 +592,9 @@ const LV=[
  {need:18,hp:3,spd:85,spawn:.5},{need:18,hp:3,spd:90,spawn:.45},{need:20,hp:3,spd:95,spawn:.45},{need:20,hp:4,spd:100,spawn:.4},
  {boss:{name:'深渊蟹魔',need:1,hp:45,spd:90,spawn:1,isBoss:1}}
 ];
-let L,octo,inks,crabs,lives,score,ended,raf=0,last=0,fast=1,need,kills,cd,sparks,boss,inkMax;
-function start(i){L=LV[i];const b=L.boss||L;need=b.need;kills=0;score=0;ended=false;inks=[];crabs=[];sparks=[];cd=0;
+let L,octo,inks,crabs,lives,score,ended,raf=0,last=0,fast=1,need,kills,cd,sparks,boss,inkMax,waves=[],pops=[];
+const OCEANS=[['#1a237e','#0d1333'],['#0f766e','#042f2e'],['#3b0764','#090d1f']];
+function start(i){L=LV[i];const b=L.boss||L;need=b.need;kills=0;score=0;ended=false;inks=[];crabs=[];sparks=[];waves=[];pops=[];cd=0;
   lives=3+Kit.up('life');inkMax=12+Kit.up('ink')*4;octo={x:W/2,y:H-50,r:28};boss=null;
   if(b.isBoss){boss={name:b.name,hp:b.hp,max:b.hp,x:W/2,y:80,vx:b.spd,r:40};}
   else for(let k=0;k<4;k++)spawnC();
@@ -604,12 +605,14 @@ cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||
 cv.addEventListener('pointermove',e=>{if(Kit.state!=='play'||ended)return;if(e.buttons){const p=pos(e);octo.x=Math.max(30,Math.min(W-30,p.x));}});
 function fire(){const rate=.28*(1-Kit.up('rate')*.2);if(cd>0)return;cd=rate;inks.push({x:octo.x,y:octo.y-20,vy:-320,r:8});Kit.sfx('tap');}
 function upd(dt){if(ended)return;cd=Math.max(0,cd-dt);const b=L.boss||L;
+  for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.8;if(waves[i].t>=1)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;pops[i].y-=dt*30;if(pops[i].t>=0.85)pops.splice(i,1);}
   for(const c of crabs){c.x+=c.vx*dt;if(c.x<c.r||c.x>W-c.r)c.vx*=-1;c.y+=15*dt;if(c.y>H-80){lives--;c.y=50;Kit.sfx('bad');if(lives<=0)return endLv(false,'被蟹夹到');}}
   if(boss&&boss.hp>0){boss.x+=boss.vx*dt;if(boss.x<boss.r||boss.x>W-boss.r)boss.vx*=-1;}
   for(const ink of inks){ink.y+=ink.vy*dt;
-    for(const c of crabs){if(c.hp<=0)continue;if(Math.hypot(ink.x-c.x,ink.y-c.y)<ink.r+c.r){c.hp--;ink.y=-99;score+=20;Kit.sfx('hit');
-      if(c.hp<=0){kills++;if(FX)FX.burst(sparks,c.x,c.y,'#ce93d8',10);if(kills>=need)return endLv(true);spawnC();}}}
-    if(boss&&boss.hp>0&&Math.hypot(ink.x-boss.x,ink.y-boss.y)<ink.r+boss.r){boss.hp--;ink.y=-99;score+=30;Kit.sfx('hit');
+    for(const c of crabs){if(c.hp<=0)continue;if(Math.hypot(ink.x-c.x,ink.y-c.y)<ink.r+c.r){c.hp--;ink.y=-99;score+=20;Kit.sfx('hit');waves.push({x:c.x,y:c.y,r:c.r,t:0,col:'#ce93d8'});
+      if(c.hp<=0){kills++;pops.push({x:c.x,y:c.y-10,txt:'+20',col:'#fde047',t:0});if(FX)FX.burst(sparks,c.x,c.y,'#ce93d8',10);if(kills>=need)return endLv(true);spawnC();}}}
+    if(boss&&boss.hp>0&&Math.hypot(ink.x-boss.x,ink.y-boss.y)<ink.r+boss.r){boss.hp--;ink.y=-99;score+=30;Kit.sfx('hit');waves.push({x:boss.x,y:boss.y,r:boss.r,t:0,col:'#ff8a65'});pops.push({x:boss.x,y:boss.y-16,txt:'+30',col:'#fde047',t:0});
       if(FX)FX.burst(sparks,boss.x,boss.y,'#fff',8);if(boss.hp<=0){kills=need;return endLv(true);}}
   }
   inks=inks.filter(i=>i.y>-20);crabs=crabs.filter(c=>c.hp>0);
@@ -624,7 +627,7 @@ function endLv(won,why){if(ended)return;ended=true;
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
 /* ART T2-4 */var isBg=null,isBgKey='';
-function ensureIsBg(){var k=W+'x'+H;if(isBg&&isBgKey===k)return isBg;isBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#1a237e','#0d1333');else{g.fillStyle='#0d1333';g.fillRect(0,0,W,H);}isBg=c;return isBg;}
+function ensureIsBg(){const oi=Math.min(2,Math.floor((Kit.lv||0)/5));var k=W+'x'+H+'_'+oi;if(isBg&&isBgKey===k)return isBg;isBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');const oc=OCEANS[oi];if(FX)FX.stage(g,W,H,oc[0],oc[1]);else{g.fillStyle=oc[1];g.fillRect(0,0,W,H);}isBg=c;return isBg;}
   ctx.drawImage(ensureIsBg(),0,0);
   // water tint
   ctx.fillStyle='rgba(0,150,200,.12)';ctx.fillRect(0,0,W,H);
@@ -637,12 +640,18 @@ function ensureIsBg(){var k=W+'x'+H;if(isBg&&isBgKey===k)return isBg;isBgKey=k;v
   if(FX){FX.glow(ctx,'#ce93d8',10);FX.orb(ctx,octo.x|0,octo.y|0,octo.r|0,'#ab47bc');FX.noGlow(ctx);}
   else{ctx.fillStyle='#ab47bc';ctx.beginPath();ctx.arc(octo.x,octo.y,octo.r,0,7);ctx.fill();}
   ctx.fillStyle='#fff';ctx.font='20px sans-serif';ctx.textAlign='center';ctx.fillText('🐙',octo.x,octo.y+7);
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2;ctx.beginPath();ctx.arc(wv.x,wv.y,wv.r+wv.t*20,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
   if(FX)FX.drawBurst(ctx,sparks);
+  ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  for(const p of pops){ctx.globalAlpha=1-p.t/0.85;ctx.fillStyle=p.col;ctx.fillText(p.txt,p.x,p.y);}
+  ctx.globalAlpha=1;
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
+$('spdBtn').addEventListener('click',()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');});
 Kit.init({id:'inkspray',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},pause:()=>{},
-  note:()=>'拖动章鱼喷墨打退螃蟹群',
+  note:()=>'v6（Gemini 优化：3 大海底主题、墨汁飞溅波纹与飘字、1×/2× 倍速）',
   tut:[['移动','拖动或点按移动章鱼。','🐙'],
        ['喷墨','点按喷出墨汁打螃蟹。','💦'],
        ['防守','别让螃蟹靠近底部。','🦀'],

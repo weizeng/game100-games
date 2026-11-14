@@ -462,14 +462,14 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>👾<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>敌 <b id="foeT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">清剿</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="ctrl"><button class="btn" id="fireBtn">🔥 开火</button></div>
   <div class="hint">拖动移动炮台 · 点开火射击 · 别让敌军压线</div>
 </div>
-<div class="overlay" id="startScr"><h1>👾 太空侵略者</h1><p>15 关击退外星舰队：敌更多更快、火力更猛。<br>第 5/10/15 关巨型母舰 Boss！可升级射速、护盾、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始保卫</button></div>
+<div class="overlay" id="startScr"><h1>👾 太空侵略者</h1><p>15 关击退外星舰队：敌更多更快、火力更猛，第 5/10/15 关巨型母舰 Boss！<br>v9（Gemini 优化：3 大深空战区主题与星辰、击毁波纹与飘字、1×/2× 倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始保卫</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -593,8 +593,10 @@ const LV=[
  {rows:5,cols:9,spd:80,fire:.055},{rows:6,cols:9,spd:85,fire:.06},{rows:6,cols:9,spd:90,fire:.065},{rows:6,cols:10,spd:95,fire:.07},
  {boss:{name:'终极侵略王',rows:5,cols:8,spd:85,fire:.08,hp:40}}
 ];
-let L,player,bullets,ebullets,foes,fx,fy,dir,lives,score,ended,raf=0,last=0,fast=1,sparks,boss,cool,totalFoes,killed;
-function start(i){L=LV[i];score=0;ended=false;sparks=[];bullets=[];ebullets=[];lives=3+Kit.up('life');cool=0;killed=0;
+let L,player,bullets,ebullets,foes,fx,fy,dir,lives,score,ended,raf=0,last=0,fast=1,sparks,boss,cool,totalFoes,killed,waves=[],pops=[];
+const SPACES=[['#1a237e','#000051'],['#451a03','#170503'],['#064e3b','#021a14']];
+const STARS=Array.from({length:32},()=>({x:Math.random()*W,y:Math.random()*H,r:0.8+Math.random()*1.4}));
+function start(i){L=LV[i];score=0;ended=false;sparks=[];waves=[];pops=[];bullets=[];ebullets=[];lives=3+Kit.up('life');cool=0;killed=0;
   const b=L.boss||L;boss=L.boss?{name:L.boss.name,hp:L.boss.hp,max:L.boss.hp,x:W/2,y:50,w:100,h:36,vx:60}:null;
   player={x:W/2,y:H-36,w:44+Kit.up('wide')*8,h:14,inv:0};
   foes=[];const rows=b.rows,cols=b.cols,ew=28,eh=20,gx=8,gy=12;const tw=cols*(ew+gx)-gx,ox=(W-tw)/2;
@@ -608,6 +610,8 @@ function fire(){if(ended||Kit.state!=='play'||cool>0)return;cool=.28-Kit.up('rat
 function hitP(){if(player.inv>0)return;if(Kit.up('shield')>0&&Math.random()<.35+Kit.up('shield')*.2){player.inv=.6;Kit.toast('护盾！');Kit.sfx('hit');return;}
   lives--;player.inv=1.2;Kit.sfx('bad');if(lives<=0)endLv(false,'阵亡');}
 function upd(dt){if(ended)return;if(cool>0)cool-=dt;if(player.inv>0)player.inv-=dt;
+  for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.8;if(waves[i].t>=1)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;pops[i].y-=dt*30;if(pops[i].t>=0.85)pops.splice(i,1);}
   const al=alive();const spd=((L.boss||L).spd)*(1+(totalFoes-al.length- (boss&&boss.hp>0?1:0))*.04);
   fx+=dir*spd*dt;if(fx>28||fx<-28){dir*=-1;fy+=14;fx=Math.max(-28,Math.min(28,fx));}
   for(const f of al){if(f.y+fy+f.h>=player.y-8)return endLv(false,'敌军压线');
@@ -617,8 +621,8 @@ function upd(dt){if(ended)return;if(cool>0)cool-=dt;if(player.inv>0)player.inv-=
   for(const b of bullets)b.y+=b.vy*dt;
   for(const b of ebullets)b.y+=b.vy*dt;
   bullets=bullets.filter(b=>{if(b.y<-10)return false;
-    if(boss&&boss.hp>0&&Math.abs(b.x-boss.x)<boss.w/2&&b.y<boss.y+boss.h&&b.y>boss.y){boss.hp--;score+=30;Kit.sfx('hit');if(FX)FX.burst(sparks,b.x,b.y,'#ffd54f',8);if(boss.hp<=0){killed++;score+=500;Kit.sfx('boom');}return false;}
-    for(const f of al){if(b.x>f.x+fx&&b.x<f.x+fx+f.w&&b.y>f.y+fy&&b.y<f.y+fy+f.h){f.alive=false;killed++;score+=20;Kit.sfx('good');if(FX)FX.burst(sparks,b.x,b.y,'#69f0ae',8);return false;}}
+    if(boss&&boss.hp>0&&Math.abs(b.x-boss.x)<boss.w/2&&b.y<boss.y+boss.h&&b.y>boss.y){boss.hp--;score+=30;Kit.sfx('hit');waves.push({x:b.x,y:b.y,r:10,t:0,col:'#ffd54f'});if(FX)FX.burst(sparks,b.x,b.y,'#ffd54f',8);if(boss.hp<=0){killed++;score+=500;pops.push({x:boss.x,y:boss.y,txt:'👑 +500',col:'#fde047',t:0});Kit.sfx('boom');}return false;}
+    for(const f of al){if(b.x>f.x+fx&&b.x<f.x+fx+f.w&&b.y>f.y+fy&&b.y<f.y+fy+f.h){f.alive=false;killed++;score+=20;Kit.sfx('good');waves.push({x:b.x,y:b.y,r:10,t:0,col:'#69f0ae'});pops.push({x:b.x,y:b.y-8,txt:'+20',col:'#69f0ae',t:0});if(FX)FX.burst(sparks,b.x,b.y,'#69f0ae',8);return false;}}
     return true;});
   ebullets=ebullets.filter(b=>{if(b.y>H)return false;if(Math.abs(b.x-player.x)<player.w/2&&b.y>player.y-6&&b.y<player.y+player.h){hitP();return false;}return true;});
   const left=al.length+(boss&&boss.hp>0?1:0);if(left<=0)return endLv(true);hud();}
@@ -629,7 +633,9 @@ function endLv(won,why){if(ended)return;ended=true;if(won){const st=lives>=3?3:l
   else setTimeout(()=>Kit.lose(why,score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#1a237e','#000051');else{ctx.fillStyle='#000051';ctx.fillRect(0,0,W,H);}
+  const sp=SPACES[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,sp[0],sp[1]);else{ctx.fillStyle=sp[1];ctx.fillRect(0,0,W,H);}
+  ctx.fillStyle='rgba(255,255,255,.45)';for(const s of STARS){ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();}
   for(const f of foes){if(!f.alive)continue;const x=f.x+fx,y=f.y+fy;if(FX){FX.glow(ctx,'#e040fb',8);FX.tile(ctx,x,y,f.w,f.h,'#ce93d8',4);FX.noGlow(ctx);}
     else{ctx.fillStyle='#ce93d8';ctx.fillRect(x,y,f.w,f.h);}}
   if(boss&&boss.hp>0){if(FX){FX.glow(ctx,'#ff5252',14);FX.tile(ctx,boss.x-boss.w/2,boss.y,boss.w,boss.h,'#ff1744',8);FX.noGlow(ctx);}
@@ -641,11 +647,17 @@ function draw(){
   ctx.fillStyle='#fff59d';for(const b of bullets){ctx.fillRect(b.x-2,b.y-8,4,10);}
   ctx.fillStyle='#ff8a80';for(const b of ebullets){ctx.fillRect(b.x-2,b.y,4,8);}
   if(FX)FX.drawBurst(ctx,sparks);
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2;ctx.beginPath();ctx.arc(wv.x,wv.y,wv.r+wv.t*20,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
+  ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  for(const p of pops){ctx.globalAlpha=1-p.t/0.85;ctx.fillStyle=p.col;ctx.fillText(p.txt,p.x,p.y);}
+  ctx.globalAlpha=1;
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
+$('spdBtn').addEventListener('click',()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');});
 Kit.init({id:'invaders',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},pause:()=>{},
-  note:()=>'清剿全部敌军与母舰，别被压线或打爆',
+  note:()=>'v9（Gemini 优化：3 大深空战区主题与星辰、击毁波纹与飘字、1×/2× 倍速）',
   tut:[['移动','拖动画布左右移动炮台。','🚀'],
        ['开火','点开火发射子弹。','🔥'],
        ['危险','敌军下压或子弹命中扣命。','⚠️'],

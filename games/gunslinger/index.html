@@ -443,12 +443,12 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="topbar">
     <span class="title">🔫 牛仔对决</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
-    <span class="tools"><button class="iconbtn off" id="rageBtn" aria-label="子弹时间">⚡0</button><button class="iconbtn" id="muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn off" id="rageBtn" aria-label="子弹时间">⚡0</button><button class="iconbtn" id="muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <canvas id="cv"></canvas>
   <p class="hint">READY…后 DRAW! 出现的瞬间点画面拔枪 · 抢跑扣 1❤️</p>
 </div>
-<div class="overlay" id="startScr"><h1>🔫 牛仔对决</h1><p>READY…之后随机出现 DRAW!，瞬间点击画面拔枪。<br>抢跑/中假动作扣 1❤️（共 3❤️）；反应&lt;150ms 完美+100，&lt;300ms 命中+60，&lt;500ms 擦伤+25但掉血。<br>对手随连胜越来越快；每 5 连胜遭遇快枪首领（更快，还会放假动作）。<br>3 次完美攒满 ⚡ 可开「子弹时间」：下一局对手大幅变慢，留着打首领最划算。</p>
+<div class="overlay" id="startScr"><h1>🔫 牛仔对决</h1><p>READY…之后随机出现 DRAW!，瞬间点击画面拔枪，3 次完美攒满 ⚡ 开「子弹时间」。<br>v3（Gemini 优化：3 大荒漠时段主题、拔枪波纹与毫秒反应飘字、1×/2× 节奏）</p>
 <div class="skinrow" id="skinRow"></div>
 <button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="pauseOv"><h1>⏸ 已暂停</h1><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="quitBtn">重新开始</button></div>
@@ -467,7 +467,8 @@ try{const p=JSON.parse(UI.storageGet('g100_gunslinger_prog')||'null');if(p&&type
 function saveProg(){UI.storageSet('g100_gunslinger_prog',JSON.stringify(prog));}
 const SKINS=[{name:'左轮手枪',color:'#9aa0a8',need:0},{name:'双管猎枪',color:'#c47f3c',need:8},{name:'银色快枪',color:'#dfe6ee',need:20},{name:'黄金左轮',color:'#ffd34d',need:40}];
 // ---- 状态 ----
-let state='menu',score=0,lives=3,streak=0,maxStreak=0,rage=0,bulletNext=false,last=0,pausedAt=0;
+let state='menu',score=0,lives=3,streak=0,maxStreak=0,rage=0,bulletNext=false,last=0,pausedAt=0,fast=1,waves=[],pops=[];
+const DESERTS=[['#5a2a6e','#160b26','#ff9f2e'],['#b45309','#451a03','#fde047'],['#1e1b4b','#090d1f','#c77dff']];
 let duel=null,resText='',resUntil=0,toast='',toastUntil=0,bursts=[];
 let best=+UI.storageGet('g100_gunslinger_hs')||0;$('best').textContent=best;
 // ---- 音效：WebAudio 合成，无外部资源；遵守静音开关 ----
@@ -487,7 +488,7 @@ $('rageBtn').addEventListener('click',()=>{if(rage<3||bulletNext)return;if(state
 updateRage();
 // ---- 流程 ----
 function show(id,on){$(id).classList.toggle('hidden',!on);}
-function start(){score=0;lives=3;streak=0;maxStreak=0;rage=0;bulletNext=false;bursts=[];$('score').textContent=0;updateRage();show('startScr',false);show('overScr',false);show('pauseOv',false);const now=performance.now();newDuel(now);last=now;beep(660,.12);}
+function start(){score=0;lives=3;streak=0;maxStreak=0;rage=0;bulletNext=false;bursts=[];waves=[];pops=[];$('score').textContent=0;updateRage();show('startScr',false);show('overScr',false);show('pauseOv',false);const now=performance.now();newDuel(now);last=now;beep(660,.12);}
 function pause(){if(state!=='ready'&&state!=='draw'&&state!=='result')return;pausedAt=performance.now();state='pause';show('pauseOv',true);}
 function resume(){if(state!=='pause')return;const d=performance.now()-pausedAt;if(duel){duel.drawAt+=d;duel.fakeAt+=d;duel.fakeUntil+=d;duel.drawT+=d;duel.deadline+=d;}resUntil+=d;toastUntil+=d;state=duel&&(performance.now()>=duel.drawAt||duel.drawT)?(duel.drawT?'draw':'ready'):'ready';if(duel&&duel.drawT)state='draw';last=performance.now();show('pauseOv',false);}
 function over(){state='over';if(score>best){best=score;UI.storageSet('g100_gunslinger_hs',best);$('best').textContent=best;}
@@ -500,7 +501,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
 // ---- 对决逻辑 ----
 function newDuel(now){
   const boss=(streak+1)%5===0;
-  const readyDur=boss?600+Math.random()*1400:800+Math.random()*2000;
+  const readyDur=(boss?600+Math.random()*1400:800+Math.random()*2000)/fast;
   const drawAt=now+readyDur;
   let fakeAt=0;
   if(boss&&!bulletNext&&Math.random()<0.65)fakeAt=drawAt-(300+Math.random()*700);
@@ -520,8 +521,8 @@ function attempt(now){
   if(state!=='draw')return;
   const rt=now-duel.drawT;
   if(rt>duel.opp){lives--;streak=0;beep(140,.3,'sawtooth');burstAt(W-86,H-150,'#ff5a3c');result('💥 对手更快！-1❤️',1100);return;}
-  if(rt<150){score+=100;rage=Math.min(3,rage+1);streak++;prog.wins++;saveProg();buildSkins();updateRage();burstAt(W/2,H/2,'#ffd34d',24);beep(1320,.1,'square');win('⚡ 完美拔枪！+100');}
-  else if(rt<300){score+=60;streak++;prog.wins++;saveProg();buildSkins();burstAt(W/2,H/2,'#7af5ff',16);beep(880,.1);win('🎯 命中！+60');}
+  if(rt<150){score+=100;rage=Math.min(3,rage+1);streak++;prog.wins++;saveProg();buildSkins();updateRage();burstAt(W/2,H/2,'#ffd34d',24);waves.push({x:W/2,y:H/2,t:0,col:'#ffd34d'});pops.push({x:W/2,y:H/2-90,txt:Math.round(rt)+'ms ⚡',col:'#fde047',t:0});beep(1320,.1,'square');win('⚡ 完美拔枪！+100');}
+  else if(rt<300){score+=60;streak++;prog.wins++;saveProg();buildSkins();burstAt(W/2,H/2,'#7af5ff',16);waves.push({x:W/2,y:H/2,t:0,col:'#7af5ff'});pops.push({x:W/2,y:H/2-90,txt:Math.round(rt)+'ms 🎯',col:'#7af5ff',t:0});beep(880,.1);win('🎯 命中！+60');}
   else if(rt<500){score+=25;lives--;streak++;prog.wins++;saveProg();buildSkins();burstAt(86,H-150,'#ff5a3c',14);beep(500,.15,'triangle');win('🩸 擦伤！+25 但掉 1❤️');}
   else{lives--;streak=0;beep(140,.3,'sawtooth');result('🐢 太慢了，对手闪开反击 -1❤️',1100);return;}
   function win(txt){if(duel.boss){score+=150;txt+=' 👑 首领击破+150';}maxStreak=Math.max(maxStreak,streak);$('score').textContent=score;result(txt,1000);}
@@ -548,15 +549,21 @@ function drawCowboy(x,flip,gunColor,showGun){
   ctx.restore();
 }
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#5a2a6e','#160b26');else{ctx.fillStyle='#241239';ctx.fillRect(0,0,W,H);}
+  const ds=DESERTS[Math.min(2,Math.floor(streak/5))];
+  if(FX)FX.stage(ctx,W,H,ds[0],ds[1]);else{ctx.fillStyle=ds[1];ctx.fillRect(0,0,W,H);}
   // 落日与荒漠
-  if(FX){FX.orb(ctx,W*0.78,H*0.18,34,'#ff9f2e');}else{ctx.fillStyle='#ff9f2e';ctx.beginPath();ctx.arc(W*0.78,H*0.18,34,0,7);ctx.fill();}
+  if(FX){FX.orb(ctx,W*0.78,H*0.18,34,ds[2]);}else{ctx.fillStyle=ds[2];ctx.beginPath();ctx.arc(W*0.78,H*0.18,34,0,7);ctx.fill();}
   ctx.fillStyle=FX?'rgba(20,8,30,.55)':'#160b26';ctx.fillRect(0,H-110,W,110);
   ctx.font='30px sans-serif';ctx.textAlign='center';ctx.fillText('🌵',40,H-80);ctx.fillText('🌵',W-36,H-60);
   const skin=SKINS[prog.skin]||SKINS[0];
   drawCowboy(PX,1,skin.color,state==='draw'||state==='result');
   drawCowboy(W-PX,-1,'#666',state==='draw'||state==='result');
   if(FX)FX.drawBurst(ctx,bursts);
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=3;ctx.beginPath();ctx.arc(wv.x,wv.y,16+wv.t*48,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
+  ctx.font='bold 16px sans-serif';ctx.textAlign='center';
+  for(const p of pops){ctx.globalAlpha=1-p.t/0.9;ctx.fillStyle=p.col;ctx.fillText(p.txt,p.x,p.y);}
+  ctx.globalAlpha=1;
   // HUD
   ctx.fillStyle='#fdfdfd';
   ctx.textAlign='left';ctx.textBaseline='top';ctx.font='16px sans-serif';
@@ -575,7 +582,8 @@ function draw(){
   if(toast&&performance.now()<toastUntil){ctx.font='16px sans-serif';ctx.fillStyle='#7af5ff';ctx.fillText(toast,W/2,H-140);}
 }
 function wrapText(t,x,y,mw){const words=t.split('');let line='',yy=y;for(const ch of words){if(ctx.measureText(line+ch).width>mw){ctx.fillText(line,x,yy);line=ch;yy+=28;}else line+=ch;}ctx.fillText(line,x,yy);}
-function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='ready'||state==='draw'||state==='result')update(t);draw();requestAnimationFrame(frame);}
+$('spdBtn').addEventListener('click',()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(660,.06);});
+function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.8;if(waves[i].t>=1)waves.splice(i,1);}for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;pops[i].y-=dt*32;if(pops[i].t>=0.9)pops.splice(i,1);}if(state==='ready'||state==='draw'||state==='result')update(t);draw();requestAnimationFrame(frame);}
 draw();requestAnimationFrame(frame);
 </script>
 </body></html>
