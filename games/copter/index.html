@@ -460,13 +460,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🚁<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>缺口 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">飞行</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
-  <div class="hint">按住上升松开下落 · 穿越峡谷缺口</div>
+  <div class="hint">按住上升松开下落 · 穿越峡谷缺口 · 顺路收集🪙</div>
 </div>
-<div class="overlay" id="startScr"><h1>🚁 直升机</h1><p>15 关飞过峡谷缺口：缺口更窄、速度更快。<br>第 5/10/15 关峡谷风暴/双壁夹击/终末裂谷！可升级转子推力、护盾、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始飞行</button></div>
+<div class="overlay" id="startScr"><h1>🚁 直升机</h1><p>15 关飞过峡谷缺口：缺口更窄、速度更快。<br>第 5/10/15 关峡谷风暴/双壁夹击/终末裂谷！可升级转子推力、护盾、额外命。<br>v8（Gemini 优化：三大峡谷地貌、缺口金币环、旋翼尾焰与穿越光环飘字及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始飞行</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -590,21 +590,25 @@ const LV=[
  {need:13,spd:205,gap:68,wall:0},{need:14,spd:215,gap:65,wall:0},{need:15,spd:225,gap:62,wall:0},{need:15,spd:235,gap:60,wall:0},
  {boss:{name:'终末裂谷',need:12,spd:250,gap:55,wall:2,shake:1}}
 ];
-let L,pl,walls,holding,lives,score,ended,raf=0,last=0,fast=1,need,passed,spawnX,boss,shield,sparks,thrust,grav,shakeT;
-function start(i){L=LV[i];score=0;ended=false;walls=[];passed=0;holding=false;sparks=[];shakeT=0;lives=3+Kit.up('life');shield=Kit.up('shield');
+const CANYONS=[{top:'#2e7d32',bot:'#1b5e20',wall:'#66bb6a',name:'翡翠峡谷'},{top:'#8d3b22',bot:'#3e170c',wall:'#e07a5f',name:'暮色赤壁'},{top:'#1e3a5f',bot:'#0b1829',wall:'#4fc3f7',name:'雷暴夜谷'}];
+let L,pl,walls,holding,lives,score,ended,raf=0,last=0,fast=1,need,passed,spawnX,boss,shield,sparks,thrust,grav,shakeT,rings=[],pops=[],coins=[];
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
+function start(i){L=LV[i];score=0;ended=false;walls=[];coins=[];rings=[];pops=[];passed=0;holding=false;sparks=[];shakeT=0;lives=3+Kit.up('life');shield=Kit.up('shield');
   const b=L.boss||L;need=b.need;thrust=480*(1+Kit.up('thrust')*.14);grav=360;
   pl={x:80,y:H/2,vy:0,r:12};spawnX=W+40;boss=L.boss?{name:L.boss.name}:null;
   for(let k=0;k<3;k++)mkWall(spawnX+k*160);hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
-function mkWall(x){const b=L.boss||L;const gap=b.gap-(b.wall?8:0);const top=30+Math.random()*(H-60-gap);walls.push({x,top,gap,passed:false});}
+function mkWall(x){const b=L.boss||L;const gap=b.gap-(b.wall?8:0);const top=30+Math.random()*(H-60-gap);walls.push({x,top,gap,passed:false});if(Math.random()<0.65)coins.push({x:x+20,y:top+gap*0.5,r:10,got:false});}
 cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||ended)return;holding=true;Kit.sfx('tap');});
 cv.addEventListener('pointerup',()=>{holding=false;});
 cv.addEventListener('pointercancel',()=>{holding=false;});
 function hitWall(w){const y1=w.top,y2=w.top+w.gap;return pl.x+pl.r>w.x&&pl.x-pl.r<w.x+40&&(pl.y-pl.r<y1||pl.y+pl.r>y2);}
 function upd(dt){if(ended)return;const b=L.boss||L;
+  rings=rings.filter(r=>(r.t-=dt)>0);pops=pops.filter(p=>{p.y-=20*dt;return(p.t-=dt)>0;});
   if(holding)pl.vy-=thrust*dt;pl.vy+=grav*dt;pl.vy=Math.max(-280,Math.min(280,pl.vy));pl.y+=pl.vy*dt;
   if(pl.y<pl.r||pl.y>H-pl.r){if(shield>0){shield--;pl.y=Math.max(pl.r,Math.min(H-pl.r,pl.y));pl.vy*=-.3;Kit.toast('护盾！');}
     else return endLv(false,'撞边界');}
-  const spd=b.spd;for(const w of walls){w.x-=spd*dt;if(!w.passed&&w.x+40<pl.x){w.passed=true;passed++;score+=20;Kit.sfx('good');if(FX)FX.burst(sparks,pl.x,pl.y,'#66bb6a',8);}}
+  const spd=b.spd;for(const w of walls){w.x-=spd*dt;if(!w.passed&&w.x+40<pl.x){w.passed=true;passed++;score+=20;Kit.sfx('good');rings.push({x:pl.x,y:pl.y,r:24,t:0.28,m:0.28,c:'#81c784'});pops.push({x:pl.x,y:pl.y-14,txt:'+20',c:'#a5d6a7',t:0.55});if(FX)FX.burst(sparks,pl.x,pl.y,'#66bb6a',8);}}
+  for(let i=coins.length-1;i>=0;i--){const c=coins[i];c.x-=spd*dt;if(!c.got&&Math.hypot(c.x-pl.x,c.y-pl.y)<c.r+pl.r+4){c.got=true;score+=30;Kit.sfx('coin');rings.push({x:c.x,y:c.y,r:22,t:0.28,m:0.28,c:'#ffd54f'});pops.push({x:c.x,y:c.y-10,txt:'+30🪙',c:'#ffd54f',t:0.6});if(FX)FX.burst(sparks,c.x,c.y,'#ffd54f',6);coins.splice(i,1);}else if(c.x<-30)coins.splice(i,1);}
   walls=walls.filter(w=>w.x>-50);while(walls.length<4){const lx=walls.length?Math.max(...walls.map(w=>w.x)):spawnX;mkWall(lx+150+(b.wall?20:40));}
   if(b.shake)shakeT=.15;
   for(const w of walls){if(hitWall(w)){if(shield>0){shield--;w.x=-99;Kit.toast('护盾挡壁');Kit.sfx('bad');}
@@ -618,13 +622,17 @@ function endLv(won,why){if(ended)return;ended=true;holding=false;
   else setTimeout(()=>Kit.lose(why,score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}if(shakeT>0)shakeT-=dt;draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#2e7d32','#1b5e20');else{ctx.fillStyle='#1b5e20';ctx.fillRect(0,0,W,H);}
+  const cz=CANYONS[Math.min(2,(Kit.lv/5)|0)];
+  if(FX)FX.stage(ctx,W,H,cz.top,cz.bot);else{ctx.fillStyle=cz.bot;ctx.fillRect(0,0,W,H);}
   ctx.save();if(shakeT>0)ctx.translate((Math.random()-.5)*5,(Math.random()-.5)*5);
-  for(const w of walls){if(FX){FX.tile(ctx,w.x,0,40,w.top,'#66bb6a',4);FX.tile(ctx,w.x,w.top+w.gap,40,H-(w.top+w.gap),'#66bb6a',4);}
-    else{ctx.fillStyle='#66bb6a';ctx.fillRect(w.x,0,40,w.top);ctx.fillRect(w.x,w.top+w.gap,40,H-(w.top+w.gap));}}
+  for(const w of walls){if(FX){FX.tile(ctx,w.x,0,40,w.top,cz.wall,4);FX.tile(ctx,w.x,w.top+w.gap,40,H-(w.top+w.gap),cz.wall,4);}
+    else{ctx.fillStyle=cz.wall;ctx.fillRect(w.x,0,40,w.top);ctx.fillRect(w.x,w.top+w.gap,40,H-(w.top+w.gap));}}
+  for(const c of coins){if(FX){FX.glow(ctx,'#ffd54f',8);FX.orb(ctx,c.x,c.y,c.r,'#ffd54f');FX.noGlow(ctx);}else{ctx.fillStyle='#ffd54f';ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,7);ctx.fill();}ctx.font='12px serif';ctx.textAlign='center';ctx.fillText('🪙',c.x,c.y+4);}
+  for(const r of rings){ctx.save();ctx.globalAlpha=r.t/r.m;ctx.strokeStyle=r.c;ctx.lineWidth=2;ctx.beginPath();ctx.arc(r.x,r.y,r.r*(1.2-r.t/r.m),0,7);ctx.stroke();ctx.restore();}
   if(holding){ctx.fillStyle='rgba(255,213,79,.75)';ctx.fillRect(pl.x-4,pl.y+10,8,16);}
-  if(FX)FX.orb(ctx,pl.x|0,pl.y|0,pl.r,'#81c784');else{ctx.fillStyle='#81c784';ctx.beginPath();ctx.arc(pl.x,pl.y,pl.r,0,7);ctx.fill();}
+  if(FX){FX.shadow(ctx,pl.x,pl.y+pl.r+4,pl.r,3.5);FX.orb(ctx,pl.x|0,pl.y|0,pl.r,'#81c784');}else{ctx.fillStyle='#81c784';ctx.beginPath();ctx.arc(pl.x,pl.y,pl.r,0,7);ctx.fill();}
   ctx.font='16px serif';ctx.textAlign='center';ctx.fillText('🚁',pl.x,pl.y+5);
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.min(1,p.t*2);ctx.fillStyle=p.c;ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
   ctx.restore();if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}

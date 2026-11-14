@@ -446,6 +446,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🔯 符阵守卫</span>
     <span class="stat">得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -453,7 +454,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">在格上放置/旋转符文，每拍朝一方向发射。</p>
 </div>
-<div class="overlay" id="startScr"><h1>🔯 符阵守卫</h1><p>在格上放置/旋转符文，每拍朝一方向发射。<br>敌人沿甬道前进，清够击杀或撑过波次。<br>Boss波更密且有装甲。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🔯 符阵守卫</h1><p>在格上放置/旋转符文，每拍朝一方向发射。<br>敌人沿甬道前进，清够击杀或撑过波次。<br>v3（Gemini 优化：三大秘阵地貌、符文激光束、击杀光环飘字、立体阴影及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -483,32 +484,37 @@ if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==nu
 if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
 const TOTAL=15;
-let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
+const SANCTUMS=[{top:'#3b1d6e',bot:'#1e0f3d',name:'紫晶秘阵'},{top:'#154c46',bot:'#092420',name:'碧玉神坛'},{top:'#4c182e',bot:'#210812',name:'绯红魔域'}];
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false,spd=1;
+$('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';};
 
 const TUT=[["放置","点空格放置符文，再点旋转朝向。"],["射击","符文每拍朝箭头方向开火。"],["金币","击杀掉落金币再买符文。"],["Boss","Boss波敌人更多更硬。"]];
 const SHOP=[{k:'runeLv',name:'符文种类',max:3,cost(){return 50+(prog.runeLv|0)*35;},desc(){return '解锁更强符文';}},{k:'rateLv',name:'射速强化',max:3,cost(){return 45+(prog.rateLv|0)*30;},desc(){return '射击间隔缩短';}},{k:'goldLv',name:'开局金币',max:3,cost(){return 40+(prog.goldLv|0)*30;},desc(){return '开局多带金币';}}];
 const COLS=5,ROWS=6,CELL=52,OX=50,OY=70;
-let grid=[],enemies=[],gold=0,wave=0,kills=0,goal=0,tick=0,sel=-1,spawnT=0;
+let grid=[],enemies=[],gold=0,wave=0,kills=0,goal=0,tick=0,sel=-1,spawnT=0,beams=[],rings=[],pops=[];
 const DIRS=[[0,-1],[1,0],[0,1],[-1,0]];
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];grid=Array(COLS*ROWS).fill(null);enemies=[];gold=40+(prog.goldLv|0)*15+lvl*2;wave=0;kills=0;goal=8+lvl*2+(boss?6:0);tick=0;sel=-1;spawnT=0;
-  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点格放置 · 再点旋转';}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];beams=[];rings=[];pops=[];grid=Array(COLS*ROWS).fill(null);enemies=[];gold=40+(prog.goldLv|0)*15+lvl*2;wave=0;kills=0;goal=8+lvl*2+(boss?6:0);tick=0;sel=-1;spawnT=0;
+  show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;const sz=SANCTUMS[Math.min(2,((lvl-1)/5)|0)];$('hint').textContent=sz.name+' · 点格放置 · 再点旋转';}
 function win(){if(state!=='play')return;const stars=kills>=goal+4?3:kills>=goal?2:1;finishWin(stars,40+stars*15+(boss?55:0)+gold,'符阵稳固！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){tick+=dt;const rate=0.55-(prog.rateLv|0)*0.06;spawnT-=dt;if(spawnT<=0&&kills+enemies.length<goal+(boss?4:0)){const lane=Math.random()*COLS|0;const hp=2+((lvl/3)|0)+(boss&&Math.random()<0.4?3:0);enemies.push({x:OX+lane*CELL+CELL/2,y:OY-20,lane,hp,max:hp,spd:35+lvl*2+(boss?8:0)});spawnT=1.1-lvl*0.03-(boss?0.2:0);wave++;}
-  if(tick>=rate){tick=0;grid.forEach((g,i)=>{if(!g)return;const c=i%COLS,r=(i/COLS)|0;const [dx,dy]=DIRS[g.dir];const bx=OX+c*CELL+CELL/2,by=OY+r*CELL+CELL/2;let dmg=1+(g.t|0);for(const e of enemies){if(Math.abs(e.x-bx)<18&&((dy<0&&e.y<by&&e.y>by-160)||(dy>0&&e.y>by&&e.y<by+160)||(dx&&Math.abs(e.y-by)<18&&((dx>0&&e.x>bx)||(dx<0&&e.x<bx))))){e.hp-=dmg;score+=2;beep(820,.03);if(FX)FX.burst(sparks,e.x,e.y,'#c4b5fd',6);break;}}});}
+function update(dt){dt*=spd;beams=beams.filter(b=>(b.t-=dt)>0);rings=rings.filter(r=>(r.t-=dt)>0);pops=pops.filter(p=>{p.y-=18*dt;return(p.t-=dt)>0;});tick+=dt;const rate=0.55-(prog.rateLv|0)*0.06;spawnT-=dt;if(spawnT<=0&&kills+enemies.length<goal+(boss?4:0)){const lane=Math.random()*COLS|0;const hp=2+((lvl/3)|0)+(boss&&Math.random()<0.4?3:0);enemies.push({x:OX+lane*CELL+CELL/2,y:OY-20,lane,hp,max:hp,spd:35+lvl*2+(boss?8:0)});spawnT=1.1-lvl*0.03-(boss?0.2:0);wave++;}
+  if(tick>=rate){tick=0;grid.forEach((g,i)=>{if(!g)return;const c=i%COLS,r=(i/COLS)|0;const [dx,dy]=DIRS[g.dir];const bx=OX+c*CELL+CELL/2,by=OY+r*CELL+CELL/2;let dmg=1+(g.t|0);for(const e of enemies){if(Math.abs(e.x-bx)<18&&((dy<0&&e.y<by&&e.y>by-160)||(dy>0&&e.y>by&&e.y<by+160)||(dx&&Math.abs(e.y-by)<18&&((dx>0&&e.x>bx)||(dx<0&&e.x<bx))))){e.hp-=dmg;score+=2;beep(820,.03);beams.push({x1:bx,y1:by,x2:e.x,y2:e.y,t:0.12,m:0.12,c:g.t>0?'#ffe08a':'#c4b5fd'});if(FX)FX.burst(sparks,e.x,e.y,'#c4b5fd',6);break;}}});}
   for(const e of enemies){e.y+=e.spd*dt;if(e.y>OY+ROWS*CELL){lose('甬道失守');return;}}
-  const before=enemies.length;enemies=enemies.filter(e=>{if(e.hp<=0){kills++;gold+=3+(boss?1:0);score+=15;return false;}return true;});
+  const before=enemies.length;enemies=enemies.filter(e=>{if(e.hp<=0){kills++;const cg=3+(boss?1:0);gold+=cg;score+=15;rings.push({x:e.x,y:e.y,r:20,t:0.25,m:0.25,c:'#ffe08a'});pops.push({x:e.x,y:e.y-10,txt:'+'+cg+'币',c:'#ffe08a',t:0.55});return false;}return true;});
   if(kills>=goal)win();
   $('score').textContent=score|0;}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
   if(p.y>H-70){const cost=12;if(gold>=cost){/* place mode via next empty tap handled below */}toast('点上方格子放置/旋转');return;}
   const c=((p.x-OX)/CELL)|0,r=((p.y-OY)/CELL)|0;if(c<0||c>=COLS||r<0||r>=ROWS)return;const i=r*COLS+c;
   if(grid[i]){grid[i].dir=(grid[i].dir+1)%4;beep(700,.05);toast('旋转');return;}
-  const maxT=prog.runeLv|0;const cost=12+maxT*4;if(gold<cost){toast('金币不足');return;}gold-=cost;grid[i]={dir:0,t:Math.min(maxT,Math.random()*(maxT+1)|0)};beep(660,.06);score+=1;});
-function draw(){if(FX)FX.stage(ctx,W,H,'#3b1d6e','#1e0f3d');else{ctx.fillStyle='#1e0f3d';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  const maxT=prog.runeLv|0;const cost=12+maxT*4;if(gold<cost){toast('金币不足');return;}gold-=cost;grid[i]={dir:0,t:Math.min(maxT,Math.random()*(maxT+1)|0)};rings.push({x:OX+c*CELL+CELL/2,y:OY+r*CELL+CELL/2,r:22,t:0.25,m:0.25,c:'#a78bfa'});beep(660,.06);score+=1;});
+function draw(){const sz=SANCTUMS[Math.min(2,((lvl-1)/5)|0)];if(FX)FX.stage(ctx,W,H,sz.top,sz.bot);else{ctx.fillStyle=sz.bot;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('💰'+gold+' 击杀'+kills+'/'+goal+(boss?' 👑':''),10,22);
-  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const x=OX+c*CELL,y=OY+r*CELL;ctx.strokeStyle='rgba(255,255,255,.2)';ctx.strokeRect(x,y,CELL-2,CELL-2);const g=grid[r*COLS+c];if(g){ctx.fillStyle='#a78bfa';ctx.fillRect(x+6,y+6,CELL-14,CELL-14);const [dx,dy]=DIRS[g.dir];ctx.fillStyle='#ffe08a';ctx.beginPath();ctx.moveTo(x+CELL/2,y+CELL/2);ctx.lineTo(x+CELL/2+dx*16,y+CELL/2+dy*16);ctx.lineTo(x+CELL/2+dx*8-dy*6,y+CELL/2+dy*8+dx*6);ctx.fill();}}
-  for(const e of enemies){ctx.fillStyle=e.max>3?'#ff6b6b':'#f472b6';ctx.beginPath();ctx.arc(e.x,e.y,10,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(e.x-10,e.y-16,20*(e.hp/e.max),3);}
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const x=OX+c*CELL,y=OY+r*CELL;ctx.strokeStyle='rgba(255,255,255,.2)';ctx.strokeRect(x,y,CELL-2,CELL-2);const g=grid[r*COLS+c];if(g){const col=g.t>1?'#ffe08a':g.t>0?'#c4b5fd':'#a78bfa';if(FX){FX.shadow(ctx,x+CELL/2,y+CELL-6,18,4);FX.tile(ctx,x+6,y+6,CELL-14,CELL-14,col,8);}else{ctx.fillStyle=col;ctx.fillRect(x+6,y+6,CELL-14,CELL-14);}const [dx,dy]=DIRS[g.dir];ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(x+CELL/2,y+CELL/2);ctx.lineTo(x+CELL/2+dx*16,y+CELL/2+dy*16);ctx.lineTo(x+CELL/2+dx*8-dy*6,y+CELL/2+dy*8+dx*6);ctx.fill();}}
+  for(const b of beams){ctx.save();ctx.globalAlpha=b.t/b.m;ctx.strokeStyle=b.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(b.x1,b.y1);ctx.lineTo(b.x2,b.y2);ctx.stroke();ctx.restore();}
+  for(const r of rings){ctx.save();ctx.globalAlpha=r.t/r.m;ctx.strokeStyle=r.c;ctx.lineWidth=2;ctx.beginPath();ctx.arc(r.x,r.y,r.r*(1.2-r.t/r.m),0,7);ctx.stroke();ctx.restore();}
+  for(const e of enemies){if(FX){FX.shadow(ctx,e.x,e.y+10,10,3.5);FX.orb(ctx,e.x,e.y,10,e.max>3?'#ff6b6b':'#f472b6');}else{ctx.fillStyle=e.max>3?'#ff6b6b':'#f472b6';ctx.beginPath();ctx.arc(e.x,e.y,10,0,7);ctx.fill();}ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(e.x-10,e.y-16,20,3);ctx.fillStyle='#fff';ctx.fillRect(e.x-10,e.y-16,20*Math.max(0,e.hp/e.max),3);}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.min(1,p.t*2);ctx.fillStyle=p.c;ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);kills=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,kills,goal,gold}}};
 
