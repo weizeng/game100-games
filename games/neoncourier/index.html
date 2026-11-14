@@ -449,12 +449,12 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🏙<b id="lvT">1</b></span><span>📦<b id="ordT">0</b></span><span>⏱<b id="timeT">0</b></span><span>🚀<b id="nitroT">1</b></span></span>
-    <span class="tools"><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="pad"><button class="ghost" id="bL" aria-label="左转">◀</button><button id="bG" class="btn" aria-label="油门">⛽ 油门</button><button class="ghost" id="bN" aria-label="氮气">🚀</button><button class="ghost" id="bR" aria-label="右转">▶</button></div>
 </div>
-<div class="overlay" id="startScr"><h1>🛵 霓虹速递</h1><p>在霓虹城里取件送件、和时间赛跑！<br>15 个城区：车流、易碎件、加急单、巡警，<br>还有 3 场警长追捕首领战。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始接单</button></div>
+<div class="overlay" id="startScr"><h1>🛵 霓虹速递</h1><p>在霓虹城里取件送件、和时间赛跑！v4（Gemini 优化：3 大城区霓虹主题、送达光环波纹、氮气尾焰与 1×/2× 倍速）。<br>15 个城区：车流、易碎件、加急单、巡警，<br>还有 3 场警长追捕首领战。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始接单</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择城区</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择城区</button><button class="iconbtn muteBtn">🔊</button></div></div>
@@ -497,7 +497,8 @@ const LV=NAMES.map((n,i)=>({n,boss:(i+1)%5===0,need:4+Math.floor(i*.36),time:Mat
 LV.forEach(l=>{if(l.boss){l.need=Math.max(4,l.need-1);l.time+=10;l.police=Math.max(0,l.police-1);}});
 const UPS=[{k:'eng',n:'⚙️ 引擎',d:'极速 +12%',c:60,max:3},{k:'grip',n:'🛞 轮胎',d:'转向更灵活',c:45,max:3},{k:'nitro',n:'🚀 氮气瓶',d:'每局氮气 +1',c:70,max:2},{k:'time',n:'⏱ 导航',d:'时间 +5 秒',c:50,max:3}];
 let save=Store.get('save',{stars:[],cash:0,up:{eng:0,grip:0,nitro:0,time:0},tut:0});
-let state='menu',li=0,L=null,blocks=[],car,traffic=[],police=[],boss=null,order=null,time=0,done=0,nitro=0,nitroT=0,cash=0,catches=0,sparks=[],floats=[],keys={l:0,r:0,g:0},touch=null,t=0,FAST=false,cool=0,broke=0,grid=null;
+const DISTRICTS=[['#2a2d4a','#14152a'],['#18304d','#0a1224'],['#451d47','#180820']];
+let state='menu',li=0,L=null,blocks=[],car,traffic=[],police=[],boss=null,order=null,time=0,done=0,nitro=0,nitroT=0,cash=0,catches=0,sparks=[],floats=[],waves=[],ntrail=[],spdMul=1,keys={l:0,r:0,g:0},touch=null,t=0,FAST=false,cool=0,broke=0,grid=null;
 function mkMap(seed){const r=mkRng(seed);blocks=[];for(let row=0;row<4;row++)for(let c=0;c<3;c++){const x=ST+c*(CW+ST),y=ST+row*(CH+ST);blocks.push({x,y,w:CW,h:CH,hue:['#ff4d8d','#4fc3f7','#2ee6a0','#ffc531','#b65cff'][(row*3+c+seed)%5],win:Math.floor(r()*4)});}
  const rm=Math.floor(r()*2);for(let k=0;k<rm;k++)blocks.splice(Math.floor(r()*blocks.length),1);
  if(r()<.6){const b=blocks[Math.floor(r()*blocks.length)];const nb=blocks.find(q=>q!==b&&q.y===b.y&&Math.abs(q.x-(b.x+CW+ST))<1);if(nb){b.w+=ST+CW;blocks.splice(blocks.indexOf(nb),1);}}
@@ -510,7 +511,7 @@ function path(sx,sy,tx,ty){const {G,gw,gh,free}=grid;const s=Math.floor(sy/G)*gw
 const rnd=(a,b)=>a+Math.random()*(b-a);
 function streetPt(){for(let k=0;k<80;k++){const vert=Math.random()<.5;const x=vert?ST/2+Math.floor(Math.random()*4)*(CW+ST):rnd(20,W-20),y=vert?rnd(20,H-20):ST/2+Math.floor(Math.random()*5)*(CH+ST);if(!hit(x,y,14)&&Math.hypot(x-car.x,y-car.y)>150)return{x,y};}return{x:ST/2,y:H/2};}
 function newOrder(){const p=streetPt(),d=streetPt();const r=Math.random();order={p,d,has:false,fragile:r<L.fragile,express:r>=L.fragile&&r<L.fragile+L.express,et:0};}
-function startLevel(i){li=i;L=LV[i];mkMap(L.seed);car={x:ST/2,y:H-ST/2,a:-Math.PI/2,v:0};time=L.time+save.up.time*5;done=0;nitro=1+save.up.nitro;nitroT=0;cash=0;catches=0;cool=0;broke=0;t=0;keys={l:0,r:0,g:0};touch=null;sparks=[];floats=[];
+function startLevel(i){li=i;L=LV[i];mkMap(L.seed);car={x:ST/2,y:H-ST/2,a:-Math.PI/2,v:0};time=L.time+save.up.time*5;done=0;nitro=1+save.up.nitro;nitroT=0;cash=0;catches=0;cool=0;broke=0;t=0;keys={l:0,r:0,g:0};touch=null;sparks=[];floats=[];waves=[];ntrail=[];
  traffic=[];for(let k=0;k<L.traffic;k++){const vert=k%2===0;const lane=vert?Math.floor(Math.random()*4):Math.floor(Math.random()*5);traffic.push(vert?{x:ST/2+lane*(CW+ST)+(Math.random()<.5?-7:7),y:rnd(0,H),vx:0,vy:(Math.random()<.5?-1:1)*rnd(50,80)}:{x:rnd(0,W),y:ST/2+lane*(CH+ST)+(Math.random()<.5?-7:7),vx:(Math.random()<.5?-1:1)*rnd(50,80),vy:0});}
  police=[];for(let k=0;k<L.police;k++){police.push({x:W-ST/2,y:ST/2+k*(CH+ST),v:95+li*3,p:null,pt:0,chief:false});}
  boss=L.boss?{x:W-ST/2,y:ST/2,v:118+li*3,p:null,pt:0,chief:true}:null;if(boss)police.push(boss);
@@ -530,8 +531,11 @@ function tick(dt){if(state!=='play')return;t+=dt;time-=dt;if(cool>0)cool-=dt;if(
   if(cool<=0&&Math.abs(c.x-car.x)<(c.vx?20:13)&&Math.abs(c.y-car.y)<(c.vy?20:13)){cool=1;car.v=-60;time-=2;noise(.18,.14,500);float(car.x,car.y-20,'-2s 追尾','#ff4d6e');if(FX)FX.burst(sparks,car.x,car.y,'#ffc531',12);breakFragile();}}
  for(const p of police){p.pt-=dt;if(p.pt<=0||!p.p||!p.p.length){p.p=path(p.x,p.y,car.x,car.y)||[];p.pt=.6;}const w=p.p[0];if(w){const dx=w.x-p.x,dy=w.y-p.y,dd=Math.hypot(dx,dy);const sp=p.v*(p.stun>0?.2:1)*dt;if(dd<sp+1)p.p.shift();else{p.x+=dx/dd*sp;p.y+=dy/dd*sp;}}if(p.stun>0)p.stun-=dt;
   if(Math.hypot(p.x-car.x,p.y-car.y)<20&&cool<=0&&!(p.stun>0)){cool=1.5;p.stun=2.5;time-=p.chief?3:5;tone(900,.3,'sawtooth',.05,500);float(car.x,car.y-20,p.chief?'👮 被警长抓到！':'-5s 罚单','#ff4d6e');breakFragile();if(p.chief){catches++;if(catches>=3){end(false);return;}}}}
- if(order){if(order.express&&order.has)order.et+=dt;const tg=order.has?order.d:order.p;if(Math.hypot(car.x-tg.x,car.y-tg.y)<22){if(!order.has){order.has=true;tone(500,.12,'square',.05,900);float(tg.x,tg.y-20,order.fragile?'📦 易碎！慢点开':order.express?'⚡ 加急 12 秒':'取件！','#ffe066');}
-  else{let earn=20;if(order.express&&order.et<=12){earn+=15;time+=4;float(tg.x,tg.y-34,'⚡ 准时 +4s','#2ee6a0');}if(order.fragile)earn+=15;cash+=earn;done++;tone(660,.1,'triangle');tone(990,.2,'triangle',.08,0,.1);if(FX)FX.burst(sparks,tg.x,tg.y,'#2ee6a0',16);float(tg.x,tg.y-20,'+$'+earn,'#2ee6a0');hud();if(done>=L.need){end(true);return;}newOrder();}}}
+ if(order){if(order.express&&order.has)order.et+=dt;const tg=order.has?order.d:order.p;if(Math.hypot(car.x-tg.x,car.y-tg.y)<22){if(!order.has){order.has=true;waves.push({x:tg.x,y:tg.y,r:10,c:'#ffe066',a:1});tone(500,.12,'square',.05,900);float(tg.x,tg.y-20,order.fragile?'📦 易碎！慢点开':order.express?'⚡ 加急 12 秒':'取件！','#ffe066');}
+  else{let earn=20;if(order.express&&order.et<=12){earn+=15;time+=4;float(tg.x,tg.y-34,'⚡ 准时 +4s','#2ee6a0');}if(order.fragile)earn+=15;cash+=earn;done++;waves.push({x:tg.x,y:tg.y,r:12,c:'#2ee6a0',a:1});tone(660,.1,'triangle');tone(990,.2,'triangle',.08,0,.1);if(FX)FX.burst(sparks,tg.x,tg.y,'#2ee6a0',16);float(tg.x,tg.y-20,'+$'+earn,'#2ee6a0');hud();if(done>=L.need){end(true);return;}newOrder();}}}
+ if(nitroT>0&&Math.random()<.75)ntrail.push({x:car.x-Math.cos(car.a)*12,y:car.y-Math.sin(car.a)*12,r:6,a:.75});
+ waves=waves.filter(w=>{w.r+=dt*95;w.a-=dt*2.4;return w.a>0;});
+ ntrail=ntrail.filter(n=>{n.r=Math.max(1,n.r-dt*10);n.a-=dt*2.4;return n.a>0;});
  for(const f of floats){f.y-=30*dt;f.l-=dt*.8;}floats=floats.filter(f=>f.l>0);
  if(time<=0){time=0;hud();end(false);return;}if(Math.floor(t*4)!==Math.floor((t-dt)*4))hud();}
 function end(ok){if(state!=='play')return;state='over';const tl=Math.ceil(time);let st=0;
@@ -546,14 +550,16 @@ cv.addEventListener('pointerdown',e=>{e.preventDefault();audio();touch=posOf(e,c
 addEventListener('keydown',e=>{if(e.key==='ArrowLeft')keys.l=1;if(e.key==='ArrowRight')keys.r=1;if(e.key==='ArrowUp')keys.g=1;if(e.key===' ')useNitro();});addEventListener('keyup',e=>{if(e.key==='ArrowLeft')keys.l=0;if(e.key==='ArrowRight')keys.r=0;if(e.key==='ArrowUp')keys.g=0;});
 // 绘制
 function carArt(x,y,a,col,icon){ctx.save();ctx.translate(x,y);ctx.rotate(a);if(FX)FX.shadow(ctx,2,4,15,8);if(FX)FX.tile(ctx,-14,-9,28,18,col,6);else{ctx.fillStyle=col;ctx.fillRect(-14,-9,28,18);}ctx.fillStyle='rgba(255,255,255,.7)';ctx.fillRect(4,-6,5,12);ctx.restore();if(icon)txt(ctx,icon,x,y,12);}
-function draw(){if(FX)FX.stage(ctx,W,H,'#2a2d4a','#14152a');else{ctx.fillStyle='#1a1b30';ctx.fillRect(0,0,W,H);}if(!L){txt(ctx,'🛵',W/2,H/2,80);return;}
+function draw(){const dtc=DISTRICTS[Math.floor(li/5)%3];if(FX)FX.stage(ctx,W,H,dtc[0],dtc[1]);else{ctx.fillStyle=dtc[1];ctx.fillRect(0,0,W,H);}if(!L){txt(ctx,'🛵',W/2,H/2,80);return;}
  ctx.strokeStyle='rgba(255,255,255,.18)';ctx.setLineDash([8,10]);ctx.lineWidth=2;for(let c=0;c<4;c++){const x=ST/2+c*(CW+ST);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}for(let r=0;r<5;r++){const y=ST/2+r*(CH+ST);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}ctx.setLineDash([]);
  for(const b of blocks){if(FX)FX.tile(ctx,b.x,b.y,b.w,b.h,b.hue,12);else{ctx.fillStyle=b.hue;ctx.fillRect(b.x,b.y,b.w,b.h);}ctx.fillStyle='rgba(255,255,255,.25)';for(let yy=b.y+14;yy<b.y+b.h-14;yy+=18)for(let xx=b.x+12;xx<b.x+b.w-12;xx+=16)if((xx*7+yy*3+b.win)%5<3)ctx.fillRect(xx,yy,7,9);}
  if(order){const tg=order.has?order.d:order.p,pulse=1+.15*Math.sin(t*6);if(FX)FX.glow(ctx,order.has?'#2ee6a0':'#ffe066',20);ctx.strokeStyle=order.has?'#2ee6a0':'#ffe066';ctx.lineWidth=4;ctx.beginPath();ctx.arc(tg.x,tg.y,18*pulse,0,7);ctx.stroke();if(FX)FX.noGlow(ctx);txt(ctx,order.has?'🏠':(order.fragile?'🥚':order.express?'⚡':'📦'),tg.x,tg.y,18);
   const a=Math.atan2(tg.y-car.y,tg.x-car.x);ctx.fillStyle='rgba(255,255,255,.85)';ctx.save();ctx.translate(car.x+Math.cos(a)*30,car.y+Math.sin(a)*30);ctx.rotate(a);ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(-5,-6);ctx.lineTo(-5,6);ctx.fill();ctx.restore();}
  for(const c of traffic)carArt(c.x,c.y,Math.atan2(c.vy,c.vx),'#8e9ab8');
  for(const p of police){carArt(p.x,p.y,p.p&&p.p[0]?Math.atan2(p.p[0].y-p.y,p.p[0].x-p.x):0,p.chief?'#222':'#e8ecff',p.chief?'👮':'');ctx.fillStyle=Math.sin(t*12)>0?'#ff3d6e':'#4fc3f7';ctx.beginPath();ctx.arc(p.x,p.y-12,3.5,0,7);ctx.fill();if(p.stun>0)txt(ctx,'💫',p.x,p.y-22,12);}
+ for(const n of ntrail){ctx.save();ctx.globalAlpha=Math.max(0,n.a);ctx.fillStyle='#4fc3f7';ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,7);ctx.fill();ctx.restore();}
  if(nitroT>0&&FX)FX.glow(ctx,'#4fc3f7',22);carArt(car.x,car.y,car.a,order&&order.has?'#2ee6a0':'#ff4d8d');if(FX)FX.noGlow(ctx);if(cool>0&&Math.sin(t*30)>0){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(car.x,car.y,18,0,7);ctx.stroke();}
+ for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();ctx.restore();}
  if(FX)FX.drawBurst(ctx,sparks);for(const f of floats){ctx.globalAlpha=clamp(f.l,0,1);otxt(ctx,f.s,f.x,f.y,13,f.c);}ctx.globalAlpha=1;
  if(order&&order.express&&order.has){otxt(ctx,'⚡ 加急 '+Math.max(0,12-order.et).toFixed(1)+'s',W/2,16,14,order.et<=12?'#ffe066':'#ff8a8a');}
  if(boss)otxt(ctx,'👮 被抓 '+catches+'/3',W-60,16,13,'#fff');
@@ -571,7 +577,8 @@ function pause(){if(state==='play'){state='pause';keys={l:0,r:0,g:0};touch=null;
 $('pauseBtn').onclick=pause;$('resumeBtn').onclick=()=>{show('pauseOv',false);state='play';last=performance.now();};$('restartBtn').onclick=()=>startLevel(li);$('menuBtn').onclick=openLevels;
 $('nextBtn').onclick=()=>startLevel(li+1);$('againBtn').onclick=()=>startLevel(li);$('menu2Btn').onclick=openLevels;
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
-let last=performance.now();function frame(tm){const dt=Math.min(.04,(tm-last)/1000);last=tm;tick(dt);draw();requestAnimationFrame(frame);}
+$('spdBtn').onclick=()=>{spdMul=spdMul===1?2:1;$('spdBtn').textContent=spdMul+'×';};
+let last=performance.now();function frame(tm){const dt=Math.min(.04,(tm-last)/1000);last=tm;for(let k=0;k<spdMul;k++)tick(dt);draw();requestAnimationFrame(frame);}
 fit();requestAnimationFrame(frame);
 window.__nc={LV,startLevel,tick,path,setFast:v=>FAST=v,setTouch:p=>touch=p,useNitro,get s(){return{state,li,done,time,catches,car,order,broke}}};
 </script>

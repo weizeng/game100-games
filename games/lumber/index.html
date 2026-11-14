@@ -461,15 +461,15 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🪓<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span id="hitLbl">值 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">目标</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   
   <div class="aids"><button class="btn" id="btnL" style="flex:1">◀ 左砍</button><button class="btn" id="btnR" style="flex:1">右砍 ▶</button></div>
-  <div class="hint">点左/右砍向那侧 · 躲开同侧树枝</div>
+  <div class="hint">点左/右砍向那侧 · 躲开同侧树枝 · 顺手砍金果加分</div>
 </div>
-<div class="overlay" id="startScr"><h1>🪓 砍树工</h1><p>15 关左右砍树躲枝：速度与枝密度上升。<br>第 5/10/15 关树魔首领！可升级护盾、慢动作、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始</button></div>
+<div class="overlay" id="startScr"><h1>🪓 砍树工</h1><p>15 关左右砍树躲枝：速度与枝密度上升，v8（Gemini 优化：3 大林海主题、金果加分收集、砍树光环飘字与 1×/2× 倍速）。<br>第 5/10/15 关树魔首领！可升级护盾、慢动作、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -594,11 +594,18 @@ const LV=[
  {need:32,spd:.95,dens:.62},{need:35,spd:1.0,dens:.65},{need:38,spd:1.05,dens:.68},{need:40,spd:1.1,dens:.7},
  {boss:{name:'终末巨树魔',need:36,spd:1.25,dens:.9}}
 ];
-let L,side,segs,chopped,need,lives,score,ended,boss,inv,sparks,slowT,raf=0,last=0,fast=1;
-function start(i){L=LV[i];const b=L.boss||L;ended=false;score=0;chopped=0;need=b.need;lives=3+Kit.up('life');boss=L.boss?{name:L.boss.name}:null;side=0;inv=0;slowT=0;sparks=[];
+const WOODS=[
+  {c1:'#2e7d32',c2:'#1b5e20',bark:'#795548',seg:'#8d6e63'},
+  {c1:'#e65100',c2:'#4e342e',bark:'#6d4c41',seg:'#a1887f'},
+  {c1:'#283593',c2:'#0d1333',bark:'#455a64',seg:'#607d8b'}
+];
+let L,side,segs,chopped,need,lives,score,combo,rings,pops,ended,boss,inv,sparks,slowT,raf=0,last=0,fast=1;
+function addRing(x,y,c){rings.push({x,y,r:8,c,a:1});}
+function addPop(x,y,t,c){pops.push({x,y,t,c:c||'#fff',a:1});}
+function start(i){L=LV[i];const b=L.boss||L;ended=false;score=0;chopped=0;combo=0;rings=[];pops=[];need=b.need;lives=3+Kit.up('life');boss=L.boss?{name:L.boss.name}:null;side=0;inv=0;slowT=0;sparks=[];
   segs=[];for(let k=0;k<8;k++)pushSeg();
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
-function pushSeg(){const dens=(L.boss||L).dens;const br=Math.random()<dens?(Math.random()<.5?-1:1):0;segs.push({br});}
+function pushSeg(){const dens=(L.boss||L).dens;const br=Math.random()<dens?(Math.random()<.5?-1:1):0;const fruit=br&&Math.random()<.28?-br:0;segs.push({br,fruit});}
 function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('hitT').textContent=chopped+'/'+need;$('score').textContent=score;
   $('hitLbl').innerHTML='砍 <b id="hitT">'+chopped+'/'+need+'</b>';
   $('goalLbl').textContent=boss?'👑 '+boss.name:'连砍';$('progI').style.width=Math.min(100,chopped/need*100)+'%';
@@ -607,22 +614,27 @@ function endLv(won,why){if(ended)return;ended=true;
   if(won){const st=lives>=3?3:lives>=2?2:1;setTimeout(()=>Kit.win(st,score,boss?'击败 '+boss.name:'砍树 '+chopped),280);}
   else setTimeout(()=>Kit.lose(why||'被砸',score),250);}
 function chop(dir){if(Kit.state!=='play'||ended)return;side=dir;const top=segs[0];
-  if(top&&top.br===dir&&inv<=0){lives--;inv=.6+Kit.up('shield')*.3;Kit.sfx('bad');Kit.vibrate(80);if(FX)FX.burst(sparks,W/2,H-80,'#ef5350',8);if(lives<=0)return endLv(false,'树枝砸中');}
-  else{chopped++;score+=10+chopped;Kit.sfx('hit');if(FX)FX.burst(sparks,W/2+(dir*40),H-100,'#a5d6a7',6);}
+  if(top&&top.br===dir&&inv<=0){combo=0;lives--;inv=.6+Kit.up('shield')*.3;Kit.sfx('bad');Kit.vibrate(80);addRing(W/2+dir*36,H-80,'#ef5350');addPop(W/2+dir*36,H-108,'被砸!','#ef5350');if(FX)FX.burst(sparks,W/2,H-80,'#ef5350',8);if(lives<=0)return endLv(false,'树枝砸中');}
+  else{chopped++;combo++;const bonus=(top&&top.fruit===dir)?30:0;const pts=10+Math.min(30,combo*2)+bonus;score+=pts;Kit.sfx(bonus?'combo':'hit');
+    addRing(W/2+dir*20,H-100,bonus?'#ffd54f':'#a5d6a7');addPop(W/2+dir*36,H-110,bonus?'🍎 +'+pts:(combo>2?'🔥×'+combo+' +'+pts:'+'+pts),bonus?'#ffd54f':'#fff');
+    if(FX)FX.burst(sparks,W/2+(dir*40),H-100,bonus?'#ffd54f':'#a5d6a7',bonus?12:6);}
   segs.shift();pushSeg();hud();if(chopped>=need)endLv(true);}
 $('btnL').onclick=()=>chop(-1);$('btnR').onclick=()=>chop(1);
 cv.addEventListener('pointerdown',e=>{if(Kit.state!=='play'||ended)return;const r=cv.getBoundingClientRect();const x=e.clientX-r.left;chop(x<r.width/2?-1:1);});
 document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')chop(-1);if(e.key==='ArrowRight'||e.key==='d')chop(1);});
-function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended){if(inv>0)inv-=dt;if(slowT>0)slowT-=dt;}draw();raf=requestAnimationFrame(frame);}
+function frame(t){const dt=Math.min(.033,(t-last)/1000)*fast;last=t;if(Kit.state==='play'&&!ended){if(inv>0)inv-=dt;if(slowT>0)slowT-=dt;rings=rings.filter(r=>{r.r+=dt*90;r.a-=dt*2.5;return r.a>0;});pops=pops.filter(p=>{p.y-=dt*30;p.a-=dt*1.6;return p.a>0;});}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#2e7d32','#1b5e20');else{ctx.fillStyle='#1b5e20';ctx.fillRect(0,0,W,H);}
-  // trunk
-  ctx.fillStyle='#6d4c41';ctx.fillRect(W/2-28,40,56,H-100);
-  segs.forEach((s,i)=>{const y=H-120-i*48;ctx.fillStyle='#8d6e63';ctx.fillRect(W/2-30,y,60,44);
+  const wd=WOODS[Math.min(2,(Kit.lv/5)|0)];
+  if(FX)FX.stage(ctx,W,H,wd.c1,wd.c2);else{ctx.fillStyle=wd.c2;ctx.fillRect(0,0,W,H);}
+  if(FX)FX.tile(ctx,W/2-28,40,56,H-100,wd.bark,6);else{ctx.fillStyle=wd.bark;ctx.fillRect(W/2-28,40,56,H-100);}
+  segs.forEach((s,i)=>{const y=H-120-i*48;if(FX)FX.tile(ctx,W/2-30,y,60,44,wd.seg,6);else{ctx.fillStyle=wd.seg;ctx.fillRect(W/2-30,y,60,44);}
     if(s.br){ctx.font='28px serif';ctx.textAlign='center';ctx.fillText('🌿',W/2+s.br*50,y+28);}
+    if(s.fruit){ctx.font='20px serif';ctx.textAlign='center';ctx.fillText('🍎',W/2+s.fruit*46,y+26);}
   });
-  const px=W/2+side*36,py=H-70;if(inv>0&&(inv*10|0)%2===0)ctx.globalAlpha=.5;
+  const px=W/2+side*36,py=H-70;if(FX)FX.shadow(ctx,px,py+10,16,5,.35);if(inv>0&&(inv*10|0)%2===0)ctx.globalAlpha=.5;
   ctx.font='40px serif';ctx.textAlign='center';ctx.fillText('🪓',px,py);ctx.globalAlpha=1;
+  for(const r of rings){ctx.save();ctx.globalAlpha=Math.max(0,r.a);ctx.strokeStyle=r.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,7);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layoutFit(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
@@ -639,6 +651,7 @@ Kit.init({id:'lumber',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start
 window.__T.state=()=>({chopped,need,lives,ended,dens:(L&&(L.boss||L).dens)||0});
 window.__T.cheatWin=()=>{chopped=need;score+=200;endLv(true);};
 window.__T.solve=()=>{if(ended||Kit.state!=='play')return;const top=segs[0];const dir=top&&top.br? -top.br : (Math.random()<.5?-1:1);chop(dir);};
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 window.__T.fast=k=>{fast=k;};
 
 </script>
