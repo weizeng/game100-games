@@ -450,6 +450,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🌿 藤蔓攀升</span>
     <span class="stat">得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -457,7 +458,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">按住左右攀藤 · 避刺</p>
 </div>
-<div class="overlay" id="startScr"><h1>🌿 藤蔓攀升</h1><p>按住屏幕左右攀爬藤蔓，踩枝条借力上窜。<br>避开荆棘，体力耗尽会坠落。<br>15 关枝距与刺密度递增。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🌿 藤蔓攀升</h1><p>按住屏幕左右攀爬藤蔓，踩枝条借力上窜，v4（Gemini 优化：3 大林境主题、体力果补给与弹升光环飘字、1×/2× 倍速）。<br>避开荆棘，体力耗尽会坠落。15 关枝距与刺密度递增。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -492,9 +493,10 @@ const TUT=[["攀爬","按住左/右移动，踩到枝条会弹升。"],["荆棘"
 const SHOP=[{k:'stamLv',name:'耐力强化',max:4,cost(){return 40+(prog.stamLv|0)*30;},desc(){return '体力上限提升';}},{k:'gripLv',name:'抓握加宽',max:3,cost(){return 45+(prog.gripLv|0)*35;},desc(){return '枝条判定加宽';}},{k:'spdLv',name:'侧移加速',max:3,cost(){return 50+(prog.spdLv|0)*35;},desc(){return '左右移动更快';}}];
 
 
-let px=W/2,py=H-40,vx=0,vy=0,hold=0,branches=[],thorns=[],goalY=40,fuel=100;
+const FORESTS=[['#93e46c','#16a37a','#2d6a4f'],['#ffb74d','#5d4037','#4e342e'],['#4dd0e1','#1a237e','#263238']];
+let px=W/2,py=H-40,vx=0,vy=0,hold=0,branches=[],thorns=[],fruits=[],waves=[],pops=[],spdMul=1,goalY=40,fuel=100;
 function startLevel(n){
-  lvl=n|0;boss=lvl%5===0;score=0;sparks=[];vx=0;vy=0;hold=0;fuel=100+(prog.stamLv|0)*15;goalY=40;branches=[];thorns=[];
+  lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];fruits=[];vx=0;vy=0;hold=0;fuel=100+(prog.stamLv|0)*15;goalY=40;branches=[];thorns=[];
   const rng=mulberry32(lvl*401);
   const gap=Math.max(18,28-Math.min(10,lvl));
   const startY=H-70;
@@ -511,6 +513,7 @@ function startLevel(n){
       if(Math.abs(y-startY)<12) continue;
       thorns.push({x:tx,y:y-10,r:10});
     }
+    if(rng()<0.28)fruits.push({x:bx+bw/2,y:y-18,got:false});
   }
   px=W/2;py=startY-8;
   show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);
@@ -521,7 +524,10 @@ function update(dt){fuel-=dt*(2.2+lvl*0.1);if(fuel<=0){lose('体力耗尽');retu
   px+=vx*dt;if(px<20)px=20;if(px>W-20)px=W-20;
   py+=vy*dt;
   const br=branches.find(b=>Math.abs(b.y-py)<16&&px>b.x-5&&px<b.x+b.w+5);
-  if(br){vy=-90-lvl*2;py=br.y-8;score+=2;}else{vy+=220*dt;if(vy>220)vy=220;}
+  if(br){if(vy>0){waves.push({x:px,y:br.y,r:8,c:'#a5d6a7',a:.9});if(FX)FX.burst(sparks,px,br.y,'#a5d6a7',5);}vy=-90-lvl*2;py=br.y-8;score+=2;}else{vy+=220*dt;if(vy>220)vy=220;}
+  for(const fr of fruits){if(!fr.got&&Math.hypot(px-fr.x,py-fr.y)<22){fr.got=true;fuel=Math.min(120,fuel+22);score+=25;beep(980,.06);waves.push({x:fr.x,y:fr.y,r:8,c:'#ff8a65',a:1});pops.push({x:fr.x,y:fr.y-12,t:'+22体力',c:'#ffd54f',a:1});if(FX)FX.burst(sparks,fr.x,fr.y,'#ffd54f',8);}}
+  waves=waves.filter(w=>{w.r+=dt*85;w.a-=dt*2.4;return w.a>0;});
+  pops=pops.filter(p=>{p.y-=dt*28;p.a-=dt*1.5;return p.a>0;});
   for(const t of thorns){if(Math.hypot(px-t.x,py-t.y)<t.r+8){lose('扎到荆棘');return;}}
   if(py<goalY+20)win();
   if(py>H+20)lose('跌落');
@@ -531,13 +537,16 @@ function win(){if(state!=='play')return;const stars=fuel>50?3:fuel>25?2:1;const 
 function lose(msg){if(state!=='play')return;finishLose(msg);}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);hold=p.x<W/2?-1:1;});
 cv.addEventListener('pointerup',()=>hold=0);cv.addEventListener('pointercancel',()=>hold=0);
-function draw(){if(FX)FX.stage(ctx,W,H,'#93e46c','#16a37a');else{ctx.fillStyle='#16a37a';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+function draw(){const fr=FORESTS[Math.min(2,((lvl-1)/5)|0)];if(FX)FX.stage(ctx,W,H,fr[0],fr[1]);else{ctx.fillStyle=fr[1];ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('体力'+(fuel|0)+(boss?' 👑':''),10,22);
-  ctx.strokeStyle='#2d6a4f';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(W/2,H);ctx.lineTo(W/2,40);ctx.stroke();
-  for(const b of branches){ctx.fillStyle='#8b5a2b';ctx.fillRect(b.x,b.y,b.w,10);if(FX)FX.shadow(ctx,b.x+b.w/2,b.y+12,b.w/3,4);}
-  for(const t of thorns){ctx.fillStyle='#c1121f';ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,7);ctx.fill();}
+  ctx.strokeStyle=fr[2];ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(W/2,H);ctx.lineTo(W/2,40);ctx.stroke();
+  for(const b of branches){if(FX)FX.tile(ctx,b.x,b.y,b.w,10,'#8b5a2b',4);else{ctx.fillStyle='#8b5a2b';ctx.fillRect(b.x,b.y,b.w,10);}if(FX)FX.shadow(ctx,b.x+b.w/2,b.y+12,b.w/3,4);}
+  for(const t of thorns){if(FX){FX.glow(ctx,'#ff1744',5);FX.orb(ctx,t.x,t.y,t.r,'#c1121f');FX.noGlow(ctx);}else{ctx.fillStyle='#c1121f';ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,7);ctx.fill();}}
+  for(const f of fruits){if(f.got)continue;if(FX){FX.glow(ctx,'#ffd54f',6);FX.orb(ctx,f.x,f.y,8,'#ff7043');FX.noGlow(ctx);}ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('🍓',f.x,f.y+4);}
   if(FX){FX.shadow(ctx,px,py+12,12,5);FX.orb(ctx,px,py,12,'#ffcf33');}else{ctx.fillStyle='#ffcf33';ctx.beginPath();ctx.arc(px,py,12,0,7);ctx.fill();}
   ctx.fillStyle='#ffe08a';ctx.fillRect(20,goalY,W-40,6);
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);py=goalY;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,fuel:fuel|0,py:py|0}}};
 
@@ -549,6 +558,7 @@ function openLevels(){state='menu';show('startScr',false);show('shopScr',false);
 function enter(n){const go=()=>startLevel(n);if(!prog.seenTut){prog.seenTut=1;saveProg(prog);tutorial(TUT,go);}else go();}
 function openShop(){show('lvlScr',false);show('shopScr',true);$('coinLine').textContent='金币：'+prog.coins;const box=$('shopList');box.innerHTML='';for(const it of SHOP){if(prog[it.k]==null)prog[it.k]=0;const row=document.createElement('div');row.className='row';row.innerHTML='<div><b>'+it.name+'</b><br><small>'+it.desc()+'</small></div>';const btn=document.createElement('button');btn.className='btn';const maxed=prog[it.k]>=it.max;const cost=it.cost();btn.textContent=maxed?'满':cost+'币';btn.disabled=maxed||prog.coins<cost;btn.onclick=()=>{prog.coins-=cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();};row.appendChild(btn);box.appendChild(row);}}
 $('startBtn').onclick=openLevels;$('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
+$('spdBtn').onclick=()=>{spdMul=spdMul===1?2:1;$('spdBtn').textContent=spdMul+'×';};
 $('shopBtn').onclick=openShop;$('shopBack').onclick=openLevels;
 $('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};
 $('resumeBtn').onclick=()=>{state='play';last=performance.now();show('pauseOv',false);};
@@ -557,7 +567,7 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')for(let k=0;k<spdMul;k++)update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>

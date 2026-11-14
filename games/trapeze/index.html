@@ -459,13 +459,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🎪<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>跃 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">飞跃</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">荡到前方时点按跃出 · 接住下一杠并抓金环</div>
 </div>
-<div class="overlay" id="startScr"><h1>🎪 空中飞人</h1><p>15 关荡杠接力：间距升、金环必抓。<br>第 5/10/15 关摆幅乱/双环/终极大棚！可升级抓距、金环磁、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始飞跃</button></div>
+<div class="overlay" id="startScr"><h1>🎪 空中飞人</h1><p>15 关荡杠接力：间距升、金环必抓，v6（Gemini 优化：3 大马戏大棚主题、接杠与金环光环飘字、角色拖尾与 1×/2× 倍速）。<br>第 5/10/15 关摆幅乱/双环/终极大棚！可升级抓距、金环磁、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始飞跃</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -589,9 +589,10 @@ const LV=[
  {need:8,gap:130,amp:1.05,rings:4},{need:9,gap:135,amp:1.1,rings:4},{need:9,gap:140,amp:1.1,rings:5},{need:10,gap:145,amp:1.15,rings:5},
  {boss:{name:'终极大棚',need:8,gap:140,amp:1.3,rings:6,hp:1}}
 ];
-let L,bars,pl,flying,lives,score,ended,raf=0,last=0,fast=1,need,caught,ringsGot,needRings,boss,grabR,sparks,magnet;
+const TENTS=[['#4a148c','#1a0033'],['#880e4f','#2a061b'],['#1a237e','#050824']];
+let L,bars,pl,flying,lives,score,ended,raf=0,last=0,fast=1,need,caught,ringsGot,needRings,boss,grabR,sparks,waves,pops,trail,magnet;
 function mkBar(x,amp){return{x,len:110,ang:-amp,w:amp*1.6*(Math.random()<.5?1:-1),ring:false,ringGot:false};}
-function start(i){L=LV[i];score=0;ended=false;caught=0;ringsGot=0;flying=null;sparks=[];lives=3+Kit.up('life');
+function start(i){L=LV[i];score=0;ended=false;caught=0;ringsGot=0;flying=null;sparks=[];waves=[];pops=[];trail=[];lives=3+Kit.up('life');
   const b=L.boss||L;need=b.need;needRings=b.rings;grabR=36+Kit.up('grab')*8;magnet=Kit.up('magnet')*12;
   bars=[];let x=80;for(let k=0;k<need+3;k++){const bar=mkBar(x,b.amp);if(k>0&&needRings>0&&k<=needRings)bar.ring=true;bars.push(bar);x+=b.gap;}
   pl={bar:0,t:0};boss=L.boss?{name:L.boss.name}:null;
@@ -603,11 +604,16 @@ cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||
 function upd(dt){if(ended)return;
   for(const b of bars){b.ang+=b.w*dt;if(Math.abs(b.ang)>(L.boss||L).amp)b.w*=-1;}
   if(flying){flying.t+=dt;flying.x+=flying.vx*dt;flying.y+=flying.vy*dt;flying.vy+=420*dt;
+    trail.push({x:flying.x,y:flying.y,r:6,a:.65});
     const next=bars[pl.bar+1];const np=barPos(next);const reach=grabR+magnet;
     if(Math.hypot(flying.x-np.x,flying.y-np.y)<reach){pl.bar++;caught++;score+=30;flying=null;Kit.sfx('good');
-      if(next.ring&&!next.ringGot){next.ringGot=true;ringsGot++;score+=40;Kit.sfx('coin');if(FX)FX.burst(sparks,np.x,np.y,'#ffd54f',10);}
+      waves.push({x:np.x,y:np.y,r:10,c:'#4fc3f7',a:1});pops.push({x:np.x,y:np.y-18,t:'+30',c:'#4fc3f7',a:1});
+      if(next.ring&&!next.ringGot){next.ringGot=true;ringsGot++;score+=40;Kit.sfx('coin');waves.push({x:np.x,y:np.y-28,r:12,c:'#ffd54f',a:1});pops.push({x:np.x,y:np.y-38,t:'+40💍',c:'#ffd54f',a:1});if(FX)FX.burst(sparks,np.x,np.y,'#ffd54f',10);}
       if(caught>=need&&ringsGot>=needRings)return endLv(true);}
     else if(flying.y>H+20||flying.t>1.6){flying=null;lives--;Kit.sfx('bad');if(lives<=0)return endLv(false,'没接住');}}
+  trail=trail.filter(tr=>{tr.r=Math.max(1,tr.r-dt*10);tr.a-=dt*2.4;return tr.a>0;});
+  waves=waves.filter(w=>{w.r+=dt*95;w.a-=dt*2.4;return w.a>0;});
+  pops=pops.filter(p=>{p.y-=dt*28;p.a-=dt*1.5;return p.a>0;});
   hud();}
 function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('hitT').textContent=caught+'/'+need;$('score').textContent=score;
   $('goalLbl').textContent=boss?'👑 '+boss.name:'飞跃 '+caught+'/'+need;$('progI').style.width=Math.min(100,caught/need*100)+'%';
@@ -617,15 +623,19 @@ function endLv(won,why){if(ended)return;ended=true;flying=null;
   else setTimeout(()=>Kit.lose(why,score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#4a148c','#1a0033');else{ctx.fillStyle='#1a0033';ctx.fillRect(0,0,W,H);}
+  const tn=TENTS[Math.min(2,(Kit.lv/5)|0)];
+  if(FX)FX.stage(ctx,W,H,tn[0],tn[1]);else{ctx.fillStyle=tn[1];ctx.fillRect(0,0,W,H);}
   // shift view
   const focus=bars[Math.min(pl.bar,bars.length-1)];const cam=Math.max(0,focus.x-100);
   ctx.save();ctx.translate(-cam,0);
   for(const b of bars){const p=barPos(b);ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(b.x,40);ctx.lineTo(p.x,p.y);ctx.stroke();
     if(FX)FX.orb(ctx,p.x|0,p.y|0,10,'#ff8a65');else{ctx.fillStyle='#ff8a65';ctx.beginPath();ctx.arc(p.x,p.y,10,0,7);ctx.fill();}
     if(b.ring&&!b.ringGot){ctx.strokeStyle='#ffd54f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(p.x,p.y-28,10,0,7);ctx.stroke();}}
+  for(const tr of trail){ctx.save();ctx.globalAlpha=Math.max(0,tr.a);ctx.fillStyle='#4fc3f7';ctx.beginPath();ctx.arc(tr.x,tr.y,tr.r,0,7);ctx.fill();ctx.restore();}
   let px,py;if(flying){px=flying.x;py=flying.y;}else{const p=barPos(bars[pl.bar]);px=p.x;py=p.y+14;}
   if(FX)FX.orb(ctx,px|0,py|0,12,'#4fc3f7');else{ctx.fillStyle='#4fc3f7';ctx.beginPath();ctx.arc(px,py,12,0,7);ctx.fill();}
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
   ctx.restore();if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
@@ -640,6 +650,7 @@ Kit.init({id:'trapeze',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,star
        {k:'magnet',ic:'🧲',name:'金环磁',desc:'金环更易抓',max:2,cost:l=>26+l*28},
        {k:'life',ic:'❤️',name:'额外命',desc:'+1 命',max:2,cost:l=>32+l*34,stars:5}]});
 window.__T.state=()=>({caught,need,ringsGot,needRings,ended,gap:(L&&(L.boss||L).gap)});
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 window.__T.fast=k=>{fast=k;};
 window.__T.cheatWin=()=>{caught=need;ringsGot=needRings;endLv(true);};
 window.__T.solve=()=>{if(ended||Kit.state!=='play')return;caught=need;ringsGot=needRings;endLv(true);};

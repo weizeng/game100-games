@@ -462,13 +462,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🌋<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>高 <b id="hT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">攀升</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">点按左右跳台 · 向上逃离上涨的熔岩</div>
 </div>
-<div class="overlay" id="startScr"><h1>🌋 火山逃生</h1><p>15 关向上跳台：熔岩更快、台更窄更晃。<br>第 5/10/15 关熔岩巨兽 Boss！可升级弹跳、护盾、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始逃生</button></div>
+<div class="overlay" id="startScr"><h1>🌋 火山逃生</h1><p>15 关向上跳台：熔岩更快、台更窄更晃，v8（Gemini 优化：3 大熔岩层主题、落台波纹与护盾飘字、1×/2× 倍速）。<br>第 5/10/15 关熔岩巨兽 Boss！可升级弹跳、护盾、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始逃生</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -592,8 +592,9 @@ const LV=[
  {need:700,lava:60,pw:48},{need:780,lava:64,pw:46},{need:860,lava:68,pw:44},{need:940,lava:72,pw:42},
  {boss:{name:'火山魔神',need:1100,lava:76,pw:55,rock:1}}
 ];
-let L,pl,plats,cam,height,need,lives,score,ended,raf=0,last=0,fast=1,lavaY,sparks,boss,inv,rocks;
-function start(i){L=LV[i];score=0;ended=false;sparks=[];rocks=[];cam=0;height=0;inv=0;lives=3+Kit.up('life');
+const LAYERS=[['#bf360c','#3e2723'],['#880e4f','#2a061b'],['#4a148c','#1a0026']];
+let L,pl,plats,cam,height,need,lives,score,ended,raf=0,last=0,fast=1,lavaY,sparks,waves,pops,boss,inv,rocks;
+function start(i){L=LV[i];score=0;ended=false;sparks=[];waves=[];pops=[];rocks=[];cam=0;height=0;inv=0;lives=3+Kit.up('life');
   const b=L.boss||L;need=b.need;boss=L.boss?{name:L.boss.name,rock:L.boss.rock}:null;
   pl={x:W/2,y:H-80,vx:0,vy:0,w:24,h:28,on:true};
   lavaY=H+40;plats=[{x:W/2-40,y:H-50,w:80,mov:0}];
@@ -602,13 +603,13 @@ function start(i){L=LV[i];score=0;ended=false;sparks=[];rocks=[];cam=0;height=0;
 cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||ended||!pl.on)return;
   const r=cv.getBoundingClientRect();const x=(e.clientX-r.left)*W/r.width;
   pl.vy=-(520+Kit.up('jump')*40);pl.vx=(x<W/2?-1:1)*(160+Math.abs(x-W/2)*.3);pl.on=false;Kit.sfx('tap');});
-function hit(){if(inv>0)return;if(Kit.up('shield')>0&&Math.random()<.4){inv=1;Kit.toast('护盾！');Kit.sfx('hit');return;}
+function hit(){if(inv>0)return;if(Kit.up('shield')>0&&Math.random()<.4){inv=1;waves.push({x:pl.x,y:pl.y,r:10,c:'#4fc3f7',a:1});pops.push({x:pl.x,y:pl.y-18,t:'🛡️ 挡伤',c:'#4fc3f7',a:1});Kit.toast('护盾！');Kit.sfx('hit');return;}
   lives--;inv=1.2;Kit.sfx('bad');pl.vy=-300;if(lives<=0)endLv(false,'掉进熔岩');}
 function upd(dt){if(ended)return;const b=L.boss||L;
   pl.vy+=900*dt;pl.x+=pl.vx*dt;pl.y+=pl.vy*dt;pl.vx*=0.995;
   if(pl.x<12)pl.x=12;if(pl.x>W-12)pl.x=W-12;
   for(const p of plats){p.x+=p.mov*dt;if(p.x<10||p.x+p.w>W-10)p.mov*=-1;
-    if(pl.vy>0&&pl.y+pl.h/2>p.y-cam&&pl.y+pl.h/2<p.y-cam+12&&pl.x>p.x&&pl.x<p.x+p.w){pl.y=p.y-cam-pl.h/2;pl.vy=0;pl.on=true;}}
+    if(pl.vy>0&&pl.y+pl.h/2>p.y-cam&&pl.y+pl.h/2<p.y-cam+12&&pl.x>p.x&&pl.x<p.x+p.w){if(!pl.on){waves.push({x:pl.x,y:p.y-cam,r:8,c:'#ffd54f',a:.85});if(FX)FX.burst(sparks,pl.x,p.y-cam,'#ffd54f',4);}pl.y=p.y-cam-pl.h/2;pl.vy=0;pl.on=true;}}
   // generate plats above
   while(plats[plats.length-1].y-cam>-100){const last=plats[plats.length-1];plats.push({x:20+Math.random()*(W-20-(b.pw||60)),y:last.y-70-Math.random()*20,w:b.pw||60,mov:(Math.random()-.5)*50});}
   plats=plats.filter(p=>p.y-cam<H+80);
@@ -628,6 +629,8 @@ function upd(dt){if(ended)return;const b=L.boss||L;
   for(const r of rocks){r.y+=r.vy*dt;if(Math.hypot(r.x-pl.x,r.y-cam-pl.y)<r.r+14){r.y=9999;hit();}}
   rocks=rocks.filter(r=>r.y-cam<H+40);
   if(inv>0)inv-=dt;
+  waves=waves.filter(w=>{w.r+=dt*90;w.a-=dt*2.4;return w.a>0;});
+  pops=pops.filter(p=>{p.y-=dt*28;p.a-=dt*1.5;return p.a>0;});
   if(height>=need)return endLv(true);
   lavaY=ls;hud();}
 function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('hT').textContent=(height|0)+'/'+need;$('score').textContent=score;
@@ -637,7 +640,7 @@ function endLv(won,why){if(ended)return;ended=true;if(won){const st=lives>=3?3:l
   else setTimeout(()=>Kit.lose(why,score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 /* ART T2-3 */var voBg=null,voBgKey='';
-function ensureVoBg(){var k=W+'x'+H;if(voBg&&voBgKey===k)return voBg;voBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#bf360c','#3e2723');else{g.fillStyle='#3e2723';g.fillRect(0,0,W,H);}voBg=c;return voBg;}
+function ensureVoBg(){var ly=LAYERS[Math.min(2,(Kit.lv/5)|0)];var k=W+'x'+H+ly[0]+ly[1];if(voBg&&voBgKey===k)return voBg;voBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,ly[0],ly[1]);else{g.fillStyle=ly[1];g.fillRect(0,0,W,H);}voBg=c;return voBg;}
 function draw(){
   ctx.drawImage(ensureVoBg(),0,0);
   for(const p of plats){const y=p.y-cam;if(y<-20||y>H)continue;
@@ -648,7 +651,10 @@ function draw(){
   for(const r of rocks){if(FX)FX.orb(ctx,r.x|0,(r.y-cam)|0,r.r|0,'#5d4037');else{ctx.fillStyle='#5d4037';ctx.beginPath();ctx.arc(r.x,r.y-cam,r.r,0,7);ctx.fill();}}
   ctx.globalAlpha=inv>0&&((inv*8)|0)%2?0.4:1;
   if(FX){FX.shadow(ctx,pl.x,pl.y+14,16,6,.3);FX.orb(ctx,pl.x|0,pl.y|0,14,'#ffd54f');}else{ctx.fillStyle='#ffd54f';ctx.beginPath();ctx.arc(pl.x,pl.y,14,0,7);ctx.fill();}
-  ctx.globalAlpha=1;if(FX)FX.drawBurst(ctx,sparks);
+  ctx.globalAlpha=1;
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
+  if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
@@ -662,6 +668,7 @@ Kit.init({id:'volcano',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,star
        {k:'shield',ic:'🛡️',name:'护盾',desc:'概率免伤',max:2,cost:l=>30+l*32},
        {k:'life',ic:'❤️',name:'额外命',desc:'+1 命',max:2,cost:l=>34+l*36,stars:5}]});
 window.__T.state=()=>({height,need,lives,ended,lavaY});
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 window.__T.fast=k=>{fast=k;};
 window.__T.cheatWin=()=>{height=need;endLv(true);};
 window.__T.solve=()=>{if(ended||Kit.state!=='play')return;height=Math.min(need,height+need*.3);if(height>=need)endLv(true);};
