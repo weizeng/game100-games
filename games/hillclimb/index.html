@@ -452,6 +452,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🛻 爬坡越野</span>
     <span class="stat" id="statLine">—</span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -460,7 +461,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <p class="hint" id="hint">侧视油门刹车爬坡</p>
   
 </div>
-<div class="overlay" id="startScr"><h1>🛻 爬坡越野</h1><p>侧视驾驶爬坡越野，油门刹车控姿态。<br>20 关 + 无尽荒野续航。<br>升级引擎轮胎油箱，与俯视赛车完全不同。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🛻 爬坡越野</h1><p>侧视驾驶爬坡越野，油门刹车控姿态。<br>20 关 + 无尽荒野续航，v3（Gemini 优化：4 大越野地貌、沿途油桶补给、车辆投影与光环粒子、1×/2× 倍速）。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -497,7 +498,16 @@ let prog=loadProg(); if(!prog.stars)prog.stars={}; if(prog.coins==null)prog.coin
 if(prog.eng==null)prog.eng=0; if(prog.tire==null)prog.tire=0; if(prog.tank==null)prog.tank=0; if(prog.stab==null)prog.stab=0; if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0; const TOTAL=20; $('bestLine').textContent='最远 '+Math.floor(best)+'m · 币 '+prog.coins;
 
-let state='menu', lvl=1, mode='level', terrain=[], car=null, camX=0, gas=false, brake=false, last=0, sparks=[], boss=false, coins=[], distMax=0, wind=0, ice=false;
+let state='menu', lvl=1, mode='level', terrain=[], car=null, camX=0, gas=false, brake=false, last=0, sparks=[], boss=false, coins=[], fuels=[], rings=[], pops=[], spd=1, maxFuel=100, distMax=0, wind=0, ice=false;
+const BIOMES=[
+  {sky1:'#86d8ff',sky2:'#5875ff',fill:'#3FC163',edge:'#2a8f4a',name:'翠绿丘陵'},
+  {sky1:'#ffbe76',sky2:'#e17055',fill:'#d35400',edge:'#a04000',name:'赤岩峡谷'},
+  {sky1:'#dff9fb',sky2:'#686de0',fill:'#7ed6df',edge:'#22a6b3',name:'极地冰原'},
+  {sky1:'#30336b',sky2:'#130f40',fill:'#6c5ce7',edge:'#a29bfe',name:'霓虹夜谷'}
+];
+function biomeOf(){return mode==='endless'?BIOMES[3]:BIOMES[Math.min(3,((lvl-1)/5)|0)];}
+function addRing(x,y,c){rings.push({x,y,r:6,max:36,c,a:1});}
+function addPop(x,y,txt,c){pops.push({x,y,txt,c:c||'#fff',a:1});}
 
 function heightAt(x){
   // smooth hills from terrain control points
@@ -524,19 +534,21 @@ function buildTerrain(n, endless){
   }
   terrain.push({x:len+200,y:H*0.7});
   coins=[]; for(let i=0;i<15+n;i++){ const cx=100+rnd()*(len-100); coins.push({x:cx,y:heightAt(cx)-40-rnd()*30,got:false}); }
+  fuels=[]; const fCount=endless?12:Math.max(2,(len/420)|0); for(let i=1;i<=fCount;i++){ const fx=260+i*(len-320)/(fCount+1); fuels.push({x:fx,y:heightAt(fx)-26,got:false}); }
+  rings=[]; pops=[];
   return len;
 }
 
 function startLevel(n){ mode='level'; lvl=n; const len=buildTerrain(n,false); distMax=len;
-  const fuel=80+prog.tank*25; car={x:40,y:heightAt(40)-18, vx:0, vy:0, a:0, wa:0, fuel, alive:true, dist:0};
+  const fuel=80+prog.tank*25; maxFuel=fuel; car={x:40,y:heightAt(40)-18, vx:0, vy:0, a:0, wa:0, fuel, alive:true, dist:0};
   gas=brake=false; camX=0; state='play'; last=performance.now();
   show('startScr',false);show('lvlScr',false);show('shopScr',false);show('tutScr',false);show('pauseOv',false);show('overScr',false);
   $('statLine').textContent=`关 ${n} · 油 ${Math.floor(car.fuel)}`;
-  $('hint').textContent=boss?'👑 Boss 地形：留意风/冰/碎石/桥':'左刹右油 · 爬坡蓄势，别翻车';
+  $('hint').textContent=boss?'👑 Boss 地形：留意风/冰/碎石/桥':'左刹右油 · 吃⛽补油，别翻车';
   beep(660,.1); $('nextBtn').style.display='';
 }
 function startEndless(){ mode='endless'; lvl=0; buildTerrain(10,true); distMax=1e9;
-  const fuel=100+prog.tank*30; car={x:40,y:heightAt(40)-18, vx:0, vy:0, a:0, wa:0, fuel, alive:true, dist:0};
+  const fuel=100+prog.tank*30; maxFuel=fuel; car={x:40,y:heightAt(40)-18, vx:0, vy:0, a:0, wa:0, fuel, alive:true, dist:0};
   gas=brake=false; camX=0; state='play'; last=performance.now();
   show('startScr',false);show('lvlScr',false);show('overScr',false);
   $('statLine').textContent=`无尽 · 油 ${Math.floor(car.fuel)}`; $('hint').textContent='能开多远算多远'; beep(660,.1);
@@ -574,26 +586,38 @@ function update(dt){
   if(car.fuel<=0){ car.fuel=0; if(Math.abs(car.vx)<5 && onGround){ car.alive=false; endRun(false); return; } }
   car.dist=Math.max(car.dist, car.x);
   camX=car.x-80;
-  for(const c of coins){ if(!c.got && Math.hypot(c.x-car.x,c.y-car.y)<28){ c.got=true; prog.coins+=2; beep(1100,.05); } }
+  for(const c of coins){ if(!c.got && Math.hypot(c.x-car.x,c.y-car.y)<28){ c.got=true; prog.coins+=2; beep(1100,.05); addRing(c.x,c.y,'#ffd54f'); addPop(c.x,c.y-10,'+2🪙','#ffd54f'); if(FX)FX.burst(sparks,c.x-camX,c.y,'#ffd54f',6); } }
+  for(const f of fuels){ if(!f.got && Math.hypot(f.x-car.x,f.y-car.y)<30){ f.got=true; car.fuel=Math.min(maxFuel,car.fuel+22); beep(880,.08); addRing(f.x,f.y,'#69f0ae'); addPop(f.x,f.y-12,'+22⛽','#69f0ae'); if(FX)FX.burst(sparks,f.x-camX,f.y,'#69f0ae',8); } }
+  rings=rings.filter(r=>{r.r+=dt*90;r.a-=dt*2.4;return r.a>0;});
+  pops=pops.filter(p=>{p.y-=dt*28;p.a-=dt*1.6;return p.a>0;});
   $('statLine').textContent=`${mode==='endless'?'无尽':('关 '+lvl)} · ${Math.floor(car.dist)}m · 油 ${Math.floor(car.fuel)}`;
   if(mode==='level' && car.x>=distMax){ car.alive=false; endRun(true); }
 }
 
 function draw(){
-  if(FX) FX.stage(ctx,W,H,'#86d8ff','#5875ff'); else {ctx.fillStyle='#5875ff';ctx.fillRect(0,0,W,H);}
+  const bm=biomeOf();
+  if(FX) FX.stage(ctx,W,H,bm.sky1,bm.sky2); else {ctx.fillStyle=bm.sky2;ctx.fillRect(0,0,W,H);}
   // terrain
   if(terrain.length){
     ctx.beginPath(); ctx.moveTo(-10-camX, H+10);
     for(const p of terrain){ ctx.lineTo(p.x-camX, p.y); }
     ctx.lineTo(terrain[terrain.length-1].x-camX+50, H+10); ctx.closePath();
-    ctx.fillStyle='#3FC163'; ctx.fill();
-    ctx.strokeStyle='#2a8f4a'; ctx.lineWidth=3; ctx.stroke();
+    ctx.fillStyle=bm.fill; ctx.fill();
+    ctx.strokeStyle=bm.edge; ctx.lineWidth=3; ctx.stroke();
   }
-  // coins
+  // coins & fuel cans
   for(const c of coins){ if(c.got)continue; const x=c.x-camX; if(x<-20||x>W+20)continue;
-    ctx.font='18px sans-serif'; ctx.fillText('🪙', x, c.y); }
+    if(FX){FX.glow(ctx,'#ffd54f',6);FX.orb(ctx,x,c.y,8,'#ffd54f');FX.noGlow(ctx);} else {ctx.font='18px sans-serif'; ctx.fillText('🪙', x, c.y);} }
+  for(const f of fuels){ if(f.got)continue; const x=f.x-camX; if(x<-20||x>W+20)continue;
+    if(FX){FX.glow(ctx,'#69f0ae',6);FX.tile(ctx,x-9,f.y-11,18,22,'#00e676',4);FX.noGlow(ctx);}
+    ctx.font='14px sans-serif'; ctx.textAlign='center'; ctx.fillText('⛽', x, f.y+5); ctx.textAlign='left'; }
+  // rings & pops
+  for(const r of rings){const x=r.x-camX;ctx.save();ctx.globalAlpha=Math.max(0,r.a);ctx.strokeStyle=r.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,r.y,r.r,0,7);ctx.stroke();ctx.restore();}
+  for(const p of pops){const x=p.x-camX;ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,x,p.y);ctx.restore();}
   // car
-  if(car){ const x=car.x-camX, y=car.y; ctx.save(); ctx.translate(x,y); ctx.rotate(car.a);
+  if(car){ const x=car.x-camX, y=car.y;
+    if(FX)FX.shadow(ctx,x,heightAt(car.x),24,5,.35);
+    ctx.save(); ctx.translate(x,y); ctx.rotate(car.a);
     if(FX) FX.tile(ctx,-22,-12,44,20,'#FFB21E',6); else {ctx.fillStyle='#FFB21E';ctx.fillRect(-22,-12,44,20);}
     ctx.fillStyle='#333'; ctx.beginPath(); ctx.arc(-14,10,8,0,7); ctx.arc(14,10,8,0,7); ctx.fill();
     ctx.restore();
@@ -606,7 +630,7 @@ function draw(){
   if(boss){ ctx.fillStyle='#FFE08A'; ctx.font='bold 14px sans-serif'; ctx.fillText('👑 Boss', W/2, 22); }
   if(FX) FX.drawBurst(ctx,sparks);
 }
-function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play')update(dt);draw();requestAnimationFrame(frame);}
+function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play')for(let k=0;k<spd;k++)update(dt);draw();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
 
 function setGas(v){gas=v;} function setBrake(v){brake=v;}
@@ -637,6 +661,7 @@ function openShop(){ show('lvlScr',false);show('shopScr',true); $('coinLine').te
     btn.onclick=()=>{prog.coins-=it.cost;prog[it.k]++;saveProg(prog);beep(900,.1);openShop();}; row.appendChild(btn); box.appendChild(row); }
 }
 $('startBtn').onclick=openLevels; $('backStart').onclick=()=>{show('lvlScr',false);show('startScr',true);};
+$('spdBtn').onclick=()=>{spd=spd===1?2:1;$('spdBtn').textContent=spd+'×';};
 $('shopBtn').onclick=openShop; $('shopBack').onclick=openLevels;
 $('pauseBtn').onclick=()=>{if(state==='play'){state='pause';show('pauseOv',true);setGas(false);setBrake(false);}else if(state==='pause'){state='play';last=performance.now();show('pauseOv',false);}};
 $('resumeBtn').onclick=()=>{state='play';last=performance.now();show('pauseOv',false);};

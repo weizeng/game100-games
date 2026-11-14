@@ -459,13 +459,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🐧<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>🎯<b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">连跳</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
-  <div class="hint">按住蓄力 · 松手起跳 · 落在下一台中心更好</div>
+  <div class="hint">按住蓄力 · 松手起跳 · 连续踩中中心可叠加连击分</div>
 </div>
-<div class="overlay" id="startScr"><h1>🐧 跳一跳</h1><p>蓄力跳台升级成 15 关：台距与宽度收紧，连跳目标递增。<br>第 5/10/15 关移动巨型台 Boss！可升级蓄力提示、容差、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始跳</button></div>
+<div class="overlay" id="startScr"><h1>🐧 跳一跳</h1><p>蓄力跳台升级成 15 关：台距与宽度收紧，连跳目标递增，v9（Gemini 优化：3 大季候主题、中心连击光环加倍、空中金币拾取与 1×/2× 倍速）。<br>第 5/10/15 关移动巨型台 Boss！可升级蓄力提示、容差、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始跳</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -589,12 +589,21 @@ const LV=[
  {need:11,dist:[135,175],w:[45,60]},{need:12,dist:[140,180],w:[42,58]},{need:12,dist:[145,185],w:[40,55]},{need:13,dist:[150,190],w:[38,52]},
  {boss:{hp:6,name:'终焉跳台',w:85}}
 ];
-let L,plats,pi,px,py,phase,power,lives,score,hit,ended,raf=0,last=0,fast=1,boss,bossT,cam,hint,tol,sparks,squash;
+const THEMES=[
+  {sky1:'#a5d6a7',sky2:'#1b5e20',ground:'#2e7d32',plat:'#43a047',top:'#a5d6a7'},
+  {sky1:'#ffe082',sky2:'#bf360c',ground:'#5d4037',plat:'#fb8c00',top:'#ffe0b2'},
+  {sky1:'#80deea',sky2:'#1a237e',ground:'#263238',plat:'#00acc1',top:'#b2ebf2'}
+];
+let L,plats,pi,px,py,phase,power,lives,score,hit,combo,gems,rings,pops,ended,raf=0,last=0,fast=1,boss,bossT,cam,hint,tol,sparks,squash;
+function addRing(x,y,c){rings.push({x,y,r:6,c,a:1});}
+function addPop(x,y,t,c){pops.push({x,y,t,c:c||'#fff',a:1});}
 function rnd(a,b){return a+Math.random()*(b-a);}
 function nextPlat(from){const d=L.boss?110+Math.random()*40:rnd(L.dist[0],L.dist[1]);
   const w=L.boss?(L.boss.w||90):rnd(L.w[0],L.w[1]);
-  return {x:from.x+from.w/2+d-w/2,w,mv:L.boss?50+Math.random()*30:0,bx:0,ph:0};}
-function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');hit=0;power=0;phase='idle';cam=0;squash=0;sparks=[];
+  const np={x:from.x+from.w/2+d-w/2,w,mv:L.boss?50+Math.random()*30:0,bx:0,ph:0};
+  if(Math.random()<.65)gems.push({x:(from.x+from.w/2+np.x+np.w/2)/2,y:GY-95-rnd(0,25),got:false});
+  return np;}
+function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');hit=0;combo=0;gems=[];rings=[];pops=[];power=0;phase='idle';cam=0;squash=0;sparks=[];
   hint=Kit.up('hint');tol=4+Kit.up('tol')*6;
   const p0={x:40,w:80,mv:0,bx:0,ph:0};plats=[p0,nextPlat(p0)];pi=0;px=p0.x+p0.w/2;py=GY-40;
   boss=L.boss?{hp:L.boss.hp,max:L.boss.hp,name:L.boss.name}:null;bossT=boss?50:0;
@@ -619,12 +628,13 @@ bindJump(cv);bindJump($('box'));
 addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter')press();});
 addEventListener('keyup',e=>{if(e.key===' '||e.key==='Enter')release();});
 function land(){const nxt=plats[pi+1];const cx=nxt.x+nxt.w/2;const dx=Math.abs(px-cx);const half=nxt.w/2+tol;
-  if(dx<=half){const center=dx<=nxt.w*.22;hit++;score+=center?50:25;Kit.sfx(center?'combo':'good');
+  if(dx<=half){const center=dx<=nxt.w*.22;hit++;combo=center?combo+1:0;const pts=center?50+Math.min(100,combo*20):25;score+=pts;Kit.sfx(center?'combo':'good');
+    addRing(px,GY-26,center?'#ffd54f':'#66BB6A');addPop(px,GY-58,center?(combo>1?'完美 ×'+combo+' +'+pts:'正中心 +'+pts):'+'+pts,center?'#ffd54f':'#fff');
     if(FX)FX.burst(sparks,px,GY-20,center?'#ffd54f':'#66BB6A',12);
     if(boss){boss.hp--;if(boss.hp<=0)return endLv(true);}
     else if(hit>=(L.need||5))return endLv(true);
     pi++;plats.push(nextPlat(plats[plats.length-1]));phase='idle';px=plats[pi].x+plats[pi].w/2;py=GY-40;squash=.3;
-  }else{lives--;Kit.sfx('bad');Kit.toast('没踩中',700);if(lives<=0)return endLv(false,'掉下去了');
+  }else{combo=0;lives--;Kit.sfx('bad');Kit.toast('没踩中',700);if(lives<=0)return endLv(false,'掉下去了');
     phase='idle';px=plats[pi].x+plats[pi].w/2;py=GY-40;}
   hud();}
 function upd(dt){if(ended)return;if(boss){bossT-=dt;if(bossT<=0)return endLv(false,'巨台驶离');}
@@ -633,7 +643,10 @@ function upd(dt){if(ended)return;if(boss){bossT-=dt;if(bossT<=0)return endLv(fal
   if(phase==='charge'){power=Math.min(140,power+90*dt);squash=Math.min(.4,power/350);}
   if(phase==='fly'){window._t+=dt;const t=window._t,g=window._g||900;
     px=window._sx+window._vx*t;py=window._sy+window._vy*t+0.5*g*t*t;
+    for(const gm of gems){if(!gm.got&&Math.hypot(gm.x-px,gm.y-py)<24){gm.got=true;score+=20;Kit.sfx('good');addRing(gm.x,gm.y,'#ffd54f');addPop(gm.x,gm.y-12,'+20🪙','#ffd54f');if(FX)FX.burst(sparks,gm.x,gm.y,'#ffd54f',6);}}
     cam=Math.max(0,px-80);if(py>=GY-40){py=GY-40;land();}}
+  rings=rings.filter(r=>{r.r+=dt*90;r.a-=dt*2.4;return r.a>0;});
+  pops=pops.filter(p=>{p.y-=dt*28;p.a-=dt*1.5;return p.a>0;});
   if(squash>0)squash=Math.max(0,squash-dt*1.5);
   hud();}
 function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('hitT').textContent=hit;$('score').textContent=score;
@@ -645,12 +658,17 @@ function endLv(won,why){if(ended)return;ended=true;if(won){const st=lives>=3?3:l
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function sx(x){return x-cam;}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#a5d6a7','#1b5e20');else{ctx.fillStyle='#e8f5e9';ctx.fillRect(0,0,W,H);}
-  ctx.fillStyle='#2e7d32';ctx.fillRect(0,GY,W,H-GY);
+  const th=THEMES[Math.min(2,(Kit.lv/5)|0)];
+  if(FX)FX.stage(ctx,W,H,th.sky1,th.sky2);else{ctx.fillStyle=th.sky1;ctx.fillRect(0,0,W,H);}
+  ctx.fillStyle=th.ground;ctx.fillRect(0,GY,W,H-GY);
   for(const p of plats){const x=sx(p.x);if(x>W+40||x+p.w<-40)continue;
-    if(FX){FX.shadow(ctx,x+p.w/2,GY+4,p.w*.4,5,.35);FX.tile(ctx,x|0,(GY-26)|0,p.w|0,26,'#43a047',8);FX.tile(ctx,(x+4)|0,(GY-26)|0,(p.w-8)|0,4,'#a5d6a7',2);
+    if(FX){FX.shadow(ctx,x+p.w/2,GY+4,p.w*.4,5,.35);FX.tile(ctx,x|0,(GY-26)|0,p.w|0,26,th.plat,8);FX.tile(ctx,(x+4)|0,(GY-26)|0,(p.w-8)|0,4,th.top,2);
       const c=p.x+p.w/2;FX.glow(ctx,'#ffd740',8);FX.tile(ctx,sx(c-p.w*.22)|0,(GY-26)|0,(p.w*.44)|0,26,'#ffd54f',6);FX.noGlow(ctx);}
-    else{ctx.fillStyle='#43a047';ctx.fillRect(x,GY-26,p.w,26);}}
+    else{ctx.fillStyle=th.plat;ctx.fillRect(x,GY-26,p.w,26);}}
+  for(const gm of gems){if(gm.got)continue;const gx=sx(gm.x);if(gx<-20||gx>W+20)continue;
+    if(FX){FX.glow(ctx,'#ffd54f',6);FX.orb(ctx,gx|0,gm.y|0,8,'#ffd54f');FX.noGlow(ctx);}else{ctx.fillStyle='#ffd54f';ctx.beginPath();ctx.arc(gx,gm.y,8,0,7);ctx.fill();}}
+  for(const r of rings){const rx=sx(r.x);ctx.save();ctx.globalAlpha=Math.max(0,r.a);ctx.strokeStyle=r.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(rx,r.y,r.r,0,7);ctx.stroke();ctx.restore();}
+  for(const p of pops){const rx=sx(p.x);ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,rx,p.y);ctx.restore();}
   // power gauge / hint
   if(phase==='charge'||hint){const cur=plats[pi],nxt=plats[pi+1];if(nxt){const ideal=Math.max(0,((nxt.x+nxt.w/2)-(cur.x+cur.w/2))/1.6);
     if(hint&&phase==='charge'){ctx.strokeStyle='rgba(255,215,64,.5)';ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(sx(px),py);ctx.quadraticCurveTo(sx(px+(nxt.x+nxt.w/2-px)/2),py-80,sx(nxt.x+nxt.w/2),GY-40);ctx.stroke();ctx.setLineDash([]);}
@@ -673,6 +691,7 @@ Kit.init({id:'jump',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:s
   ups:[{k:'hint',ic:'💡',name:'蓄力提示',desc:'显示理想蓄力',max:1,cost:()=>40},
        {k:'tol',ic:'🎯',name:'容差',desc:'落点更宽松',max:2,cost:l=>35+l*40},
        {k:'life',ic:'❤️',name:'额外命',desc:'+1 命',max:2,cost:l=>30+l*35,stars:5}]});
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 window.__T.state=()=>({hit,need:L&&(L.need||5),lives,phase,power,ended,boss:boss&&{hp:boss.hp},pi});
 window.__T.fast=k=>{fast=k;};
 window.__T.cheatWin=()=>{hit=L.need||5;if(boss)boss.hp=0;endLv(true);};
