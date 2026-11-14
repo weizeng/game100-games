@@ -460,13 +460,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🦆<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>击 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">射击</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">点击射鸭 · 打满目标数，别打光子弹</div>
 </div>
-<div class="overlay" id="startScr"><h1>🦆 打鸭子</h1><p>15 关街机射鸭：目标更多、鸭子更快更小、子弹更紧。<br>第 5/10/15 关金鸭潮/双飞风暴/终末鸭神！可升级弹匣、准星、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始打猎</button></div>
+<div class="overlay" id="startScr"><h1>🦆 打鸭子</h1><p>15 关街机射鸭：目标更多、鸭子更快更小、子弹更紧。<br>v8（Gemini 优化：3 大猎场天色主题、准星波纹与命中飘字、1×/2× 倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始打猎</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -590,19 +590,22 @@ const LV=[
  {need:13,ammo:15,spd:170,size:20,time:30},{need:14,ammo:16,spd:180,size:18,time:29},{need:15,ammo:16,spd:190,size:18,time:28},{need:16,ammo:17,spd:200,size:16,time:27},
  {boss:{name:'终末鸭神',need:14,ammo:18,spd:220,size:16,time:26,gold:1,dual:1}}
 ];
-let L,ducks,lives,score,ended,raf=0,last=0,fast=1,need,hits,ammo,boss,timer,sparks,spawnT,miss;
-function start(i){L=LV[i];score=0;ended=false;hits=0;ducks=[];sparks=[];miss=0;lives=3+Kit.up('life');
+let L,ducks,lives,score,ended,raf=0,last=0,fast=1,need,hits,ammo,boss,timer,sparks,spawnT,miss,waves=[],pops=[];
+const GROUNDS=[['#81d4fa','#4fc3f7'],['#f59e0b','#7c2d12'],['#1e1b4b','#0f172a']];
+function start(i){L=LV[i];score=0;ended=false;hits=0;ducks=[];sparks=[];waves=[];pops=[];miss=0;lives=3+Kit.up('life');
   const b=L.boss||L;need=b.need;ammo=b.ammo+Kit.up('ammo')*2;timer=b.time;boss=L.boss?{name:L.boss.name}:null;spawnT=.4;
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
 function spawn(){const b=L.boss||L;const n=b.dual&&Math.random()<.5?2:1;for(let k=0;k<n;k++){const dir=Math.random()<.5?1:-1;
   ducks.push({x:dir>0?-30:W+30,y:40+Math.random()*(H*.55),vx:dir*(b.spd*(.85+Math.random()*.3)),r:b.size*(b.gold&&Math.random()<.35?.85:1),gold:!!(b.gold&&Math.random()<.35),ph:Math.random()*6,dead:0});}}
 function pos(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};}
 cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||ended||ammo<=0)return;const p=pos(e);ammo--;Kit.sfx('hit');
-  let hit=false;const aim=Kit.up('aim')*8;
-  for(const d of ducks){if(d.dead)continue;if(Math.hypot(d.x-p.x,d.y-p.y)<d.r+6+aim){d.dead=1;hits++;score+=d.gold?40:15;hit=true;Kit.sfx('good');if(FX)FX.burst(sparks,d.x,d.y,d.gold?'#ffd54f':'#fff',10);break;}}
-  if(!hit){miss++;if(miss>=3){lives--;miss=0;Kit.sfx('bad');if(lives<=0)return endLv(false,'打空过多');}}
+  let hit=false;const aim=Kit.up('aim')*8;waves.push({x:p.x,y:p.y,t:0,col:'#fff'});
+  for(const d of ducks){if(d.dead)continue;if(Math.hypot(d.x-p.x,d.y-p.y)<d.r+6+aim){d.dead=1;hits++;const pts=d.gold?40:15;score+=pts;hit=true;Kit.sfx('good');pops.push({x:d.x,y:d.y-12,txt:(d.gold?'🐤 +':'+')+pts,col:d.gold?'#fde047':'#fff',t:0});if(FX)FX.burst(sparks,d.x,d.y,d.gold?'#ffd54f':'#fff',10);break;}}
+  if(!hit){miss++;pops.push({x:p.x,y:p.y-10,txt:'MISS',col:'#fda4af',t:0});if(miss>=3){lives--;miss=0;Kit.sfx('bad');if(lives<=0)return endLv(false,'打空过多');}}
   hud();if(hits>=need)return endLv(true);if(ammo<=0&&hits<need)return endLv(false,'子弹打光');});
 function upd(dt){if(ended)return;timer-=dt;spawnT-=dt;if(spawnT<=0){spawn();spawnT=.7+Math.random()*.5;}
+  for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*3;if(waves[i].t>=1)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;pops[i].y-=dt*32;if(pops[i].t>=0.85)pops.splice(i,1);}
   for(let i=ducks.length-1;i>=0;i--){const d=ducks[i];if(d.dead){d.dead+=dt;if(d.dead>0.4)ducks.splice(i,1);continue;}
     d.x+=d.vx*dt;d.y+=Math.sin(d.ph+=dt*3)*20*dt;if(d.x<-50||d.x>W+50)ducks.splice(i,1);}
   if(timer<=0)return endLv(hits>=need,'时间到');hud();}
@@ -614,16 +617,23 @@ function endLv(won,why){if(ended)return;ended=true;
   else setTimeout(()=>Kit.lose(why||'未达标',score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#81d4fa','#4fc3f7');else{ctx.fillStyle='#4fc3f7';ctx.fillRect(0,0,W,H);}
+  const gr=GROUNDS[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,gr[0],gr[1]);else{ctx.fillStyle=gr[1];ctx.fillRect(0,0,W,H);}
   ctx.fillStyle='#66bb6a';ctx.fillRect(0,H-70,W,70);
   for(const d of ducks){ctx.globalAlpha=d.dead?Math.max(0,1-d.dead*2):1;ctx.font=(d.r*1.6|0)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(d.gold?'🐤':'🦆',d.x,d.y);ctx.globalAlpha=1;}
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2;ctx.beginPath();ctx.arc(wv.x,wv.y,6+wv.t*20,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
   if(FX)FX.drawBurst(ctx,sparks);
+  ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+  for(const p of pops){ctx.globalAlpha=1-p.t/0.85;ctx.fillStyle=p.col;ctx.fillText(p.txt,p.x,p.y);}
+  ctx.globalAlpha=1;
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
+$('spdBtn').addEventListener('click',()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');});
 Kit.init({id:'duckhunt',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},pause:()=>{},
-  note:()=>'点击射鸭，打满目标数且别浪费子弹',
+  note:()=>'v8（Gemini 优化：3 大猎场天色主题、准星波纹与命中飘字、1×/2× 倍速）',
   tut:[['瞄准','点击屏幕上的鸭子射击。','🎯'],
        ['子弹','打空浪费生命，打满目标过关。','🔫'],
        ['金鸭','金色鸭子分更高。','🐤'],

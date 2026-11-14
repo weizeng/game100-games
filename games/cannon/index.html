@@ -449,6 +449,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">💣 炮击堡垒</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -456,7 +457,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">拖动调角 · 松手蓄力发射</p>
 </div>
-<div class="overlay" id="startScr"><h1>💣 炮击堡垒</h1><p>拖动调整炮口角度，按住蓄力后松手发射。<br>注意风力影响弹道。<br>第 5/10/15 关迎战要塞首领！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>💣 炮击堡垒</h1><p>拖动调整炮口角度，按住蓄力后松手发射，第 5/10/15 关迎战要塞首领！<br>v9（Gemini 优化：3 大战区天色主题、炮弹爆破波纹与伤害飘字、1×/2× 倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -488,20 +489,21 @@ const LEGACY={missile:'g100_missile_hi',cannon:'g100_cannon_hi',sleigh:'g100_sle
 if(LEGACY['cannon']&&!UI.storageGet(HK)){const v=+UI.storageGet(LEGACY['cannon'])||0;if(v)UI.storageSet(HK,String(v));}
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
 const TOTAL=15;
-let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false,fast=1,waves=[],pops=[];
+const SKIES=[['#37474f','#1a237e'],['#451a03','#1c1917'],['#0f172a','#164e63']];
 
 const TUT=[['调角','按住并上下拖动调整炮口角度。','📐'],['蓄力','按住蓄力条满后松手发射炮弹。','💪'],['风力','注意顶部风力，弹道会被吹偏。','🌬'],['Boss','要塞首领血更厚、风力更大。','👑']];
 const SHOP=[{k:'powLv',name:'炮力',max:3,cost(){return 35+(prog.powLv|0)*28;},desc(){return '炮弹威力+'}},{k:'shellLv',name:'弹药',max:3,cost(){return 40+(prog.shellLv|0)*30;},desc(){return '炮弹+2'}},{k:'windLv',name:'风稳',max:2,cost(){return 45+(prog.windLv|0)*35;},desc(){return '风力减弱'}}];
 let angle=Math.PI/4,charging=false,power=0,powerDir=1,shell=null,parts=[],fort,fhp=0,fmax=0,shellsLeft=0,wind=0,groundY=0,drag=false,rng,stars=[];
 function newWind(){const mag=Math.round((rng()*5-2.5)*(1-(prog.windLv|0)*0.35)+(boss?rng()>0.5?2:-2:0));wind=mag;}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*6101+4);groundY=H-70;angle=Math.PI/4;charging=false;power=0;powerDir=1;shell=null;parts=[];fmax=3+Math.min(5,(lvl/3)|0)+(boss?4:0);fhp=fmax;shellsLeft=10+(prog.shellLv|0)*2+(boss?2:0);fort={x:W-80,w:56+rng()*20,h:60+rng()*30};stars=[];for(let i=0;i<50;i++)stars.push({x:rng()*W,y:rng()*groundY*0.8,s:0.5+rng()*1.5});newWind();show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=boss?'👑 要塞首领':'拖动调角，松手发射';}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];rng=mulberry32(n*6101+4);groundY=H-70;angle=Math.PI/4;charging=false;power=0;powerDir=1;shell=null;parts=[];fmax=3+Math.min(5,(lvl/3)|0)+(boss?4:0);fhp=fmax;shellsLeft=10+(prog.shellLv|0)*2+(boss?2:0);fort={x:W-80,w:56+rng()*20,h:60+rng()*30};stars=[];for(let i=0;i<50;i++)stars.push({x:rng()*W,y:rng()*groundY*0.8,s:0.5+rng()*1.5});newWind();show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=boss?'👑 要塞首领':'拖动调角，松手发射';}
 function fire(){if(shellsLeft<=0||shell)return;shellsLeft--;const sp=(6+power/100*13)*(1+(prog.powLv|0)*0.08);const CX=54;shell={x:CX+Math.cos(angle)*34,y:groundY-26-Math.sin(angle)*34,vx:Math.cos(angle)*sp,vy:-Math.sin(angle)*sp,trail:[]};beep(280,.1,'square');power=0;charging=false;}
-function explode(x,y){beep(120,.3,'sawtooth');for(let i=0;i<14;i++){const a=rng()*6.28,sp=1+rng()*4;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:0.5+rng()*0.4,col:i%2?'#ff7043':'#ffd740',s:2+rng()*2});}
-  const hit=Math.abs(x-fort.x)<fort.w/2+30&&y>groundY-fort.h-30;if(hit){const dmg=1+(prog.powLv|0)>1?1:0;fhp-=Math.max(1,1+((prog.powLv|0)/2)|0);score+=200;$('score').textContent=score;if(FX)FX.burst(sparks,fort.x,groundY-fort.h/2,'#ff7043',12);if(fhp<=0)win();}
+function explode(x,y){beep(120,.3,'sawtooth');waves.push({x,y,r:10,t:0,col:'#ff7043'});for(let i=0;i<14;i++){const a=rng()*6.28,sp=1+rng()*4;parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:0.5+rng()*0.4,col:i%2?'#ff7043':'#ffd740',s:2+rng()*2});}
+  const hit=Math.abs(x-fort.x)<fort.w/2+30&&y>groundY-fort.h-30;if(hit){const dmg=Math.max(1,1+((prog.powLv|0)/2)|0);fhp-=dmg;score+=200;$('score').textContent=score;pops.push({x:fort.x,y:groundY-fort.h-14,txt:'💥 -'+dmg,col:'#fde047',t:0});if(FX)FX.burst(sparks,fort.x,groundY-fort.h/2,'#ff7043',12);if(fhp<=0)win();}
   else if(shellsLeft<=0)setTimeout(()=>{if(state==='play'&&fhp>0&&!shell)lose('炮弹耗尽');},400);}
 function win(){if(state!=='play')return;score+=shellsLeft*50;$('score').textContent=score;const stars=shellsLeft>=6?3:shellsLeft>=3?2:1;finishWin(stars,50+stars*12+(boss?55:0)+shellsLeft*5,'堡垒攻陷！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){if(charging){power+=powerDir*110*dt;if(power>=100){power=100;powerDir=-1;}if(power<=0){power=0;powerDir=1;}}
+function update(dt){for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.4;if(waves[i].t>=1)waves.splice(i,1);}for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;pops[i].y-=dt*32;if(pops[i].t>=0.9)pops.splice(i,1);}if(charging){power+=powerDir*110*dt;if(power>=100){power=100;powerDir=-1;}if(power<=0){power=0;powerDir=1;}}
   if(shell){shell.vx+=wind*0.35*dt;shell.vy+=280*dt;shell.x+=shell.vx*60*dt;shell.y+=shell.vy*60*dt;shell.trail.push({x:shell.x,y:shell.y});if(shell.trail.length>16)shell.trail.shift();
     if(shell.x>fort.x-fort.w/2-6&&shell.x<fort.x+fort.w/2+6&&shell.y>groundY-fort.h&&shell.y<groundY+6){explode(shell.x,shell.y);shell=null;}
     else if(shell.y>=groundY||shell.x>W+30||shell.x<-30){explode(Math.min(W,Math.max(0,shell.x)),groundY);shell=null;}}
@@ -509,7 +511,7 @@ function update(dt){if(charging){power+=powerDir*110*dt;if(power>=100){power=100
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();drag=true;charging=true;power=10;powerDir=1;});
 cv.addEventListener('pointermove',e=>{if(!drag||state!=='play')return;const p=posOf(e);const CX=54,CY=groundY-26;angle=Math.max(0.15,Math.min(1.35,Math.atan2(CY-p.y,p.x-CX)));});
 cv.addEventListener('pointerup',e=>{if(!drag)return;drag=false;if(charging)fire();});
-function draw(){if(FX)FX.stage(ctx,W,H,'#37474f','#1a237e');else{ctx.fillStyle='#1a237e';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+function draw(){const sk=SKIES[Math.min(2,Math.floor((lvl-1)/5))];if(FX)FX.stage(ctx,W,H,sk[0],sk[1]);else{ctx.fillStyle=sk[1];ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   stars.forEach(s=>{ctx.fillStyle='#fff6';ctx.fillRect(s.x,s.y,s.s,s.s);});
   ctx.fillStyle='#2e7d32';ctx.fillRect(0,groundY,W,H-groundY);
   // fort
@@ -520,6 +522,11 @@ function draw(){if(FX)FX.stage(ctx,W,H,'#37474f','#1a237e');else{ctx.fillStyle='
   ctx.fillStyle='#607d8b';ctx.beginPath();ctx.arc(CX,CY,14,0,7);ctx.fill();
   if(shell){ctx.strokeStyle='#ffd740';ctx.lineWidth=2;ctx.beginPath();shell.trail.forEach((t,i)=>i?ctx.lineTo(t.x,t.y):ctx.moveTo(t.x,t.y));ctx.stroke();if(FX)FX.orb(ctx,shell.x,shell.y,5,'#ffd740');else{ctx.fillStyle='#ffd740';ctx.beginPath();ctx.arc(shell.x,shell.y,5,0,7);ctx.fill();}}
   parts.forEach(p=>{ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,7);ctx.fill();});ctx.globalAlpha=1;
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(wv.x,wv.y,wv.r+wv.t*34,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
+  ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  for(const p of pops){ctx.globalAlpha=1-p.t/0.9;ctx.fillStyle=p.col;ctx.fillText(p.txt,p.x,p.y);}
+  ctx.globalAlpha=1;
   // power bar
   ctx.fillStyle='rgba(255,255,255,.2)';ctx.fillRect(20,20,W-40,10);ctx.fillStyle='#ff7043';ctx.fillRect(20,20,(W-40)*power/100,10);
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('弹'+shellsLeft+' HP'+fhp+' 风'+(wind===0?'—':(wind>0?'→':'←')+Math.abs(wind))+(boss?' 👑':''),10,H-14);
@@ -543,7 +550,8 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(660,.05);};
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000)*fast;last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>

@@ -459,13 +459,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🪨<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>毁 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">攻城</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">按住蓄力松手抛石 · 砸毁城堡</div>
 </div>
-<div class="overlay" id="startScr"><h1>🪨 投石车</h1><p>15 关蓄力抛石砸城：距离更远、风力与移动城。<br>第 5/10/15 关铁壁/移动堡/终极大城！可升级多石、抗风、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始攻城</button></div>
+<div class="overlay" id="startScr"><h1>🪨 投石车</h1><p>15 关蓄力抛石砸城：距离更远、风力与移动城。<br>v8（Gemini 优化：3 大攻城战区主题、石弹拖尾与破城波纹飘字、1×/2× 倍速）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始攻城</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -589,8 +589,9 @@ const LV=[
  {need:4,stones:5,dist:270,wind:40,move:40,hp:4},{need:4,stones:5,dist:280,wind:45,move:45,hp:5},{need:5,stones:6,dist:290,wind:45,move:50,hp:5},{need:5,stones:5,dist:300,wind:50,move:55,hp:5},
  {boss:{name:'终极大城',need:1,stones:9,dist:280,wind:40,move:70,hp:14}}
 ];
-let L,castles,stone,charging,pow,lives,score,ended,raf=0,last=0,fast=1,need,smashed,left,boss,sparks,wind,anti;
-function start(i){L=LV[i];score=0;ended=false;charging=false;pow=0;stone=null;sparks=[];lives=3+Kit.up('life');smashed=0;
+let L,castles,stone,charging,pow,lives,score,ended,raf=0,last=0,fast=1,need,smashed,left,boss,sparks,wind,anti,waves=[],pops=[],trail=[];
+const SIEGES=[['#5d4037','#3e2723'],['#3b0764','#1e1b4b'],['#1e293b','#0f172a']];
+function start(i){L=LV[i];score=0;ended=false;charging=false;pow=0;stone=null;sparks=[];waves=[];pops=[];trail=[];lives=3+Kit.up('life');smashed=0;
   const b=L.boss||L;need=b.need;left=b.stones+Kit.up('stones');wind=b.wind*(1-Kit.up('anti')*.2);anti=Kit.up('anti');
   castles=[];const n=bossCount(b);for(let k=0;k<n;k++)castles.push({x:b.dist+(k*28),y:H-70,w:36,h:50+k*4,hp:b.hp,max:b.hp,vx:b.move*(k%2?1:-1)});
   boss=L.boss?{name:L.boss.name,hp:castles.reduce((a,c)=>a+c.hp,0),max:castles.reduce((a,c)=>a+c.hp,0)}:null;
@@ -599,13 +600,15 @@ function bossCount(b){return L.boss?1:Math.min(3,b.need||need);}
 cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||ended||stone||left<=0)return;charging=true;pow=.15;Kit.sfx('tap');});
 cv.addEventListener('pointerup',()=>{if(!charging||ended)return;charging=false;fire();});
 cv.addEventListener('pointercancel',()=>{charging=false;});
-function fire(){if(left<=0)return;left--;const ang=-Math.PI/3.2;const sp=280+pow*420;
+function fire(){if(left<=0)return;left--;const ang=-Math.PI/3.2;const sp=280+pow*420;trail=[];
   stone={x:50,y:H-60,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp};Kit.sfx('hit');hud();}
 function upd(dt){if(ended)return;if(charging)pow=Math.min(1,pow+dt*1.15);
+  for(let i=waves.length-1;i>=0;i--){waves[i].t+=dt*2.4;if(waves[i].t>=1)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){pops[i].t+=dt;pops[i].y-=dt*32;if(pops[i].t>=0.9)pops.splice(i,1);}
   for(const c of castles){if(c.hp<=0)continue;if(c.vx){c.x+=c.vx*dt;if(c.x<140||c.x>W-30)c.vx*=-1;}}
-  if(stone){stone.vx+=wind*dt;stone.vy+=420*dt;stone.x+=stone.vx*dt;stone.y+=stone.vy*dt;
+  if(stone){stone.vx+=wind*dt;stone.vy+=420*dt;stone.x+=stone.vx*dt;stone.y+=stone.vy*dt;trail.push({x:stone.x,y:stone.y});if(trail.length>14)trail.shift();
     let hit=false;for(const c of castles){if(c.hp<=0)continue;
-      if(stone.x>c.x-c.w/2&&stone.x<c.x+c.w/2&&stone.y>c.y-c.h&&stone.y<c.y){c.hp--;score+=30;hit=true;Kit.sfx('good');if(FX)FX.burst(sparks,stone.x,stone.y,'#ffd54f',10);
+      if(stone.x>c.x-c.w/2&&stone.x<c.x+c.w/2&&stone.y>c.y-c.h&&stone.y<c.y){c.hp--;score+=30;hit=true;Kit.sfx('good');if(FX)FX.burst(sparks,stone.x,stone.y,'#ffd54f',10);waves.push({x:stone.x,y:stone.y,t:0,col:'#ffd54f'});pops.push({x:stone.x,y:stone.y-12,txt:c.hp<=0?'💥 破城 +80':'+30',col:'#fde047',t:0});
         if(c.hp<=0){smashed++;score+=50;}break;}}
     if(hit||stone.y>H-40||stone.x>W+20){stone=null;
       if(boss){boss.hp=castles.reduce((a,c)=>a+Math.max(0,c.hp),0);if(boss.hp<=0)return endLv(true);}
@@ -620,21 +623,28 @@ function endLv(won,why){if(ended)return;ended=true;charging=false;
   else setTimeout(()=>Kit.lose(why,score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#5d4037','#3e2723');else{ctx.fillStyle='#3e2723';ctx.fillRect(0,0,W,H);}
+  const sg=SIEGES[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,sg[0],sg[1]);else{ctx.fillStyle=sg[1];ctx.fillRect(0,0,W,H);}
   ctx.fillStyle='#6d4c41';ctx.fillRect(0,H-40,W,40);
   // catapult
   ctx.fillStyle='#8d6e63';ctx.fillRect(30,H-70,40,30);ctx.strokeStyle='#ffe0b2';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(50,H-60);ctx.lineTo(50+Math.cos(-Math.PI/3.2)*40,H-60+Math.sin(-Math.PI/3.2)*40);ctx.stroke();
   for(const c of castles){if(c.hp<=0)continue;if(FX){FX.tile(ctx,c.x-c.w/2,c.y-c.h,c.w,c.h,'#bcaaa4',4);}
     else{ctx.fillStyle='#bcaaa4';ctx.fillRect(c.x-c.w/2,c.y-c.h,c.w,c.h);}
     ctx.fillStyle='#ef5350';ctx.fillRect(c.x-c.w/2,c.y-c.h-8,c.w*(c.hp/c.max),5);}
-  if(stone){if(FX)FX.orb(ctx,stone.x|0,stone.y|0,10,'#78909c');else{ctx.fillStyle='#78909c';ctx.beginPath();ctx.arc(stone.x,stone.y,10,0,7);ctx.fill();}}
+  if(stone){for(let ti=0;ti<trail.length;ti++){ctx.fillStyle='rgba(255,224,178,'+(ti/trail.length*0.4)+')';ctx.beginPath();ctx.arc(trail[ti].x,trail[ti].y,5*(ti+1)/trail.length,0,7);ctx.fill();}if(FX)FX.orb(ctx,stone.x|0,stone.y|0,10,'#78909c');else{ctx.fillStyle='#78909c';ctx.beginPath();ctx.arc(stone.x,stone.y,10,0,7);ctx.fill();}}
+  for(const wv of waves){ctx.strokeStyle=wv.col;ctx.globalAlpha=1-wv.t;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(wv.x,wv.y,8+wv.t*28,0,7);ctx.stroke();}
+  ctx.globalAlpha=1;
   if(charging){ctx.fillStyle='rgba(255,213,79,.9)';ctx.fillRect(W/2-50,H-28,100*pow,10);}
   if(FX)FX.drawBurst(ctx,sparks);
+  ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+  for(const p of pops){ctx.globalAlpha=1-p.t/0.9;ctx.fillStyle=p.col;ctx.fillText(p.txt,p.x,p.y);}
+  ctx.globalAlpha=1;
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
+$('spdBtn').addEventListener('click',()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');});
 Kit.init({id:'catapult',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;charging=false;},pause:()=>{charging=false;},
-  note:()=>'蓄力抛石砸毁城堡，注意风力和移动城',
+  note:()=>'v8（Gemini 优化：3 大攻城战区主题、石弹拖尾与破城波纹飘字、1×/2× 倍速）',
   tut:[['蓄力','按住蓄力看力度。','🪨'],
        ['抛射','松手石弹抛物线飞出。','💨'],
        ['攻城','砸中城堡扣血，毁城过关。','🏰'],
