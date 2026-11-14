@@ -460,13 +460,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🦖<b id="lvT">1</b></span><span>❤️<b id="lifeT">1</b></span><span>距 <b id="distT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">冲刺</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
-  <div class="hint">点按跳跃 · 长按多段跳 · 跑到目标距离</div>
+  <div class="hint">点按跳跃 · 长按多段跳 · 收集恐龙蛋加分</div>
 </div>
-<div class="overlay" id="startScr"><h1>🦖 小恐龙跑酷</h1><p>15 关跑酷：速度与障碍密度递增。<br>第 5/10/15 关翼龙群 Boss！可升级跳跃、护盾、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始奔跑</button></div>
+<div class="overlay" id="startScr"><h1>🦖 小恐龙跑酷</h1><p>15 关跑酷：速度与障碍密度递增。<br>第 5/10/15 关翼龙群 Boss！可升级跳跃、护盾、额外命。<br>v9（Gemini 优化：三大史前纪元地貌、恐龙蛋收集、跳跃光环飘字、立体阴影及倍速切换）</p><p id="bestLine"></p><button class="btn" id="startBtn">开始奔跑</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -590,23 +590,28 @@ const LV=[
  {dist:1200,spd:420,gap:.75},{dist:1300,spd:440,gap:.7},{dist:1400,spd:460,gap:.68},{dist:1500,spd:480,gap:.65},
  {boss:{name:'史前终章',dist:1800,spd:500,gap:.55,fly:1}}
 ];
-let L,dino,obs,dist,need,spd,spawnIn,lives,score,ended,raf=0,last=0,fast=1,holding,jumps,maxJ,shield,sparks,boss,inv;
-function start(i){L=LV[i];score=0;ended=false;dist=0;obs=[];sparks=[];holding=false;jumps=0;inv=0;
+const ERAS=[{top:'#4CAF50',bot:'#1b5e20',name:'白垩绿原'},{top:'#c96a2b',bot:'#4e1f08',name:'侏罗赤漠'},{top:'#2d527c',bot:'#0e1b2e',name:'冰河极夜'}];
+let L,dino,obs,dist,need,spd,spawnIn,lives,score,ended,raf=0,last=0,fast=1,holding,jumps,maxJ,shield,sparks,boss,inv,eggs=[],rings=[],pops=[],bonus=0;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
+function start(i){L=LV[i];score=0;bonus=0;ended=false;dist=0;obs=[];eggs=[];rings=[];pops=[];sparks=[];holding=false;jumps=0;inv=0;
   const b=L.boss||L;need=b.dist;spd=b.spd;spawnIn=.8;lives=1+Kit.up('life');shield=Kit.up('shield');maxJ=1+Kit.up('jump');
   boss=L.boss?{name:L.boss.name,fly:L.boss.fly}:null;
   dino={x:56,w:26,h:46,y:GY,vy:0,gnd:true};hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
-function jump(){if(ended||Kit.state!=='play')return;if(jumps<maxJ){dino.vy=-560-(Kit.up('jump')*40);dino.gnd=false;jumps++;Kit.sfx('tap');}}
+function jump(){if(ended||Kit.state!=='play')return;if(jumps<maxJ){dino.vy=-560-(Kit.up('jump')*40);dino.gnd=false;jumps++;Kit.sfx('tap');rings.push({x:dino.x+dino.w/2,y:dino.y,r:18,t:0.22,m:0.22,c:'#7dff6a'});}}
 cv.addEventListener('pointerdown',e=>{e.preventDefault();holding=true;jump();});
 cv.addEventListener('pointerup',()=>{holding=false;});
 addEventListener('keydown',e=>{if(e.code==='Space'||e.key==='ArrowUp'){e.preventDefault();jump();}});
 function hit(){if(inv>0)return;if(shield>0){shield--;inv=.8;Kit.toast('护盾！');Kit.sfx('hit');return;}
   lives--;Kit.sfx('bad');inv=1;if(lives<=0)endLv(false,'撞到障碍');else Kit.toast('再起！');}
 function upd(dt){if(ended)return;
+  rings=rings.filter(r=>(r.t-=dt)>0);pops=pops.filter(p=>{p.y-=20*dt;return(p.t-=dt)>0;});
   const grav=holding&&dino.vy<0?820:1550;dino.vy+=grav*dt;dino.y+=dino.vy*dt;
   if(dino.y>=GY){dino.y=GY;dino.vy=0;dino.gnd=true;jumps=0;}
-  dist+=spd*dt*.1;score=dist|0;if(dist>=need)return endLv(true);
+  dist+=spd*dt*.1;score=(dist|0)+bonus;if(dist>=need)return endLv(true);
   spawnIn-=dt;if(spawnIn<=0){const gap=(L.boss||L).gap||1;spawnIn=gap*(.7+Math.random()*.6);
-    const fly=boss&&Math.random()<.5;obs.push({x:W+20,w:fly?36:22,h:fly?28:30+Math.random()*30,y:fly?GY-90:GY,fly,vx:spd});}
+    const fly=boss&&Math.random()<.5;obs.push({x:W+20,w:fly?36:22,h:fly?28:30+Math.random()*30,y:fly?GY-90:GY,fly,vx:spd});
+    if(Math.random()<0.45)eggs.push({x:W+75,y:GY-(Math.random()<0.5?24:84),r:11});}
+  for(let i=eggs.length-1;i>=0;i--){const eg=eggs[i];eg.x-=spd*dt;if(Math.hypot(eg.x-(dino.x+dino.w/2),eg.y-(dino.y-dino.h/2))<eg.r+18){bonus+=30;score=(dist|0)+bonus;Kit.sfx('coin');rings.push({x:eg.x,y:eg.y,r:22,t:0.25,m:0.25,c:'#ffd54f'});pops.push({x:eg.x,y:eg.y-10,txt:'+30🥚',c:'#ffd54f',t:0.6});if(FX)FX.burst(sparks,eg.x,eg.y,'#ffd54f',6);eggs.splice(i,1);}else if(eg.x<-30)eggs.splice(i,1);}
   for(const o of obs){o.x-=spd*dt;if(o.fly)o.y=GY-80+Math.sin(dist*.05+o.x*.02)*30;
     if(o.x<dino.x+dino.w&&o.x+o.w>dino.x&&o.y<dino.y&&o.y+o.h>dino.y-dino.h)hit();}
   obs=obs.filter(o=>o.x>-40);if(inv>0)inv-=dt;hud();}
@@ -617,16 +622,20 @@ function endLv(won,why){if(ended)return;ended=true;if(won){const st=lives>=2||di
   else setTimeout(()=>Kit.lose(why,score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#4CAF50','#1b5e20');else{ctx.fillStyle='#0b0b0d';ctx.fillRect(0,0,W,H);}
+  const ez=ERAS[Math.min(2,(Kit.lv/5)|0)];
+  if(FX)FX.stage(ctx,W,H,ez.top,ez.bot);else{ctx.fillStyle=ez.bot;ctx.fillRect(0,0,W,H);}
   ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(0,GY+2,W,4);
+  for(const eg of eggs){if(FX){FX.glow(ctx,'#ffd54f',8);FX.orb(ctx,eg.x,eg.y,eg.r,'#ffd54f');FX.noGlow(ctx);}ctx.font='16px serif';ctx.textAlign='center';ctx.fillText('🥚',eg.x,eg.y+5);}
+  for(const r of rings){ctx.save();ctx.globalAlpha=r.t/r.m;ctx.strokeStyle=r.c;ctx.lineWidth=2;ctx.beginPath();ctx.arc(r.x,r.y,r.r*(1.2-r.t/r.m),0,7);ctx.stroke();ctx.restore();}
   // dino
   const blink=inv>0&&((inv*10)|0)%2===0;
-  if(!blink){if(FX){FX.glow(ctx,'#7dff6a',10);FX.orb(ctx,(dino.x+dino.w/2)|0,(dino.y-dino.h/2)|0,dino.w/2,'#7dff6a');FX.noGlow(ctx);}
+  if(!blink){if(FX){FX.shadow(ctx,dino.x+dino.w/2,GY+2,14,4);FX.glow(ctx,'#7dff6a',10);FX.orb(ctx,(dino.x+dino.w/2)|0,(dino.y-dino.h/2)|0,dino.w/2,'#7dff6a');FX.noGlow(ctx);}
     else{ctx.fillStyle='#8BC34A';ctx.fillRect(dino.x,dino.y-dino.h,dino.w,dino.h);}
     ctx.font='22px sans-serif';ctx.fillText('🦖',dino.x-2,dino.y-dino.h+8);}
-  for(const o of obs){if(FX)FX.tile(ctx,o.x,o.y-(o.fly?o.h:0),o.w,o.h,o.fly?'#7c4dff':'#ef5350',5);
+  for(const o of obs){if(FX){FX.shadow(ctx,o.x+o.w/2,o.y+(o.fly?0:0),o.w*.45,3);FX.tile(ctx,o.x,o.y-(o.fly?o.h:0),o.w,o.h,o.fly?'#7c4dff':'#ef5350',5);}
     else{ctx.fillStyle=o.fly?'#7c4dff':'#ef5350';ctx.fillRect(o.x,o.y-(o.fly?o.h:0),o.w,o.h);}
     if(o.fly){ctx.font='18px sans-serif';ctx.fillText('🦅',o.x,o.y-o.h);} }
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.min(1,p.t*2);ctx.fillStyle=p.c;ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
