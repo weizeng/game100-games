@@ -455,7 +455,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点箭头改重力，同色三连即可消除</p>
 </div>
-<div class="overlay" id="startScr"><h1>🔮 重力爆珠</h1><p>点选方向翻转整盘重力，同色三连以上就会消除。<br>冰锁珠要先被相邻消除敲碎。<br>首领关会在你操作中途乱改重力，商店可增加翻转次数。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🔮 重力爆珠</h1><p id="startP">点选方向翻转整盘重力，同色三连以上就会消除。<br>冰锁珠要先被相邻消除敲碎。<br>首领关会在你操作中途乱改重力，商店可增加翻转次数。<br><b>v2（Gemini 优化：3大重力舱主题、当前重力方向指示、爆珠冲击波与飘分）</b></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -505,7 +505,10 @@ const SHOP=[
   {k:'hintLv',name:'预判',max:1,cost(){return 35;},desc(){return '提示哪个方向能消';}}
 ];
 const C=['#fb7185','#38bdf8','#ffd34d','#86efac','#c084fc'];
-let G=[],N=6,M=7,moves=8,need=12,got=0,busy=0,dir='d',ice=[],wild=0;
+const CHAMBERS=[['#3a0d4a','#14061f','重力实验室'],['#0f3460','#061224','深海高压舱'],['#4a192c','#19060e','奇点反应堆']];
+let G=[],N=6,M=7,moves=8,need=12,got=0,busy=0,dir='d',ice=[],wild=0,waves=[],pops=[];
+function addWave(x,y,col,maxR){waves.push({x,y,r:8,maxR:maxR||40,col,a:1});}
+function addPop(x,y,txt,col){pops.push({x,y,txt,col:col||'#ffd34d',vy:-34,a:1});}
 function beginPlay(hint){score=0;sparks=[];show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
 function cell(r,c){return r*N+c;}
 function inb(r,c){return r>=0&&r<M&&c>=0&&c<N;}
@@ -522,7 +525,7 @@ function startLevel(n){
   lvl=n|0;boss=lvl%5===0;
   moves=7+(prog.moveLv|0)-Math.floor((lvl-1)/4)+(lvl<=2?2:0);moves=Math.max(3,moves);
   need=8+lvl+(boss?3:0);
-  got=0;busy=0;dir='d';
+  got=0;busy=0;dir='d';waves=[];pops=[];
   for(let k=0;k<8;k++){fillLevel(lvl+k*17);resolve(true);if(hintAny())break;}
   diff=lvl*10+need+(boss?24:0)+Math.max(0,10-moves)*4;
   beginPlay(boss?'首领会偷翻重力，留好翻转次数':'点箭头翻转重力，同色三连即可消除');
@@ -561,12 +564,12 @@ function resolve(silent){
     for(const i of m){
       if(ice[i]){ice[i]=0;continue;}
       G[i]=null;total++;
-      const x=18+(i%N)*54+22,y=70+Math.floor(i/N)*54+22;
-      if(FX&&!silent)FX.burst(sparks,x,y,C[0],8);
+      const x=18+(i%N)*54+22,y=48+Math.floor(i/N)*54+22;
+      if(!silent){const c0=G[i]===9?'#fff':C[(G[i]||0)%C.length];if(FX)FX.burst(sparks,x,y,c0,8);addWave(x,y,c0,38);}
     }
     gravity(dir);
   }
-  if(total&&!silent){got+=total;score+=total*5;$('score').textContent=score;beep(820,.07);}
+  if(total&&!silent){got+=total;const pts=total*5;score+=pts;$('score').textContent=score;beep(820,.07);addPop(W/2,44,'+'+pts,'#ffd34d');}
   return total;
 }
 function flip(d){
@@ -582,7 +585,10 @@ function flip(d){
   else if(moves<=0)lose('翻转次数用尽');
 }
 function onDown(p){inHit(p);}
-function update(){}
+function update(dt){
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*8)+dt*24;w.a-=dt*2.4;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y+=p.vy*dt;p.a-=dt*1.35;if(p.a<=0)pops.splice(i,1);}
+}
 function hintAny(){
   const save={G:G.slice(),ice:ice.slice(),dir,got,score};
   for(const d of ['u','d','l','r']){dir=d;const n=resolve(true);G=save.G.slice();ice=save.ice.slice();dir=save.dir;got=save.got;score=save.score;if(n>0)return true;}
@@ -599,9 +605,12 @@ function hintDir(){
   return null;
 }
 function draw(){
-  hits=[];stage('#3a0d4a','#14061f');
+  const ch=CHAMBERS[Math.min(2,Math.floor((lvl-1)/5))];
+  hits=[];stage(ch[0],ch[1]);
   if(state!=='play'&&state!=='pause')return;
-  label((boss?'👑 ':'')+'消除 '+got+'/'+need+'  翻转 '+moves,14,22,'#fff',13,'left');
+  const dSym={u:'↑',d:'↓',l:'←',r:'→'}[dir]||'↓';
+  label((boss?'👑 ':'')+ch[2]+' · 消除 '+got+'/'+need,14,20,'#fff',12,'left');
+  label('重力 '+dSym+' · 翻转 '+moves,346,20,'#ffd34d',12,'right');
   const hd=hintDir();
   for(let r=0;r<M;r++)for(let c=0;c<N;c++){
     const i=cell(r,c),x=16+c*54,y=48+r*54;
@@ -611,10 +620,12 @@ function draw(){
   }
   const arrows=[['u',150,H-108,'↑'],['l',80,H-54,'←'],['d',150,H-54,'↓'],['r',220,H-54,'→']];
   for(const [d,x,y,s] of arrows){
-    tile(x,y,70,48,hd===d?'#86efac':'#ffd34d',12);
+    tile(x,y,70,48,hd===d?'#86efac':(dir===d?'#fde68a':'#ffd34d'),12);
     label(s,x+35,y+24,'#3a2200',20,'center');
     addHit(x,y,70,48,()=>flip(d));
   }
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);label(p.txt,p.x,p.y,p.col,13,'center');ctx.restore();}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 function win(){if(state!=='play')return;finishWin(moves>=2?3:moves>=1?2:1,40+got*2+(boss?28:0)+moves*6,'珠爆成功！');}

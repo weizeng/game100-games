@@ -459,7 +459,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span id="iconT">💎<b>1</b></span><span>👟<b id="lifeT">24</b></span><span id="hitLbl">收集 <b id="hitT">0/30</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="mapBtn" aria-label="选择关卡">🗺️</button><button class="iconbtn" id="shopBtn" aria-label="道具商店">🛒</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="mapBtn" aria-label="选择关卡">🗺️</button><button class="iconbtn" id="shopBtn" aria-label="道具商店">🛒</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">三消连击</span><div class="prog"><i id="progI"></i></div><span id="infoT">🔨2</span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
@@ -613,7 +613,10 @@ const LV=[
 
 let L,N,board,sp,ice,fallOff,selected,cleared,score,movesLeft,hammers,hammerMode,ended,combo,maxCombo;
 let dragFrom=-1,dragStart=null,hintPair=null,hintTimer=0;
-let sparks=[],floats=[],lightnings=[],raf=0,last=0,fast=1,tAnim=0;
+const REALMS=[['#4a195e','#1c0929','紫晶圣殿'],['#0f3b5c','#061829','寒冰秘境'],['#4c1d3d','#1a0616','星耀王座']];
+let sparks=[],floats=[],lightnings=[],waves=[],raf=0,last=0,fast=1,tAnim=0;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
+function addWave(x,y,col,maxR){waves.push({x,y,r:10,maxR:maxR||52,col,a:1});}
 
 function cellGeom(){
   const pad=12,top=58,bw=W-pad*2;
@@ -785,7 +788,7 @@ function resolveBoard(focusIdx=-1){
       const pos=cellCenter(idx);
       if(st===1){
         // ⚡ 十字雷霆：清除整行整列
-        lightnings.push({r,c,life:1});
+        lightnings.push({r,c,life:1});addWave(pos.x,pos.y,'#80d8ff',64);
         for(let k=0;k<N;k++){
           const ir=r*N+k,ic=k*N+c;
           if(!toClear.has(ir)){toClear.add(ir);queue.push(ir);}
@@ -1169,6 +1172,10 @@ function upd(dt){
     lightnings[i].life-=dt*3.5;
     if(lightnings[i].life<=0)lightnings.splice(i,1);
   }
+  for(let i=waves.length-1;i>=0;i--){
+    const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*8)+dt*26;w.a-=dt*2.4;
+    if(w.a<=0)waves.splice(i,1);
+  }
   for(let i=floats.length-1;i>=0;i--){
     floats[i].y-=24*dt;
     floats[i].life-=dt*1.2;
@@ -1196,16 +1203,17 @@ function drawGemItem(x,y,r,colIdx,spType,pulse=0){
 }
 
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#4a195e','#1c0929');
-  else{ctx.fillStyle='#240d33';ctx.fillRect(0,0,W,H);}
+  const ch=REALMS[Math.min(2,Math.floor(Kit.lv/5))];
+  if(FX)FX.stage(ctx,W,H,ch[0],ch[1]);
+  else{ctx.fillStyle=ch[1];ctx.fillRect(0,0,W,H);}
 
   // 顶部特效与目标说明栏
   if(FX)FX.tile(ctx,12,8,W-24,40,'#361447',12);
   else{ctx.fillStyle='#361447';ctx.fillRect(12,8,W-24,40);}
   ctx.fillStyle='#ffdff0';
-  ctx.font='bold 12px sans-serif';
+  ctx.font='bold 11px sans-serif';
   ctx.textAlign='left';ctx.textBaseline='middle';
-  ctx.fillText('⚡4连=十字雷霆   💣5连=炫彩神石   🧊破冰+2💎',22,28);
+  ctx.fillText(ch[2]+' · ⚡4连雷霆 💣5连神石 🧊破冰+2',20,28);
 
   const {pad,top,bw,cell}=cellGeom();
   if(FX)FX.tile(ctx,pad-4,top-4,bw+8,bw+8,'#280e38',16);
@@ -1253,6 +1261,7 @@ function draw(){
   ctx.globalAlpha=1;
 
   if(FX)FX.drawBurst(ctx,sparks);
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
   for(const f of floats){
     ctx.globalAlpha=Math.max(0,f.life);
     ctx.fillStyle=f.c;
@@ -1279,7 +1288,7 @@ function layout(){
 addEventListener('resize',layout);layout();
 
 $('startH').textContent='💎 消消乐';
-$('startP').innerHTML='15 关炫彩宝石三消闯关：交换相邻宝石触发爽快瀑布连击！<br>合成 ⚡十字雷霆、💣九宫爆破与 🌈炫彩神石，击碎三大首领的寒冰结界！';
+$('startP').innerHTML='15 关炫彩宝石三消闯关：交换相邻宝石触发爽快瀑布连击！<br>合成 ⚡十字雷霆、💣九宫爆破与 🌈炫彩神石，击碎三大首领的寒冰结界！<br><b>v9（Gemini 优化：3大宝石圣殿主题、1×/2×倍速消除与雷霆/破冰冲击波光环）</b>';
 
 Kit.init({
   id:'jewel',
