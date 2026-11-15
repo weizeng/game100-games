@@ -459,7 +459,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span id="iconT">🔗<b>1</b></span><span>⏳<b id="lifeT">80s</b></span><span id="hitLbl">配对 <b id="hitT">0/18</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="mapBtn" aria-label="选择关卡">🗺️</button><button class="iconbtn" id="shopBtn" aria-label="道具商店">🛒</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="mapBtn" aria-label="选择关卡">🗺️</button><button class="iconbtn" id="shopBtn" aria-label="道具商店">🛒</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">三折连线</span><div class="prog"><i id="progI"></i></div><span id="infoT">💡2 🔀2</span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
@@ -609,7 +609,9 @@ const LV=[
 ];
 
 let L,R,C,grid,ice,selected,totalPairs,matchedPairs,score,timeLeft,maxTime,hints,shuffles,combo,comboTimer,ended;
-let zapPaths=[],sparks=[],floats=[],raf=0,last=0,fast=1,tAnim=0;
+const REALMS=[['#4a195e','#1c0929','霓虹夜街'],['#134e4a','#042f2e','翡翠竹林'],['#4c1d3d','#1a0616','千结殿堂']];
+let zapPaths=[],sparks=[],floats=[],waves=[],raf=0,last=0,fast=1,tAnim=0;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
 
 // 棋盘带外围 1 格空圈: r=0..R+1, c=0..C+1；实际方块在 r=1..R, c=1..C
 function boardGeom(){
@@ -1018,8 +1020,13 @@ function upd(dt){
     endLv(false,'倒计时结束，可在商店升级⏳时光沙漏增加时间');
   }
   for(let i=zapPaths.length-1;i>=0;i--){
+    if(!zapPaths[i]._w){zapPaths[i]._w=1;const pts=zapPaths[i].pts;if(pts&&pts.length>=2){waves.push({x:pts[0].x,y:pts[0].y,r:8,maxR:44,col:'#ffcf33',a:1});waves.push({x:pts[pts.length-1].x,y:pts[pts.length-1].y,r:8,maxR:44,col:'#ffcf33',a:1});}}
     zapPaths[i].life-=dt*3.2;
     if(zapPaths[i].life<=0)zapPaths.splice(i,1);
+  }
+  for(let i=waves.length-1;i>=0;i--){
+    const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*8)+dt*24;w.a-=dt*2.4;
+    if(w.a<=0)waves.splice(i,1);
   }
   for(let i=floats.length-1;i>=0;i--){
     floats[i].y-=24*dt;
@@ -1029,8 +1036,9 @@ function upd(dt){
 }
 
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#4a195e','#1c0929');
-  else{ctx.fillStyle='#240d33';ctx.fillRect(0,0,W,H);}
+  const ch=REALMS[Math.min(2,Math.floor(Kit.lv/5))];
+  if(FX)FX.stage(ctx,W,H,ch[0],ch[1]);
+  else{ctx.fillStyle=ch[1];ctx.fillRect(0,0,W,H);}
 
   // 顶部时间能量槽与连击提示栏
   if(FX)FX.tile(ctx,12,8,W-24,36,'#361447',10);
@@ -1043,7 +1051,7 @@ function draw(){
   ctx.fillStyle='#ffdff0';
   ctx.font='bold 11px sans-serif';
   ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText(combo>1&&comboTimer>0?'⚡ '+combo+' 连击中！每次消除奖励时间':'≤2次拐弯（3段线）即可配对消除 · 外圈畅通',W/2,35);
+  ctx.fillText(combo>1&&comboTimer>0?'⚡ '+combo+' 连击中！每次消除奖励时间':ch[2]+' · ≤2次拐弯（3段线）即可消除',W/2,35);
 
   const {ox,oy,cell,bw,bh}=boardGeom();
   // 外围 1 格导电走廊底板
@@ -1113,6 +1121,7 @@ function draw(){
   }
 
   if(FX)FX.drawBurst(ctx,sparks);
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
   for(const f of floats){
     ctx.globalAlpha=Math.max(0,f.life);
     ctx.fillStyle=f.c;
@@ -1139,7 +1148,7 @@ function layout(){
 addEventListener('resize',layout);layout();
 
 $('startH').textContent='🔗 连连看';
-$('startP').innerHTML='15 关经典三折连线闯关：眼疾手快配对相同图案，连击奖励时间！<br>体验 ⬇引力下落、⬅潮汐左移与 🧊寒冰解封，挑战三大千结首领！';
+$('startP').innerHTML='15 关经典三折连线闯关：眼疾手快配对相同图案，连击奖励时间！<br>体验 ⬇引力下落、⬅潮汐左移与 🧊寒冰解封，挑战三大千结首领！<br><b>v9（Gemini 优化：3大千结主题舞台、1×/2×倍速切换与闪电连线波纹光环）</b>';
 
 Kit.init({
   id:'link',

@@ -454,7 +454,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">交换邻格三消 · 攒能放大招</p>
 </div>
-<div class="overlay" id="startScr"><h1>💎 晶核远征</h1><p>三消晶核攒能量放大招。<br>步数有限清目标格。<br>Boss：干扰块更多。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>💎 晶核远征</h1><p id="startP">三消晶核攒能量放大招。<br>步数有限清目标格。<br>Boss：干扰块更多。<br><b>v2（Gemini 优化：3大远征秘境主题、顶部进度条、满能大招脉冲提示与消除波纹）</b></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -488,25 +488,43 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 const TUT=[["消除","点选再点交换邻格。"],["三连","三同色消除得分。"],["技能","连击攒能量放大招。"],["Boss","Boss关干扰块更多。"]];
 const SHOP=[{k:'moveLv',name:'步数拓展',max:3,cost(){return 40+(prog.moveLv|0)*30;},desc(){return '额外步数'}},{k:'powerLv',name:'大招威力',max:3,cost(){return 45+(prog.powerLv|0)*30;},desc(){return '大招清行+'}},{k:'luckLv',name:'幸运刷新',max:3,cost(){return 50+(prog.luckLv|0)*35;},desc(){return '少干扰块'}}];
 const COLS=['#ff6b9d','#7df9ff','#ffe08a','#a78bfa','#93e46c'];
-let N=6,grid=[],moves=0,goal=0,cleared=0,sel=-1,energy=0,rng;
+const REALMS=[['#3a1848','#1a0a28','紫晶前哨'],['#123c4e','#061822','潮汐晶矿'],['#4a192c','#18060e','绯红裂谷']];
+let N=6,grid=[],moves=0,goal=0,cleared=0,sel=-1,energy=0,rng,waves=[],pops=[],animT=0;
+function addWave(x,y,col,maxR){waves.push({x,y,r:8,maxR:maxR||40,col,a:1});}
+function addPop(x,y,txt,col){pops.push({x,y,txt,col:col||'#ffd34d',vy:-34,a:1});}
 function idx(r,c){return r*N+c;}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*5059+7);N=6;grid=[];for(let i=0;i<N*N;i++){let c=rng()*COLS.length|0;if(boss&&rng()<0.08-(prog.luckLv|0)*0.02)c=-1;grid.push(c);}moves=18+(prog.moveLv|0)*2-(boss?2:0);goal=25+lvl*3+(boss?10:0);cleared=0;sel=-1;energy=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='交换邻格三消 · 攒能放大招';}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];animT=0;rng=mulberry32(n*5059+7);N=6;grid=[];for(let i=0;i<N*N;i++){let c=rng()*COLS.length|0;if(boss&&rng()<0.08-(prog.luckLv|0)*0.02)c=-1;grid.push(c);}moves=18+(prog.moveLv|0)*2-(boss?2:0);goal=25+lvl*3+(boss?10:0);cleared=0;sel=-1;energy=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='交换邻格三消 · 攒能放大招';}
 function findMatches(){const mark=new Set();for(let r=0;r<N;r++)for(let c=0;c<N-2;c++){const a=grid[idx(r,c)];if(a<0)continue;if(a===grid[idx(r,c+1)]&&a===grid[idx(r,c+2)]){mark.add(idx(r,c));mark.add(idx(r,c+1));mark.add(idx(r,c+2));}}for(let c=0;c<N;c++)for(let r=0;r<N-2;r++){const a=grid[idx(r,c)];if(a<0)continue;if(a===grid[idx(r+1,c)]&&a===grid[idx(r+2,c)]){mark.add(idx(r,c));mark.add(idx(r+1,c));mark.add(idx(r+2,c));}}return mark;}
 function collapse(){for(let c=0;c<N;c++){let w=N-1;for(let r=N-1;r>=0;r--){if(grid[idx(r,c)]!=null){grid[idx(w,c)]=grid[idx(r,c)];if(w!==r)grid[idx(r,c)]=null;w--;}}for(let r=w;r>=0;r--){let col=rng()*COLS.length|0;if(boss&&rng()<0.06)col=-1;grid[idx(r,c)]=col;}}}
-function resolve(){for(let guard=0;guard<8;guard++){const m=findMatches();if(!m.size)break;m.forEach(i=>{const r=(i/N)|0,c=i%N;const cs=Math.min(44,(W-30)/N),ox=(W-cs*N)/2,oy=70;if(FX)FX.burst(sparks,ox+c*cs+cs/2,oy+r*cs+cs/2,COLS[Math.max(0,grid[i])]||'#fff',6);grid[i]=null;});cleared+=m.size;energy=Math.min(10,energy+m.size*0.4);score+=m.size*5;$('score').textContent=score;collapse();beep(700+guard*40,.05);}if(cleared>=goal)win();else if(moves<=0)lose('步数用尽');}
+function resolve(){let chain=0;for(let guard=0;guard<8;guard++){const m=findMatches();if(!m.size)break;chain++;m.forEach(i=>{const r=(i/N)|0,c=i%N;const cs=Math.min(44,(W-30)/N),ox=(W-cs*N)/2,oy=70,px=ox+c*cs+cs/2,py=oy+r*cs+cs/2,col=COLS[Math.max(0,grid[i])]||'#fff';if(FX)FX.burst(sparks,px,py,col,6);addWave(px,py,col,34);grid[i]=null;});cleared+=m.size;energy=Math.min(10,energy+m.size*0.4);const pts=m.size*5;score+=pts;addPop(W/2,62,(chain>1?'连击×'+chain+' ':'')+'+'+pts,'#ffd34d');$('score').textContent=score;collapse();beep(700+guard*40,.05);}if(cleared>=goal)win();else if(moves<=0)lose('步数用尽');}
 function win(){if(state!=='play')return;const stars=moves>=5?3:moves>=2?2:1;const gain=40+stars*15+(boss?50:0)+moves*2;finishWin(stars,gain,'晶核共鸣！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){}
+function update(dt){
+  animT+=dt;
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*8)+dt*24;w.a-=dt*2.4;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y+=p.vy*dt;p.a-=dt*1.35;if(p.a<=0)pops.splice(i,1);}
+}
 function swap(a,b){const t=grid[a];grid[a]=grid[b];grid[b]=t;}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
-  if(p.y>H-56){if(energy>=8){energy=0;const pow=1+(prog.powerLv|0);for(let k=0;k<pow;k++){const r=rng()*N|0;for(let c=0;c<N;c++){if(grid[idx(r,c)]!=null){cleared++;score+=8;grid[idx(r,c)]=null;}}}collapse();$('score').textContent=score;beep(440,.12,'square');toast('大招清行');if(cleared>=goal)win();}else toast('能量不足');return;}
+  if(p.y>H-56){if(energy>=8){energy=0;const pow=1+(prog.powerLv|0);for(let k=0;k<pow;k++){const r=rng()*N|0;const cs=Math.min(44,(W-30)/N),oy=70;addWave(W/2,oy+r*cs+cs/2,'#ff6ad5',72);for(let c=0;c<N;c++){if(grid[idx(r,c)]!=null){cleared++;score+=8;grid[idx(r,c)]=null;}}}collapse();addPop(W/2,H-70,'⚡ 大招清行!','#ff6ad5');$('score').textContent=score;beep(440,.12,'square');toast('大招清行');if(cleared>=goal)win();}else toast('能量不足');return;}
   const cs=Math.min(44,(W-30)/N),ox=(W-cs*N)/2,oy=70;const c=((p.x-ox)/cs)|0,r=((p.y-oy)/cs)|0;if(r<0||c<0||r>=N||c>=N)return;const i=idx(r,c);if(sel<0){sel=i;beep(500,.03);return;}
   const sr=(sel/N)|0,sc=sel%N;if(Math.abs(sr-r)+Math.abs(sc-c)===1){if(grid[i]<0||grid[sel]<0){toast('干扰块');sel=-1;return;}swap(sel,i);const m=findMatches();if(!m.size){swap(sel,i);toast('无效');beep(200,.08,'triangle');}else{moves--;resolve();}sel=-1;}else sel=i;});
-function draw(){if(FX)FX.stage(ctx,W,H,'#3a1848','#1a0a28');else{ctx.fillStyle='#1a0a28';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('步'+moves+' 消'+cleared+'/'+goal+' 能'+(energy|0)+(boss?' 👑':''),10,22);
+function draw(){
+  const ch=REALMS[Math.min(2,Math.floor((lvl-1)/5))];
+  if(FX)FX.stage(ctx,W,H,ch[0],ch[1]);else{ctx.fillStyle=ch[1];ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';ctx.fillText((boss?'👑 ':'')+ch[2]+' · 步'+moves,14,20);
+  ctx.textAlign='right';ctx.fillStyle='#ffd34d';ctx.fillText('消'+cleared+'/'+goal+' · 能'+(energy|0)+'/8',W-14,20);
+  if(FX)FX.tile(ctx,14,32,W-28,8,'rgba(255,255,255,.12)',4);else{ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(14,32,W-28,8);}
+  const pct=Math.min(1,cleared/Math.max(1,goal));
+  if(pct>0){if(FX)FX.tile(ctx,14,32,Math.max(8,(W-28)*pct),8,boss?'#ff6ad5':'#93e46c',4);else{ctx.fillStyle='#93e46c';ctx.fillRect(14,32,(W-28)*pct,8);}}
   const cs=Math.min(44,(W-30)/N),ox=(W-cs*N)/2,oy=70;
   for(let r=0;r<N;r++)for(let c=0;c<N;c++){const i=idx(r,c),x=ox+c*cs,y=oy+r*cs;const g=grid[i];if(g==null)continue;if(g<0){ctx.fillStyle='#555';ctx.fillRect(x+2,y+2,cs-4,cs-4);}else if(FX)FX.tile(ctx,x+2,y+2,cs-4,cs-4,COLS[g],8);else{ctx.fillStyle=COLS[g];ctx.fillRect(x+2,y+2,cs-4,cs-4);}if(sel===i){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,cs-2,cs-2);}}
-  ctx.fillStyle=energy>=8?'rgba(255,106,213,.5)':'rgba(255,255,255,.15)';ctx.fillRect(W*0.2,H-52,W*0.6,44);ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText(energy>=8?'放大招':'蓄能中 '+(energy|0)+'/8',W/2,H-24);
+  if(FX)FX.tile(ctx,W*0.2,H-52,W*0.6,40,energy>=8?'#ff6ad5':'rgba(255,255,255,.15)',12);
+  else{ctx.fillStyle=energy>=8?'rgba(255,106,213,.5)':'rgba(255,255,255,.15)';ctx.fillRect(W*0.2,H-52,W*0.6,40);}
+  if(energy>=8){ctx.save();ctx.strokeStyle='rgba(255,211,77,'+(.5+.5*Math.sin(animT*6))+')';ctx.lineWidth=2.5;ctx.strokeRect(W*0.2,H-52,W*0.6,40);ctx.restore();}
+  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(energy>=8?'⚡ 放大招清行':'蓄能中 '+(energy|0)+'/8',W/2,H-27);
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.col;ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);cleared=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,cleared,goal,moves}}};
 

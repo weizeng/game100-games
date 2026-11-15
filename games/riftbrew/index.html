@@ -454,7 +454,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点两格相邻同阶合并 · 交订单</p>
 </div>
-<div class="overlay" id="startScr"><h1>🧪 裂隙炼药</h1><p>相邻同阶药瓶合并交订单。<br>裂隙会吞瓶，步数有限。<br>Boss：订单紧步数少。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🧪 裂隙炼药</h1><p id="startP">相邻同阶药瓶合并交订单。<br>裂隙会吞瓶，步数有限。<br>Boss：订单紧步数少。<br><b>v2（Gemini 优化：3大炼金工坊主题、可合并邻格金框提示、脉冲裂隙预警与交付波纹）</b></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -489,19 +489,40 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 const TUT=[["合成","点相邻同阶瓶合并升级。"],["订单","凑齐订单所需阶数。"],["裂隙","裂隙格会吞瓶。"],["Boss","订单更紧步数更少。"]];
 const SHOP=[{k:'moveLv',name:'步数拓展',max:3,cost(){return 40+(prog.moveLv|0)*30;},desc(){return '额外步数';}},{k:'spawnLv',name:'珍材投放',max:3,cost(){return 45+(prog.spawnLv|0)*30;},desc(){return '更高阶初始瓶';}},{k:'riftLv',name:'裂隙护罩',max:3,cost(){return 50+(prog.riftLv|0)*35;},desc(){return '裂隙吞瓶减免'}}];
 const COLS=['#ff6b9d','#ffa94d','#ffe08a','#7df9ff','#a78bfa','#7dffb3'];
-let N=5,cells=[],orders=[],moves=0,maxMoves=0,sel=-1,rng,rifts=new Set();
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];N=5;rng=mulberry32(n*8881+9);cells=Array(N*N).fill(0).map(()=>1+(rng()*(2+(prog.spawnLv|0))|0));rifts=new Set();const rc=1+((lvl/5)|0)+(boss?1:0);while(rifts.size<rc)rifts.add(rng()*N*N|0);orders=[];const oc=2+(boss?1:0);for(let i=0;i<oc;i++)orders.push({need:2+((lvl/4)|0)+i,have:0});maxMoves=14+((12-lvl)/2|0)+(prog.moveLv|0)-(boss?3:0);moves=maxMoves;sel=-1;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点两格相邻同阶合并 · 交订单';}
+const WORKSHOPS=[['#3a2218','#1a100c','橡木药房'],['#1f3a3d','#0a191b','幽蓝秘釜'],['#3b1836','#150614','虚空裂隙']];
+let N=5,cells=[],orders=[],moves=0,maxMoves=0,sel=-1,rng,rifts=new Set(),waves=[],pops=[],animT=0;
+function addWave(x,y,col,maxR){waves.push({x,y,r:8,maxR:maxR||44,col,a:1});}
+function addPop(x,y,txt,col){pops.push({x,y,txt,col:col||'#ffd34d',vy:-34,a:1});}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];animT=0;N=5;rng=mulberry32(n*8881+9);cells=Array(N*N).fill(0).map(()=>1+(rng()*(2+(prog.spawnLv|0))|0));rifts=new Set();const rc=1+((lvl/5)|0)+(boss?1:0);while(rifts.size<rc)rifts.add(rng()*N*N|0);orders=[];const oc=2+(boss?1:0);for(let i=0;i<oc;i++)orders.push({need:2+((lvl/4)|0)+i,have:0});maxMoves=14+((12-lvl)/2|0)+(prog.moveLv|0)-(boss?3:0);moves=maxMoves;sel=-1;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点两格相邻同阶合并 · 交订单';}
 function done(){return orders.every(o=>o.have>=o.need);}
 function win(){if(state!=='play')return;const stars=moves>=5?3:moves>=2?2:1;const gain=40+stars*15+(boss?55:0)+moves*2;finishWin(stars,gain,'炼成交付！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){}
-function tryMerge(a,b){const ar=a/N|0,ac=a%N,br=b/N|0,bc=b%N;if(Math.abs(ar-br)+Math.abs(ac-bc)!==1)return false;if(!cells[a]||cells[a]!==cells[b])return false;const nv=Math.min(6,cells[a]+1);cells[b]=nv;cells[a]=0;if(rifts.has(b)&&rng()>0.35+(prog.riftLv|0)*0.15){cells[b]=0;toast('裂隙吞没！');beep(160,.1,'triangle');}else{const o=orders.find(x=>x.have<x.need&&x.need===nv);if(o){o.have++;score+=20;$('score').textContent=score;toast('交付阶'+nv);beep(900,.08);if(FX)FX.burst(sparks,((b%N)+0.5)*(W/N),((b/N|0)+0.5)*60+50,COLS[nv-1],12);}else{score+=8;$('score').textContent=score;beep(760,.05);}}const empty=cells.map((v,i)=>v? -1:i).filter(i=>i>=0);if(empty.length){const i=empty[rng()*empty.length|0];cells[i]=1+(rng()*2|0);}return true;}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);const cell=Math.min((W-40)/N,(H-160)/N),ox=(W-cell*N)/2,oy=50;const c=((p.x-ox)/cell)|0,r=((p.y-oy)/cell)|0;if(r<0||c<0||r>=N||c>=N){sel=-1;return;}const i=r*N+c;if(sel<0){if(cells[i]){sel=i;beep(500,.03);}return;}if(sel===i){sel=-1;return;}if(moves<=0){lose('步数用尽');return;}if(tryMerge(sel,i)){moves--;sel=-1;if(done())win();else if(moves<=0)lose('步数用尽');}else{sel=cells[i]?i:-1;}});
-function draw(){if(FX)FX.stage(ctx,W,H,'#3a2218','#1a100c');else{ctx.fillStyle='#1a100c';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('步'+moves+'/'+maxMoves+(boss?' 👑':''),10,22);
-  ctx.font='12px sans-serif';ctx.fillText('订单 '+orders.map(o=>o.have+'/'+o.need).join(' · '),10,40);
-  const cell=Math.min((W-40)/N,(H-160)/N),ox=(W-cell*N)/2,oy=50;
-  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const i=r*N+c,x=ox+c*cell,y=oy+r*cell;if(rifts.has(i)){ctx.fillStyle='rgba(80,0,80,.5)';ctx.fillRect(x+2,y+2,cell-4,cell-4);}if(cells[i]){const col=COLS[cells[i]-1];if(FX)FX.tile(ctx,x+3,y+3,cell-6,cell-6,col,10);else{ctx.fillStyle=col;ctx.fillRect(x+3,y+3,cell-6,cell-6);}ctx.fillStyle='#fff';ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.fillText(cells[i],x+cell/2,y+cell/2+5);}if(sel===i){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(x+2,y+2,cell-4,cell-4);}}
+function update(dt){
+  animT+=dt;
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*8)+dt*24;w.a-=dt*2.4;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y+=p.vy*dt;p.a-=dt*1.35;if(p.a<=0)pops.splice(i,1);}
+}
+function tryMerge(a,b){const ar=a/N|0,ac=a%N,br=b/N|0,bc=b%N;if(Math.abs(ar-br)+Math.abs(ac-bc)!==1)return false;if(!cells[a]||cells[a]!==cells[b])return false;const nv=Math.min(6,cells[a]+1);cells[b]=nv;cells[a]=0;
+  const cell=Math.min((W-40)/N,(H-160)/N),ox=(W-cell*N)/2,oy=66,px=ox+bc*cell+cell/2,py=oy+br*cell+cell/2;
+  if(rifts.has(b)&&rng()>0.35+(prog.riftLv|0)*0.15){cells[b]=0;toast('裂隙吞没！');beep(160,.1,'triangle');addWave(px,py,'#c084fc',42);addPop(px,py-8,'🌀 裂隙吞没','#c084fc');}
+  else{const o=orders.find(x=>x.have<x.need&&x.need===nv);if(o){o.have++;score+=20;$('score').textContent=score;toast('交付阶'+nv);beep(900,.08);if(FX)FX.burst(sparks,px,py,COLS[nv-1],12);addWave(px,py,COLS[nv-1],48);addPop(px,py-10,'交付阶'+nv+' +20!',COLS[nv-1]);}else{score+=8;$('score').textContent=score;beep(760,.05);addWave(px,py,COLS[nv-1],32);addPop(px,py-8,'+8',COLS[nv-1]);}}
+  const empty=cells.map((v,i)=>v? -1:i).filter(i=>i>=0);if(empty.length){const i=empty[rng()*empty.length|0];cells[i]=1+(rng()*2|0);}return true;}
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);const cell=Math.min((W-40)/N,(H-160)/N),ox=(W-cell*N)/2,oy=66;const c=((p.x-ox)/cell)|0,r=((p.y-oy)/cell)|0;if(r<0||c<0||r>=N||c>=N){sel=-1;return;}const i=r*N+c;if(sel<0){if(cells[i]){sel=i;beep(500,.03);}return;}if(sel===i){sel=-1;return;}if(moves<=0){lose('步数用尽');return;}if(tryMerge(sel,i)){moves--;sel=-1;if(done())win();else if(moves<=0)lose('步数用尽');}else{sel=cells[i]?i:-1;}});
+function draw(){
+  const ch=WORKSHOPS[Math.min(2,Math.floor((lvl-1)/5))];
+  if(FX)FX.stage(ctx,W,H,ch[0],ch[1]);else{ctx.fillStyle=ch[1];ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';ctx.fillText((boss?'👑 ':'')+ch[2]+' · 步'+moves+'/'+maxMoves,14,22);
+  let oxBadge=14;for(const o of orders){const doneO=o.have>=o.need;const col=COLS[Math.min(5,o.need-1)];if(FX)FX.tile(ctx,oxBadge,32,68,24,doneO?'rgba(255,255,255,.15)':col,6);else{ctx.fillStyle=doneO?'rgba(255,255,255,.15)':col;ctx.fillRect(oxBadge,32,68,24);}ctx.fillStyle=doneO?'#86efac':'#1a100c';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText('阶'+o.need+' '+o.have+'/'+o.need,oxBadge+34,48);oxBadge+=74;}
+  const cell=Math.min((W-40)/N,(H-160)/N),ox=(W-cell*N)/2,oy=66;
+  const sr=sel>=0?(sel/N|0):-1,sc=sel>=0?sel%N:-1;
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const i=r*N+c,x=ox+c*cell,y=oy+r*cell;
+    if(rifts.has(i)){const pulse=.45+.35*Math.sin(animT*5+i);ctx.fillStyle='rgba(147,51,234,'+pulse+')';ctx.fillRect(x+2,y+2,cell-4,cell-4);ctx.strokeStyle='#c084fc';ctx.lineWidth=1.5;ctx.strokeRect(x+3,y+3,cell-6,cell-6);}
+    if(cells[i]){const col=COLS[cells[i]-1];if(FX)FX.tile(ctx,x+3,y+3,cell-6,cell-6,col,10);else{ctx.fillStyle=col;ctx.fillRect(x+3,y+3,cell-6,cell-6);}ctx.fillStyle='#1a100c';ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.fillText(cells[i],x+cell/2,y+cell/2+5);}
+    if(sel===i){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.strokeRect(x+2,y+2,cell-4,cell-4);}
+    else if(sel>=0&&Math.abs(r-sr)+Math.abs(c-sc)===1&&cells[i]===cells[sel]){ctx.strokeStyle='#ffd34d';ctx.lineWidth=2.5;ctx.strokeRect(x+2,y+2,cell-4,cell-4);}
+  }
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.col;ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);orders.forEach(o=>o.have=o.need);win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,moves,orders:orders.map(o=>o.have+'/'+o.need)}}};
 
