@@ -461,7 +461,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span id="iconT"></span><span>❤️<b id="lifeT">3</b></span><span id="hitLbl">击 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">目标</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
@@ -594,12 +594,18 @@ const LV=[
  {need:28,spd:1.4,spawn:0.5,ebullet:0.4,time:40},{need:30,spd:1.45,spawn:0.48,ebullet:0.42,time:38},{need:32,spd:1.5,spawn:0.45,ebullet:0.45,time:36},{need:34,spd:1.55,spawn:0.42,ebullet:0.48,time:34},
  {boss:{name:'终末空魔',need:40,spd:1.65,spawn:0.35,ebullet:0.55,time:32,bossHp:100}}
 ];
-let L,lives,score,ended,raf=0,last=0,fast=1,boss,timeLeft,sparks,player,bullets,enemies,ebullets,kills,need,spawnT,shotT,dragging,bossE;
-function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');sparks=[];bullets=[];enemies=[];ebullets=[];kills=0;spawnT=0;shotT=0;dragging=false;bossE=null;
+const ZONES=[
+  {name:'碧空云海',t:'#42a5f5',b:'#0d47a1'},
+  {name:'暮色空域',t:'#ab47bc',b:'#311b92'},
+  {name:'星渊夜空',t:'#263238',b:'#050914'}
+];
+let L,lives,score,ended,raf=0,last=0,fast=1,boss,timeLeft,sparks,waves,pops,pickups,overdrive,player,bullets,enemies,ebullets,kills,need,spawnT,shotT,dragging,bossE;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
+function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');sparks=[];waves=[];pops=[];pickups=[];overdrive=0;bullets=[];enemies=[];ebullets=[];kills=0;spawnT=0;shotT=0;dragging=false;bossE=null;
   const b=L.boss||L;boss=L.boss?{name:L.boss.name}:null;need=b.need;timeLeft=b.time+Kit.up('time')*8;
   player={x:W/2,y:H-70,r:14,inv:0};if(b.bossHp)bossE={x:W/2,y:80,hp:b.bossHp,max:b.bossHp,t:0};
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);Kit.sfx('tap');}
-function fire(){const n=1+Kit.up('hint');for(let i=0;i<n;i++){const ox=(i-(n-1)/2)*10;bullets.push({x:player.x+ox,y:player.y-16,vy:-420});}Kit.sfx('tap');}
+function fire(){const n=1+Kit.up('hint')+(overdrive>0?2:0);for(let i=0;i<n;i++){const ox=(i-(n-1)/2)*10;bullets.push({x:player.x+ox,y:player.y-16,vy:-420});}Kit.sfx('tap');}
 cv.addEventListener('pointerdown',e=>{if(Kit.state!=='play'||ended)return;dragging=true;moveTo(e);});
 cv.addEventListener('pointermove',e=>{if(dragging)moveTo(e);});
 addEventListener('pointerup',()=>{dragging=false;});
@@ -612,8 +618,12 @@ function upd(dt){if(ended)return;timeLeft-=dt;if(timeLeft<=0){timeLeft=0;return 
   for(const e of enemies){e.y+=e.vy*dt;if(e.shoot&&Math.random()<0.01*b.spd)ebullets.push({x:e.x,y:e.y,vy:180*b.spd});}
   for(const eb of ebullets)eb.y+=eb.vy*dt;ebullets=ebullets.filter(eb=>eb.y<H+20);
   // collisions
-  for(const bl of bullets){for(const e of enemies){if(e.hp>0&&Math.hypot(bl.x-e.x,bl.y-e.y)<e.r+4){e.hp--;bl.y=-999;if(e.hp<=0){kills++;score+=12;if(FX)FX.burst(sparks,e.x,e.y,'#ffd54f',8);Kit.sfx('hit');}}}}
+  for(const bl of bullets){for(const e of enemies){if(e.hp>0&&Math.hypot(bl.x-e.x,bl.y-e.y)<e.r+4){e.hp--;bl.y=-999;if(e.hp<=0){kills++;score+=12;waves.push({x:e.x,y:e.y,r:6,maxR:28,a:1,c:'#ffd54f'});pops.push({x:e.x,y:e.y-8,t:'+12',c:'#ffee58',a:1});if(Math.random()<0.22)pickups.push({x:e.x,y:e.y,vy:70,k:Math.random()<0.65?'pow':'life'});if(FX)FX.burst(sparks,e.x,e.y,'#ffd54f',8);Kit.sfx('hit');}}}}
   enemies=enemies.filter(e=>e.hp>0&&e.y<H+30);
+  if(overdrive>0)overdrive=Math.max(0,overdrive-dt);
+  for(let i=pickups.length-1;i>=0;i--){const pk=pickups[i];pk.y+=pk.vy*dt;if(Math.hypot(pk.x-player.x,pk.y-player.y)<player.r+14){if(pk.k==='pow'){overdrive=5;pops.push({x:player.x,y:player.y-20,t:'⚡火力暴走',c:'#80deea',a:1.2});}else{lives=Math.min(5+Kit.up('life'),lives+1);pops.push({x:player.x,y:player.y-20,t:'🛡️ +1命',c:'#a5d6a7',a:1.2});}Kit.sfx('coin');pickups.splice(i,1);}else if(pk.y>H+20)pickups.splice(i,1);}
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+24*dt;w.a-=dt*3.2;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=26*dt;p.a-=dt*1.5;if(p.a<=0)pops.splice(i,1);}
   if(bossE){bossE.t+=dt;bossE.x=W/2+Math.sin(bossE.t*1.5)*100;if(Math.random()<0.04)ebullets.push({x:bossE.x,y:bossE.y+20,vy:200});
     for(const bl of bullets){if(Math.hypot(bl.x-bossE.x,bl.y-bossE.y)<28){bossE.hp--;bl.y=-999;score+=2;if(bossE.hp<=0){kills+=5;score+=50;bossE=null;Kit.sfx('boom');}}}}
   if(player.inv>0)player.inv-=dt;
@@ -631,21 +641,26 @@ function endLv(won,why){if(ended)return;ended=true;
   else setTimeout(()=>Kit.lose(why||'失败',score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000)*fast;last=t;if(Kit.state==='play'&&!ended)upd(dt);draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#42a5f5','#0d47a1');else{ctx.fillStyle='#0d47a1';ctx.fillRect(0,0,W,H);}
+  const z=ZONES[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,z.t,z.b);else{ctx.fillStyle=z.b;ctx.fillRect(0,0,W,H);}
   ctx.fillStyle='#fff6';for(let i=0;i<40;i++){ctx.fillRect((i*97)%W,(i*53+performance.now()/30)%H,2,2);}
-  for(const bl of bullets){ctx.fillStyle='#ffee58';ctx.fillRect(bl.x-2,bl.y-8,4,12);}
+  for(const bl of bullets){ctx.fillStyle=overdrive>0?'#80deea':'#ffee58';ctx.fillRect(bl.x-2,bl.y-8,4,12);}
   for(const eb of ebullets){ctx.fillStyle='#ef5350';ctx.beginPath();ctx.arc(eb.x,eb.y,4,0,7);ctx.fill();}
+  for(const pk of pickups){ctx.font='18px sans-serif';ctx.textAlign='center';ctx.fillText(pk.k==='pow'?'⚡':'🛡️',pk.x,pk.y);}
   for(const e of enemies){ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillText('🛸',e.x,e.y);}
   if(bossE){ctx.font='40px sans-serif';ctx.fillText('👾',bossE.x,bossE.y);ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.fillText(bossE.hp+'/'+bossE.max,bossE.x,bossE.y+28);}
   ctx.globalAlpha=player.inv>0?0.5:1;ctx.font='28px sans-serif';ctx.fillText('✈️',player.x,player.y);ctx.globalAlpha=1;
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
 $('startH').textContent='✈️ 打飞机';
-$('startP').innerHTML='15 关纵版射击：敌机更快更密、弹幕更凶。<br>第 5/10/15 关机群首领！可升级火力、加时、额外命。';
+$('startP').innerHTML='v9（Gemini 优化：3大空域战区、击毁震波与得分飘字、护盾/火力道具与1×/2×倍速）<br>15 关纵版射击：敌机更快更密、弹幕更凶。<br>第 5/10/15 关机群首领！可升级火力、加时、额外命。';
 Kit.init({id:'plane',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start,stop:()=>{ended=true;},pause:()=>{},
-  note:()=>'拖动战机自动开火，击落目标数过关',
+  note:()=>ZONES[Math.min(2,Math.floor((Kit.lv||0)/5))].name+' · 拖动战机自动开火，击落目标数过关',
   tut:[['移动','拖动战机到安全位置。','✈️'],
        ['开火','自动射击敌机。','🔫'],
        ['躲避','躲开红色敌弹。','💥'],

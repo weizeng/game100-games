@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🎯 弹射奇袭</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">拖动瞄准，松手发射，子弹会弹墙</p>
 </div>
-<div class="overlay" id="startScr"><h1>🎯 弹射奇袭</h1><p>按住拖动画出弹道，松手发射会反弹的子弹。<br>利用左右和上方墙壁绕开掩体击中敌人。<br>首领只有先弹射一次才会受伤。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🎯 弹射奇袭</h1><p>v2（Gemini 优化：3大战术靶场主题、弹壁火花震波与弹射加分、1×/2×倍速）<br>按住拖动画出弹道，松手发射会反弹的子弹。<br>利用左右和上方墙壁绕开掩体击中敌人。<br>首领只有先弹射一次才会受伤。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -486,7 +487,13 @@ function saveProg(p){UI.storageSet(PK,JSON.stringify(p));}
 let prog=loadProg();
 if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==null)prog.unlock=1;if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;if($('bestLine'))$('bestLine').textContent='解锁 '+prog.unlock+'/'+TOTAL+' · 币 '+prog.coins;
-let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false,diff=1;
+const RANGES=[
+  {t:'#3a0d5e',b:'#0b0620',blk:'#64748b'},
+  {t:'#0e3b5c',b:'#051324',blk:'#475569'},
+  {t:'#4a152b',b:'#14050c',blk:'#78350f'}
+];
+let state='menu',lvl=1,score=0,sparks=[],waves=[],pops=[],last=performance.now(),boss=false,diff=1,fast=1;
+$('spdBtn').onclick=()=>{ fast=fast===1?2:1; $('spdBtn').textContent=fast+'×'; beep(620,.04); };
 let hits=[],pointer={down:false,x:0,y:0};
 function addHit(x,y,w,h,fn){hits.push({x,y,w,h,fn});}
 function inHit(p){for(let i=hits.length-1;i>=0;i--){const h=hits[i];if(p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h){h.fn(p);return true;}}return false;}
@@ -522,7 +529,7 @@ function startLevel(n){
     blocks.push({x:30+rng()*220, y:180+rng()*180, w:50+rng()*40, h:16});
   }
   diff=lvl*10+ec*8+bc*5+(boss?26:0)+Math.max(0,6-shotMax)*4;
-  score=0; sparks=[]; show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);
+  score=0; sparks=[]; waves=[]; pops=[]; show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);
   state='play'; last=performance.now(); beep(660,.1); $('score').textContent=0;
   $('hint').textContent=boss?'首领要先撞墙弹射再命中':'拖动瞄准，松手发射，子弹会弹墙';
 }
@@ -558,27 +565,30 @@ function update(dt){
   for(let i=bullets.length-1;i>=0;i--){
     const u=bullets[i];
     u.x+=u.vx*dt; u.y+=u.vy*dt;
-    if(u.x<12||u.x>W-12){u.vx*=-1;u.x=clamp(u.x,12,W-12);u.b++;}
-    if(u.y<12){u.vy*=-1;u.y=12;u.b++;}
-    for(const k of blocks){ if(u.x>k.x&&u.x<k.x+k.w&&u.y>k.y&&u.y<k.y+k.h){ if(Math.min(u.x-k.x,k.x+k.w-u.x)<Math.min(u.y-k.y,k.y+k.h-u.y)) u.vx*=-1; else u.vy*=-1; u.b++; } }
+    if(u.x<12||u.x>W-12){u.vx*=-1;u.x=clamp(u.x,12,W-12);u.b++;waves.push({x:u.x,y:u.y,r:4,maxR:20,a:1,c:'#00e5ff'});if(FX)FX.burst(sparks,u.x,u.y,'#00e5ff',4);}
+    if(u.y<12){u.vy*=-1;u.y=12;u.b++;waves.push({x:u.x,y:u.y,r:4,maxR:20,a:1,c:'#00e5ff'});if(FX)FX.burst(sparks,u.x,u.y,'#00e5ff',4);}
+    for(const k of blocks){ if(u.x>k.x&&u.x<k.x+k.w&&u.y>k.y&&u.y<k.y+k.h){ if(Math.min(u.x-k.x,k.x+k.w-u.x)<Math.min(u.y-k.y,k.y+k.h-u.y)) u.vx*=-1; else u.vy*=-1; u.b++; waves.push({x:u.x,y:u.y,r:4,maxR:22,a:1,c:'#ffd34d'}); } }
     if(u.y>H-12 || u.b>bounceMax){ bullets.splice(i,1); continue; }
     for(const e of enemies){
       if(e.hp<=0) continue;
       if(Math.hypot(u.x-e.x,u.y-e.y)<e.r+5){
         if(e.arm && u.b<1){ toast('需先弹射再击中首领'); bullets.splice(i,1); beep(200,.1,'sawtooth'); break; }
-        e.hp--; score+=20; $('score').textContent=score; if(FX)FX.burst(sparks,e.x,e.y,'#ffd34d',12); beep(980,.08);
+        const pts=20+u.b*10; e.hp--; score+=pts; $('score').textContent=score; waves.push({x:e.x,y:e.y,r:e.r,maxR:e.r+26,a:1,c:'#ffd34d'}); pops.push({x:e.x,y:e.y-12,t:(u.b>0?'弹×'+u.b+' ':'')+'+'+pts,c:'#ffd34d',a:1.1}); if(FX)FX.burst(sparks,e.x,e.y,'#ffd34d',12); beep(980,.08);
         bullets.splice(i,1); break;
       }
     }
   }
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*12)+22*dt;w.a-=dt*3.4;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=26*dt;p.a-=dt*1.4;if(p.a<=0)pops.splice(i,1);}
   if(state==='play' && enemies.every(e=>e.hp<=0)) win();
   else if(state==='play' && shots<=0 && !bullets.length && enemies.some(e=>e.hp>0)) lose('弹药耗尽');
 }
 function draw(){
-  hits=[]; stage('#3a0d5e','#0b0620');
+  const rg=RANGES[Math.min(2,Math.floor((lvl-1)/5))];
+  hits=[]; stage(rg.t,rg.b);
   if(state!=='play'&&state!=='pause') return;
   label((boss?'👑 ':'')+'敌人 '+enemies.filter(e=>e.hp>0).length+' · 弹 '+shots+'/'+shotMax+' · 可弹 '+bounceMax,12,20,'#fff',12,'left');
-  for(const k of blocks) tile(k.x,k.y,k.w,k.h,'#64748b',6);
+  for(const k of blocks) tile(k.x,k.y,k.w,k.h,rg.blk,6);
   for(const e of enemies){ if(e.hp<=0) continue; orb(e.x,e.y,e.r,e.arm?'#fb7185':'#38bdf8'); if(e.arm) label('👑',e.x,e.y,'#fff',12,'center'); }
   orb(px,py,16,'#ff3d9a');
   if(aim && prog.aimLv){
@@ -590,6 +600,9 @@ function draw(){
     ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.beginPath(); ctx.moveTo(px,py-18); ctx.lineTo(aim.x,aim.y); ctx.stroke();
   }
   for(const u of bullets){ orb(u.x,u.y,5,'#ffd34d'); }
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));label(p.t,p.x,p.y,p.c,12,'center');}
+  ctx.globalAlpha=1;
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 function win(){if(state!=='play')return; finishWin(shots>=2?3:shots>=1?2:1, 38+enemies.length*8+(boss?30:0)+shots*4, '全部命中！');}
@@ -612,6 +625,6 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt*fast);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 </script>
 </body></html>
