@@ -455,12 +455,12 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>⏱<b id="timeT">0:00</b></span><span>⭐<b id="lvT">1</b></span><span>💀<b id="killT">0</b></span><span>🪙<b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="slots" id="slots"></div>
 </div>
-<div class="overlay" id="startScr"><h1>星火幸存者</h1><p>按住屏幕任意位置拖动来移动，武器会自动开火。<br>收集经验晶石升级，每次三选一：6 种武器、8 种被动，满级还能<b>进化</b>。<br>5 个星域，每个坚持 8 分钟；每 2 分钟一位首领。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>星火幸存者</h1><p>v3（Gemini 优化：磁力拾取光环显示、1×/2×倍速切换）<br>按住屏幕任意位置拖动来移动，武器会自动开火。<br>收集经验晶石升级，每次三选一：6 种武器、8 种被动，满级还能<b>进化</b>。<br>5 个星域，每个坚持 8 分钟；每 2 分钟一位首领。</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="menuScr"><h2>选择星域</h2><div class="lvgrid" id="stageGrid" style="grid-template-columns:repeat(5,1fr)"></div><p id="menuP" style="text-align:center"></p><div class="shopl" id="shopL"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn">🔊</button></div></div>
 <div class="overlay hidden" id="lvScr"><h2 id="lvH">升级！</h2><div class="choices" id="lvC"></div><button class="btn ghost" id="rerollBtn">🎲 换一批</button></div>
@@ -640,6 +640,7 @@ function draw(dt){const S=STAGES[stg];ctx.save();if(shake>0){shake-=dt;ctx.trans
   else{f.y-=dt*30;ctx.globalAlpha=Math.min(1,f.life*2);txt(ctx,f.s,f.x,f.y,10,f.c);ctx.globalAlpha=1;}}
  fxs=fxs.filter(f=>f.life>0);
  // 玩家
+ const magR=(46+(pl.p.mag||0)*18);ctx.strokeStyle='rgba(79,240,255,.16)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(pl.x,pl.y,magR,0,7);ctx.stroke();
  const blink=pl.iframe>0&&Math.floor(t*20)%2;if(!blink){if(FX){FX.shadow(ctx,pl.x,pl.y+12,11,4);FX.glow(ctx,'#7af5ff',14);FX.orb(ctx,pl.x,pl.y,12,'#3d8bff');FX.noGlow(ctx);}else{ctx.fillStyle='#3d8bff';ctx.beginPath();ctx.arc(pl.x,pl.y,12,0,7);ctx.fill();}
   ctx.save();ctx.translate(pl.x,pl.y);ctx.rotate(pl.face);ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(9,-4);ctx.lineTo(9,4);ctx.fill();ctx.restore();}
  ctx.restore();
@@ -665,7 +666,8 @@ $('howBtn').onclick=()=>{show('menuScr',false);showTut(openMenu);};
 $('startBtn').onclick=()=>{audio();show('startScr',false);if(!save.tut){showTut(()=>{save.tut=1;Store.set('save',save);newRun(0);});}else openMenu();};
 $('bestLine').textContent=save.coins||save.stage?'已解锁 '+(Math.min(5,save.stage+1))+' 个星域 · 🪙 '+save.coins:'';
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
-function frame(ts){const dt=Math.min(.05,(ts-last)/1000);last=ts;if(state==='play')update(dt);draw(dt);requestAnimationFrame(frame);}
+let fast=1;$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
+function frame(ts){const dt=Math.min(.05,(ts-last)/1000);last=ts;if(state==='play')update(dt*fast);draw(dt);requestAnimationFrame(frame);}
 fit();requestAnimationFrame(frame);
 window.__ss={gems:()=>gems,get s(){return{state,t:Math.round(t),lv:pl&&pl.lv,hp:pl&&Math.round(pl.hp),kills,foes:foes.length,w:pl&&JSON.stringify(pl.w)}},newRun,tick:(n,dt)=>{for(let i=0;i<n&&state==='play';i++)update(dt||1/30);},pl:()=>pl,foes:()=>foes,pickLv:()=>{const b=document.querySelector('#lvC button');if(b)b.click();},joy:(dx,dy)=>{joy=dx==null?null:{on:1,sx:0,sy:0,x:dx,y:dy};}};
 </script>

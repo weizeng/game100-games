@@ -462,13 +462,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>❄️<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>靶 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">命中</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">按住拖拽瞄准松手投掷 · 打中移动雪靶</div>
 </div>
-<div class="overlay" id="startScr"><h1>❄️ 雪球大战</h1><p>15 关雪球投掷：靶更小更快、限时更紧。<br>第 5/10/15 关雪人王 Boss！可升级雪球、加时、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始大战</button></div>
+<div class="overlay" id="startScr"><h1>❄️ 雪球大战</h1><p>v8（Gemini 优化：3大雪境主题、飘雪粒子、命中震波与得分飘字、1×/2×倍速）<br>15 关雪球投掷：靶更小更快、限时更紧。<br>第 5/10/15 关雪人王 Boss！可升级雪球、加时、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始大战</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -592,8 +592,15 @@ const LV=[
  {need:11,time:33,spd:190,r:16},{need:12,time:32,spd:200,r:15},{need:12,time:32,spd:210,r:14},{need:13,time:30,spd:220,r:14},
  {boss:{name:'暴风雪魔',need:1,time:55,spd:110,r:50,hp:16}}
 ];
-let L,balls,targets,lives,score,ended,raf=0,last=0,fast=1,timeLeft,need,hits,aiming,ax,ay,sparks,boss,ammo;
-function start(i){L=LV[i];score=0;ended=false;balls=[];targets=[];sparks=[];hits=0;aiming=false;lives=3+Kit.up('life');
+const SNOWS=[
+  {name:'晴朗雪原',t:'#e3f2fd',b:'#90caf9'},
+  {name:'极光冰谷',t:'#b2ebf2',b:'#4dd0e1'},
+  {name:'暮雪山巅',t:'#7e57c2',b:'#311b92'}
+];
+const FLAKES=Array.from({length:24},(_,i)=>({x:(i*53+17)%340+10,y:(i*79+11)%500,r:(i%3)*0.7+1.2,sp:28+(i%5)*8}));
+let L,balls,targets,lives,score,ended,raf=0,last=0,fast=1,timeLeft,need,hits,aiming,ax,ay,sparks,waves,pops,boss,ammo;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
+function start(i){L=LV[i];score=0;ended=false;balls=[];targets=[];sparks=[];waves=[];pops=[];hits=0;aiming=false;lives=3+Kit.up('life');
   const b=L.boss||L;need=b.need;timeLeft=(b.time||40)+Kit.up('time')*6;ammo=20+Kit.up('ammo')*4;
   boss=L.boss?{name:L.boss.name,hp:L.boss.hp,max:L.boss.hp,x:W/2,y:100,vx:b.spd,r:b.r}:null;
   if(!boss){for(let k=0;k<3;k++)spawnT();}
@@ -610,9 +617,12 @@ function upd(dt){if(ended)return;timeLeft-=dt;if(timeLeft<=0)return endLv(false,
   for(const t of targets){if(!t.alive)continue;t.x+=t.vx*dt;if(t.x<t.r||t.x>W-t.r)t.vx*=-1;}
   if(boss&&boss.hp>0){boss.x+=boss.vx*dt;if(boss.x<boss.r||boss.x>W-boss.r)boss.vx*=-1;}
   for(const b of balls){b.x+=b.vx*dt;b.y+=b.vy*dt;b.vy+=520*dt;b.vx*=0.995;
-    for(const t of targets){if(!t.alive)continue;if(Math.hypot(b.x-t.x,b.y-t.y)<b.r+t.r){t.alive=false;hits++;score+=100;Kit.sfx('good');if(FX)FX.burst(sparks,t.x,t.y,'#81d4fa',12);b.y=999;spawnT();}}
-    if(boss&&boss.hp>0&&Math.hypot(b.x-boss.x,b.y-boss.y)<b.r+boss.r){boss.hp--;score+=50;Kit.sfx('hit');if(FX)FX.burst(sparks,boss.x,boss.y,'#fff',10);b.y=999;if(boss.hp<=0){hits=need;return endLv(true);}}}
+    for(const t of targets){if(!t.alive)continue;if(Math.hypot(b.x-t.x,b.y-t.y)<b.r+t.r){t.alive=false;hits++;score+=100;Kit.sfx('good');waves.push({x:t.x,y:t.y,r:t.r,maxR:t.r+26,a:1,c:'#81d4fa'});pops.push({x:t.x,y:t.y-10,t:'+100',c:'#ffeb3b',a:1.1});if(FX)FX.burst(sparks,t.x,t.y,'#81d4fa',12);b.y=999;spawnT();}}
+    if(boss&&boss.hp>0&&Math.hypot(b.x-boss.x,b.y-boss.y)<b.r+boss.r){boss.hp--;score+=50;Kit.sfx('hit');waves.push({x:boss.x,y:boss.y,r:boss.r,maxR:boss.r+26,a:1,c:'#fff'});pops.push({x:b.x,y:b.y-10,t:'+50',c:'#fff',a:1});if(FX)FX.burst(sparks,boss.x,boss.y,'#fff',10);b.y=999;if(boss.hp<=0){hits=need;return endLv(true);}}}
   balls=balls.filter(b=>b.y<H+40&&b.x>-40&&b.x<W+40);
+  for(const f of FLAKES){f.y+=f.sp*dt;f.x+=Math.sin(f.y*0.03)*12*dt;if(f.y>H-40)f.y=0;}
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+22*dt;w.a-=dt*3.2;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=26*dt;p.a-=dt*1.4;if(p.a<=0)pops.splice(i,1);}
   if(!boss&&hits>=need)return endLv(true);
   if(ammo<=0&&balls.length===0&&hits<need)return endLv(false,'雪球用尽');
   hud();}
@@ -623,9 +633,10 @@ function endLv(won,why){if(ended)return;ended=true;if(won){const st=lives>=3&&ti
   else setTimeout(()=>Kit.lose(why,score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 /* ART T2-5 */var sbBg=null,sbBgKey='';
-function ensureSbBg(){var k=W+'x'+H;if(sbBg&&sbBgKey===k)return sbBg;sbBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#e3f2fd','#90caf9');else{g.fillStyle='#90caf9';g.fillRect(0,0,W,H);}sbBg=c;return sbBg;}
+function ensureSbBg(){var si=Math.min(2,Math.floor((Kit.lv||0)/5)),sn=SNOWS[si],k=W+'x'+H+'_'+si;if(sbBg&&sbBgKey===k)return sbBg;sbBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,sn.t,sn.b);else{g.fillStyle=sn.b;g.fillRect(0,0,W,H);}sbBg=c;return sbBg;}
 function draw(){
   ctx.drawImage(ensureSbBg(),0,0);
+  ctx.fillStyle='rgba(255,255,255,.55)';for(const f of FLAKES){ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,7);ctx.fill();}
   // ground
   ctx.fillStyle='#eceff1';ctx.fillRect(0,H-40,W,40);
   for(const t of targets){if(!t.alive)continue;if(FX){FX.shadow(ctx,t.x,t.y+t.r*.6,t.r,6,.25);FX.orb(ctx,t.x|0,t.y|0,t.r|0,'#4fc3f7');}
@@ -636,12 +647,15 @@ function draw(){
   for(const b of balls){if(FX)FX.orb(ctx,b.x|0,b.y|0,b.r|0,'#fff');else{ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();}}
   if(FX)FX.orb(ctx,LX,LY,14,'#bbdefb');else{ctx.fillStyle='#bbdefb';ctx.beginPath();ctx.arc(LX,LY,14,0,7);ctx.fill();}
   if(aiming){ctx.strokeStyle='rgba(2,119,189,.7)';ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(LX,LY);ctx.lineTo(ax,ay);ctx.stroke();ctx.setLineDash([]);}
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
 Kit.init({id:'snowball',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},pause:()=>{aiming=false;},
-  note:()=>'拖拽瞄准投雪球，打中移动靶或雪人王',
+  note:()=>SNOWS[Math.min(2,Math.floor((Kit.lv||0)/5))].name+' · 拖拽瞄准投雪球，打中移动靶或雪人王',
   tut:[['瞄准','按住拖拽拉出瞄准线。','❄️'],
        ['投掷','松手投出雪球，注意抛物线。','🎯'],
        ['靶子','打中蓝色雪靶得分，限时限球。','🔵'],

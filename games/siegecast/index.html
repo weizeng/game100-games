@@ -450,6 +450,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🪨 投石攻城</span>
     <span class="stat">得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -457,7 +458,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">按住拉开松手投石</p>
 </div>
-<div class="overlay" id="startScr"><h1>🪨 投石攻城</h1><p>蓄力投石机砸城墙旗砖。<br>15 城布局升级，Boss 有加固砖。<br>强化弹力、弹药与准星。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🪨 投石攻城</h1><p>v3（Gemini 优化：3大攻城战地主题、投石冲击波与破旗飘字、1×/2×倍速）<br>蓄力投石机砸城墙旗砖。<br>15 城布局升级，Boss 有加固砖。<br>强化弹力、弹药与准星。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -503,10 +504,16 @@ const SHOP=[
   {k:'ammoLv',name:'弹药',max:3,cost:()=>28+prog.ammoLv*18,desc:()=>'额外弹药 ('+prog.ammoLv+'/3)'},
   {k:'aimLv',name:'准星',max:2,cost:()=>35+prog.aimLv*25,desc:()=>'轨迹提示 ('+prog.aimLv+'/2)'}
 ];
-let bricks=[],ball=null,ammo=0,ammoMax=0,dragging=false,pull={x:0,y:0},origin={x:70,y:H-80},need=0,destroyed=0;
+const SIEGES=[
+  {t:'#4a2a18',b:'#1a0c08',g:'#3a2818'},
+  {t:'#2b4c6f',b:'#0c1824',g:'#1e293b'},
+  {t:'#5c1818',b:'#1c0505',g:'#3b1111'}
+];
+let bricks=[],ball=null,ammo=0,ammoMax=0,dragging=false,pull={x:0,y:0},origin={x:70,y:H-80},need=0,destroyed=0,waves=[],pops=[],fast=1;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(620,.04);};
 
 function startLevel(n){
-  lvl=n;boss=n%5===0;score=0;bricks=[];ball=null;destroyed=0;dragging=false;
+  lvl=n;boss=n%5===0;score=0;bricks=[];ball=null;destroyed=0;dragging=false;waves=[];pops=[];
   ammoMax=6+prog.ammoLv+(boss?1:0);ammo=ammoMax;
   const rnd=mulberry32(n*66+4);
   const cols=4+Math.min(3,(n/4)|0),rows=3+Math.min(3,(n/5)|0)+(boss?1:0);
@@ -530,14 +537,17 @@ function fire(vx,vy){
 }
 function update(dt){
   if(state!=='play')return;
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+22*dt;w.a-=dt*3.2;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=24*dt;p.a-=dt*1.4;if(p.a<=0)pops.splice(i,1);}
   if(!ball)return;
   ball.vy+=420*dt;ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;ball.life-=dt;
   for(let i=bricks.length-1;i>=0;i--){
     const b=bricks[i];
     if(ball.x>b.x&&ball.x<b.x+b.w&&ball.y>b.y&&ball.y<b.y+b.h){
       b.hp--;ball.vx*=-0.4;ball.vy=-Math.abs(ball.vy)*0.55;score+=8;$('score').textContent=score;beep(700,.05);
+      waves.push({x:ball.x,y:ball.y,r:6,maxR:28,a:1,c:'#ff9f2e'});pops.push({x:ball.x,y:ball.y-10,t:'+8',c:'#ffd34d',a:1});
       if(FX)FX.burst(sparks,ball.x,ball.y,'#ff9f2e',8);
-      if(b.hp<=0){if(b.flag){destroyed++;score+=30;$('score').textContent=score;}bricks.splice(i,1);}
+      if(b.hp<=0){if(b.flag){destroyed++;score+=30;$('score').textContent=score;pops.push({x:b.x+b.w/2,y:b.y-8,t:'⚑ +30',c:'#ff3d6e',a:1.3});}bricks.splice(i,1);}
       break;
     }
   }
@@ -573,10 +583,11 @@ function win(){
 }
 function lose(msg){if(state!=='play')return;state='over';$('overH').textContent='失败';$('finalScore').textContent='💀';$('overText').textContent=(msg||'')+' · 得分 '+score;show('overScr',true);beep(160,.35,'triangle');}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#4a2a18','#1a0c08');else{ctx.fillStyle='#1a0c08';ctx.fillRect(0,0,W,H);}
+  const sg=SIEGES[Math.min(2,Math.floor((lvl-1)/5))];
+  if(FX)FX.stage(ctx,W,H,sg.t,sg.b);else{ctx.fillStyle=sg.b;ctx.fillRect(0,0,W,H);}
   if(state!=='play'&&state!=='pause')return;
   // ground
-  ctx.fillStyle='#3a2818';ctx.fillRect(0,H-40,W,40);
+  ctx.fillStyle=sg.g;ctx.fillRect(0,H-40,W,40);
   // catapult
   if(FX)FX.tile(ctx,origin.x-18,origin.y-10,36,24,'#c4a574',6);else{ctx.fillStyle='#c4a574';ctx.fillRect(origin.x-18,origin.y-10,36,24);}
   if(dragging){
@@ -595,6 +606,9 @@ function draw(){
     if(b.flag){ctx.fillStyle='#ffd34d';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('⚑',b.x+b.w/2,b.y+b.h/2+4);}
   }
   if(ball){if(FX)FX.orb(ctx,ball.x,ball.y,ball.r,'#ccc');else{ctx.fillStyle='#ccc';ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,7);ctx.fill();}}
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}
+  ctx.globalAlpha=1;
   ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.textAlign='left';
   ctx.fillText('弹药 '+ammo+'/'+ammoMax+'  旗 '+destroyed+'/'+need+(boss?' 👑':''),10,22);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
@@ -644,6 +658,6 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt*fast);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 </script>
 </body></html>
