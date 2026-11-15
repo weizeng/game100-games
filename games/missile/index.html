@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🛡 导弹拦截</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点击空爆拦截 · 守护城市</p>
 </div>
-<div class="overlay" id="startScr"><h1>🛡 导弹拦截</h1><p>敌方导弹从天而降，👆点击任意处发射拦截弹空爆。<br>爆炸冲击波可连锁引爆敌导弹。<br>第 5/10/15 关迎战导弹潮首领！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🛡 导弹拦截</h1><p>v8（Gemini 优化：3大防空夜空主题、星芒背景、连爆飘字与1×/2×倍速）<br>敌方导弹从天而降，👆点击任意处发射拦截弹空爆。<br>爆炸冲击波可连锁引爆敌导弹。<br>第 5/10/15 关迎战导弹潮首领！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -487,7 +488,14 @@ const LEGACY={missile:'g100_missile_hi',cannon:'g100_cannon_hi',sleigh:'g100_sle
 if(LEGACY['missile']&&!UI.storageGet(HK)){const v=+UI.storageGet(LEGACY['missile'])||0;if(v)UI.storageSet(HK,String(v));}
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
 const TOTAL=15;
-let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
+const SKIES=[
+  {t:'#1a2744',b:'#0d0d16',g:'#2e3b2e'},
+  {t:'#103a47',b:'#07131d',g:'#1f3a36'},
+  {t:'#3d1522',b:'#12060c',g:'#3b2322'}
+];
+const STARS=Array.from({length:28},(_,i)=>({x:(i*73+19)%340+10,y:(i*97+31)%460+20,r:(i%3)*0.6+0.8,ph:i*0.7}));
+let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false,fast=1;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(620,.04);};
 
 const TUT=[['点击拦截','点屏幕任意处发射拦截弹，飞到落点空爆。','👆'],['连锁爆破','空爆冲击波可引爆附近敌导弹，连击加分。','💥'],['守护城市','导弹落地会炸毁城市并扣命，守住全部城市。','🏙'],['Boss潮','第5/10/15关导弹更快更密，还有分裂弹。','👑']];
 const SHOP=[{k:'blastLv',name:'冲击波',max:3,cost(){return 35+(prog.blastLv|0)*28;},desc(){return '空爆半径+'}},{k:'coolLv',name:'装填加速',max:3,cost(){return 40+(prog.coolLv|0)*30;},desc(){return '冷却缩短'}},{k:'lifeLv',name:'额外命',max:2,cost(){return 45+(prog.lifeLv|0)*35;},desc(){return '生命+1'}}];
@@ -504,19 +512,22 @@ function update(dt){if(cool>0)cool-=dt;if(spawned<toSpawn){spawnT-=dt;if(spawnT<
     if(e.y>=groundY-4){enemies.splice(i,1);let hit=null,hd=1e9;cities.forEach(c=>{if(c.alive){const dd=Math.abs(c.x-e.x);if(dd<hd){hd=dd;hit=c;}}});if(hit&&hd<hit.w)hit.alive=false;lives--;boom(e.x,groundY,70,'#ff5252');beep(90,.4,'sawtooth');if(lives<=0||cities.every(c=>!c.alive))return lose('防线告破');}}
   for(let s=shots.length-1;s>=0;s--){const sh=shots[s];sh.x+=sh.vx*dt;sh.y+=sh.vy*dt;if(Math.hypot(sh.tx-sh.x,sh.ty-sh.y)<14){shots.splice(s,1);const R=70+(prog.blastLv|0)*18+(boss?8:0);boom(sh.tx,sh.ty,R);beep(140,.25,'sawtooth');}}
   for(let b=blasts.length-1;b>=0;b--){const bl=blasts[b];bl.life-=dt*2.2;if(bl.life<=0){blasts.splice(b,1);continue;}bl.r+=(bl.max-bl.r)*Math.min(1,dt*8);
-    for(let j=enemies.length-1;j>=0;j--){const en=enemies[j];if(Math.hypot(en.x-bl.x,en.y-bl.y)<bl.r){enemies.splice(j,1);cleared++;score+=25+(boss?10:0);$('score').textContent=score;boom(en.x,en.y,55+(prog.blastLv|0)*10,'#ff9800');beep(220,.12,'square');
+    for(let j=enemies.length-1;j>=0;j--){const en=enemies[j];if(Math.hypot(en.x-bl.x,en.y-bl.y)<bl.r){enemies.splice(j,1);cleared++;const pts=25+(boss?10:0);score+=pts;$('score').textContent=score;floats.push({x:en.x,y:en.y-8,t:'+'+pts,c:'#ffd740',a:1});boom(en.x,en.y,55+(prog.blastLv|0)*10,'#ff9800');beep(220,.12,'square');
       if(en.split){for(let k=0;k<2;k++)enemies.push({x:en.x,y:en.y,tx:20+rng()*(W-40),spd:en.spd*0.85,trail:[],split:false});}}}}
   for(let p=parts.length-1;p>=0;p--){const pt=parts[p];pt.x+=pt.vx;pt.y+=pt.vy;pt.life-=dt;if(pt.life<=0)parts.splice(p,1);}
+  for(let f=floats.length-1;f>=0;f--){const fl=floats[f];fl.y-=26*dt;fl.a-=dt*1.5;if(fl.a<=0)floats.splice(f,1);}
   if(spawned>=toSpawn&&enemies.length===0&&shots.length===0)win();}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);fireAt(p.x,p.y);});
-function draw(){if(FX)FX.stage(ctx,W,H,'#1a2744','#0d0d16');else{ctx.fillStyle='#0d0d16';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#2e3b2e';ctx.fillRect(0,groundY,W,H-groundY);
+function draw(){const sk=SKIES[Math.min(2,Math.floor((lvl-1)/5))];if(FX)FX.stage(ctx,W,H,sk.t,sk.b);else{ctx.fillStyle=sk.b;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  const now=performance.now()*0.002;ctx.fillStyle='#fff';for(const st of STARS){ctx.globalAlpha=0.25+0.45*Math.abs(Math.sin(now+st.ph));ctx.beginPath();ctx.arc(st.x,st.y,st.r,0,7);ctx.fill();}ctx.globalAlpha=1;
+  ctx.fillStyle=sk.g;ctx.fillRect(0,groundY,W,H-groundY);
   cities.forEach(c=>{if(!c.alive)return;if(FX)FX.tile(ctx,(c.x-c.w/2)|0,(groundY-c.h)|0,c.w|0,c.h|0,'#4fc3f7',4);else{ctx.fillStyle='#4fc3f7';ctx.fillRect(c.x-c.w/2,groundY-c.h,c.w,c.h);}});
   ctx.fillStyle='#78909c';ctx.fillRect(W/2-14,groundY-10,28,10);
   enemies.forEach(e=>{ctx.strokeStyle='rgba(255,82,82,.45)';ctx.lineWidth=2;ctx.beginPath();e.trail.forEach((t,i)=>i?ctx.lineTo(t.x,t.y):ctx.moveTo(t.x,t.y));ctx.stroke();if(FX){FX.glow(ctx,'#ff5252',10);FX.orb(ctx,e.x|0,e.y|0,e.split?7:5,'#ff5252');FX.noGlow(ctx);}else{ctx.fillStyle='#ff5252';ctx.beginPath();ctx.arc(e.x,e.y,e.split?7:5,0,7);ctx.fill();}});
   shots.forEach(sh=>{ctx.strokeStyle='#ffd740';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(sh.x-sh.vx*0.02,sh.y-sh.vy*0.02);ctx.lineTo(sh.x,sh.y);ctx.stroke();});
   blasts.forEach(bl=>{ctx.globalAlpha=Math.max(0,bl.life);const g=ctx.createRadialGradient(bl.x,bl.y,2,bl.x,bl.y,bl.r);g.addColorStop(0,'#fff');g.addColorStop(.4,bl.col);g.addColorStop(1,'rgba(255,112,67,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(bl.x,bl.y,bl.r,0,7);ctx.fill();});ctx.globalAlpha=1;
   parts.forEach(p=>{ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,7);ctx.fill();});ctx.globalAlpha=1;
+  floats.forEach(fl=>{ctx.globalAlpha=Math.max(0,Math.min(1,fl.a));ctx.fillStyle=fl.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(fl.t,fl.x,fl.y);});ctx.globalAlpha=1;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('❤'+lives+' 击'+cleared+'/'+goal+(boss?' 👑':''),10,22);
   if(cool>0){ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(10,H-26,W-20,5);ctx.fillStyle='#4fc3f7';ctx.fillRect(10,H-26,(W-20)*(1-cool/Math.max(0.08,0.28-(prog.coolLv|0)*0.045)),5);}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
@@ -539,7 +550,7 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt*fast);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>

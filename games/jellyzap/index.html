@@ -459,13 +459,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>⚡<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>分 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">伏击</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">按住蓄电 · 松开范围电击捕鱼 · 躲鲨鱼</div>
 </div>
-<div class="overlay" id="startScr"><h1>⚡ 电鳗伏击</h1><p>15 关蓄电电击捕鱼：目标分数升、鱼群与鲨更密。<br>第 5/10/15 关狂鲨潮 Boss！可升级蓄电、范围、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始伏击</button></div>
+<div class="overlay" id="startScr"><h1>⚡ 电鳗伏击</h1><p>v6（Gemini 优化：3大海域主题、高压电弧冲击波、多命护盾容错与倍速）<br>15 关蓄电电击捕鱼：目标分数升、鱼群与鲨更密。<br>第 5/10/15 关狂鲨潮 Boss！可升级蓄电、范围、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始伏击</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -589,10 +589,16 @@ const LV=[
  {need:240,fish:12,sharks:3,charge:1.3,range:54},{need:260,fish:12,sharks:3,charge:1.35,range:52},{need:280,fish:13,sharks:3,charge:1.4,range:50},{need:300,fish:14,sharks:4,charge:1.45,range:48},
  {boss:{name:'深渊电鲨王',need:250,fish:12,sharks:5,charge:1.5,range:46}}
 ];
-let L,me,fish,sharks,holding,chg,lives,score,ended,raf=0,last=0,fast=1,need,boss,sparks,zapT,range;
+const SEAS=[
+  {name:'珊瑚浅海',t:'#0277bd',b:'#013a63',ring:'rgba(129,212,250,.45)'},
+  {name:'幽蓝海沟',t:'#283593',b:'#1a237e',ring:'rgba(121,134,203,.5)'},
+  {name:'深渊电域',t:'#311b92',b:'#120038',ring:'rgba(206,147,216,.55)'}
+];
+let L,me,fish,sharks,holding,chg,lives,score,ended,raf=0,last=0,fast=1,need,boss,sparks,waves,pops,invulnT,zapT,range;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
 function mkF(){return{x:20+Math.random()*(W-40),y:40+Math.random()*(H-80),vx:(Math.random()-.5)*60,vy:(Math.random()-.5)*40,r:8};}
 function mkS(){return{x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*80,vy:(Math.random()-.5)*60,r:16};}
-function start(i){L=LV[i];score=0;ended=false;fish=[];sharks=[];holding=false;chg=0;zapT=0;sparks=[];lives=3+Kit.up('life');
+function start(i){L=LV[i];score=0;ended=false;fish=[];sharks=[];holding=false;chg=0;zapT=0;invulnT=0;sparks=[];waves=[];pops=[];lives=3+Kit.up('life');
   const b=L.boss||L;need=b.need;range=b.range+Kit.up('range')*12;me={x:W/2,y:H/2,r:14};
   for(let k=0;k<b.fish;k++)fish.push(mkF());for(let k=0;k<b.sharks;k++)sharks.push(mkS());
   boss=L.boss?{name:L.boss.name}:null;hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
@@ -602,14 +608,18 @@ cv.addEventListener('pointermove',e=>{if(!holding||ended)return;const p=pos(e);m
 cv.addEventListener('pointerup',()=>{if(!holding||ended)return;holding=false;zap();});
 cv.addEventListener('pointercancel',()=>{holding=false;});
 function zap(){const b=L.boss||L;const needC=Math.max(.35,b.charge*(1-Kit.up('charge')*.12));if(chg<needC*.5){Kit.toast('电量不足');return;}
-  const R=range*(.5+chg*.5);zapT=.25;Kit.sfx('boom');let hit=0;
-  for(const f of fish){if(Math.hypot(f.x-me.x,f.y-me.y)<R+f.r){hit++;score+=15;f.x=20+Math.random()*(W-40);f.y=40+Math.random()*(H-80);if(FX)FX.burst(sparks,f.x,f.y,'#ffd54f',6);}}
+  const R=range*(.5+chg*.5);zapT=.25;Kit.sfx('boom');waves.push({x:me.x,y:me.y,r:12,maxR:R,a:1});let hit=0;
+  for(const f of fish){if(Math.hypot(f.x-me.x,f.y-me.y)<R+f.r){hit++;score+=15;pops.push({x:f.x,y:f.y-8,t:'+15',c:'#ffeb3b',a:1});if(FX)FX.burst(sparks,f.x,f.y,'#ffd54f',6);f.x=20+Math.random()*(W-40);f.y=40+Math.random()*(H-80);}}
+  if(hit>1)pops.push({x:me.x,y:me.y-24,t:'⚡×'+hit,c:'#80deea',a:1.2});
   if(hit)Kit.sfx('good');chg=0;if(score>=need)endLv(true);}
 function upd(dt){if(ended)return;const b=L.boss||L;
+  if(invulnT>0)invulnT=Math.max(0,invulnT-dt);
   if(holding)chg=Math.min(1,chg+dt/(b.charge*(1-Kit.up('charge')*.12)));
   for(const f of fish){f.x+=f.vx*dt;f.y+=f.vy*dt;if(f.x<10||f.x>W-10)f.vx*=-1;if(f.y<30||f.y>H-20)f.vy*=-1;}
   for(const s of sharks){s.x+=s.vx*dt;s.y+=s.vy*dt;if(s.x<10||s.x>W-10)s.vx*=-1;if(s.y<30||s.y>H-20)s.vy*=-1;
-    if(Math.hypot(s.x-me.x,s.y-me.y)<me.r+s.r)return endLv(false,'被鲨鱼咬到');}
+    if(invulnT<=0&&Math.hypot(s.x-me.x,s.y-me.y)<me.r+s.r){lives--;if(lives<=0)return endLv(false,'被鲨鱼咬到');invulnT=1.4;Kit.sfx('bad');if(FX)FX.burst(sparks,me.x,me.y,'#ff5252',10);pops.push({x:me.x,y:me.y-18,t:'护盾 -1❤️',c:'#ff8a80',a:1.2});}}
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+40*dt;w.a-=dt*3.2;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=28*dt;p.a-=dt*1.5;if(p.a<=0)pops.splice(i,1);}
   if(zapT>0)zapT-=dt;hud();}
 function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('hitT').textContent=score+'/'+need;$('score').textContent=score;
   $('goalLbl').textContent=boss?'👑 '+boss.name:'得分 '+score+'/'+need;$('progI').style.width=Math.min(100,score/need*100)+'%';
@@ -619,19 +629,25 @@ function endLv(won,why){if(ended)return;ended=true;holding=false;
   else setTimeout(()=>Kit.lose(why,score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#283593','#1a237e');else{ctx.fillStyle='#1a237e';ctx.fillRect(0,0,W,H);}
-  if(holding||zapT>0){const R=range*(.5+chg*.5);ctx.strokeStyle=zapT>0?'rgba(255,235,59,.9)':'rgba(121,134,203,'+(.3+chg*.5)+')';ctx.lineWidth=2;ctx.beginPath();ctx.arc(me.x,me.y,R,0,7);ctx.stroke();}
+  const sea=SEAS[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,sea.t,sea.b);else{ctx.fillStyle=sea.b;ctx.fillRect(0,0,W,H);}
+  if(holding||zapT>0){const R=range*(.5+chg*.5);ctx.strokeStyle=zapT>0?'rgba(255,235,59,.9)':sea.ring;ctx.lineWidth=2;ctx.beginPath();ctx.arc(me.x,me.y,R,0,7);ctx.stroke();}
+  for(const w of waves){ctx.strokeStyle='rgba(255,235,59,'+Math.max(0,w.a)+')';ctx.lineWidth=3;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
   for(const f of fish){if(FX)FX.orb(ctx,f.x|0,f.y|0,f.r,'#4fc3f7');else{ctx.fillStyle='#4fc3f7';ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,7);ctx.fill();}}
   for(const s of sharks){ctx.font='18px serif';ctx.textAlign='center';ctx.fillText('🦈',s.x,s.y+6);}
-  if(FX)FX.orb(ctx,me.x|0,me.y|0,me.r,'#ffeb3b');else{ctx.fillStyle='#ffeb3b';ctx.beginPath();ctx.arc(me.x,me.y,me.r,0,7);ctx.fill();}
-  ctx.font='16px serif';ctx.textAlign='center';ctx.fillText('⚡',me.x,me.y+5);
+  if(invulnT<=0||Math.floor(invulnT*12)%2===0){
+    if(FX)FX.orb(ctx,me.x|0,me.y|0,me.r,'#ffeb3b');else{ctx.fillStyle='#ffeb3b';ctx.beginPath();ctx.arc(me.x,me.y,me.r,0,7);ctx.fill();}
+    ctx.font='16px serif';ctx.textAlign='center';ctx.fillText('⚡',me.x,me.y+5);
+  }
   ctx.fillStyle='rgba(255,235,59,.9)';ctx.fillRect(W/2-50,H-22,100*chg,8);
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
 Kit.init({id:'jellyzap',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;holding=false;},pause:()=>{holding=false;},
-  note:()=>'蓄电释放范围电击捕鱼，躲开鲨鱼',
+  note:()=>SEAS[Math.min(2,Math.floor((Kit.lv||0)/5))].name+' · 蓄电释放范围电击捕鱼，躲开鲨鱼',
   tut:[['蓄电','按住蓄积电能。','⚡'],
        ['释放','松开电击范围内的鱼。','💥'],
        ['躲鲨','鲨鱼碰到你会失败。','🦈'],

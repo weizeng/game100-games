@@ -452,6 +452,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🔪 飞刀入木</span>
     <span class="stat" id="statLine">—</span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -460,7 +461,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <p class="hint" id="hint">点屏幕掷刀插入木桩</p>
   
 </div>
-<div class="overlay" id="startScr"><h1>🔪 飞刀入木</h1><p>把握时机把飞刀插满旋转木桩。<br>40 关递进，每 5 关 Boss 桩。<br>收集苹果解锁刀皮肤。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🔪 飞刀入木</h1><p>v4（Gemini 优化：4大工坊主题、插刀震波与火花特效、1×/2×倍速）<br>把握时机把飞刀插满旋转木桩。<br>40 关递进，每 5 关 Boss 桩。<br>收集苹果解锁刀皮肤。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -497,7 +498,14 @@ let prog=loadProg(); if(!prog.stars)prog.stars={}; if(prog.coins==null)prog.coin
 const TOTAL=40; const SKINS=['#E8ECF0','#FFB21E','#5B8CFF','#FF5C8A','#3FC163'];
 $('bestLine').textContent='解锁 '+prog.unlock+'/'+TOTAL+' · 币 '+prog.coins;
 
-let state='menu', lvl=1, angle=0, spd=1.2, knives=[], need=5, left=5, apples=[], spikes=[], boss=false, shattered=false, last=0, sparks=[], dir=1, pulseT=0, usedRevive=false;
+const STAGES=[
+  {t:'#ffcf6b',b:'#c45c26',log:'#A0522D',rim:'#5D2E0C',glow:'#8B4513'},
+  {t:'#78909c',b:'#263238',log:'#607d8b',rim:'#37474f',glow:'#90a4ae'},
+  {t:'#ff7043',b:'#4a1408',log:'#8d2b14',rim:'#3e0e04',glow:'#ff5722'},
+  {t:'#7e57c2',b:'#1a1033',log:'#4527a0',rim:'#25135e',glow:'#b388ff'}
+];
+let state='menu', lvl=1, angle=0, spd=1.2, knives=[], need=5, left=5, apples=[], spikes=[], boss=false, shattered=false, last=0, sparks=[], waves=[], pops=[], dir=1, pulseT=0, usedRevive=false, fast=1, shakeT=0;
+$('spdBtn').onclick=()=>{ fast=fast===1?2:1; $('spdBtn').textContent=fast+'×'; beep(620,.04); };
 
 function spec(n){
   const boss=n%5===0;
@@ -531,8 +539,10 @@ function throwKnife(){
   const tol=0.18; // generous
   for(const k of knives){ let d=Math.abs(((k-hitAng+Math.PI*3)%(Math.PI*2))-Math.PI); if(d<tol) return fail(); }
   for(const s of spikes){ let d=Math.abs(((s-hitAng+Math.PI*3)%(Math.PI*2))-Math.PI); if(d<tol) return fail(); }
-  for(const a of apples){ if(a.hit) continue; let d=Math.abs(((a.a-hitAng+Math.PI*3)%(Math.PI*2))-Math.PI); if(d<0.22){ a.hit=true; prog.coins+=3; saveProg(prog); beep(1200,.08); toast('🍎 +3'); } }
-  knives.push(hitAng); left--; beep(500,.06);
+  for(const a of apples){ if(a.hit) continue; let d=Math.abs(((a.a-hitAng+Math.PI*3)%(Math.PI*2))-Math.PI); if(d<0.22){ a.hit=true; prog.coins+=3; saveProg(prog); beep(1200,.08); toast('🍎 +3'); pops.push({x:W/2,y:H*0.38+50,t:'🍎 +3',c:'#ffeb3b',a:1.1}); if(FX) FX.burst(sparks,W/2,H*0.38+78,'#ff5252',8); } }
+  knives.push(hitAng); left--; beep(500,.06); shakeT=0.08;
+  waves.push({x:W/2,y:H*0.38+78,r:8,maxR:44,a:1});
+  if(FX) FX.burst(sparks,W/2,H*0.38+78,'#ffe082',6);
   $('statLine').textContent=`关 ${lvl} · 刀 ${left}`;
   if(left<=0) win();
 }
@@ -560,21 +570,26 @@ cv.addEventListener('pointerdown',e=>{e.preventDefault(); if(state==='play') thr
 
 function update(dt){
   if(state!=='play') return;
+  const s=dt*fast;
   const sp=game._sp||spec(lvl);
-  if(sp.mode==='reverse'){ pulseT+=dt; if(pulseT>1.2){ dir*=-1; pulseT=0; } }
-  if(sp.mode==='pulse'){ spd = sp.spd * (0.6+0.8*Math.abs(Math.sin(pulseT+=dt))); }
+  if(sp.mode==='reverse'){ pulseT+=s; if(pulseT>1.2){ dir*=-1; pulseT=0; } }
+  if(sp.mode==='pulse'){ spd = sp.spd * (0.6+0.8*Math.abs(Math.sin(pulseT+=s))); }
   else spd=sp.spd;
-  angle += dir*spd*dt;
+  angle += dir*spd*s;
+  if(shakeT>0) shakeT=Math.max(0,shakeT-dt);
+  for(let i=waves.length-1;i>=0;i--){ const w=waves[i]; w.r+=(w.maxR-w.r)*Math.min(1,dt*12)+30*dt; w.a-=dt*3.5; if(w.a<=0) waves.splice(i,1); }
+  for(let i=pops.length-1;i>=0;i--){ const p=pops[i]; p.y-=28*dt; p.a-=dt*1.4; if(p.a<=0) pops.splice(i,1); }
 }
 
 function draw(){
-  if(FX) FX.stage(ctx,W,H,'#ffcf6b','#c45c26'); else {ctx.fillStyle='#c45c26';ctx.fillRect(0,0,W,H);}
-  const cx=W/2, cy=H*0.38, R=78;
+  const st=STAGES[Math.min(3,Math.floor((lvl-1)/10))];
+  if(FX) FX.stage(ctx,W,H,st.t,st.b); else {ctx.fillStyle=st.b;ctx.fillRect(0,0,W,H);}
+  const cx=W/2+(shakeT>0?(Math.random()-.5)*4:0), cy=H*0.38+(shakeT>0?3:0), R=78;
   ctx.save(); ctx.translate(cx,cy); ctx.rotate(angle);
   // log
-  if(FX){ FX.glow(ctx,'#8B4513',12); ctx.fillStyle='#A0522D'; ctx.beginPath(); ctx.arc(0,0,R,0,7); ctx.fill(); FX.noGlow(ctx); }
-  else { ctx.fillStyle='#A0522D'; ctx.beginPath(); ctx.arc(0,0,R,0,7); ctx.fill(); }
-  ctx.strokeStyle='#5D2E0C'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(0,0,R,0,7); ctx.stroke();
+  if(FX){ FX.glow(ctx,st.glow,12); ctx.fillStyle=st.log; ctx.beginPath(); ctx.arc(0,0,R,0,7); ctx.fill(); FX.noGlow(ctx); }
+  else { ctx.fillStyle=st.log; ctx.beginPath(); ctx.arc(0,0,R,0,7); ctx.fill(); }
+  ctx.strokeStyle=st.rim; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(0,0,R,0,7); ctx.stroke();
   // rings
   ctx.strokeStyle='rgba(0,0,0,.2)'; for(let i=1;i<4;i++){ ctx.beginPath(); ctx.arc(0,0,R*i/4,0,7); ctx.stroke(); }
   // spikes
@@ -589,6 +604,9 @@ function draw(){
   if(state==='play'&&left>0){ ctx.fillStyle=col; ctx.fillRect(cx-4, H-110, 8, 50); ctx.beginPath(); ctx.moveTo(cx,H-120); ctx.lineTo(cx-7,H-108); ctx.lineTo(cx+7,H-108); ctx.fill();
     ctx.fillStyle='#fff'; ctx.font='bold 16px sans-serif'; ctx.textAlign='center'; ctx.fillText('×'+left, cx, H-50); }
   if(boss){ ctx.fillStyle='#FFE08A'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.fillText('👑 Boss', cx, 24); }
+  for(const w of waves){ ctx.strokeStyle='rgba(255,235,59,'+Math.max(0,w.a)+')'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(w.x,w.y,w.r,0,7); ctx.stroke(); }
+  for(const p of pops){ ctx.globalAlpha=Math.max(0,Math.min(1,p.a)); ctx.fillStyle=p.c; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.t,p.x,p.y); }
+  ctx.globalAlpha=1;
   if(FX) FX.drawBurst(ctx,sparks);
 }
 function frame(t){ const dt=Math.min(.05,(t-last)/1000); last=t; update(dt); draw(); requestAnimationFrame(frame); }

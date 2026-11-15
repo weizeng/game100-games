@@ -447,6 +447,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🛰️ 星轨争霸</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -454,7 +455,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点轨道放炮台 · 拦截敌舰</p>
 </div>
-<div class="overlay" id="startScr"><h1>🛰️ 星轨争霸</h1><p>同心轨道上布防炮台，拦截来袭舰船。<br>局中可升级炮台。<br>Boss：无畏舰冲阵。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🛰️ 星轨争霸</h1><p>v2（Gemini 优化：3大星域主题、星尘背景、激光射线与1×/2×倍速）<br>同心轨道上布防炮台，拦截来袭舰船。<br>局中可升级炮台。<br>Boss：无畏舰冲阵。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -484,26 +485,40 @@ if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==nu
 if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
 const TOTAL=15;
-let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
+const SECTORS=[
+  {t:'#132a63',b:'#05051a',ring:'rgba(0,217,255,.28)'},
+  {t:'#2a1166',b:'#09041c',ring:'rgba(178,107,255,.32)'},
+  {t:'#4a1029',b:'#12030b',ring:'rgba(255,107,157,.34)'}
+];
+const STARS=Array.from({length:26},(_,i)=>({x:(i*67+23)%340+10,y:(i*89+17)%500+20,r:(i%3)*0.5+0.7,ph:i*0.9}));
+let state='menu',lvl=1,score=0,sparks=[],beams=[],waves=[],pops=[],last=performance.now(),boss=false,fast=1;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(620,.04);};
 
 const TUT=[["布防","点轨道空位放置炮台。"],["开火","炮台自动射击近敌。"],["升级","底栏花费能量强化。"],["Boss","Boss无畏舰血厚速快。"]];
 const SHOP=[{k:'dmgLv',name:'炮口校准',max:3,cost(){return 40+(prog.dmgLv|0)*30;},desc(){return '伤害+'}},{k:'slotLv',name:'轨道扩展',max:3,cost(){return 45+(prog.slotLv|0)*30;},desc(){return '可放更多'}},{k:'enLv',name:'能源核心',max:3,cost(){return 50+(prog.enLv|0)*35;},desc(){return '能量回复+'}}];
 const ORBITS=[70,110,150];let turrets,ships,energy,killed,goal,spawnT,rng,station;
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*4049+8);turrets=[];ships=[];energy=50+(prog.enLv|0)*10;killed=0;goal=12+lvl*2+(boss?10:0);spawnT=0.6;station=40+(prog.dmgLv|0)*5;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点轨道放炮 · 底栏升级';}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];beams=[];waves=[];pops=[];rng=mulberry32(n*4049+8);turrets=[];ships=[];energy=50+(prog.enLv|0)*10;killed=0;goal=12+lvl*2+(boss?10:0);spawnT=0.6;station=40+(prog.dmgLv|0)*5;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点轨道放炮 · 底栏升级';}
 function angPos(orbit,a){return{x:W/2+Math.cos(a)*orbit,y:H/2-20+Math.sin(a)*orbit};}
 function win(){if(state!=='play')return;const stars=station>30?3:station>15?2:1;finishWin(stars,40+stars*15+(boss?55:0)+energy,'轨道肃清！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
 function update(dt){if(killed>=goal)return win();energy=Math.min(99,energy+dt*(1+(prog.enLv|0)*0.4));spawnT-=dt;if(spawnT<=0){const dread=boss&&rng()<0.4;ships.push({orbit:ORBITS[(rng()*3)|0],a:rng()*6.28,spd:(0.4+lvl*0.05+(boss?0.2:0))*(dread?0.7:1),hp:dread?30+lvl*4:8+lvl*2,dread});spawnT=Math.max(0.35,1.0-lvl*0.04-(boss?0.2:0));}
-  const dmg=5+(prog.dmgLv|0)*2;for(const t of turrets){t.cd=(t.cd||0)-dt;if(t.cd>0)continue;let best=null,bd=1e9;for(const s of ships){if(s.orbit!==t.orbit)continue;let da=Math.abs(s.a-t.a);da=Math.min(da,6.28-da);if(da<0.7&&da<bd){bd=da;best=s;}}if(best){best.hp-=dmg*(best.dread?0.5:1);t.cd=0.4;score+=2;$('score').textContent=score;beep(780,.03);const p=angPos(t.orbit,best.a);if(FX)FX.burst(sparks,p.x,p.y,'#00d9ff',5);if(best.hp<=0){killed++;energy+=3;score+=12;$('score').textContent=score;}}}
+  const dmg=5+(prog.dmgLv|0)*2;for(const t of turrets){t.cd=(t.cd||0)-dt;if(t.cd>0)continue;let best=null,bd=1e9;for(const s of ships){if(s.orbit!==t.orbit)continue;let da=Math.abs(s.a-t.a);da=Math.min(da,6.28-da);if(da<0.7&&da<bd){bd=da;best=s;}}if(best){const tdmg=(dmg+(t.boost||0)*2)*(best.dread?0.5:1);best.hp-=tdmg;t.cd=0.4;score+=2;$('score').textContent=score;beep(780,.03);const tp=angPos(t.orbit,t.a),p=angPos(t.orbit,best.a);beams.push({x1:tp.x,y1:tp.y,x2:p.x,y2:p.y,a:1});if(FX)FX.burst(sparks,p.x,p.y,'#00d9ff',5);if(best.hp<=0){killed++;energy+=3;score+=12;$('score').textContent=score;waves.push({x:p.x,y:p.y,r:6,maxR:28,a:1});pops.push({x:p.x,y:p.y-8,t:'+12',c:'#ffd02e',a:1});}}}
+  for(let i=beams.length-1;i>=0;i--){beams[i].a-=dt*5;if(beams[i].a<=0)beams.splice(i,1);}
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+24*dt;w.a-=dt*3;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=24*dt;p.a-=dt*1.5;if(p.a<=0)pops.splice(i,1);}
   for(let i=ships.length-1;i>=0;i--){const s=ships[i];if(s.hp<=0){ships.splice(i,1);continue;}s.a+=s.spd*dt;if(s.a>50){/*wrap ok*/}const p=angPos(s.orbit,s.a);if(Math.hypot(p.x-W/2,p.y-(H/2-20))<28){station-=s.dread?8:4;ships.splice(i,1);beep(180,.12,'triangle');if(station<=0)lose('空间站陷落');}}}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(p.y>H-56){if(energy>=15){energy-=15;for(const t of turrets)t.boost=(t.boost||0)+1;toast('炮台强化');beep(660,.1);}else toast('能量不足');return;}
   const cx=W/2,cy=H/2-20;const dist=Math.hypot(p.x-cx,p.y-cy);let orbit=ORBITS[0],bd=1e9;for(const o of ORBITS){if(Math.abs(o-dist)<bd){bd=Math.abs(o-dist);orbit=o;}}if(bd>28)return;const a=Math.atan2(p.y-cy,p.x-cx);const maxT=4+(prog.slotLv|0);if(turrets.length>=maxT){toast('轨道已满');return;}if(energy<10){toast('能量不足');return;}energy-=10;turrets.push({orbit,a,cd:0});beep(700,.06);});
-function draw(){if(FX)FX.stage(ctx,W,H,'#2a1166','#05051a');else{ctx.fillStyle='#05051a';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+function draw(){const sec=SECTORS[Math.min(2,Math.floor((lvl-1)/5))];if(FX)FX.stage(ctx,W,H,sec.t,sec.b);else{ctx.fillStyle=sec.b;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  const now=performance.now()*0.002;ctx.fillStyle='#fff';for(const st of STARS){ctx.globalAlpha=0.25+0.45*Math.abs(Math.sin(now+st.ph));ctx.beginPath();ctx.arc(st.x,st.y,st.r,0,7);ctx.fill();}ctx.globalAlpha=1;
   ctx.fillStyle='#e0f2ff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('站'+Math.max(0,station|0)+' 击'+killed+'/'+goal+' 能'+energy.toFixed(0)+(boss?' 👑':''),10,22);
-  const cx=W/2,cy=H/2-20;for(const o of ORBITS){ctx.strokeStyle='rgba(0,217,255,.25)';ctx.beginPath();ctx.arc(cx,cy,o,0,7);ctx.stroke();}
+  const cx=W/2,cy=H/2-20;for(const o of ORBITS){ctx.strokeStyle=sec.ring;ctx.beginPath();ctx.arc(cx,cy,o,0,7);ctx.stroke();}
   if(FX)FX.orb(ctx,cx,cy,16,'#ffd02e');else{ctx.fillStyle='#ffd02e';ctx.beginPath();ctx.arc(cx,cy,16,0,7);ctx.fill();}
   for(const t of turrets){const p=angPos(t.orbit,t.a);if(FX)FX.orb(ctx,p.x,p.y,9,'#00d9ff');else{ctx.fillStyle='#00d9ff';ctx.beginPath();ctx.arc(p.x,p.y,9,0,7);ctx.fill();}}
   for(const s of ships){const p=angPos(s.orbit,s.a);if(FX)FX.orb(ctx,p.x,p.y,s.dread?12:8,s.dread?'#ff3d9a':'#b26bff');else{ctx.fillStyle=s.dread?'#ff3d9a':'#b26bff';ctx.beginPath();ctx.arc(p.x,p.y,s.dread?12:8,0,7);ctx.fill();}}
+  for(const bm of beams){ctx.strokeStyle='rgba(0,217,255,'+Math.max(0,bm.a)+')';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(bm.x1,bm.y1);ctx.lineTo(bm.x2,bm.y2);ctx.stroke();}
+  for(const w of waves){ctx.strokeStyle='rgba(255,208,46,'+Math.max(0,w.a)+')';ctx.lineWidth=2;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}ctx.globalAlpha=1;
   ctx.fillStyle='rgba(0,217,255,.45)';ctx.fillRect(W*0.2,H-52,W*0.6,44);ctx.fillStyle='#004165';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('强化炮台 (-15能)',W/2,H-24);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);killed=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,killed,goal,station}}};
@@ -523,5 +538,5 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt*fast);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 </script>
