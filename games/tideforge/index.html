@@ -454,7 +454,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">滑动合并潮珠 · 完成熔炉订单</p>
 </div>
-<div class="overlay" id="startScr"><h1>🌊 潮汐熔炉</h1><p>在潮汐网格合并潮珠（类2048）。<br>洋流会推动格子；锻出目标装备。<br>Boss：洋流反向乱流。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🌊 潮汐熔炉</h1><p>在潮汐网格合并潮珠（类2048）。<br>洋流会推动格子；锻出目标装备。<br>Boss：洋流反向乱流。<br><small style="opacity:.85">v2（Gemini 优化：3大海域主题、合成波纹飘分与洋流徽章）</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -488,25 +488,31 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 
 const TUT=[["合并","滑动合并相同潮珠。"],["洋流","回合后洋流推动格子。"],["订单","锻到目标值完成订单。"],["Boss","Boss潮汐洋流反向。"]];
 const SHOP=[{k:'gridLv',name:'熔炉扩容',max:3,cost(){return 40+(prog.gridLv|0)*30;},desc(){return '更高阶潮珠出现'}},{k:'tideLv',name:'洋流掌控',max:3,cost(){return 45+(prog.tideLv|0)*30;},desc(){return '洋流扰动减少'}},{k:'forgeLv',name:'锻造加成',max:3,cost(){return 50+(prog.forgeLv|0)*35;},desc(){return '订单得分+'}}];
-const N=4;let grid,target,moves,dir=1,rng,ordersDone;
+const N=4;let grid,target,moves,dir=1,rng,ordersDone,waves=[],pops=[];
+const SEAS=[{a:'#8d58ff',b:'#3a1d7a',n:'🌊深蓝海沟'},{a:'#32b8d6',b:'#104463',n:'🐚珊瑚浅湾'},{a:'#c94c8a',b:'#4a153a',n:'🌋暗涌熔海'}];
+function addWave(x,y,c){waves.push({x,y,r:8,life:1,c});}
+function addPop(x,y,t,c){pops.push({x,y,t,life:1,c});}
 const COLS={2:'#72cbff',4:'#4fc3f7',8:'#29b6f6',16:'#0288d1',32:'#7c4dff',64:'#ff8ac6',128:'#ffd34d',256:'#ff6b6b',512:'#9dffb0'};
 function empty(){const a=[];for(let r=0;r<N;r++){a[r]=[];for(let c=0;c<N;c++)a[r][c]=0;}return a;}
 function spawn(){const cells=[];for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!grid[r][c])cells.push([r,c]);if(!cells.length)return;const [r,c]=cells[(rng()*cells.length)|0];grid[r][c]=rng()<0.9?2:4;}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*3311+5);grid=empty();for(let i=0;i<2;i++)spawn();target=16<<Math.min(4,(lvl/3|0));if(boss)target*=2;moves=24+lvl+(prog.tideLv|0)*2;dir=boss?-1:1;ordersDone=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='滑动合并潮珠 · 锻到目标';}
-function slide(line){const a=line.filter(v=>v);const out=[];for(let i=0;i<a.length;i++){if(a[i]&&a[i]===a[i+1]){out.push(a[i]*2);score+=a[i]*2*(1+(prog.forgeLv|0)*0.2)|0;i++;}else out.push(a[i]);}while(out.length<N)out.push(0);return out;}
-function move(dx,dy){let moved=false;const g=empty();if(dx){for(let r=0;r<N;r++){let line=grid[r].slice();if(dx<0)line=slide(line);else{line=slide(line.reverse()).reverse();}for(let c=0;c<N;c++){g[r][c]=line[c];if(line[c]!==grid[r][c])moved=true;}}}else{for(let c=0;c<N;c++){let line=[];for(let r=0;r<N;r++)line.push(grid[r][c]);if(dy<0)line=slide(line);else{line=slide(line.reverse()).reverse();}for(let r=0;r<N;r++){g[r][c]=line[r];if(line[r]!==grid[r][c])moved=true;}}}if(!moved)return false;grid=g;spawn();moves--;tidePush();$('score').textContent=score|0;beep(640,.05);check();return true;}
-function tidePush(){const g=empty();for(let r=0;r<N;r++)for(let c=0;c<N;c++){let nr=r,nc=c+dir;if(nc<0||nc>=N){nr=r+dir;nc=(nc+N)%N;}if(nr>=0&&nr<N&&!g[nr][nc])g[nr][nc]=grid[r][c];else if(!g[r][c])g[r][c]=grid[r][c];else g[r][c]=Math.max(g[r][c],grid[r][c]);}grid=g;if(boss&&(rng()<0.25))dir*=-1;}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];rng=mulberry32(n*3311+5);grid=empty();for(let i=0;i<2;i++)spawn();target=16<<Math.min(4,(lvl/3|0));if(boss)target*=2;moves=24+lvl+(prog.tideLv|0)*2;dir=boss?-1:1;ordersDone=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='滑动合并潮珠 · 锻到目标';}
+function slide(line){const a=line.filter(v=>v);const out=[];for(let i=0;i<a.length;i++){if(a[i]&&a[i]===a[i+1]){const nv=a[i]*2;out.push(nv);const pts=nv*(1+(prog.forgeLv|0)*0.2)|0;score+=pts;addPop(W/2,H/2-40,'+'+pts,'#ffd34d');i++;}else out.push(a[i]);}while(out.length<N)out.push(0);return out;}
+function move(dx,dy){let moved=false;const g=empty();if(dx){for(let r=0;r<N;r++){let line=grid[r].slice();if(dx<0)line=slide(line);else{line=slide(line.reverse()).reverse();}for(let c=0;c<N;c++){g[r][c]=line[c];if(line[c]!==grid[r][c])moved=true;}}}else{for(let c=0;c<N;c++){let line=[];for(let r=0;r<N;r++)line.push(grid[r][c]);if(dy<0)line=slide(line);else{line=slide(line.reverse()).reverse();}for(let r=0;r<N;r++){g[r][c]=line[r];if(line[r]!==grid[r][c])moved=true;}}}if(!moved)return false;grid=g;addWave(W/2,H/2,'#72cbff');spawn();moves--;tidePush();$('score').textContent=score|0;beep(640,.05);check();return true;}
+function tidePush(){const g=empty();for(let r=0;r<N;r++)for(let c=0;c<N;c++){let nr=r,nc=c+dir;if(nc<0||nc>=N){nr=r+dir;nc=(nc+N)%N;}if(nr>=0&&nr<N&&!g[nr][nc])g[nr][nc]=grid[r][c];else if(!g[r][c])g[r][c]=grid[r][c];else g[r][c]=Math.max(g[r][c],grid[r][c]);}grid=g;if(boss&&(rng()<0.25)){dir*=-1;addPop(W/2,52,'洋流反转!','#ff8ac6');}}
 function check(){let max=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++)max=Math.max(max,grid[r][c]);if(max>=target){ordersDone++;if(ordersDone>=1)return win();}if(moves<=0){let stuck=true;for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!grid[r][c])stuck=false;if(stuck)lose('潮汐枯竭');else lose('步数用尽');}}
 function win(){if(state!=='play')return;const stars=moves>12?3:moves>5?2:1;finishWin(stars,45+stars*15+(boss?55:0)+(prog.forgeLv|0)*10,'锻造成功！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(){}
+function update(dt){const d=dt||0.016;for(let i=waves.length-1;i>=0;i--){waves[i].r+=130*d;waves[i].life-=d*2.2;if(waves[i].life<=0)waves.splice(i,1);}for(let i=pops.length-1;i>=0;i--){pops[i].y-=26*d;pops[i].life-=d*1.5;if(pops[i].life<=0)pops.splice(i,1);}}
 let sx=0,sy=0;
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);sx=p.x;sy=p.y;});
 cv.addEventListener('pointerup',e=>{if(state!=='play')return;const p=posOf(e);const dx=p.x-sx,dy=p.y-sy;if(Math.hypot(dx,dy)<24)return;if(Math.abs(dx)>Math.abs(dy))move(dx>0?1:-1,0);else move(0,dy>0?1:-1);});
-function draw(){if(FX)FX.stage(ctx,W,H,'#8d58ff','#3a1d7a');else{ctx.fillStyle='#3a1d7a';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('目标'+target+' 步'+moves+(boss?' 👑反向':' 洋流'+(dir>0?'→':'←')),10,22);
+function draw(){const sea=SEAS[Math.min(2,((lvl-1)/5)|0)];if(FX)FX.stage(ctx,W,H,sea.a,sea.b);else{ctx.fillStyle=sea.b;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  if(FX)FX.tile(ctx,10,8,W-20,30,'rgba(0,0,0,.32)',10);else{ctx.fillStyle='rgba(0,0,0,.32)';ctx.fillRect(10,8,W-20,30);}
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText('🎯'+target+' · 步'+moves+(boss?' · 👑反向':'')+' · 洋流'+(dir>0?'→':'←')+' · '+sea.n,18,23);
   const pad=20,sz=(W-pad*2-12)/N;
-  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const x=pad+c*(sz+4),y=60+r*(sz+4);ctx.fillStyle='rgba(255,255,255,.1)';ctx.fillRect(x,y,sz,sz);const v=grid[r][c];if(!v)continue;const col=COLS[v]||'#fff';if(FX)FX.tile(ctx,x+2,y+2,sz-4,sz-4,col,10);else{ctx.fillStyle=col;ctx.fillRect(x+2,y+2,sz-4,sz-4);}ctx.fillStyle='#222';ctx.font='bold 18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v,x+sz/2,y+sz/2);}
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const x=pad+c*(sz+4),y=60+r*(sz+4);if(FX)FX.tile(ctx,x,y,sz,sz,'rgba(255,255,255,.12)',10);else{ctx.fillStyle='rgba(255,255,255,.1)';ctx.fillRect(x,y,sz,sz);}const v=grid[r][c];if(!v)continue;const col=COLS[v]||'#fff';if(FX)FX.tile(ctx,x+2,y+2,sz-4,sz-4,col,10);else{ctx.fillStyle=col;ctx.fillRect(x+2,y+2,sz-4,sz-4);}ctx.fillStyle='#222';ctx.font='bold 18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v,x+sz/2,y+sz/2);}
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.life);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.c;ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);ordersDone=1;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,moves,target,ordersDone}}};
 

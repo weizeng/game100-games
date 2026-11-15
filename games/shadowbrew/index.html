@@ -453,7 +453,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">合并相邻同阶药材升阶，在步数内凑出订单药剂。</p>
 </div>
-<div class="overlay" id="startScr"><h1>🧪 影酿工坊</h1><p>合并相邻同阶药材升阶，在步数内凑出订单药剂。<br>清完 N 单过关。Boss：步更紧珍材多。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🧪 影酿工坊</h1><p id="startP">合并相邻同阶药材升阶，在步数内凑出订单药剂。<br>清完 N 单过关。Boss：步更紧珍材多。<br><b>v3（Gemini 优化：3大影酿主题、可合并邻格金框提示、立体药格与交付波纹飘分）</b></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -488,29 +488,51 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 const TUT=[["合成","点一格再点相邻同阶药材合并升阶。"],["订单","顶部订单需要指定阶数药剂。"],["步数","步数用尽未完成则失败。"],["Boss","Boss 步数更紧，目标更高。"]];
 const SHOP=[{k:'boardLv',name:'台面扩容',max:3,cost(){return 50+(prog.boardLv|0)*35;},desc(){return '棋盘更大更好走';}},{k:'undoLv',name:'撤销合成',max:3,cost(){return 40+(prog.undoLv|0)*30;},desc(){return '可撤销次数';}},{k:'wildLv',name:'万能触媒',max:3,cost(){return 55+(prog.wildLv|0)*35;},desc(){return '开局万能格数量';}}];
 const COLS=[[4,4],[4,5],[5,5],[5,6]];
-let R=4,C=4,board=[],orders=[],moves=0,maxM=0,cleared=0,goal=0,sel=-1,undos=0,hist=[];
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];const bi=Math.min(3,prog.boardLv|0);R=COLS[bi][1];C=COLS[bi][0];board=[];for(let i=0;i<R*C;i++)board.push(1+(Math.random()*Math.min(3,1+((lvl/5)|0))|0));for(let w=0;w<(prog.wildLv|0);w++)board[Math.random()*board.length|0]=9;orders=[];goal=3+((lvl/3)|0)+(boss?1:0);for(let i=0;i<goal;i++)orders.push(2+((lvl/4)|0)+i%2);moves=0;maxM=14+lvl-(boss?3:0);cleared=0;sel=-1;undos=prog.undoLv|0;hist=[];
+const SHOPS=[['#9775fa','#5f3dc4','影酿工坊'],['#3b82f6','#1e1b4b','星霜药室'],['#be185d','#2e0824','暗夜秘釜']];
+let R=4,C=4,board=[],orders=[],moves=0,maxM=0,cleared=0,goal=0,sel=-1,undos=0,hist=[],waves=[],pops=[];
+function addWave(x,y,col,maxR){waves.push({x,y,r:8,maxR:maxR||44,col,a:1});}
+function addPop(x,y,txt,col){pops.push({x,y,txt,col:col||'#ffd34d',vy:-34,a:1});}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];const bi=Math.min(3,prog.boardLv|0);R=COLS[bi][1];C=COLS[bi][0];board=[];for(let i=0;i<R*C;i++)board.push(1+(Math.random()*Math.min(3,1+((lvl/5)|0))|0));for(let w=0;w<(prog.wildLv|0);w++)board[Math.random()*board.length|0]=9;orders=[];goal=3+((lvl/3)|0)+(boss?1:0);for(let i=0;i<goal;i++)orders.push(2+((lvl/4)|0)+i%2);moves=0;maxM=14+lvl-(boss?3:0);cleared=0;sel=-1;undos=prog.undoLv|0;hist=[];
   show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='相邻同阶合并升阶';}
 function win(){if(state!=='play')return;const stars=moves<=maxM-4?3:moves<=maxM-1?2:1;finishWin(stars,40+stars*15+(boss?50:0)+cleared*8,'药剂齐备！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(){if(cleared>=goal)win();}
+function update(dt){
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*8)+dt*24;w.a-=dt*2.4;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y+=p.vy*dt;p.a-=dt*1.35;if(p.a<=0)pops.splice(i,1);}
+  if(cleared>=goal)win();
+}
 function adj(a,b){const ac=a%C,ar=(a/C)|0,bc=b%C,br=(b/C)|0;return Math.abs(ac-bc)+Math.abs(ar-br)===1;}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
   if(p.y>H-56){if(undos>0&&hist.length){const h=hist.pop();board=h.board;orders=h.orders;cleared=h.cleared;moves=h.moves;undos--;toast('撤销');beep(500,.05);return;}return;}
-  const cell=Math.min(64,(W-24)/C);const ox=(W-cell*C)/2,oy=140;const c=((p.x-ox)/cell)|0,r=((p.y-oy)/cell)|0;if(c<0||c>=C||r<0||r>=R)return;const i=r*C+c;
+  const cell=Math.min(64,(W-24)/C);const ox=(W-cell*C)/2,oy=100;const c=((p.x-ox)/cell)|0,r=((p.y-oy)/cell)|0;if(c<0||c>=C||r<0||r>=R)return;const i=r*C+c;
   if(sel<0){sel=i;beep(600,.03);return;}if(sel===i){sel=-1;return;}
   const va=board[sel],vb=board[i];const same=(va===vb&&va>0)||va===9||vb===9;if(!adj(sel,i)||!same){toast('需相邻同阶');sel=-1;return;}
   if(moves>=maxM){lose('步数用尽');return;}
   hist.push({board:board.slice(),orders:orders.slice(),cleared,moves});if(hist.length>10)hist.shift();
   const nv=Math.min(8,(va===9?vb:va)+1);board[i]=nv;board[sel]=1+(Math.random()*2|0);moves++;score+=10;sel=-1;beep(820,.06);
-  const oi=orders.findIndex(o=>o===nv);if(oi>=0){orders.splice(oi,1);cleared++;score+=25;toast('交付！');if(FX)FX.burst(sparks,ox+c*cell+cell/2,oy+r*cell+cell/2,'#c4b5fd',12);}
+  const px=ox+c*cell+cell/2,py=oy+r*cell+cell/2;
+  const oi=orders.findIndex(o=>o===nv);if(oi>=0){orders.splice(oi,1);cleared++;score+=25;toast('交付！');if(FX)FX.burst(sparks,px,py,'#c4b5fd',12);addWave(px,py,'#ffd34d',48);addPop(px,py-10,'交付 T'+nv+' +25!','#ffd34d');}
+  else{addWave(px,py,'#c4b5fd',32);addPop(px,py-8,'+10','#e9d5ff');}
   if(cleared>=goal)win();else if(moves>=maxM)lose('步数用尽');});
-function draw(){if(FX)FX.stage(ctx,W,H,'#9775fa','#5f3dc4');else{ctx.fillStyle='#5f3dc4';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('步'+moves+'/'+maxM+' 单'+cleared+'/'+goal+(boss?' 👑':''),10,22);
-  ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.fillText('订单: '+orders.map(o=>'T'+o).join(' ')+(orders.length?'':'完成'),10,48);
-  const cell=Math.min(64,(W-24)/C);const ox=(W-cell*C)/2,oy=140;const cols=['#868e96','#74c0fc','#69db7c','#ffd43b','#ff8787','#f783ac','#b197fc','#fff','#ff6b9d'];
-  board.forEach((v,i)=>{const c=i%C,r=(i/C)|0;const x=ox+c*cell,y=oy+r*cell;ctx.fillStyle=cols[Math.min(8,v)]||'#fff';ctx.fillRect(x+3,y+3,cell-6,cell-6);ctx.fillStyle='#111';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(v===9?'★':('T'+v),x+cell/2,y+cell/2+5);if(sel===i){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.strokeRect(x+2,y+2,cell-4,cell-4);}});
-  ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(40,H-52,W-80,44);ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('撤销×'+undos,W/2,H-24);
+function draw(){
+  const ch=SHOPS[Math.min(2,Math.floor((lvl-1)/5))];
+  if(FX)FX.stage(ctx,W,H,ch[0],ch[1]);else{ctx.fillStyle=ch[1];ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';ctx.fillText((boss?'👑 ':'')+ch[2]+' · 步'+moves+'/'+maxM,14,20);
+  ctx.textAlign='right';ctx.fillStyle='#ffd34d';ctx.fillText('已完成 '+cleared+'/'+goal,W-14,20);
+  const cols=['#868e96','#74c0fc','#69db7c','#ffd43b','#ff8787','#f783ac','#b197fc','#fff','#ff6b9d'];
+  let oxB=14;for(const o of orders){if(oxB>W-46)break;const oc=cols[Math.min(8,o)]||'#fff';if(FX)FX.tile(ctx,oxB,32,36,24,oc,6);else{ctx.fillStyle=oc;ctx.fillRect(oxB,32,36,24);}ctx.fillStyle='#111';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText('T'+o,oxB+18,48);oxB+=42;}
+  const cell=Math.min(64,(W-24)/C);const ox=(W-cell*C)/2,oy=100;
+  board.forEach((v,i)=>{const c=i%C,r=(i/C)|0;const x=ox+c*cell,y=oy+r*cell;const col=cols[Math.min(8,v)]||'#fff';
+    if(FX)FX.tile(ctx,x+3,y+3,cell-6,cell-6,col,10);else{ctx.fillStyle=col;ctx.fillRect(x+3,y+3,cell-6,cell-6);}
+    ctx.fillStyle='#111';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(v===9?'★':('T'+v),x+cell/2,y+cell/2+5);
+    if(sel===i){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.strokeRect(x+2,y+2,cell-4,cell-4);}
+    else if(sel>=0&&adj(sel,i)&&((board[sel]===v&&v>0)||board[sel]===9||v===9)){ctx.strokeStyle='#ffd34d';ctx.lineWidth=2.5;ctx.strokeRect(x+2,y+2,cell-4,cell-4);}
+  });
+  if(FX)FX.tile(ctx,40,H-52,W-80,40,undos>0&&hist.length?'rgba(255,255,255,.22)':'rgba(255,255,255,.1)',12);
+  else{ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(40,H-52,W-80,40);}
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText('↩ 撤销 ×'+undos,W/2,H-27);
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.col;ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);cleared=goal;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,moves,cleared,goal}}};
 

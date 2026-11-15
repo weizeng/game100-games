@@ -457,7 +457,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点两张相同且无遮挡的牌消除</p>
 </div>
-<div class="overlay" id="startScr"><h1>🃏 叠牌对对</h1><p>多层叠牌，点两张相同且无遮挡的牌消除。<br>30 关层数攀升，石牌/金银牌与 Boss 关。<br>成长解锁洗牌与提示道具。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🃏 叠牌对对</h1><p>多层叠牌，点两张相同且无遮挡的牌消除。<br>30 关层数攀升，石牌/金银牌与 Boss 关。<br>成长解锁洗牌与提示道具。<br><small style="opacity:.85">v3（Gemini 优化：3大牌桌主题、消除波纹飘分与可选牌光框）</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -491,8 +491,11 @@ let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textCont
 const TOTAL=30;
 const ICONS=['🍎','🍋','🍇','🍒','🍑','🍉','🥝','🫐','🍊','🍌','🍓','🍍'];
 const TW=44,TH=52;
-let state='menu',lvl=1,score=0,sparks=[],last=0,boss=false;
+let state='menu',lvl=1,score=0,sparks=[],waves=[],pops=[],tAnim=0,last=0,boss=false;
 let tiles=[],sel=null,left=0,hints=0,shuffles=0,moves=0,timeLeft=0;
+const TABLES=[{a:'#d4b0ff',b:'#8D58FF',n:'💜紫晶牌桌'},{a:'#7fd8ff',b:'#29569c',n:'🌊碧海牌桌'},{a:'#ffd296',b:'#8c3b2b',n:'🏮绯金牌桌'}];
+function addWave(x,y,c){waves.push({x,y,r:6,life:1,c});}
+function addPop(x,y,t,c){pops.push({x,y,t,life:1,c});}
 
 function overlaps(a,b){
   return !(a.x+TW-6<=b.x||b.x+TW-6<=a.x||a.y+TH-6<=b.y||b.y+TH-6<=a.y);
@@ -557,7 +560,7 @@ function genBoard(n){
 }
 
 function startLevel(n){
-  lvl=n;boss=n%5===0;score=Math.max(0,score);sel=null;moves=0;
+  lvl=n;boss=n%5===0;score=Math.max(0,score);sel=null;moves=0;waves=[];pops=[];
   tiles=genBoard(n);left=tiles.length;
   hints=1+prog.hintLv;shuffles=prog.shuffleLv;
   timeLeft=boss?90:0;
@@ -578,6 +581,7 @@ function removePair(a,b){
   const bonus=(a.kind==='gold'||b.kind==='gold')?30:((a.kind==='silver'||b.kind==='silver')?20:10);
   score+=bonus;$('score').textContent=score;
   beep(780,.08);toast(a.icon+' 消除 +'+bonus);
+  addWave(a.x+TW/2,a.y+TH/2,'#b8ffd0');addWave(b.x+TW/2,b.y+TH/2,'#FFD34D');addPop((a.x+b.x+TW)/2,(a.y+b.y)/2,'+'+bonus,'#FFD34D');
   if(FX){FX.burst(sparks,a.x+TW/2,a.y+TH/2,'#8D58FF',8);FX.burst(sparks,b.x+TW/2,b.y+TH/2,'#FFD34D',8);}
   if(left<=0)win();
   else {
@@ -636,16 +640,21 @@ function lose(msg){
 }
 
 function update(dt){
+  tAnim+=dt;
+  for(let i=waves.length-1;i>=0;i--){waves[i].r+=110*dt;waves[i].life-=dt*2.4;if(waves[i].life<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){pops[i].y-=26*dt;pops[i].life-=dt*1.5;if(pops[i].life<=0)pops.splice(i,1);}
   if(state!=='play')return;
   if(boss){timeLeft-=dt;if(timeLeft<=0){if(left<=0)win();else lose('⏰ 时间到');}}
 }
 
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#d4b0ff','#8D58FF');else{ctx.fillStyle='#8D58FF';ctx.fillRect(0,0,W,H);}
-  ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(8,8,W-16,40);
-  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';
-  ctx.fillText((boss?'👑 ':'')+'剩 '+left+(boss?(' · ⏱'+Math.ceil(timeLeft)+'s'):'')+' · 提示'+hints+' · 洗'+shuffles,16,32);
+  const tbTheme=TABLES[Math.min(2,((lvl-1)/10)|0)];
+  if(FX)FX.stage(ctx,W,H,tbTheme.a,tbTheme.b);else{ctx.fillStyle=tbTheme.b;ctx.fillRect(0,0,W,H);}
+  if(FX)FX.tile(ctx,8,8,W-16,40,'rgba(0,0,0,.3)',10);else{ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(8,8,W-16,40);}
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';
+  ctx.fillText((boss?'👑 ':'')+'剩 '+left+(boss?(' · ⏱'+Math.ceil(timeLeft)+'s'):'')+' · 提示'+hints+' · 洗'+shuffles+' · '+tbTheme.n,16,32);
   const sorted=tiles.filter(t=>!t.gone).slice().sort((a,b)=>a.z-b.z||a.y-b.y);
+  const pulse=.55+.45*Math.sin(tAnim*6);
   for(const t of sorted){
     let col='#fff6ff';
     if(t.kind==='stone')col='#9aa3b5';
@@ -655,6 +664,7 @@ function draw(){
     const free=isFree(t);
     if(FX)FX.tile(ctx,t.x,t.y,TW,TH,col,8);else{ctx.fillStyle=col;ctx.fillRect(t.x,t.y,TW,TH);}
     if(!free){ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(t.x,t.y,TW,TH);}
+    else if(sel===t||t._hint){ctx.save();ctx.strokeStyle=sel===t?'#00e5ff':'#ffd34d';ctx.lineWidth=2.5;ctx.globalAlpha=pulse;ctx.strokeRect(t.x-1,t.y-1,TW+2,TH+2);ctx.restore();}
     ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillStyle='#222';ctx.fillText(t.icon,t.x+TW/2,t.y+TH/2);
     if(t.kind==='stone'){ctx.font='10px sans-serif';ctx.fillText('石',t.x+TW/2,t.y+TH-8);}
@@ -668,6 +678,8 @@ function draw(){
     ctx.fillStyle='#3a1040';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(tb.l,tb.x+70,H-36);ctx.textBaseline='alphabetic';
   });
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.life);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.c;ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;update(dt);draw();requestAnimationFrame(frame);}

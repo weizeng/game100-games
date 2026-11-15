@@ -460,7 +460,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span id="iconT">🍬<b>1</b></span><span>封罐 <b id="doneT">0/3</b></span><span>步数 <b id="stepT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="mapBtn" aria-label="选择关卡">🗺️</button><button class="iconbtn" id="shopBtn" aria-label="道具商店">🛒</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn muteBtn" id="soundBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="mapBtn" aria-label="选择关卡">🗺️</button><button class="iconbtn" id="shopBtn" aria-label="道具商店">🛒</button><button class="iconbtn" id="spdBtn" aria-label="切换倍速" style="font-size:12px;font-weight:700">1×</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">三味初分</span><div class="prog"><i id="progI"></i></div><span id="infoT">🫙1 🪄1</span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
@@ -614,7 +614,14 @@ const LV=[
 ];
 
 let L,jars,hiddenMap,selectedJar=-1,steps=0,score=0,extraJars=0,wands=0,history=[],ended=false;
-let flyAnim=null,sparks=[],floats=[],raf=0,last=0,fast=1,tAnim=0;
+let flyAnim=null,sparks=[],floats=[],waves=[],raf=0,last=0,fast=1,tAnim=0;
+const SHOPS=[
+  {a:'#4a195e',b:'#1d0b2b',bar:'#361447',n:'🍓莓果工坊'},
+  {a:'#194a5e',b:'#0b222b',bar:'#143647',n:'🧊薄荷冰屋'},
+  {a:'#5e3a19',b:'#2b180b',bar:'#472b14',n:'🍯焦糖城堡'}
+];
+function addWave(x,y,c){waves.push({x,y,r:6,life:1,c});}
+if($('spdBtn'))$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 
 function buildScrambledJars(lvIdx,colors,empty){
   // 确定性种子洗牌，确保每种口味恰好 4 颗且没有任何一罐开局已满同色
@@ -969,12 +976,18 @@ function hud(){
 function upd(dt){
   tAnim+=dt;
   if(flyAnim){
-    flyAnim.t+=dt;
+    flyAnim.t+=dt*fast;
     if(flyAnim.t>=flyAnim.dur){
+      addWave(flyAnim.x1||W/2,flyAnim.y1||H/2,'#ff8ac6');
       const fn=flyAnim.done;
       flyAnim=null;
       fn();
     }
+  }
+  for(let i=waves.length-1;i>=0;i--){
+    waves[i].r+=110*dt;
+    waves[i].life-=dt*2.4;
+    if(waves[i].life<=0)waves.splice(i,1);
   }
   for(let i=floats.length-1;i>=0;i--){
     floats[i].y-=22*dt;
@@ -1006,16 +1019,17 @@ function drawCandyOrb(x,y,r,flavor,isMystery){
 }
 
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#4a195e','#1d0b2b');
-  else{ctx.fillStyle='#240d33';ctx.fillRect(0,0,W,H);}
+  const sh=SHOPS[Math.min(2,((Kit.lv-1)/5)|0)];
+  if(FX)FX.stage(ctx,W,H,sh.a,sh.b);
+  else{ctx.fillStyle=sh.b;ctx.fillRect(0,0,W,H);}
 
   // 顶部提示条
-  if(FX)FX.tile(ctx,14,8,W-28,32,'#361447',10);
-  else{ctx.fillStyle='#361447';ctx.fillRect(14,8,W-28,32);}
+  if(FX)FX.tile(ctx,14,8,W-28,32,sh.bar,10);
+  else{ctx.fillStyle=sh.bar;ctx.fillRect(14,8,W-28,32);}
   ctx.fillStyle='#ffdff0';
   ctx.font='bold 12px sans-serif';
   ctx.textAlign='left';ctx.textBaseline='middle';
-  ctx.fillText('🍬 每罐集齐 4 颗同色糖果自动封罐 ('+countSolvedJars()+'/'+L.colors+')',26,24);
+  ctx.fillText('🍬 集齐4颗同色封罐 ('+countSolvedJars()+'/'+L.colors+') · '+sh.n,26,24);
 
   const rects=jarLayout();
   for(let j=0;j<jars.length;j++){
@@ -1072,6 +1086,7 @@ function draw(){
     drawCandyOrb(cx,cy,flyAnim.r*1.08,flyAnim.flavor,false);
   }
 
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.life);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
   if(FX)FX.drawBurst(ctx,sparks);
   for(const f of floats){
     ctx.globalAlpha=Math.max(0,f.life);
@@ -1099,7 +1114,7 @@ function layout(){
 addEventListener('resize',layout);layout();
 
 $('startH').textContent='🍬 糖果分拣';
-$('startP').innerHTML='15 关缤纷糖罐分拣解谜：点击糖罐倾倒顶部同色糖果，让每个糖罐集齐 4 颗同口味糖果即可封罐！<br>善用「🫙加空罐」与「🪄自动归位」，挑战三大盲盒首领！';
+$('startP').innerHTML='15 关缤纷糖罐分拣解谜：点击糖罐倾倒顶部同色糖果，让每个糖罐集齐 4 颗同口味糖果即可封罐！<br>善用「🫙加空罐」与「🪄自动归位」，挑战三大盲盒首领！<br><small style="opacity:.85">v8（Gemini 优化：3大糖果工坊主题、1×/2×倾倒倍速、落罐波纹与封罐光环）</small>';
 
 Kit.init({
   id:'sortcandy',
