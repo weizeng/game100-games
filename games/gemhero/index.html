@@ -452,12 +452,12 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>⚔️<b id="lvT">1</b></span><span>🪙<b id="goldT">0</b></span><span>⭐<b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="skills" id="skills"></div>
 </div>
-<div class="overlay" id="startScr"><h1>三消勇者</h1><p>交换相邻宝石凑成三连：<br>🗡️ 攻击 · 🛡️ 护盾 · 💚 治疗 · 🪙 金币 · 🔮 法力<br>闯过 20 关怪物与 4 位首领，用金币强化勇者！</p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始冒险</button></div>
+<div class="overlay" id="startScr"><h1>三消勇者</h1><p id="startP">交换相邻宝石凑成三连：<br>🗡️ 攻击 · 🛡️ 护盾 · 💚 治疗 · 🪙 金币 · 🔮 法力<br>闯过 20 关怪物与 4 位首领，用金币强化勇者！<br><b>v4（Gemini 优化：4大魔域章节主题、1×/2×极速战斗、消除与受击冲击波光环）</b></p><p id="bestLine" style="text-align:center"></p><button class="btn" id="startBtn">开始冒险</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>冒险地图</h2><p id="lvlInfo" style="text-align:center"></p><div class="lvgrid" id="lvgrid"></div><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法说明</button><button class="iconbtn muteBtn">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始本关</button><button class="btn ghost" id="menuBtn">地图</button><button class="iconbtn muteBtn">🔊</button></div></div>
@@ -513,7 +513,10 @@ const STAGES=[['slime'],['slime','bat'],['bat','goblin'],['skel','slime'],['gole
 const SKILLS=[{k:'fire',a:'🔥',n:'火球',cost:8,un:0},{k:'heal',a:'✨',n:'治愈',cost:6,un:0},{k:'clean',a:'🧹',n:'净化',cost:5,un:3},{k:'storm',a:'⚡',n:'雷霆',cost:12,un:7}];
 const UPS=[{k:'atk',n:'🗡️ 剑术',d:'攻击宝石伤害+0.6',base:25,max:10},{k:'hp',n:'❤️ 体魄',d:'生命上限+15',base:20,max:10},{k:'def',n:'🛡️ 铁壁',d:'护盾宝石+0.5',base:20,max:8},{k:'mana',n:'🔮 冥想',d:'技能威力+20%',base:30,max:6}];
 let save=Store.get('save',{stars:[],gold:0,up:{atk:0,hp:0,def:0,mana:0},tut:0,best:0});
-let state='menu',si=0,grid=[],P=null,E=null,wave=0,turns=0,sel=null,dragS=null,busy=false,floats=[],sparks=[],shake=0,FAST=false,combo=0,msg='';
+const REALMS=[['#3a2a6b','#1b1238','幽暗地城'],['#1e3a5f','#0a192f','霜冻冰原'],['#4a1d3a','#1a0816','亡灵古墓'],['#4c1d1d','#1c0707','魔龙熔窟']];
+let state='menu',si=0,grid=[],P=null,E=null,wave=0,turns=0,sel=null,dragS=null,busy=false,floats=[],sparks=[],waves=[],shake=0,FAST=false,combo=0,msg='';
+$('spdBtn').onclick=()=>{FAST=!FAST;$('spdBtn').textContent=FAST?'2×':'1×';tone(720,.05,'triangle');};
+function addWave(x,y,col,maxR){waves.push({x,y,r:10,maxR:maxR||46,col,a:1});}
 const R=Math.random;
 function stat(){const u=save.up;return{atk:2+u.atk*.6,maxhp:100+u.hp*15,def:1+u.def*.5,pow:1+u.mana*.2};}
 // ---------- 棋盘 ----------
@@ -559,7 +562,7 @@ function startStage(i){si=i;const s=stat();P={hp:s.maxhp,max:s.maxhp,sh:0,mana:0
 function hud(){$('lvT').textContent=si+1;$('goldT').textContent=save.gold;$('score').textContent=save.stars.reduce((a,b)=>a+(b||0),0);}
 function renderSkills(){const b=$('skills');b.innerHTML='';for(const s of SKILLS){const e=document.createElement('button');const lock=save.stars.filter(x=>x).length<s.un;e.className='ghost';e.disabled=lock||state!=='play'||!P||P.mana<s.cost||busy;e.innerHTML=(lock?'🔒':s.a)+'<small>'+(lock?'通关'+s.un+'关':s.n+' '+s.cost+'🔮')+'</small>';e.onclick=()=>useSkill(s.k);e.setAttribute('aria-label',s.n);b.appendChild(e);}}
 function fl(t,x,y,c){floats.push({t,x,y,c,life:1});}
-function dmgFoe(d,src){if(E.armor>0)d=Math.round(d*.5);d=Math.round(d);if(E.D.sp==='dragon'&&E.phase)d=Math.round(d*.85);E.hp-=d;E.hit=.25;fl('-'+d,260+(R()-.5)*30,70,'#ff5d6e');if(FX)FX.burst(sparks,260,80,'#ff5d6e',d>30?24:10);shake=Math.min(8,d/6);tone(160,.08,'square',.07,90);}
+function dmgFoe(d,src){if(E.armor>0)d=Math.round(d*.5);d=Math.round(d);if(E.D.sp==='dragon'&&E.phase)d=Math.round(d*.85);E.hp-=d;E.hit=.25;fl('-'+d,260+(R()-.5)*30,70,'#ff5d6e');if(FX)FX.burst(sparks,260,80,'#ff5d6e',d>30?24:10);addWave(260,72,'#ff5d6e',d>30?58:40);shake=Math.min(8,d/6);tone(160,.08,'square',.07,90);}
 function hurtP(d){d=Math.round(d);const ab=Math.min(P.sh,d);P.sh-=ab;d-=ab;if(ab)fl('🛡️-'+ab,80,120,'#7fb2ff');if(d>0){P.hp-=d;fl('-'+d,80,95,'#ff3d3d');shake=6;noise(.15,.12,700);}}
 function applyTot(t){const s=stat();if(t[0])dmgFoe(t[0]*s.atk,'gem');if(t[1]){const v=Math.round(t[1]*s.def);P.sh=Math.min(Math.round(P.max*.4),P.sh+v);fl('+'+v+'🛡️',70,140,'#7fb2ff');}
  if(t[2]){const v=Math.round(t[2]*1.5);P.hp=Math.min(P.max,P.hp+v);fl('+'+v,70,75,'#2ed47a');}
@@ -570,7 +573,7 @@ async function playerMove(a,b){if(busy||state!=='play')return false;if(!canSwap(
  busy=true;renderSkills();const A=grid[a[0]][a[1]],B=grid[b[0]][b[1]];let star=null;if(A.t===STAR)star=[b,a];else if(B.t===STAR)star=[a,b];
  swp(grid,a,b);const res=resolve(grid,[a,b],star);
  combo=res.casc;turns++;
- if(!FAST){for(const st of res.steps){for(const [r,c,t] of st.cells)if(FX)FX.burst(sparks,BX+c*CS+CS/2,BY+r*CS+CS/2,t<5?GEM[t].c:'#999',4);tone(500+st.casc*90,.08,'triangle',.07);await wait(160);}}
+ if(!FAST){for(const st of res.steps){for(const [r,c,t] of st.cells){const gx=BX+c*CS+CS/2,gy=BY+r*CS+CS/2,gc=t<5?GEM[t].c:'#999';if(FX)FX.burst(sparks,gx,gy,gc,4);addWave(gx,gy,gc,30);}tone(500+st.casc*90,.08,'triangle',.07);await wait(160);}}
  applyTot(res.tot);if(res.casc>1)fl('连击 ×'+res.casc,180,165,'#ffe066');
  await wait(250);await afterTurn();busy=false;renderSkills();return true;}
 async function afterTurn(){if(E.hp<=0){await foeDead();return;}
@@ -613,10 +616,12 @@ addEventListener('pointerup',()=>{dragS=null;});
 // ---------- 绘制 ----------
 function bar(x,y,w,h,v,c,bg){ctx.fillStyle=bg||'rgba(0,0,0,.35)';rr(ctx,x,y,w,h,h/2);ctx.fill();ctx.fillStyle=c;rr(ctx,x,y,Math.max(0,w*v),h,h/2);ctx.fill();}
 function draw(dt){const now=performance.now();
- if(FX)FX.stage(ctx,W,H,'#3a2a6b','#1b1238');else{ctx.fillStyle='#2a1f50';ctx.fillRect(0,0,W,H);}
+ const ch=REALMS[Math.min(3,Math.floor(si/5))];
+ if(FX)FX.stage(ctx,W,H,ch[0],ch[1]);else{ctx.fillStyle=ch[1];ctx.fillRect(0,0,W,H);}
  ctx.save();if(shake>0){ctx.translate((R()-.5)*shake,(R()-.5)*shake);shake=Math.max(0,shake-dt*30);}
  // 战斗区
  ctx.fillStyle='rgba(255,255,255,.06)';rr(ctx,6,6,W-12,170,16);ctx.fill();
+ txt(ctx,ch[2],18,18,10,'rgba(255,255,255,.55)','left',700);
  if(P&&E){txt(ctx,'🧝',70,52,46);bar(18,92,110,12,P.hp/P.max,'#ff4d5e');txt(ctx,'❤ '+Math.max(0,P.hp)+'/'+P.max,73,98,10,'#fff');
   if(P.sh>0){bar(18,108,110,8,Math.min(1,P.sh/P.max),'#4d8bff');txt(ctx,'🛡️'+P.sh,140,112,10,'#bcd',"left");}
   bar(18,122,110,8,Math.min(1,P.mana/30),'#b65cff');txt(ctx,'🔮'+P.mana,140,126,10,'#e0c4ff','left');
@@ -641,6 +646,7 @@ function draw(dt){const now=performance.now();
  ctx.restore();
  if(sel){ctx.strokeStyle='#fff';ctx.lineWidth=3;rr(ctx,BX+sel[1]*CS+2,BY+sel[0]*CS+2,CS-4,CS-4,12);ctx.stroke();}
  if(FX)FX.drawBurst(ctx,sparks);
+ for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*9)+dt*24;w.a-=dt*2.5;if(w.a<=0){waves.splice(i,1);continue;}ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
  for(const f of floats){f.life-=dt*.9;f.y-=dt*30;ctx.globalAlpha=Math.max(0,f.life);otxt(ctx,f.t,f.x,f.y,15,f.c);}ctx.globalAlpha=1;floats=floats.filter(f=>f.life>0);
  if(state==='play'&&si===0&&turns<2&&!busy)otxt(ctx,'👆 拖动宝石与相邻宝石交换',W/2,BY-8,12,'#ffe066');
  ctx.restore();}

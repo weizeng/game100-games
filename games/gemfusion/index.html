@@ -454,7 +454,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点相邻同级合并</p>
 </div>
-<div class="overlay" id="startScr"><h1>💎 晶核熔合</h1><p>点相邻同级晶核合并升级。<br>达到目标等级过关。<br>Boss：诅咒格会降级。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>💎 晶核熔合</h1><p id="startP">点相邻同级晶核合并升级。<br>达到目标等级过关。<br>Boss：诅咒格会降级。<br><b>v2（Gemini 优化：3大晶窟主题、可熔合邻格高亮、合成波纹飘分与局内洗牌）</b></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -489,9 +489,17 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 const TUT=[["合成","点两颗相邻同级晶核合并。"],["下落","合并后上方下落补位。"],["升级","商店强化初始与目标。"],["Boss","Boss关诅咒格会降级。"]];
 const SHOP=[{k:'startLv',name:'高级晶种',max:3,cost(){return 40+(prog.startLv|0)*30;},desc(){return '初始等级+'}},{k:'moveLv',name:'更多手数',max:3,cost(){return 45+(prog.moveLv|0)*30;},desc(){return '步数+'}},{k:'luckyLv',name:'幸运掉落',max:2,cost(){return 50+(prog.luckyLv|0)*40;},desc(){return '高阶掉落率+'}}];
 const COLS=5,ROWS=6;const COLORS=['#ff6b9a','#ffcf33','#33e1a0','#4fc3f7','#b26bff','#ff8a4c','#ffffff'];
-let grid=[],moves=0,mmax=0,goalLv=0,bestG=0,rng,sel=null,cursed=[];
+const CAVERNS=[['#ff8ac6','#8d58ff','粉晶矿脉'],['#3b82f6','#1e1b4b','苍蓝晶窟'],['#be185d','#2e0824','绯红核芯']];
+let grid=[],moves=0,mmax=0,goalLv=0,bestG=0,rng,sel=null,cursed=[],shufUsed=false,waves=[],pops=[];
+function addWave(x,y,col,maxR){waves.push({x,y,r:8,maxR:maxR||42,col,a:1});}
+function addPop(x,y,txt,col){pops.push({x,y,txt,col:col||'#ffd34d',vy:-34,a:1});}
+function shuffleGrid(){
+  if(state!=='play'||shufUsed)return;
+  for(let i=grid.length-1;i>0;i--){const j=(rng()*(i+1))|0;const t=grid[i];grid[i]=grid[j];grid[j]=t;}
+  shufUsed=true;sel=null;beep(780,.1);toast('🔄 已重排晶核');addPop(W/2,H-54,'🔄 洗牌完成','#33e1a0');
+}
 function gi(c,r){return r*COLS+c;}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*8801+6);goalLv=4+Math.min(3,Math.floor(lvl/4));mmax=18+lvl+(prog.moveLv|0)*3;moves=mmax;bestG=0;sel=null;cursed=[];
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];shufUsed=false;rng=mulberry32(n*8801+6);goalLv=4+Math.min(3,Math.floor(lvl/4));mmax=18+lvl+(prog.moveLv|0)*3;moves=mmax;bestG=0;sel=null;cursed=[];
   grid=Array(COLS*ROWS).fill(0);const base=1+(prog.startLv|0);for(let i=0;i<grid.length;i++)grid[i]=base+(rng()<.3?1:0);
   if(boss){for(let k=0;k<3;k++)cursed.push(rng()*grid.length|0);}
   show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点相邻同级合并';}
@@ -502,19 +510,34 @@ function lose(msg){if(state!=='play')return;finishLose(msg);}
 function tap(c,r){if(state!=='play')return;const i=gi(c,r);if(sel==null){sel=i;return;}
   if(sel===i){sel=null;return;}
   const sc=sel%COLS,sr=sel/COLS|0;const adj=Math.abs(sc-c)+Math.abs(sr-r)===1;if(!adj||grid[sel]!==grid[i]||!grid[i]){sel=i;return;}
-  const nv=grid[i]+1;grid[i]=nv;grid[sel]=0;bestG=Math.max(bestG,nv);score+=nv*10;$('score').textContent=score;moves--;sel=null;beep(600+nv*40,.06);if(FX)FX.burst(sparks,40+c*56+28,70+r*56+28,COLORS[(nv-1)%COLORS.length],10);
-  if(boss&&cursed.includes(i)&&nv>1){grid[i]=nv-1;toast('诅咒降级');}
+  const nv=grid[i]+1;grid[i]=nv;grid[sel]=0;bestG=Math.max(bestG,nv);const pts=nv*10;score+=pts;$('score').textContent=score;moves--;sel=null;beep(600+nv*40,.06);
+  const px=40+c*56+28,py=70+r*56+28,col=COLORS[(nv-1)%COLORS.length];
+  if(FX)FX.burst(sparks,px,py,col,10);addWave(px,py,col,42);addPop(px,py-10,'+'+pts,col);
+  if(boss&&cursed.includes(i)&&nv>1){grid[i]=nv-1;toast('诅咒降级');addPop(px,py+12,'☠ 降级','#ff4d6d');}
   drop();if(bestG>=goalLv)return win();if(moves<=0)lose('步数耗尽');}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);const ox=40,oy=70,cs=56;const c=Math.floor((p.x-ox)/cs),r=Math.floor((p.y-oy)/cs);if(c>=0&&c<COLS&&r>=0&&r<ROWS)tap(c,r);});
-function update(dt){}
-function draw(){if(FX)FX.stage(ctx,W,H,'#ff8ac6','#8d58ff');else{ctx.fillStyle='#8d58ff';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#fff4fb';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('目标Lv'+goalLv+' 最'+bestG+' 步'+moves+(boss?' 👑':''),10,22);
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
+  if(!shufUsed&&p.x>=W-108&&p.x<=W-16&&p.y>=H-44&&p.y<=H-14){shuffleGrid();return;}
+  const ox=40,oy=70,cs=56;const c=Math.floor((p.x-ox)/cs),r=Math.floor((p.y-oy)/cs);if(c>=0&&c<COLS&&r>=0&&r<ROWS)tap(c,r);});
+function update(dt){
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*8)+dt*24;w.a-=dt*2.4;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y+=p.vy*dt;p.a-=dt*1.35;if(p.a<=0)pops.splice(i,1);}
+}
+function draw(){
+  const ch=CAVERNS[Math.min(2,Math.floor((lvl-1)/5))];
+  if(FX)FX.stage(ctx,W,H,ch[0],ch[1]);else{ctx.fillStyle=ch[1];ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  ctx.fillStyle='#fff4fb';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText((boss?'👑 ':'')+ch[2]+' · 目标Lv'+goalLv+' 最高Lv'+bestG+' · 步'+moves,10,22);
   const ox=40,oy=70,cs=56;
+  const sc=sel!=null?sel%COLS:-1,sr=sel!=null?(sel/COLS|0):-1;
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const i=gi(c,r);const v=grid[i];const x=ox+c*cs+cs/2,y=oy+r*cs+cs/2;
     const col=COLORS[(Math.max(1,v)-1)%COLORS.length];if(FX)FX.orb(ctx,x,y,20,col);else{ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,20,0,7);ctx.fill();}
     ctx.fillStyle='#3a1040';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(String(v),x,y+5);
     if(sel===i){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,24,0,7);ctx.stroke();}
-    if(cursed.includes(i)){ctx.strokeStyle='#ff0000';ctx.strokeRect(x-22,y-22,44,44);}}
+    else if(sel!=null&&Math.abs(c-sc)+Math.abs(r-sr)===1&&grid[sel]===v){ctx.strokeStyle='#ffd34d';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,24,0,7);ctx.stroke();}
+    if(cursed.includes(i)){ctx.strokeStyle='#ff4d6d';ctx.lineWidth=2;ctx.strokeRect(x-22,y-22,44,44);}}
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.col;ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
+  if(!shufUsed){if(FX)FX.tile(ctx,W-108,H-44,92,30,'#ffcf33',10);else{ctx.fillStyle='#ffcf33';ctx.fillRect(W-108,H-44,92,30);}ctx.fillStyle='#3a2200';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText('🔄 洗牌',W-62,H-25);}
+  else{ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(W-108,H-44,92,30);ctx.fillStyle='#9ca3af';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText('已洗牌',W-62,H-25);}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);bestG=goalLv;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,bestG,goalLv,moves}}};
 
