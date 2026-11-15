@@ -450,6 +450,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🌸 花语合成</span>
     <span class="stat">得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -457,7 +458,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">拖同级花合成 · 达标花床</p>
 </div>
-<div class="overlay" id="startScr"><h1>🌸 花语合成</h1><p>同级花朵拖拽合成，送入花床达标。<br>15 园目标攀升，Boss 园要高阶花。<br>强化花种、花床与幸运。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🌸 花语合成</h1><p id="startP">同级花朵拖拽合成，送入花床达标。<br>15 园目标攀升，Boss 园要高阶花。<br>强化花种、花床与幸运。<br><b>v3（Gemini 优化：3大花境主题、1×/2×倍速、拖拽合成高亮提示与花朵盛放波纹）</b></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -504,10 +505,14 @@ const SHOP=[
   {k:'luckLv',name:'幸运',max:3,cost:()=>32+prog.luckLv*22,desc:()=>'高级花率 ('+prog.luckLv+'/3)'}
 ];
 const COLS=['#ff8ac6','#ff6b8a','#ff9f2e','#ffd34d','#3fc163','#5ad0ff','#b26bff','#fff'];
-let cells=[],drag=null,spawnT=0,goals=[],filled=0,need=0,cols=4,rows=5;
+const GARDENS=[['#1a4a30','#082018','晨露花圃'],['#2c3e1f','#101a0b','秘境温室'],['#3b1c32','#160914','月影花庭']];
+let cells=[],drag=null,spawnT=0,goals=[],filled=0,need=0,cols=4,rows=5,fast=1,waves=[],pops=[];
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(720,.05);};
+function addWave(x,y,col,maxR){waves.push({x,y,r:8,maxR:maxR||40,col,a:1});}
+function addPop(x,y,txt,col){pops.push({x,y,txt,col:col||'#ffd34d',vy:-34,a:1});}
 
 function startLevel(n){
-  lvl=n;boss=n%5===0;score=0;drag=null;spawnT=0;filled=0;
+  lvl=n;boss=n%5===0;score=0;drag=null;spawnT=0;filled=0;waves=[];pops=[];sparks=[];
   cols=4;rows=4+Math.min(2,(n/6)|0)+prog.slotLv;
   cells=Array.from({length:rows*cols},()=>0);
   const targetLv=Math.min(7,2+Math.floor(n/3)+(boss?1:0));
@@ -528,20 +533,26 @@ function cellAt(p){
 }
 function update(dt){
   if(state!=='play')return;
-  spawnT-=dt;
+  const sDt=dt*fast;
+  spawnT-=sDt;
   if(spawnT<=0){
     spawnT=Math.max(.8,2.2-prog.spawnLv*.3-lvl*.04);
     const empty=cells.map((v,i)=>v?null:i).filter(v=>v!==null);
     if(empty.length){const i=empty[(Math.random()*empty.length)|0];cells[i]=1+((Math.random()<prog.luckLv*.1)?1:0);beep(500,.03);}
   }
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,sDt*8)+sDt*24;w.a-=sDt*2.4;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y+=p.vy*sDt;p.a-=sDt*1.35;if(p.a<=0)pops.splice(i,1);}
 }
 function tryDrop(from,to){
   if(from<0||to<0||from===to)return;
   if(!cells[from])return;
   if(!cells[to]){cells[to]=cells[from];cells[from]=0;beep(600,.04);return;}
   if(cells[from]===cells[to]&&cells[from]<8){
-    cells[to]++;cells[from]=0;score+=cells[to]*5;$('score').textContent=score;beep(880,.08);
-    if(FX){const pad=20,cw=(W-pad*2)/cols,ch=48,oy=100;const r=(to/cols)|0,c=to%cols;FX.burst(sparks,pad+c*cw+cw/2,oy+r*ch+ch/2,COLS[Math.min(7,cells[to]-1)],10);}
+    cells[to]++;cells[from]=0;const pts=cells[to]*5;score+=pts;$('score').textContent=score;beep(880,.08);
+    const pad=20,cw=(W-pad*2)/cols,ch=48,oy=100;const r=(to/cols)|0,c=to%cols;
+    const cx=pad+c*cw+cw/2,cy=oy+r*ch+ch/2,col=COLS[Math.min(7,cells[to]-1)];
+    addWave(cx,cy,col,38);addPop(cx,cy-10,'+'+pts,col);
+    if(FX)FX.burst(sparks,cx,cy,col,10);
     // auto deliver if matches a goal
     checkDeliver(to);
   }else toast('只能同级合成');
@@ -549,6 +560,8 @@ function tryDrop(from,to){
 function checkDeliver(i){
   const lv=cells[i];const gi=goals.findIndex(g=>g===lv);
   if(gi>=0){goals.splice(gi,1);cells[i]=0;filled++;score+=30;$('score').textContent=score;toast('花床+1');beep(990,.1);
+    const pad=20,cw=(W-pad*2)/cols,ch=48,oy=100;const r=(i/cols)|0,c=i%cols;
+    addWave(pad+c*cw+cw/2,oy+r*ch+ch/2,'#ffd34d',46);addPop(pad+c*cw+cw/2,oy+r*ch+ch/2-14,'花床+1!','#ffd34d');
     if(goals.length===0)return win();}
 }
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);const i=cellAt(p);if(i>=0&&cells[i]){drag={from:i,x:p.x,y:p.y};cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);}});
@@ -567,23 +580,38 @@ function win(){
   show('overScr',true);beep(880,.2);
 }
 function lose(msg){if(state!=='play')return;state='over';$('overH').textContent='失败';$('finalScore').textContent='💀';$('overText').textContent=(msg||'')+' · 得分 '+score;show('overScr',true);beep(160,.35,'triangle');}
+function drawFlower(x,y,r,lv){
+  const col=COLS[Math.min(7,lv-1)];
+  if(FX)FX.orb(ctx,x,y,r,col);else{ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+  ctx.save();ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(x,y,r*.62,0,Math.PI*2);ctx.stroke();ctx.restore();
+  ctx.fillStyle='#1a0a20';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(lv,x,y+4);
+}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#1a4a30','#082018');else{ctx.fillStyle='#082018';ctx.fillRect(0,0,W,H);}
+  const g=GARDENS[Math.min(2,Math.floor((lvl-1)/5))];
+  if(FX)FX.stage(ctx,W,H,g[0],g[1]);else{ctx.fillStyle=g[1];ctx.fillRect(0,0,W,H);}
   if(state!=='play'&&state!=='pause')return;
   // goals
-  ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.textAlign='left';
-  ctx.fillText('花床 '+(need-goals.length)+'/'+need+(boss?' 👑':''),10,22);
-  goals.forEach((g,i)=>{const x=20+i*50,y=40;if(FX)FX.orb(ctx,x+16,y+16,14,COLS[Math.min(7,g-1)]);else{ctx.fillStyle=COLS[Math.min(7,g-1)];ctx.beginPath();ctx.arc(x+16,y+16,14,0,7);ctx.fill();}
-    ctx.fillStyle='#fff';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('Lv'+g,x+16,y+40);});
+  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';
+  ctx.fillText(g[2]+' · 花床 '+(need-goals.length)+'/'+need+(boss?' 👑':''),10,22);
+  goals.forEach((lv,i)=>{const x=20+i*50,y=40;drawFlower(x+16,y+16,14,lv);
+    ctx.fillStyle='#fff';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('Lv'+lv,x+16,y+40);});
   const pad=20,cw=(W-pad*2)/cols,ch=48,oy=100;
+  const hover=drag?cellAt(drag):-1;
   for(let i=0;i<cells.length;i++){
     const r=(i/cols)|0,c=i%cols,x=pad+c*cw,y=oy+r*ch;
-    ctx.fillStyle='rgba(255,255,255,.08)';ctx.fillRect(x+2,y+2,cw-4,ch-4);
-    if(cells[i]&&(!drag||drag.from!==i)){const lv=cells[i];if(FX)FX.orb(ctx,x+cw/2,y+ch/2,16,COLS[Math.min(7,lv-1)]);else{ctx.fillStyle=COLS[Math.min(7,lv-1)];ctx.beginPath();ctx.arc(x+cw/2,y+ch/2,16,0,7);ctx.fill();}
-      ctx.fillStyle='#1a0a20';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(lv,x+cw/2,y+ch/2+4);}
+    if(FX)FX.tile(ctx,x+2,y+2,cw-4,ch-4,'rgba(255,255,255,.08)',8);
+    else{ctx.fillStyle='rgba(255,255,255,.08)';ctx.fillRect(x+2,y+2,cw-4,ch-4);}
+    if(drag&&i===hover&&i!==drag.from){
+      const canMerge=cells[i]&&cells[i]===cells[drag.from]&&cells[i]<8;
+      ctx.save();ctx.strokeStyle=canMerge?'#86efac':(!cells[i]?'#93c5fd':'#f87171');ctx.lineWidth=2.5;
+      ctx.strokeRect(x+3,y+3,cw-6,ch-6);ctx.restore();
+    }
+    if(cells[i]&&(!drag||drag.from!==i))drawFlower(x+cw/2,y+ch/2,16,cells[i]);
   }
-  if(drag&&cells[drag.from]){const lv=cells[drag.from];if(FX)FX.orb(ctx,drag.x,drag.y,18,COLS[Math.min(7,lv-1)]);else{ctx.fillStyle=COLS[Math.min(7,lv-1)];ctx.beginPath();ctx.arc(drag.x,drag.y,18,0,7);ctx.fill();}}
-  // deliver tip: tap high flower on goal? we auto-check on merge; also allow tap to deliver
+  if(drag&&cells[drag.from])drawFlower(drag.x,drag.y,18,cells[drag.from]);
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.col;ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 // also allow pointer tap empty goal delivery via double check on pointerup already

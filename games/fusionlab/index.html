@@ -457,7 +457,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点两格合成同系升级</p>
 </div>
-<div class="overlay" id="startScr"><h1>⚗️ 熔合工坊</h1><p>点选两格相邻同色元素熔合成更高阶。<br>在步数内完成收集目标。<br>15 关元素种类与目标递增。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>⚗️ 熔合工坊</h1><p id="startP">点选两格相邻同色元素熔合成更高阶。<br>在步数内完成收集目标。<br>15 关元素种类与目标递增。<br><b>v3（Gemini 优化：3大炼金工坊主题、可熔合邻格高亮、修复粒子坐标并新增波纹与洗牌）</b></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -494,23 +494,52 @@ const SHOP=[{k:'moveLv',name:'步数加持',max:4,cost(){return 40+(prog.moveLv|
 
 const ELEMS=['火','水','风','土','雷','冰','光','暗'];
 const COLS=['#ff6b9d','#5ad0ff','#7dff9a','#c4a574','#ffcf33','#a5f3fc','#ffe08a','#b26bff'];
-let grid,GW=6,GH=7,sel=-1,goal={},moves=0,maxMoves=0;
+const LABS=[['#0f3256','#03101f','元素工坊'],['#2a1b4e','#0e0720','秘法熔炉'],['#3b1929','#14070e','终极反应釜']];
+let grid,GW=6,GH=7,sel=-1,goal={},moves=0,maxMoves=0,shufUsed=false,waves=[],pops=[];
+function addWave(x,y,col,maxR){waves.push({x,y,r:8,maxR:maxR||40,col,a:1});}
+function addPop(x,y,txt,col){pops.push({x,y,txt,col:col||'#ffd34d',vy:-34,a:1});}
 function idx(x,y){return y*GW+x;}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];const kinds=Math.min(4+((lvl-1)/3|0),8);GW=5+Math.min(2,(lvl/6|0));GH=6+Math.min(1,(lvl/8|0));grid=Array(GW*GH).fill(0).map(()=>Math.random()*kinds|0);sel=-1;moves=0;maxMoves=18+lvl+(prog.moveLv|0)*3-(boss?2:0);goal={};const need=6+lvl+(boss?4:0);for(let i=0;i<Math.min(3,kinds);i++)goal[i]=Math.ceil(need/(i+1));show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点两格合成同系升级 · 步'+maxMoves;}
-function cellAt(p){const cs=Math.min(48,(W-20)/GW),ox=(W-GW*cs)/2,oy=60;const x=((p.x-ox)/cs)|0,y=((p.y-oy)/cs)|0;if(x<0||y<0||x>=GW||y>=GH)return -1;return idx(x,y);}
-function fuse(a,b){if(a===b||grid[a]<0||grid[b]<0)return false;const ax=a%GW,ay=(a/GW)|0,bx=b%GW,by=(b/GW)|0;if(Math.abs(ax-bx)+Math.abs(ay-by)!==1)return false;if(grid[a]!==grid[b]){toast('需同元素');return false;}const nv=Math.min(ELEMS.length-1,grid[a]+1);grid[b]=nv;grid[a]=-1;moves++;score+=10+nv*5;if(FX)FX.burst(sparks,0,0,COLS[nv],10);beep(700+nv*40,.08);if(goal[nv]!=null)goal[nv]=Math.max(0,goal[nv]-1);if(prog.chainLv&&Math.random()<0.15*(prog.chainLv)){const nbs=[[ax-1,ay],[ax+1,ay],[ax,ay-1],[ax,ay+1]];for(const [x,y] of nbs){if(x>=0&&y>=0&&x<GW&&y<GH&&grid[idx(x,y)]===nv){goal[nv]=Math.max(0,(goal[nv]|0)-1);score+=8;}}}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];shufUsed=false;const kinds=Math.min(4+((lvl-1)/3|0),8);GW=5+Math.min(2,(lvl/6|0));GH=6+Math.min(1,(lvl/8|0));grid=Array(GW*GH).fill(0).map(()=>Math.random()*kinds|0);sel=-1;moves=0;maxMoves=18+lvl+(prog.moveLv|0)*3-(boss?2:0);goal={};const need=6+lvl+(boss?4:0);for(let i=0;i<Math.min(3,kinds);i++)goal[i]=Math.ceil(need/(i+1));show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点两格合成同系升级 · 步'+maxMoves;}
+function cellAt(p){const cs=Math.min(48,(W-20)/GW),ox=(W-GW*cs)/2,oy=72;const x=((p.x-ox)/cs)|0,y=((p.y-oy)/cs)|0;if(x<0||y<0||x>=GW||y>=GH)return -1;return idx(x,y);}
+function shuffleBoard(){
+  if(state!=='play'||shufUsed)return;
+  for(let i=grid.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;const t=grid[i];grid[i]=grid[j];grid[j]=t;}
+  shufUsed=true;sel=-1;beep(780,.1);toast('🔄 已重排棋盘');addPop(W/2,H-54,'🔄 洗牌完成','#5ad0ff');
+}
+function fuse(a,b){if(a===b||grid[a]<0||grid[b]<0)return false;const ax=a%GW,ay=(a/GW)|0,bx=b%GW,by=(b/GW)|0;if(Math.abs(ax-bx)+Math.abs(ay-by)!==1)return false;if(grid[a]!==grid[b]){toast('需同元素');return false;}const nv=Math.min(ELEMS.length-1,grid[a]+1);grid[b]=nv;grid[a]=-1;moves++;const pts=10+nv*5;score+=pts;
+  const cs=Math.min(48,(W-20)/GW),ox=(W-GW*cs)/2,oy=72,px=ox+bx*cs+cs/2,py=oy+by*cs+cs/2;
+  if(FX)FX.burst(sparks,px,py,COLS[nv],10);addWave(px,py,COLS[nv],40);addPop(px,py-10,'+'+pts,COLS[nv]);beep(700+nv*40,.08);if(goal[nv]!=null)goal[nv]=Math.max(0,goal[nv]-1);if(prog.chainLv&&Math.random()<0.15*(prog.chainLv)){const nbs=[[ax-1,ay],[ax+1,ay],[ax,ay-1],[ax,ay+1]];for(const [x,y] of nbs){if(x>=0&&y>=0&&x<GW&&y<GH&&grid[idx(x,y)]===nv){goal[nv]=Math.max(0,(goal[nv]|0)-1);score+=8;addPop(ox+x*cs+cs/2,oy+y*cs+cs/2,'连锁+8','#ffd34d');}}}
   // refill
   for(let x=0;x<GW;x++){const col=[];for(let y=GH-1;y>=0;y--)if(grid[idx(x,y)]>=0)col.push(grid[idx(x,y)]);while(col.length<GH)col.push(Math.random()*(Math.min(4+((lvl-1)/3|0),8))|0);for(let y=0;y<GH;y++)grid[idx(x,GH-1-y)]=col[y];}
   return true;}
 function checkWin(){return Object.keys(goal).every(k=>goal[k]<=0);}
-function update(){if(checkWin())win();else if(moves>=maxMoves)lose('步数用尽');}
+function update(dt){
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*8)+dt*24;w.a-=dt*2.4;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y+=p.vy*dt;p.a-=dt*1.35;if(p.a<=0)pops.splice(i,1);}
+  if(checkWin())win();else if(moves>=maxMoves)lose('步数用尽');
+}
 function win(){if(state!=='play')return;const left=maxMoves-moves;const stars=left>8?3:left>3?2:1;const gain=35+stars*15+(boss?55:0)+Math.floor(score/8);finishWin(stars,gain,'熔合完成！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const i=cellAt(posOf(e));if(i<0)return;if(sel<0){sel=i;beep(500,.04);}else{if(!fuse(sel,i))toast('相邻同色可熔');sel=-1;$('score').textContent=score;}});
-function draw(){if(FX)FX.stage(ctx,W,H,'#0f3256','#03101f');else{ctx.fillStyle='#03101f';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';ctx.fillText('步'+(maxMoves-moves)+' 目标 '+Object.keys(goal).map(k=>ELEMS[k]+goal[k]).join(' ')+(boss?' 👑':''),8,22);
-  const cs=Math.min(48,(W-20)/GW),ox=(W-GW*cs)/2,oy=60;
-  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){const i=idx(x,y),v=grid[i];const px=ox+x*cs+cs/2,py=oy+y*cs+cs/2;if(v<0)continue;if(FX)FX.tile(ctx,ox+x*cs+3,oy+y*cs+3,cs-6,cs-6,COLS[v]);else{ctx.fillStyle=COLS[v];ctx.fillRect(ox+x*cs+3,oy+y*cs+3,cs-6,cs-6);}ctx.fillStyle='#111';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText(ELEMS[v],px,py+4);if(sel===i){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.strokeRect(ox+x*cs+2,oy+y*cs+2,cs-4,cs-4);}}
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(!shufUsed&&p.x>=W-108&&p.x<=W-16&&p.y>=H-44&&p.y<=H-14){shuffleBoard();return;}const i=cellAt(p);if(i<0)return;if(sel<0){sel=i;beep(500,.04);}else{if(!fuse(sel,i))toast('相邻同色可熔');sel=-1;$('score').textContent=score;}});
+function draw(){
+  const ch=LABS[Math.min(2,Math.floor((lvl-1)/5))];
+  if(FX)FX.stage(ctx,W,H,ch[0],ch[1]);else{ctx.fillStyle=ch[1];ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+  ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='left';ctx.fillText((boss?'👑 ':'')+ch[2]+' · 剩余 '+(maxMoves-moves)+' 步',10,20);
+  let gx=10;for(const k of Object.keys(goal)){
+    const rem=goal[k];const bw=48;
+    if(FX)FX.tile(ctx,gx,30,bw,24,rem>0?COLS[k]:'rgba(255,255,255,.15)',6);else{ctx.fillStyle=rem>0?COLS[k]:'rgba(255,255,255,.15)';ctx.fillRect(gx,30,bw,24);}
+    ctx.fillStyle=rem>0?'#111':'#86efac';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText(ELEMS[k]+(rem>0?'×'+rem:' ✓'),gx+bw/2,46);gx+=bw+6;
+  }
+  const cs=Math.min(48,(W-20)/GW),ox=(W-GW*cs)/2,oy=72;
+  const sx=sel>=0?sel%GW:-1,sy=sel>=0?(sel/GW)|0:-1;
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){const i=idx(x,y),v=grid[i];const px=ox+x*cs+cs/2,py=oy+y*cs+cs/2;if(v<0)continue;if(FX)FX.tile(ctx,ox+x*cs+3,oy+y*cs+3,cs-6,cs-6,COLS[v]);else{ctx.fillStyle=COLS[v];ctx.fillRect(ox+x*cs+3,oy+y*cs+3,cs-6,cs-6);}ctx.fillStyle='#111';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(ELEMS[v],px,py+5);
+    if(sel===i){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.strokeRect(ox+x*cs+2,oy+y*cs+2,cs-4,cs-4);}
+    else if(sel>=0&&Math.abs(x-sx)+Math.abs(y-sy)===1&&grid[sel]===v){ctx.strokeStyle='#ffd34d';ctx.lineWidth=2.5;ctx.strokeRect(ox+x*cs+3,oy+y*cs+3,cs-6,cs-6);}
+  }
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.col;ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
+  if(!shufUsed){if(FX)FX.tile(ctx,W-108,H-44,92,30,'#ffcf33',10);else{ctx.fillStyle='#ffcf33';ctx.fillRect(W-108,H-44,92,30);}ctx.fillStyle='#3a2200';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText('🔄 洗牌',W-62,H-25);}
+  else{ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(W-108,H-44,92,30);ctx.fillStyle='#9ca3af';ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.fillText('已洗牌',W-62,H-25);}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);Object.keys(goal).forEach(k=>goal[k]=0);win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,moves,maxMoves,goal:{...goal}}}};
 

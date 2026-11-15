@@ -462,14 +462,14 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>🍉<b id="lvT">1</b></span><span>⬇️<b id="dropT">0</b></span><span>❤️<b id="lifeT">3</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalT">目标</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">左右拖动瞄准，松手落下 · 两颗相同合成更大</div>
 </div>
 
-<div class="overlay" id="startScr"><h1>🍉 水果合成</h1><p>合成西瓜升级成 15 关挑战：在有限掉落次数内合成出目标水果。<br>箱子会变窄、重力变大，还有会捣乱的炸弹果。<br>第 5/10/15 关迎战「水果鬼王」——合成指定连锁才能击败！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始合成</button></div>
+<div class="overlay" id="startScr"><h1>🍉 水果合成</h1><p id="startP">合成西瓜升级成 15 关挑战：在有限掉落次数内合成出目标水果。<br>箱子会变窄、重力变大，还有会捣乱的炸弹果。<br>第 5/10/15 关迎战「水果鬼王」——合成指定连锁才能击败！<br><b>v8（Gemini 优化：3大果园主题、1×/2×倍速、满溢警戒线与合成冲击波/飘分）</b></p><p id="bestLine"></p><button class="btn" id="startBtn">开始合成</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -594,8 +594,12 @@ const LV=[
  {boss:{hp:6,name:'爆汁鬼王',goal:6,t:95}},
  {goal:8,drops:22,w:240,g:1300,bomb:.15},{goal:8,drops:20,w:240,g:1350,bomb:.15},{goal:9,drops:26,w:230,g:1400,bomb:.18},{goal:9,drops:24,w:230,g:1450,bomb:.2},
  {boss:{hp:8,name:'西瓜鬼帝',goal:7,t:110}}];
-let L,fruits,nextT,holdX,dropping,dropsLeft,lives,score,ended,raf=0,last=0,fast=1,sparks,boss,bossT,maxReach,boxL,boxR,miss,combo;
-function start(i){L=LV[i];score=0;ended=false;fruits=[];dropsLeft=L.boss?99:(L.drops+Kit.up('drop')*3);lives=3+Kit.up('life');dropping=null;holdX=W/2;sparks=[];maxReach=0;miss=0;combo=0;
+const ORCHARDS=[['#4a1830','#1a0810','莓果果园'],['#3d2412','#180d05','热带阳光'],['#1d2b44','#0a101d','星夜榨汁屋']];
+let L,fruits,nextT,holdX,dropping,dropsLeft,lives,score,ended,raf=0,last=0,fast=1,sparks,boss,bossT,maxReach,boxL,boxR,miss,combo,waves=[],pops=[];
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
+function addWave(x,y,col,maxR){waves.push({x,y,r:10,maxR:maxR||54,col,a:1});}
+function addPop(x,y,txt,col){pops.push({x,y,txt,col:col||'#ffd34d',vy:-38,a:1});}
+function start(i){L=LV[i];score=0;ended=false;fruits=[];dropsLeft=L.boss?99:(L.drops+Kit.up('drop')*3);lives=3+Kit.up('life');dropping=null;holdX=W/2;sparks=[];waves=[];pops=[];maxReach=0;miss=0;combo=0;
   const bw=L.boss?280:(L.w-Kit.up('wide')*15);boxL=(W-bw)/2;boxR=(W+bw)/2;
   boss=L.boss?{hp:L.boss.hp,max:L.boss.hp,name:L.boss.name,goal:L.boss.goal,flash:0}:null;bossT=boss?L.boss.t+Kit.up('time')*10:0;
   nextT=Math.min(2+((Math.random()*3)|0),boss?boss.goal-1:L.goal-1);hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);
@@ -617,8 +621,9 @@ function upd(dt){if(boss){bossT-=dt;if(boss.flash>0)boss.flash-=dt;if(bossT<=0)r
   for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){const a=all[i],b=all[j];const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1;const min=a.r+b.r;
     if(d<min){const nx=dx/d,ny=dy/d,ov=min-d;a.x-=nx*ov/2;a.y-=ny*ov/2;b.x+=nx*ov/2;b.y+=ny*ov/2;const dv= (b.vx-a.vx)*nx+(b.vy-a.vy)*ny;if(dv<0){a.vx+=dv*nx;a.vy+=dv*ny;b.vx-=dv*nx;b.vy-=dv*ny;}
       if(a.t>=0&&a.t===b.t&&a.t<9&&Math.abs(a.vy)+Math.abs(b.vy)<500){const nt=a.t+1;const nx_=(a.x+b.x)/2,ny_=(a.y+b.y)/2;const dead=new Set([a,b]);fruits=fruits.filter(f=>!dead.has(f));if(dropping&&dead.has(dropping))dropping=null;
-        fruits.push({x:nx_,y:ny_,vx:0,vy:-80,t:nt,r:RAD[nt],settled:0});combo++;score+=(nt+1)*20*Math.min(combo,8);maxReach=Math.max(maxReach,nt);Kit.sfx('combo',combo);if(FX)FX.burst(sparks,nx_,ny_,'#ff5fa2',12+nt);
-        if(boss&&nt>=boss.goal){boss.hp--;boss.flash=.4;Kit.sfx('boom');score+=200;if(boss.hp<=0){score+=Math.round(bossT)*10;return endLv(true);}}
+        fruits.push({x:nx_,y:ny_,vx:0,vy:-80,t:nt,r:RAD[nt],settled:0});combo++;const pts=(nt+1)*20*Math.min(combo,8);score+=pts;maxReach=Math.max(maxReach,nt);Kit.sfx('combo',combo);if(FX)FX.burst(sparks,nx_,ny_,'#ff5fa2',12+nt);
+        addWave(nx_,ny_,'#ff5fa2',34+nt*4);addPop(nx_,ny_-10,(combo>1?'×'+combo+' ':'')+'+'+pts,'#ffd34d');
+        if(boss&&nt>=boss.goal){boss.hp--;boss.flash=.4;Kit.sfx('boom');score+=200;addPop(W/2,52,'👑 鬼王 -1!','#ff5fa2');if(boss.hp<=0){score+=Math.round(bossT)*10;return endLv(true);}}
         else if(!boss&&nt>=L.goal){score+=300;return endLv(true);}
         return;}}}
   if(dropping&&dropping.settled>20){if(dropping.t<0){// bomb
@@ -628,21 +633,32 @@ function upd(dt){if(boss){bossT-=dt;if(boss.flash>0)boss.flash-=dt;if(bossT<=0)r
   for(const f of fruits){if(f.y-f.r<70&&f.settled>10){miss++;lives--;fruits=fruits.filter(x=>x!==f);Kit.sfx('bad');Kit.toast('堆太高了！',800);if(lives<=0)return endLv(false,'箱子装不下');}}
   if(!dropping&&dropsLeft<=0&&!boss){// check settle then fail
     if(!boss&&maxReach>=L.goal){score+=300;return endLv(true);}if(fruits.every(f=>f.settled>15)&&maxReach<L.goal)return endLv(false,'没合成出目标');}
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*8)+dt*26;w.a-=dt*2.4;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y+=p.vy*dt;p.a-=dt*1.35;if(p.a<=0)pops.splice(i,1);}
   hud();}
 function hud(){$('lvT').textContent=Kit.lv+1;$('dropT').textContent=dropsLeft;$('lifeT').textContent=lives;$('score').textContent=score;
   const g=boss?boss.goal:L.goal;$('goalT').textContent=(boss?'👑 ':'目标 ')+FRUITS[g]+(boss?' '+boss.hp+'/'+boss.max:'');
   $('progI').style.width=(boss?100-boss.hp/boss.max*100:maxReach/g*100)+'%';$('infoT').textContent=(combo>1?'×'+combo+' ':'')+'下颗 '+FRUITS[nextT]+(boss?' ⏱'+Math.ceil(bossT):'');}
 function endLv(won,why){if(ended)return;ended=true;if(won){const st=miss===0?3:miss<=1?2:1;setTimeout(()=>Kit.win(st,score,boss?'打爆 '+boss.name+'！':'合成出 '+FRUITS[L.goal]+'！'),400);}else setTimeout(()=>Kit.lose(why,score),350);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
-function draw(){FX?FX.stage(ctx,W,H,'#4a1830','#1a0810'):(ctx.fillStyle='#220c14',ctx.fillRect(0,0,W,H));
+function draw(){
+  const ch=ORCHARDS[Math.min(2,Math.floor(Kit.lv/5))];
+  FX?FX.stage(ctx,W,H,ch[0],ch[1]):(ctx.fillStyle=ch[1],ctx.fillRect(0,0,W,H));
+  ctx.fillStyle='rgba(255,255,255,.45)';ctx.font='bold 11px sans-serif';ctx.textAlign='left';ctx.fillText(ch[2],10,16);
+  ctx.fillStyle='rgba(0,0,0,.22)';ctx.fillRect(boxL,60,boxR-boxL,H-80);
   ctx.strokeStyle='#ff5fa2';ctx.lineWidth=4;ctx.strokeRect(boxL,60,boxR-boxL,H-80);
+  const nearTop=fruits.some(f=>f.settled>5&&f.y-f.r<110);
+  ctx.save();ctx.strokeStyle=nearTop?'rgba(248,113,113,.85)':'rgba(255,255,255,.22)';ctx.lineWidth=nearTop?2:1.5;ctx.setLineDash([6,6]);
+  ctx.beginPath();ctx.moveTo(boxL+4,70);ctx.lineTo(boxR-4,70);ctx.stroke();ctx.restore();
   if(!dropping&&Kit.state==='play'){ctx.globalAlpha=.5;ctx.font=(RAD[nextT]*2)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(FRUITS[nextT],holdX,50);ctx.globalAlpha=1;
     ctx.strokeStyle='rgba(255,255,255,.3)';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(holdX,70);ctx.lineTo(holdX,H-30);ctx.stroke();ctx.setLineDash([]);}
   const all=fruits.slice();if(dropping)all.push(dropping);
   for(const f of all){if(f.t<0){ctx.font='28px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('💣',f.x,f.y);}
     else{if(FX)FX.orb(ctx,f.x|0,f.y|0,f.r,['#e91e63','#f44336','#9c27b0','#ff9800','#f44336','#8bc34a','#ff7043','#ffc107','#AED581','#4caf50'][f.t]);
       ctx.font=(f.r*1.6)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(FRUITS[f.t],f.x,f.y);}}
-  if(boss){ctx.fillStyle=boss.flash>0?'#fff':'#ffd34d';ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('👑 '+boss.name+' 需要合成 '+FRUITS[boss.goal],W/2,30);}
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.col;ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
+  if(boss){ctx.fillStyle=boss.flash>0?'#fff':'#ffd34d';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText('👑 '+boss.name+' 需要合成 '+FRUITS[boss.goal],W/2,30);}
   if(FX)FX.drawBurst(ctx,sparks);}
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
