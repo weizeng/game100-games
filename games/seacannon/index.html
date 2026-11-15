@@ -462,7 +462,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span id="iconT"></span><span>❤️<b id="lifeT">3</b></span><span id="hitLbl">击 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">目标</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
@@ -597,8 +597,15 @@ const LV=[
  {need:280,fish:8,spd:80,time:42},{need:320,fish:9,spd:85,time:40},{need:360,fish:9,spd:90,time:38},{need:400,fish:10,spd:95,time:36},
  {boss:{name:'终末深海魔',need:480,fish:12,spd:110,time:32,bossFish:1}}
 ];
-let L,lives,score,ended,raf=0,last=0,fast=1,boss,timeLeft,sparks,fishes,nets,need,coins;
-function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');sparks=[];nets=[];coins=30+Kit.up('hint')*15;
+const SEAS=[
+  {name:'蔚蓝渔湾',t:'#0288d1',b:'#014f86'},
+  {name:'珊瑚深礁',t:'#00838f',b:'#00363a'},
+  {name:'幽暗海渊',t:'#1a237e',b:'#090d2e'}
+];
+const BUBBLES=Array.from({length:18},(_,i)=>({x:(i*59+23)%340+10,y:(i*71+11)%500+20,r:(i%3)+1.5,sp:18+(i%4)*6}));
+let L,lives,score,ended,raf=0,last=0,fast=1,boss,timeLeft,sparks,waves,pops,fishes,nets,need,coins;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
+function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');sparks=[];waves=[];pops=[];nets=[];coins=30+Kit.up('hint')*15;
   const b=L.boss||L;boss=L.boss?{name:L.boss.name}:null;need=b.need;timeLeft=b.time+Kit.up('time')*10;
   fishes=[];for(let k=0;k<b.fish;k++)spawnFish(k===0&&b.bossFish);
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);Kit.sfx('tap');}
@@ -614,8 +621,11 @@ function upd(dt){if(ended)return;timeLeft-=dt;if(timeLeft<=0){timeLeft=0;return 
   fishes.forEach(f=>{f.x+=f.vx*dt;if(f.x<-40||f.x>W+40){f.x=f.vx>0?-20:W+20;f.y=60+Math.random()*(H-160);}});
   for(let i=nets.length-1;i>=0;i--){const n=nets[i];n.x+=n.vx*dt;n.y+=n.vy*dt;n.vy+=40*dt;n.life-=dt;if(n.life<=0||n.y>H){nets.splice(i,1);continue;}
     for(let j=fishes.length-1;j>=0;j--){const f=fishes[j];if(Math.hypot(f.x-n.x,f.y-n.y)<f.r+n.r){f.hp-=n.mul;if(FX)FX.burst(sparks,f.x,f.y,'#4fc3f7',8);
-      if(f.hp<=0){const gain=f.val*n.mul;score+=gain;coins+=Math.ceil(gain/4);Kit.sfx('good');fishes.splice(j,1);spawnFish(f.boss);}
+      if(f.hp<=0){const gain=f.val*n.mul;score+=gain;coins+=Math.ceil(gain/4);Kit.sfx('good');waves.push({x:f.x,y:f.y,r:8,maxR:n.r+22,a:1,c:'#4fc3f7'});pops.push({x:f.x,y:f.y-10,t:'+'+gain,c:'#ffeb3b',a:1.1});fishes.splice(j,1);spawnFish(f.boss);}
       nets.splice(i,1);break;}}}
+  for(const b of BUBBLES){b.y-=b.sp*dt;if(b.y<20)b.y=H-20;}
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+24*dt;w.a-=dt*3.2;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=26*dt;p.a-=dt*1.4;if(p.a<=0)pops.splice(i,1);}
   if(score>=need)return endLv(true);hud();}
 function hud(){$('iconT').innerHTML='🐟<b id="lvT">'+(Kit.lv+1)+'</b>';$('lifeT').textContent=lives;$('hitT').textContent=score+'/'+need;
   $('hitLbl').innerHTML='分 <b id="hitT">'+score+'/'+need+'</b>';$('score').textContent=score;
@@ -627,20 +637,25 @@ function endLv(won,why){if(ended)return;ended=true;
   else setTimeout(()=>Kit.lose(why||'渔获不足',score),250);}}
 function frame(t){const dt=Math.min(.033,(t-last)/1000)*fast;last=t;if(Kit.state==='play'&&!ended)upd(dt);draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#0277bd','#01579b');else{ctx.fillStyle='#01579b';ctx.fillRect(0,0,W,H);}
+  const sea=SEAS[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,sea.t,sea.b);else{ctx.fillStyle=sea.b;ctx.fillRect(0,0,W,H);}
+  ctx.strokeStyle='rgba(255,255,255,.22)';for(const b of BUBBLES){ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.stroke();}
   // cannon
   const ang=+$('ang').value*Math.PI/180;ctx.save();ctx.translate(W/2,H-30);ctx.rotate(ang);
   if(FX)FX.tile(ctx,-10,-28,20,36,'#ff8a65',6);else{ctx.fillStyle='#ff8a65';ctx.fillRect(-10,-28,20,36);}ctx.restore();
   fishes.forEach(f=>{ctx.font=(f.boss?28:18)+'px sans-serif';ctx.textAlign='center';ctx.fillText(f.boss?'🐋':'🐟',f.x,f.y);});
   nets.forEach(n=>{ctx.strokeStyle='#fff';ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,7);ctx.stroke();ctx.fillStyle='#fff8';ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,7);ctx.fill();});
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
 $('startH').textContent='🐟 深海炮手';
-$('startP').innerHTML='15 关倍率捕鱼：目标分更高、鱼更快更多。<br>第 5/10/15 关鱼潮/鲸王首领！可升级金币、炮稳、加时。';
+$('startP').innerHTML='v6（Gemini 优化：3大深海渔场主题、上升气泡、捕网震波与金币飘字、1×/2×倍速）<br>15 关倍率捕鱼：目标分更高、鱼更快更多。<br>第 5/10/15 关鱼潮/鲸王首领！可升级金币、炮稳、加时。';
 Kit.init({id:'seacannon',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start,stop:()=>{ended=true;},pause:()=>{},
-  note:()=>'调角度倍率撒网捕鱼，达到目标分过关',
+  note:()=>SEAS[Math.min(2,Math.floor((Kit.lv||0)/5))].name+' · 调角度倍率撒网捕鱼，达到目标分过关',
   tut:[['瞄准','调整炮口角度。','🎯'],
        ['倍率','高倍率更费金币更赚。','✖️'],
        ['开炮','打中鱼得分并回金币。','🐟'],

@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">💥 弹道编队</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">拖动调整弹道与引信，再按齐射</p>
 </div>
-<div class="overlay" id="startScr"><h1>💥 弹道编队</h1><p>先规划再齐射：拖动炮口设定角度和初速，并调整引信。<br>弧线要越过掩体，移动目标要留提前量。<br>首领关的装甲需两发同时命中，还可能放出诱饵。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>💥 弹道编队</h1><p>v2（Gemini 优化：3大炮击战区主题、爆破冲击波与得分飘字、1×/2×倍速）<br>先规划再齐射：拖动炮口设定角度和初速，并调整引信。<br>弧线要越过掩体，移动目标要留提前量。<br>首领关的装甲需两发同时命中，还可能放出诱饵。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -504,7 +505,14 @@ function addScore(n){score+=n;if(score<0)score=0;$('score').textContent=score;if
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);const p=posOf(e);pointer.down=true;pointer.x=p.x;pointer.y=p.y;if(typeof onDown==='function')onDown(p,e);else inHit(p);});
 cv.addEventListener('pointermove',e=>{if(!pointer.down||state!=='play')return;const p=posOf(e);pointer.x=p.x;pointer.y=p.y;if(typeof onMove==='function')onMove(p,e);});
 ['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,e=>{if(!pointer.down)return;pointer.down=false;const p=posOf(e);if(typeof onUp==='function')onUp(p,e);}));
-function beginPlay(hint){score=0;sparks=[];show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);show('tutScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
+const THEATERS=[
+  {t:'#2a1166',b:'#05051a',cov:'#64748b'},
+  {t:'#5c2d16',b:'#1a0b04',cov:'#78716c'},
+  {t:'#4a0e2e',b:'#12030d',cov:'#9f1239'}
+];
+let waves=[],pops=[],fast=1;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(620,.04);};
+function beginPlay(hint){score=0;sparks=[];waves=[];pops=[];show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);show('tutScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
 
 const TUT=[["齐射","这不是快枪手，先规划再齐射。"],["弹道","拖动炮口设定角度和初速，弧线要越过掩体。"],["提前量","移动目标要按速度提前瞄准，起爆时机决定炸点。"],["装甲","每 5 关出现需要两发同时命中的装甲，或会放出诱饵。"]];
 const SHOP=[
@@ -566,19 +574,22 @@ function update(dt){
     for(const c of covers){if(p.x>c.x&&p.x<c.x+c.w&&p.y>c.y&&p.y<c.y+c.h){s.alive=0;return;}}
     if(t>=s.g.fuse){
       s.alive=0;s.hit=1;s.p=p;
+      waves.push({x:p.x,y:p.y,r:6,maxR:blast,a:1,c:'#ffd34d'});
       if(FX)FX.burst(sparks,p.x,p.y,'#ffd34d',14);
       targets.forEach(tg=>{
         const q=tpos(tg,simT);
         if(Math.hypot(q.x-p.x,q.y-p.y)<=blast+tg.r){
           if(tg.decoy){tg.hp=0;}
           else {
-            if(tg.max>1){tg._hits=tg._hits||{};tg._hits[Math.round(simT*10)]=1;const n=Object.keys(tg._hits).length;if(n>=2)tg.hp=0;}
-            else tg.hp=0;
+            if(tg.max>1){tg._hits=tg._hits||{};tg._hits[Math.round(simT*10)]=1;const n=Object.keys(tg._hits).length;if(n>=2){tg.hp=0;addScore(30);pops.push({x:q.x,y:q.y-12,t:'破甲 +30',c:'#fb923c',a:1.2});}else pops.push({x:q.x,y:q.y-12,t:'击中1/2',c:'#fde68a',a:1});}
+            else{tg.hp=0;addScore(20);pops.push({x:q.x,y:q.y-12,t:'命中 +20',c:'#86efac',a:1.2});}
           }
         }
       });
     }
   });
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+24*dt;w.a-=dt*2.8;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=24*dt;p.a-=dt*1.3;if(p.a<=0)pops.splice(i,1);}
   if(shells.every(s=>!s.alive)){
     const left=targets.filter(t=>!t.decoy&&t.hp>0).length;
     if(left)lose('有目标未被命中');
@@ -601,10 +612,11 @@ function onMove(p){
   g.v=clamp(Math.hypot(dx,dy)*1.1,120,280);
 }
 function draw(){
-  hits=[];stage('#2a1166','#05051a');
+  const th=THEATERS[Math.min(2,Math.floor((lvl-1)/5))];
+  hits=[];stage(th.t,th.b);
   if(state!=='play'&&state!=='pause')return;
   label((boss?'👑 ':'')+'第 '+lvl+' 关  炮弹 '+guns.length,14,18,'#fff',13,'left');
-  covers.forEach(c=>tile(c.x,c.y,c.w,c.h,'#64748b',6));
+  covers.forEach(c=>tile(c.x,c.y,c.w,c.h,th.cov,6));
   targets.forEach(tg=>{
     const p=tpos(tg,mode==='run'?simT:0);
     orb(p.x,p.y,tg.r,tg.decoy?'#94a3b8':tg.max>1?'#f97316':'#fb7185');
@@ -633,6 +645,9 @@ function draw(){
     btn(96,H-70,70,50,'引+','#93c5fd',()=>{g.fuse=clamp(g.fuse+step,0.4,2.2);});
     btn(176,H-70,168,50,'齐射','#ffd34d',fire);
   } else label('弹道飞行中…',W/2,H-40,'#ffd34d',16,'center');
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));label(p.t,p.x,p.y,p.c,12,'center');}
+  ctx.globalAlpha=1;
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 function win(){if(state!=='play')return;finishWin(targets.every(t=>t.max===1)?3:2,40+lvl*3+(boss?30:0)+guns.length*4,'目标摧毁');}
@@ -654,6 +669,6 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt*fast);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 </script>
 </body></html>

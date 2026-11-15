@@ -460,7 +460,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span id="iconT"></span><span>❤️<b id="lifeT">3</b></span><span id="hitLbl">击 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">目标</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
@@ -593,8 +593,14 @@ const LV=[
  {need:28,spd:1.4,spawn:0.65,time:40},{need:30,spd:1.45,spawn:0.6,time:38},{need:32,spd:1.5,spawn:0.55,time:36},{need:34,spd:1.55,spawn:0.5,time:34},
  {boss:{name:'终末陨魔',need:40,spd:1.65,spawn:0.4,time:32,bossHp:80}}
 ];
-let L,lives,score,ended,raf=0,last=0,fast=1,boss,timeLeft,sparks,shieldAng,shieldTarget,meteors,blocked,need,spawnT,bossM,planet;
-function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');sparks=[];meteors=[];blocked=0;spawnT=0;bossM=null;
+const GALAXIES=[
+  {name:'蔚蓝母星',t:'#5c6bc0',b:'#1a237e',sh:'#80deea'},
+  {name:'紫晶星云',t:'#7e57c2',b:'#1f0d42',sh:'#ce93d8'},
+  {name:'炽红星核',t:'#b71c1c',b:'#210509',sh:'#ffd54f'}
+];
+let L,lives,score,ended,raf=0,last=0,fast=1,boss,timeLeft,sparks,waves,pops,shieldAng,shieldTarget,meteors,blocked,need,spawnT,bossM,planet;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
+function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');sparks=[];waves=[];pops=[];meteors=[];blocked=0;spawnT=0;bossM=null;
   const b=L.boss||L;boss=L.boss?{name:L.boss.name}:null;need=b.need;timeLeft=b.time+Kit.up('time')*8;
   shieldAng=-Math.PI/2;shieldTarget=shieldAng;planet={x:W/2,y:H/2};
   if(b.bossHp)bossM={ang:0,hp:b.bossHp,max:b.bossHp,t:0};
@@ -619,11 +625,13 @@ function upd(dt){if(ended)return;timeLeft-=dt;if(timeLeft<=0){timeLeft=0;return 
     if(d<48){ // hit planet
       m.dead=1;lives--;Kit.sfx('bad');Kit.vibrate(60);if(FX)FX.burst(sparks,m.x,m.y,'#ef5350',12);if(lives<=0)return endLv(false,'星球被毁');
     }else if(d<78){const ma=Math.atan2(m.y-planet.y,m.x-planet.x);if(Math.abs(angDiff(ma,shieldAng))<arc){
-      m.dead=1;blocked++;score+=10;Kit.sfx('hit');if(FX)FX.burst(sparks,m.x,m.y,'#80deea',8);
-      if(m.boss&&bossM){bossM.hp--;if(bossM.hp<=0){bossM=null;score+=40;Kit.sfx('boom');blocked+=3;}}
+      m.dead=1;blocked++;score+=10;Kit.sfx('hit');waves.push({x:m.x,y:m.y,r:6,maxR:26,a:1,c:'#80deea'});pops.push({x:m.x,y:m.y-8,t:'+10',c:'#80deea',a:1});if(FX)FX.burst(sparks,m.x,m.y,'#80deea',8);
+      if(m.boss&&bossM){bossM.hp--;if(bossM.hp<=0){bossM=null;score+=40;Kit.sfx('boom');blocked+=3;pops.push({x:planet.x,y:planet.y-50,t:'👑 +40',c:'#ffeb3b',a:1.3});}}
     }}
   }
   meteors=meteors.filter(m=>!m.dead&&Math.hypot(m.x-planet.x,m.y-planet.y)<500);
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+22*dt;w.a-=dt*3.2;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=26*dt;p.a-=dt*1.4;if(p.a<=0)pops.splice(i,1);}
   if(blocked>=need&&!bossM){score+=30+Math.floor(timeLeft);return endLv(true);}
   hud();}
 function hud(){$('iconT').innerHTML='🛡️<b id="lvT">'+(Kit.lv+1)+'</b>';$('lifeT').textContent=lives;$('hitT').textContent=blocked+'/'+need;
@@ -635,26 +643,30 @@ function endLv(won,why){if(ended)return;ended=true;
   else setTimeout(()=>Kit.lose(why||'失败',score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000)*fast;last=t;if(Kit.state==='play'&&!ended)upd(dt);draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#5c6bc0','#1a237e');else{ctx.fillStyle='#1a237e';ctx.fillRect(0,0,W,H);}
+  const gx=GALAXIES[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,gx.t,gx.b);else{ctx.fillStyle=gx.b;ctx.fillRect(0,0,W,H);}
   ctx.fillStyle='#fff8';for(let i=0;i<50;i++)ctx.fillRect((i*73)%W,(i*41)%H,2,2);
   // planet
   if(FX)FX.orb(ctx,planet.x,planet.y,36,'#4fc3f7','#0277bd');else{ctx.fillStyle='#29b6f6';ctx.beginPath();ctx.arc(planet.x,planet.y,36,0,7);ctx.fill();}
   ctx.font='28px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🌍',planet.x,planet.y);
   // shield arc
-  const arc=0.55+Kit.up('hint')*0.12;ctx.strokeStyle='#80deea';ctx.lineWidth=10;ctx.lineCap='round';
+  const arc=0.55+Kit.up('hint')*0.12;ctx.strokeStyle=gx.sh;ctx.lineWidth=10;ctx.lineCap='round';
   ctx.beginPath();ctx.arc(planet.x,planet.y,62,shieldAng-arc,shieldAng+arc);ctx.stroke();
   ctx.strokeStyle='#e1f5fe';ctx.lineWidth=3;ctx.beginPath();ctx.arc(planet.x,planet.y,62,shieldAng-arc,shieldAng+arc);ctx.stroke();
   for(const m of meteors){ctx.font=(m.r*2)+'px sans-serif';ctx.fillText(m.boss?'☄️':'🌑',m.x,m.y);}
   if(bossM){const bx=planet.x+Math.cos(bossM.ang)*150,by=planet.y+Math.sin(bossM.ang)*150;
     ctx.font='36px sans-serif';ctx.fillText('☄️',bx,by);ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.fillText(bossM.hp+'/'+bossM.max,bx,by+24);}
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
 $('startH').textContent='🛡️ 星球护盾';
-$('startP').innerHTML='15 关旋转护盾挡陨石：更密更快、弧更刁。<br>第 5/10/15 关陨石潮首领！可升级盾宽、加时、额外命。';
+$('startP').innerHTML='v8（Gemini 优化：3大星系天体主题、能量护盾拦截震波与得分飘字、1×/2×倍速）<br>15 关旋转护盾挡陨石：更密更快、弧更刁。<br>第 5/10/15 关陨石潮首领！可升级盾宽、加时、额外命。';
 Kit.init({id:'shieldguard',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start,stop:()=>{ended=true;},pause:()=>{},
-  note:()=>'拖动转向护盾，拦截飞向星球的陨石',
+  note:()=>GALAXIES[Math.min(2,Math.floor((Kit.lv||0)/5))].name+' · 拖动转向护盾，拦截飞向星球的陨石',
   tut:[['转向','拖动画布改变护盾朝向。','🛡️'],
        ['拦截','护盾挡住陨石得分。','☄️'],
        ['星球','漏网陨石砸中星球扣命。','🌍'],
