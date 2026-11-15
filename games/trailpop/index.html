@@ -455,7 +455,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">画至少 3 颗同色相邻球消除</p>
 </div>
-<div class="overlay" id="startScr"><h1>🍬 彩途爆消</h1><p>按住并从一颗彩球拖到相邻同色球，连成至少 3 颗即可消除。<br>完成后上方彩球落下补空，完成收集目标过关。<br>首领关有冰冻球，需要连消两次。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🍬 彩途爆消</h1><p>按住并从一颗彩球拖到相邻同色球，连成至少 3 颗即可消除。<br>完成后上方彩球落下补空，完成收集目标过关。<br>首领关有冰冻球，需要连消两次。<br><small style="opacity:.85">v2（Gemini 优化：3大糖果秘境、连线流光与消除波纹飘分）</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -506,7 +506,10 @@ const SHOP=[
   {k:'bombLv',name:'彩爆',max:1,cost(){return 55;},desc(){return '每关可引爆一种颜色';}}
 ];
 const COLS=[{c:'#fb7185',n:'红'},{c:'#38bdf8',n:'蓝'},{c:'#fbbf24',n:'黄'},{c:'#34d399',n:'绿'},{c:'#c084fc',n:'紫'}];
-let grid=[], R=6, C=6, path=[], moves=0, moveMax=20, goal=[], ice=[], bombs=0, hintP=null;
+const REALMS=[{a:'#ff8ac6',b:'#8d58ff',n:'🍓莓果秘境'},{a:'#38bdf8',b:'#1e3a8a',n:'🌌星海糖域'},{a:'#fb923c',b:'#7c2d12',n:'🔥炽糖熔殿'}];
+let grid=[], R=6, C=6, path=[], moves=0, moveMax=20, goal=[], ice=[], bombs=0, hintP=null, waves=[], pops=[];
+function addWave(x,y,c){waves.push({x,y,r:8,life:1,c});}
+function addPop(x,y,t,c){pops.push({x,y,t,life:1,c});}
 function startLevel(n){
   lvl=n|0; boss=lvl%5===0;
   const rng=mulberry32(lvl*653+5);
@@ -518,7 +521,7 @@ function startLevel(n){
   moveMax=Math.max(8, 22-Math.floor(lvl/2)+(prog.moveLv|0)*3+(lvl<=2?4:0));
   moves=moveMax; path=[]; bombs=prog.bombLv|0; hintP=null;
   diff=lvl*10+need+(boss?24:0)+Math.max(0,24-moveMax);
-  score=0; sparks=[]; show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);
+  score=0; sparks=[]; waves=[]; pops=[]; show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);
   state='play'; last=performance.now(); beep(660,.1); $('score').textContent=0;
   $('hint').textContent=boss?'冰冻球要连消两次，步数更紧':'画至少 3 颗同色相邻球消除';
 }
@@ -563,7 +566,10 @@ function onUp(){
       else { grid[q.r][q.c]=-1; cleared++; if(goal[col]>0) goal[col]--; score+=10; }
     }
     gravity(); moves--; $('score').textContent=score; beep(840,.08);
-    if(FX) FX.burst(sparks,180,240,COLS[col].c,16);
+    const cx=24+path.reduce((s,q)=>s+q.c,0)/path.length*52+26, cy=86+path.reduce((s,q)=>s+q.r,0)/path.length*52+26;
+    addWave(cx,cy,COLS[col].c);
+    if(cleared>0) addPop(cx,cy-10,'+'+(cleared*10),'#ffd34d');
+    if(FX) FX.burst(sparks,cx,cy,COLS[col].c,16);
     if(goal.every(v=>v<=0)) win();
     else if(moves<=0) lose('步数用尽');
   }
@@ -595,15 +601,23 @@ function bomb(){
   if(goal.every(v=>v<=0)) win();
 }
 function draw(){
-  hits=[]; stage('#ff8ac6','#8d58ff');
+  const now=performance.now(), dt=Math.min(0.05,(now-(draw._t||now))/1000); draw._t=now;
+  for(let i=waves.length-1;i>=0;i--){waves[i].r+=120*dt;waves[i].life-=dt*2.2;if(waves[i].life<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){pops[i].y-=26*dt;pops[i].life-=dt*1.5;if(pops[i].life<=0)pops.splice(i,1);}
+  const rlm=REALMS[Math.min(2,((lvl-1)/5)|0)];
+  hits=[]; stage(rlm.a,rlm.b);
   if(state!=='play'&&state!=='pause') return;
-  label((boss?'👑 ':'')+'步数 '+moves+'/'+moveMax,14,20,'#fff',13,'left');
+  label((boss?'👑 ':'')+'步数 '+moves+'/'+moveMax+' · '+rlm.n,14,20,'#fff',13,'left');
   label(goal.map((v,i)=>COLS[i].n+v).join('  '),14,40,'#ffe4f5',12,'left');
   const x0=24,y0=86,s=52;
   for(let r=0;r<R;r++) for(let c=0;c<C;c++){
     const x=x0+c*s,y=y0+r*s, on=path.some(q=>q.r===r&&q.c===c);
     tile(x+3,y+3,s-6,s-6,on?'#fff7ed':COLS[grid[r][c]].c,12);
     if(ice[r][c]) label('❄',x+s/2,y+s/2,'#fff',16,'center');
+  }
+  if(path.length>=2){
+    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=4; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.beginPath();
+    path.forEach((q,i)=>{const x=x0+q.c*s+s/2,y=y0+q.r*s+s/2; i?ctx.lineTo(x,y):ctx.moveTo(x,y);}); ctx.stroke(); ctx.restore();
   }
   if(hintP){
     ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath();
@@ -612,6 +626,8 @@ function draw(){
   btn(16,H-58,120,46,'提示','#7dd3fc',()=>{if(!prog.hintLv){toast('商店可解锁提示');return;} hintP=findPath(); if(!hintP) toast('没有可消路径');});
   btn(146,H-58,100,46,'彩爆','#f0abfc',bomb);
   btn(256,H-58,88,46,'重开','#fda4af',()=>startLevel(lvl));
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.life);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.c;ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 function win(){if(state!=='play')return; finishWin(moves>=6?3:moves>=2?2:1, 40+lvl*3+(boss?28:0)+moves*2, '彩途清空！');}

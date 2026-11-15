@@ -451,13 +451,14 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="stat" id="statLine">关 1 · ★ 0</span>
     <span class="tools">
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
+      <button class="iconbtn" id="spdBtn" aria-label="切换倍速" style="font-size:12px;font-weight:700">1×</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
   </div>
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">点选试管倒同色水</p>
 </div>
-<div class="overlay" id="startScr"><h1>🧪 倒水排序</h1><p>把同色液体倒满每支试管即可过关。<br>40 关递进，盲管与冰冻 Boss 等你破解。<br>金币可升级撤销与空管。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🧪 倒水排序</h1><p>把同色液体倒满每支试管即可过关。<br>40 关递进，盲管与冰冻 Boss 等你破解。<br>金币可升级撤销与空管。<br><small style="opacity:.85">v4（Gemini 优化：4大炼金工坊主题、1×/2×倒水倍速与可倒提示高亮）</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -549,7 +550,10 @@ function genLevel(n){
   return{tubes,sp,moves:0,history:[]};
 }
 
-let state='menu', lvl=1, game=null, sel=-1, anim=null, last=0, sparks=[];
+let state='menu', lvl=1, game=null, sel=-1, anim=null, last=0, sparks=[], waves=[], fast=1;
+const LABS=[{a:'#72cbff',b:'#3b62ef',n:'🧪蔚蓝工坊'},{a:'#34d399',b:'#065f46',n:'🌿翡翠药室'},{a:'#c084fc',b:'#4c1d95',n:'🔮紫晶密室'},{a:'#fb923c',b:'#7c2d12',n:'🌋熔岩炼炉'}];
+function addWave(x,y,c){waves.push({x,y,r:8,life:1,c});}
+if($('spdBtn'))$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';};
 let extraTubes=0; // temporary empty from shop use this level
 
 function canPour(A,B){
@@ -696,7 +700,7 @@ function drawTube(t,i){
   // glass
   ctx.save();
   if(FX) FX.shadow(ctx,x,yy+h/2+6,w*.45,6);
-  ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=3;
+  ctx.strokeStyle=(sel>=0&&sel!==i&&game&&canPour(game.tubes[sel],t))?'#ffd34d':'rgba(255,255,255,.85)'; ctx.lineWidth=(sel>=0&&sel!==i&&game&&canPour(game.tubes[sel],t))?3.5:3;
   ctx.fillStyle='rgba(255,255,255,.12)';
   roundRect(x-w/2,yy-h/2,w,h,w*.2); ctx.fill(); ctx.stroke();
   // layers bottom-up
@@ -719,9 +723,11 @@ function drawTube(t,i){
 function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
 
 function draw(){
-  if(FX) FX.stage(ctx,W,H,'#72cbff','#3b62ef'); else { ctx.fillStyle='#3b62ef'; ctx.fillRect(0,0,W,H); }
+  const lab=LABS[Math.min(3,((lvl-1)/10)|0)];
+  if(FX) FX.stage(ctx,W,H,lab.a,lab.b); else { ctx.fillStyle=lab.b; ctx.fillRect(0,0,W,H); }
   if(!game){ ctx.fillStyle='#fff'; ctx.font='18px sans-serif'; ctx.textAlign='center'; ctx.fillText('选择关卡开始',W/2,H/2); return; }
   // title boss
+  ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='bold 12px sans-serif'; ctx.textAlign='left'; ctx.fillText(lab.n,16,22);
   if(game.sp.boss){ ctx.fillStyle='#FFE08A'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.fillText('👑 Boss 关',W/2,22); }
   for(let i=0;i<game.tubes.length;i++) drawTube(game.tubes[i],i);
   // bottom action bar
@@ -729,11 +735,13 @@ function draw(){
   roundRect(W/2+8,H-48,W/2-24,36,12); ctx.fill();
   ctx.fillStyle='#fff'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText('↩ 撤销',W/4,H-30); ctx.fillText('＋ 空管',W*3/4,H-30);
+  for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.life);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
   if(FX) FX.drawBurst(ctx,sparks);
 }
 
 function update(dt){
-  if(anim){ anim.t+=dt; if(anim.t>=anim.dur){ anim=null; if(won()) finishWin(); } }
+  for(let i=waves.length-1;i>=0;i--){waves[i].r+=110*dt;waves[i].life-=dt*2.4;if(waves[i].life<=0)waves.splice(i,1);}
+  if(anim){ anim.t+=dt*fast; if(anim.t>=anim.dur){ addWave(W/2,H/2,'#ffd34d'); anim=null; if(won()) finishWin(); } }
 }
 
 function frame(t){ const dt=Math.min(.05,(t-last)/1000); last=t; if(state==='play') update(dt); draw(); requestAnimationFrame(frame); }
