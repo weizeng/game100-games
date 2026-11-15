@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🎯 风偏狙击</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">把准星提前并补偿风偏与落差再开火</p>
 </div>
-<div class="overlay" id="startScr"><h1>🎯 风偏狙击</h1><p>移动目标需要提前量，还要补偿侧风和弹道落差。<br>拖动瞄准、松手开火，打满命中即可过关。<br>首领关阵风会突然转向，商店可解锁瞄准镜与稳定器。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🎯 风偏狙击</h1><p>v2（Gemini 优化：3大狙击靶场主题、风尘粒子与命中震波飘字、1×/2×倍速）<br>移动目标需要提前量，还要补偿侧风和弹道落差。<br>拖动瞄准、松手开火，打满命中即可过关。<br>首领关阵风会突然转向，商店可解锁瞄准镜与稳定器。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -504,8 +505,15 @@ const SHOP=[
   {k:'stabLv',name:'稳定器',max:2,cost(){return 40+(prog.stabLv|0)*30;},desc(){return '减轻风力干扰';}},
   {k:'ammoLv',name:'备用弹',max:2,cost(){return 30+(prog.ammoLv|0)*25;},desc(){return '额外弹药 +1';}}
 ];
-let t=0,wind=0,windT=0,targets=[],ammo=6,need=4,got=0,aim={x:180,y:200},bullets=[],shots=0;
-function beginPlay(hint){score=0;sparks=[];show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
+const FIELDS=[
+  {t:'#12355a',b:'#071422'},
+  {t:'#4a2c18',b:'#1a0e06'},
+  {t:'#2b2b4a',b:'#0c0c1c'}
+];
+const DUST=Array.from({length:20},(_,i)=>({x:(i*53+17)%360,y:(i*71+23)%500+20,len:8+(i%4)*4}));
+let t=0,wind=0,windT=0,targets=[],ammo=6,need=4,got=0,aim={x:180,y:200},bullets=[],shots=0,waves=[],pops=[],fast=1;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(620,.04);};
+function beginPlay(hint){score=0;sparks=[];waves=[];pops=[];show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
 function startLevel(n){
   lvl=n|0;boss=lvl%5===0;t=0;got=0;shots=0;bullets=[];aim={x:180,y:220};
   ammo=5+(prog.ammoLv|0)+(lvl<=2?1:0);
@@ -553,19 +561,24 @@ function update(dt){
       if(!g.alive)continue;
       if(Math.hypot(b.x-g.x,b.y-g.y)<g.r+5){
         g.hp--;b.alive=0;
-        if(g.hp<=0){g.alive=0;got++;score+=20;$('score').textContent=score;if(FX)FX.burst(sparks,g.x,g.y,'#ffd34d',14);beep(880,.08);}
-        else beep(600,.06);
+        if(g.hp<=0){g.alive=0;got++;score+=20;$('score').textContent=score;waves.push({x:g.x,y:g.y,r:g.r,maxR:g.r+26,a:1,c:'#ffd34d'});pops.push({x:g.x,y:g.y-10,t:'🎯 +20',c:'#ffd34d',a:1.2});if(FX)FX.burst(sparks,g.x,g.y,'#ffd34d',14);beep(880,.08);}
+        else{waves.push({x:g.x,y:g.y,r:6,maxR:20,a:.9,c:'#fda4af'});beep(600,.06);}
       }
     }
     if(b.x<0||b.x>W||b.y<0||b.y>H)b.alive=0;
   }
   bullets=bullets.filter(b=>b.alive);
+  for(const d of DUST){d.x=(d.x+wind*48*dt+W)%W;}
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+22*dt;w.a-=dt*3.2;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=24*dt;p.a-=dt*1.4;if(p.a<=0)pops.splice(i,1);}
   if(got>=need)win();
   else if(ammo<=0&&!bullets.length)lose('弹药耗尽');
 }
 function draw(){
-  hits=[];stage('#12355a','#071422');
+  const fd=FIELDS[Math.min(2,Math.floor((lvl-1)/5))];
+  hits=[];stage(fd.t,fd.b);
   if(state!=='play'&&state!=='pause')return;
+  ctx.strokeStyle='rgba(255,255,255,.16)';ctx.lineWidth=1;for(const d of DUST){ctx.beginPath();ctx.moveTo(d.x,d.y);ctx.lineTo(d.x+(wind>=0?d.len:-d.len),d.y);ctx.stroke();}
   label((boss?'👑 ':'')+'命中 '+got+'/'+need+'  弹药 '+ammo+'  风 '+(wind>=0?'→':'←')+Math.abs(wind).toFixed(1),12,22,'#fff',12,'left');
   ctx.strokeStyle='rgba(125,211,252,.4)';ctx.beginPath();ctx.moveTo(20,60);ctx.lineTo(20+wind*40,60);ctx.lineWidth=4;ctx.stroke();
   for(const g of targets){if(!g.alive)continue;orb(g.x,g.y,g.r,g.hp>1?'#fda4af':'#86efac');}
@@ -579,6 +592,9 @@ function draw(){
   }
   ctx.strokeStyle='#fff';ctx.beginPath();ctx.moveTo(aim.x-10,aim.y);ctx.lineTo(aim.x+10,aim.y);ctx.moveTo(aim.x,aim.y-10);ctx.lineTo(aim.x,aim.y+10);ctx.stroke();
   for(const b of bullets)orb(b.x,b.y,3,'#fff');
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));label(p.t,p.x,p.y,p.c,12,'center');}
+  ctx.globalAlpha=1;
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 function win(){if(state!=='play')return;finishWin(ammo>=2?3:ammo>=1?2:1,40+got*8+(boss?28:0)+ammo*6,'狙击成功！');}
@@ -600,7 +616,7 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt*fast);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>

@@ -448,6 +448,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">📡 雷达分轨</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -455,7 +456,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">把点迹关联到航迹、剔除杂波，识别置信足够后再授权开火</p>
 </div>
-<div class="overlay" id="startScr"><h1>📡 雷达分轨</h1><p>把陆续到来的雷达点迹关联到航迹，并剔除杂波。<br>只有识别置信达到阈值，才能对敌方航迹授权开火。<br>首领关会出现交叉航迹或欺骗点迹。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>📡 雷达分轨</h1><p>v2（Gemini 优化：3大雷达空域主题、动态扫描线与开火震波飘字、1×/2×倍速）<br>把陆续到来的雷达点迹关联到航迹，并剔除杂波。<br>只有识别置信达到阈值，才能对敌方航迹授权开火。<br>首领关会出现交叉航迹或欺骗点迹。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -505,7 +506,14 @@ function addScore(n){score+=n;if(score<0)score=0;$('score').textContent=score;if
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);const p=posOf(e);pointer.down=true;pointer.x=p.x;pointer.y=p.y;if(typeof onDown==='function')onDown(p,e);else inHit(p);});
 cv.addEventListener('pointermove',e=>{if(!pointer.down||state!=='play')return;const p=posOf(e);pointer.x=p.x;pointer.y=p.y;if(typeof onMove==='function')onMove(p,e);});
 ['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,e=>{if(!pointer.down)return;pointer.down=false;const p=posOf(e);if(typeof onUp==='function')onUp(p,e);}));
-function beginPlay(hint){score=0;sparks=[];show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);show('tutScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
+const RADARS=[
+  {t:'#10182f',b:'#05051a',sw:'rgba(0,217,255,.22)'},
+  {t:'#0f2e24',b:'#04140f',sw:'rgba(74,222,128,.22)'},
+  {t:'#381124',b:'#14050c',sw:'rgba(253,164,175,.24)'}
+];
+let sweep=0,waves=[],pops=[],fast=1;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(620,.04);};
+function beginPlay(hint){score=0;sparks=[];waves=[];pops=[];show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);show('tutScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
 
 
 const TUT=[["点迹","屏幕上的亮点可能属于某条航迹，也可能是杂波。先选中点迹再关联或剔除。"],["航迹","连续关联使置信上升。敌我识别要正确，打到友军或对杂波开火都会失败。"],["开火","置信达到阈值后才允许开火。必须清除所有敌迹，且不能误伤。"],["极端","每 5 关出现交叉航迹或欺骗点迹，关联窗口更紧。"]];
@@ -576,6 +584,8 @@ function fire(ti){
   if(tr.truth!=='H'){failed=true;lose('误击友军');return false;}
   if(fired.includes(tr.id)){toast('已对该航迹开火');return false;}
   fired.push(tr.id);addScore(12);beep(880,.12);
+  waves.push({x:180,y:185,r:10,maxR:90,a:1,c:'#fda4af'});pops.push({x:180,y:175,t:'🎯 击落 +12',c:'#ffd34d',a:1.2});
+  if(FX&&FX.burst)FX.burst(sparks,180,185,'#fda4af',12);
   checkEnd();return true;
 }
 function checkEnd(){
@@ -600,12 +610,19 @@ function confirm(){
 function onDown(p){if(!inHit(p)){
   plots.forEach((pl,i)=>{if(Math.hypot(p.x-pl.x,p.y-pl.y)<22)selP=i;});
 }}
+function update(dt){
+  sweep=(sweep+dt*1.4)%(Math.PI*2);
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*8)+25*dt;w.a-=dt*2.4;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=22*dt;p.a-=dt*1.2;if(p.a<=0)pops.splice(i,1);}
+}
 function draw(){
-  hits=[];stage('#10182f','#05051a');
+  const rd=RADARS[Math.min(2,Math.floor((lvl-1)/5))];
+  hits=[];stage(rd.t,rd.b);
   if(state!=='play'&&state!=='pause')return;
   label((boss?'👑 ':'')+'第 '+lvl+' 关 · 阈值 '+(th*100|0)+'%',14,18,'#eff7ff',13,'left');
   label('已射 '+fired.length,346,18,'#8dded6',12,'right');
   tile(16,30,328,310,'#1a2742',12);
+  ctx.strokeStyle=rd.sw;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(180,185);ctx.lineTo(180+Math.cos(sweep)*130,185+Math.sin(sweep)*130);ctx.stroke();ctx.lineWidth=1;
   plots.forEach((p,i)=>{
     const col=p.clutter&&prog.clutLv?'#6b7280':(p.truth&&prog.iffLv&&tracks.find(t=>t.id===p.truth)&&tracks.find(t=>t.id===p.truth).truth==='F'?'#86efac':'#8dded6');
     orb(p.x,p.y+20,selP===i?9:6,col);
@@ -626,6 +643,9 @@ function draw(){
   btn(280,H-116,64,44,'标友','#86efac',()=>setId(selT,'F'));
   btn(16,H-62,160,48,'开火','#fda4af',()=>fire(selT));
   btn(184,H-62,160,48,'确认清场','#ffd34d',confirm);
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));label(p.t,p.x,p.y,p.c,12,'center');}
+  ctx.globalAlpha=1;
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 function win(){if(state!=='play')return;const s=plots.every(p=>p.clutter?p.track==='CL':p.track===p.truth)?3:2;finishWin(s,40+lvl*3+(boss?30:0),'航迹清除');}
@@ -648,7 +668,7 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt*fast);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>
 </body></html>
