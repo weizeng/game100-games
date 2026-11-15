@@ -460,7 +460,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <p class="hint" id="hint">拖放木块填满行列消除</p>
   
 </div>
-<div class="overlay" id="startScr"><h1>🧱 木块方阵</h1><p>拖放三块木块填满行或列消除得分。<br>无尽模式 + 20 关目标挑战。<br>锁定格与炸弹块从中期登场。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🧱 木块方阵</h1><p>v3（Gemini 优化：3大木艺工坊主题、消行震波与连击得分飘字）<br>拖放三块木块填满行或列消除得分。<br>无尽模式 + 20 关目标挑战。<br>锁定格与炸弹块从中期登场。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -524,7 +524,10 @@ function clearLines(){
   if(!rows.length&&!cols.length){combo=0;return;}
   combo++; const mult=1+Math.floor(combo/2)+prog.comboLv;
   const cleared=rows.length+cols.length;
-  score+=cleared*10*mult*(mode==='level'?1:1); $('statLine').textContent=`分 ${score} · 连击 x${mult}`;
+  const gain=cleared*10*mult;
+  score+=gain; $('statLine').textContent=`分 ${score} · 连击 x${mult}`;
+  waves.push({x:OX+N*CELL/2,y:OY+N*CELL/2,r:20,maxR:140,a:1,c:'#ffeb3b'});
+  pops.push({x:OX+N*CELL/2,y:OY+N*CELL/2-10,t:(combo>1?'连击×'+mult+' ':'')+'+'+gain,c:'#ffeb3b',a:1.2});
   for(const y of rows) for(let x=0;x<N;x++){ if(locks[y][x]){locks[y][x]=0;} else {grid[y][x]=0;} if(FX)FX.burst(sparks,OX+x*CELL+CELL/2,OY+y*CELL+CELL/2,'#3FC163',6); }
   for(const x of cols) for(let y=0;y<N;y++){ if(locks[y][x]){locks[y][x]=0;} else {grid[y][x]=0;} if(FX)FX.burst(sparks,OX+x*CELL+CELL/2,OY+y*CELL+CELL/2,'#5B8CFF',6); }
   beep(700+cleared*80,.1); if(combo>1) toast('连击 x'+mult);
@@ -545,10 +548,10 @@ function gameOver(){
   $('overText').textContent=`最高 ${best} · +${gain} 币`; show('overScr',true); beep(180,.35,'triangle');
 }
 
-function startEndless(){ mode='endless'; score=0;combo=0;round=0; grid=emptyGrid(); locks=emptyLocks(); deal(); state='play'; last=performance.now();
+function startEndless(){ mode='endless'; score=0;combo=0;round=0; waves=[];pops=[]; grid=emptyGrid(); locks=emptyLocks(); deal(); state='play'; last=performance.now();
   show('startScr',false);show('lvlScr',false);show('shopScr',false);show('tutScr',false);show('pauseOv',false);show('overScr',false);
   $('statLine').textContent='分 0'; $('hint').textContent='拖放木块到棋盘 · 填满行/列消除'; beep(660,.1); }
-function startLevel(n){ mode='level'; lvl=n; score=0;combo=0;round=n; target=80+n*40; grid=emptyGrid(); locks=emptyLocks(); deal(); state='play'; last=performance.now();
+function startLevel(n){ mode='level'; lvl=n; score=0;combo=0;round=n; waves=[];pops=[]; target=80+n*40; grid=emptyGrid(); locks=emptyLocks(); deal(); state='play'; last=performance.now();
   show('startScr',false);show('lvlScr',false);show('shopScr',false);show('tutScr',false);show('pauseOv',false);show('overScr',false);
   $('statLine').textContent=`关 ${n} · 目标 ${target}`; $('hint').textContent=n%5===0?'⚠ Boss：锁定格更多，善用炸弹块':'拖到棋盘 · 一次清多行连击翻倍'; beep(660,.1); }
 
@@ -589,8 +592,15 @@ function drawShape(p,x,y,sc,alpha){
   }
   ctx.globalAlpha=1;
 }
+const BOARDS=[
+  {t:'#ffcf6b',b:'#f0803c'},
+  {t:'#a1887f',b:'#4e342e'},
+  {t:'#8e24aa',b:'#311b92'}
+];
+let waves=[],pops=[];
 function draw(){
-  if(FX) FX.stage(ctx,W,H,'#ffcf6b','#f0803c'); else {ctx.fillStyle='#f0803c';ctx.fillRect(0,0,W,H);}
+  const bd=BOARDS[mode==='level'?Math.min(2,Math.floor(((lvl||1)-1)/7)):0];
+  if(FX) FX.stage(ctx,W,H,bd.t,bd.b); else {ctx.fillStyle=bd.b;ctx.fillRect(0,0,W,H);}
   // board
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     const px=OX+x*CELL, py=OY+y*CELL;
@@ -604,9 +614,12 @@ function draw(){
     if(drag.gx!=null){ ctx.globalAlpha=.35; drawShape(p,OX+drag.gx*CELL,OY+drag.gy*CELL,1, ok?1:.5); ctx.globalAlpha=1; }
     drawShape(p,(drag.px||0)-p.shape[0].length*CELL/2,(drag.py||0)-p.shape.length*CELL/2,1,1);
   }
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=3;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX) FX.drawBurst(ctx,sparks);
 }
-function frame(t){ last=t; draw(); requestAnimationFrame(frame); }
+function frame(t){ const dt=Math.min(.05,(t-last)/1000); last=t; for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+30*dt;w.a-=dt*2.8;if(w.a<=0)waves.splice(i,1);} for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=28*dt;p.a-=dt*1.2;if(p.a<=0)pops.splice(i,1);} draw(); requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
 
 function openLevels(){

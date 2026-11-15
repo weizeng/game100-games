@@ -447,6 +447,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <span class="title">🧊 转方消色</span>
     <span>得分 <b id="score">0</b> · 最佳 <b id="best">0</b></span>
     <span class="tools">
+      <button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button>
       <button class="iconbtn" id="muteBtn" aria-label="音效">🔊</button>
       <button class="iconbtn" id="pauseBtn" aria-label="暂停">⏸</button>
     </span>
@@ -454,7 +455,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">拖转立方 · 点同色连通组消除</p>
 </div>
-<div class="overlay" id="startScr"><h1>🧊 转方消色</h1><p>旋转立方体找可见同色组。<br>点≥3连通同色消除清光过关。<br>Boss：锁块需先清邻面。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🧊 转方消色</h1><p>v2（Gemini 优化：3大魔方幻境主题、精准点击对齐与消组震波飘字）<br>旋转立方体找可见同色组。<br>点≥3连通同色消除清光过关。<br>Boss：锁块需先清邻面。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -489,8 +490,14 @@ let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 const TUT=[["旋转","拖动画布旋转立方露出各面。"],["消除","点可见面≥3同色连通组消除。"],["翻面","组可能藏在背面。"],["Boss","Boss关锁块需先清邻面。"]];
 const SHOP=[{k:'hintLv',name:'透视',max:3,cost(){return 40+(prog.hintLv|0)*30;},desc(){return '最优面提示+'}},{k:'clearLv',name:'连锁',max:2,cost(){return 50+(prog.clearLv|0)*40;},desc(){return '连锁加成+'}},{k:'skinLv',name:'立方皮',max:2,cost(){return 45+(prog.skinLv|0)*35;},desc(){return '皮肤+'}}];
 const COLS=['#ff6b9a','#ffcf33','#33e1a0','#4fc3f7','#b26bff','#ff8a4c'];
-let size=3,faces={},faceNames=['F','B','U','D','L','R'],yaw=0,pitch=0,rng,locked=new Set(),totalLeft=0;
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*7701+11);size=2+Math.min(2,1+(n>>3));yaw=0.4;pitch=0.3;locked=new Set();
+const CUBES=[
+  {t:'#ff8ac6',b:'#8d58ff'},
+  {t:'#4fc3f7',b:'#1a237e'},
+  {t:'#ffb74d',b:'#6a1b9a'}
+];
+let size=3,faces={},faceNames=['F','B','U','D','L','R'],yaw=0,pitch=0,rng,locked=new Set(),totalLeft=0,waves=[],pops=[],fast=1;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';beep(620,.04);};
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];waves=[];pops=[];rng=mulberry32(n*7701+11);size=2+Math.min(2,1+(n>>3));yaw=0.4;pitch=0.3;locked=new Set();
   const colors=3+Math.min(3,n>>2);faces={};totalLeft=0;
   for(const f of faceNames){faces[f]=Array(size*size);for(let i=0;i<size*size;i++){faces[f][i]=(rng()*colors)|0;totalLeft++;}}
   if(boss){locked.add('F0');locked.add('U'+((size*size/2)|0));}
@@ -504,9 +511,14 @@ function groupsOn(f){const g=[],seen=new Set(),N=size;const cell=i=>faces[f][i];
     if(grp.length>=3)g.push({f,col,cells:grp});}return g;}
 function win(){if(state!=='play')return;finishWin(3,45+(boss?55:0)+score/10|0,'立方清空！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){let left=0;for(const f of faceNames)for(const v of faces[f])if(v>=0)left++;totalLeft=left;if(left===0)win();}
+function update(dt){let left=0;for(const f of faceNames)for(const v of faces[f])if(v>=0)left++;totalLeft=left;
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+24*dt;w.a-=dt*3.2;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=26*dt;p.a-=dt*1.4;if(p.a<=0)pops.splice(i,1);}
+  if(left===0)win();}
 function clearGroup(g){for(const i of g.cells){const id=g.f+i;if(locked.has(id)){toast('锁块');return false;}faces[g.f][i]=-1;}
-  score+=g.cells.length*8*(1+(prog.clearLv|0)*.3)|0;$('score').textContent=score;beep(860,.08);
+  const pts=g.cells.length*8*(1+(prog.clearLv|0)*.3)|0;score+=pts;$('score').textContent=score;beep(860,.08);
+  waves.push({x:W/2,y:H/2-30,r:16,maxR:95,a:1,c:COLS[g.col%COLS.length]});
+  pops.push({x:W/2,y:H/2-40,t:'+'+pts,c:'#ffeb3b',a:1.2});
   if(FX)FX.burst(sparks,W/2,H/2,COLS[g.col],12);
   // unlock nearby
   if(boss)locked.clear();
@@ -514,7 +526,7 @@ function clearGroup(g){for(const i of g.cells){const id=g.f+i;if(locked.has(id))
 let drag=null;
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);drag={x:p.x,y:p.y,moved:false};
   // try click group on F
-  const vis=faceVisible();const cs=36,ox=W/2-size*cs/2,oy=H/2-size*cs/2;
+  const cs=Math.min(48,260/size),ox=W/2-size*cs/2,oy=H/2-30-size*cs/2;
   const c=Math.floor((p.x-ox)/cs),r=Math.floor((p.y-oy)/cs);
   if(c>=0&&r>=0&&c<size&&r<size){const idx=r*size+c;const gs=groupsOn('F');const hit=gs.find(g=>g.cells.includes(idx));if(hit){clearGroup(hit);drag=null;}}});
 cv.addEventListener('pointermove',e=>{if(!drag||state!=='play')return;const p=posOf(e);const dx=p.x-drag.x,dy=p.y-drag.y;if(Math.hypot(dx,dy)>8)drag.moved=true;
@@ -526,7 +538,7 @@ cv.addEventListener('pointerup',()=>{if(!drag)return;if(drag.moved){// snap rota
     if(Math.abs(pitch)>.45){const dir=pitch>0;pitch=0;if(dir){const t=faces.F;faces.F=faces.U;faces.U=faces.B;faces.B=faces.D;faces.D=t;}
       else{const t=faces.F;faces.F=faces.D;faces.D=faces.B;faces.B=faces.U;faces.U=t;}beep(500,.04);}}
   drag=null;});
-function draw(){if(FX)FX.stage(ctx,W,H,'#ff8ac6','#8d58ff');else{ctx.fillStyle='#8d58ff';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
+function draw(){const cb=CUBES[Math.min(2,Math.floor((lvl-1)/5))];if(FX)FX.stage(ctx,W,H,cb.t,cb.b);else{ctx.fillStyle=cb.b;ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('剩'+totalLeft+(boss?' 👑':''),10,22);
   const cs=Math.min(48,260/size),ox=W/2-size*cs/2,oy=H/2-30-size*cs/2;
   // draw F face
@@ -540,6 +552,9 @@ function draw(){if(FX)FX.stage(ctx,W,H,'#ff8ac6','#8d58ff');else{ctx.fillStyle='
   ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('拖转 · 点≥3同色',W/2,H-24);
   // highlight groups
   const gs=groupsOn('F');for(const g of gs){for(const i of g.cells){const x=ox+(i%size)*cs,y=oy+((i/size)|0)*cs;ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(x+4,y+4,cs-8,cs-8);}}
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=3;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);for(const f of faceNames)faces[f].fill(-1);win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,left:totalLeft}}};
 
@@ -558,6 +573,6 @@ $('againBtn').onclick=()=>startLevel(lvl);
 $('nextBtn').onclick=()=>{if(lvl<TOTAL)startLevel(lvl+1);else openLevels();};
 $('menu2Btn').onclick=()=>{show('overScr',false);openLevels();};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='play'){state='pause';show('pauseOv',true);}});
-requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
+requestAnimationFrame(function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(state==='play'&&typeof update==='function')update(dt*fast);if(typeof draw==='function')draw();requestAnimationFrame(frame);});
 
 </script>

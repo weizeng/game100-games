@@ -460,7 +460,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span id="iconT"></span><span>❤️<b id="lifeT">3</b></span><span id="hitLbl">击 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">目标</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
@@ -594,11 +594,17 @@ const LV=[
  {rows:6,colors:5,need:28,time:55},{rows:7,colors:5,need:30,time:58},{rows:7,colors:6,need:32,time:55},{rows:7,colors:6,need:34,time:52},
  {boss:{name:'终末泡泡魔',rows:7,colors:6,need:40,time:50,drop:1}}
 ];
+const BAYS=[
+  {name:'晴空海湾',t:'#4fc3f7',b:'#01579b'},
+  {name:'珊瑚紫礁',t:'#7e57c2',b:'#1a0d40'},
+  {name:'极夜深海',t:'#00838f',b:'#031e24'}
+];
 const R=16,ROW_H=28,COLS_N=10;
-let L,lives,score,ended,raf=0,last=0,fast=1,boss,timeLeft,sparks,grid,cur,next,aimAng,shot,popped,need,dropT;
+let L,lives,score,ended,raf=0,last=0,fast=1,boss,timeLeft,sparks,waves,pops,grid,cur,next,aimAng,shot,popped,need,dropT;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
 function cellX(r,c){return 30+(c+(r%2)*0.5)*(R*2+2);}
 function cellY(r){return 40+r*ROW_H;}
-function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');sparks=[];popped=0;shot=null;aimAng=-Math.PI/2;dropT=0;
+function start(i){L=LV[i];score=0;ended=false;lives=3+Kit.up('life');sparks=[];waves=[];pops=[];popped=0;shot=null;aimAng=-Math.PI/2;dropT=0;
   const b=L.boss||L;boss=L.boss?{name:L.boss.name}:null;need=b.need;timeLeft=b.time+Kit.up('time')*10;
   grid=[];for(let r=0;r<b.rows;r++){const row=[];const n=COLS_N-(r%2?1:0);for(let c=0;c<n;c++)row.push(1+Math.random()*b.colors|0);grid.push(row);}
   cur=1+Math.random()*b.colors|0;next=1+Math.random()*b.colors|0;
@@ -619,7 +625,7 @@ function removeFloaters(){if(!grid.length)return;const seen=new Set(),stack=[];
   for(let r=0;r<grid.length;r++)for(let c=0;c<grid[r].length;c++)if(grid[r][c]&&!seen.has(r+','+c)){grid[r][c]=0;popped++;score+=8;}}
 function stick(r,c){const b=L.boss||L;while(grid.length<=r){const rr=grid.length;const n=COLS_N-(rr%2?1:0);grid.push(Array(n).fill(0));}
   if(c<0)c=0;if(c>=grid[r].length)c=grid[r].length-1;grid[r][c]=shot.col;shot=null;
-  const g=flood(r,c,grid[r][c]);if(g.length>=3){for(const [rr,cc] of g){grid[rr][cc]=0;popped++;score+=12;}Kit.sfx('good');if(FX)FX.burst(sparks,cellX(r,c),cellY(r),'#fff',10);removeFloaters();}
+  const g=flood(r,c,grid[r][c]);if(g.length>=3){for(const [rr,cc] of g){grid[rr][cc]=0;popped++;score+=12;}Kit.sfx('good');waves.push({x:cellX(r,c),y:cellY(r),r:R,maxR:R+36,a:1,c:'#fff'});pops.push({x:cellX(r,c),y:cellY(r)-10,t:'+'+(g.length*12),c:'#ffeb3b',a:1.2});if(FX)FX.burst(sparks,cellX(r,c),cellY(r),'#fff',10);removeFloaters();}
   else Kit.sfx('tap');
   // trim empty bottom rows? keep
   if(grid.some(row=>row.some(v=>v)&&cellY(grid.indexOf(row))>H-120)){lives--;Kit.sfx('bad');if(lives<=0)return endLv(false,'顶到危险线');}
@@ -635,6 +641,8 @@ function upd(dt){if(ended)return;timeLeft-=dt;if(timeLeft<=0){timeLeft=0;return 
     if(shot.y<R){const [r,c]=findCell(shot.x,shot.y)||[0,0];stick(0,Math.max(0,Math.min((grid[0]||[]).length-1,Math.round((shot.x-30)/(R*2)))));return;}
     for(let r=0;r<grid.length;r++)for(let c=0;c<(grid[r]||[]).length;c++)if(grid[r][c]&&Math.hypot(cellX(r,c)-shot.x,cellY(r)-shot.y)<R*1.85){stick(r,c);return;}
   }
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+24*dt;w.a-=dt*3.2;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=26*dt;p.a-=dt*1.4;if(p.a<=0)pops.splice(i,1);}
   hud();}
 function hud(){$('iconT').innerHTML='🫧<b id="lvT">'+(Kit.lv+1)+'</b>';$('lifeT').textContent=lives;$('hitT').textContent=popped+'/'+need;
   $('hitLbl').innerHTML='消 <b id="hitT">'+popped+'/'+need+'</b>';$('score').textContent=score;
@@ -645,24 +653,28 @@ function endLv(won,why){if(ended)return;ended=true;
   else setTimeout(()=>Kit.lose(why||'失败',score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000)*fast;last=t;if(Kit.state==='play'&&!ended)upd(dt);draw();raf=requestAnimationFrame(frame);}
 function draw(){
-  if(FX)FX.stage(ctx,W,H,'#4fc3f7','#01579b');else{ctx.fillStyle='#01579b';ctx.fillRect(0,0,W,H);}
+  const by=BAYS[Math.min(2,Math.floor((Kit.lv||0)/5))];
+  if(FX)FX.stage(ctx,W,H,by.t,by.b);else{ctx.fillStyle=by.b;ctx.fillRect(0,0,W,H);}
   ctx.strokeStyle='#ef535088';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(0,H-110);ctx.lineTo(W,H-110);ctx.stroke();ctx.setLineDash([]);
   for(let r=0;r<grid.length;r++)for(let c=0;c<(grid[r]||[]).length;c++)if(grid[r][c]){
     const x=cellX(r,c),y=cellY(r);if(FX)FX.orb(ctx,x,y,R,COLS[grid[r][c]-1],'#fff');else{ctx.fillStyle=COLS[grid[r][c]-1];ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();}}
-  // aim
-  if(!shot){ctx.strokeStyle='#fff6';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(W/2,H-40);ctx.lineTo(W/2+Math.cos(aimAng)*100,H-40+Math.sin(aimAng)*100);ctx.stroke();}
+  // aim with wall reflection preview
+  if(!shot){ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=2;ctx.setLineDash([5,5]);ctx.beginPath();let rx=W/2,ry=H-40,vx=Math.cos(aimAng),vy=Math.sin(aimAng);ctx.moveTo(rx,ry);for(let s=0;s<22;s++){rx+=vx*14;ry+=vy*14;if(rx<R){rx=R;vx*=-1;}else if(rx>W-R){rx=W-R;vx*=-1;}ctx.lineTo(rx,ry);if(ry<40)break;}ctx.stroke();ctx.setLineDash([]);}
   if(shot){if(FX)FX.orb(ctx,shot.x,shot.y,R,COLS[shot.col-1],'#fff');else{ctx.fillStyle=COLS[shot.col-1];ctx.beginPath();ctx.arc(shot.x,shot.y,R,0,7);ctx.fill();}}
   if(FX)FX.orb(ctx,W/2,H-40,R,COLS[cur-1],'#fff');else{ctx.fillStyle=COLS[cur-1];ctx.beginPath();ctx.arc(W/2,H-40,R,0,7);ctx.fill();}
   ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.textAlign='left';ctx.fillText('下一个',W-70,H-70);
   if(FX)FX.orb(ctx,W-40,H-40,R*0.8,COLS[next-1],'#fff');
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
 $('startH').textContent='🫧 泡泡龙';
-$('startP').innerHTML='15 关瞄准三消：颜色更多、行数更高、会落新行。<br>第 5/10/15 关泡泡潮首领！可升级射速、加时、额外命。';
+$('startP').innerHTML='v8（Gemini 优化：3大泡泡海湾主题、虚线反射预测、爆裂震波与得分飘字、1×/2×倍速）<br>15 关瞄准三消：颜色更多、行数更高、会落新行。<br>第 5/10/15 关泡泡潮首领！可升级射速、加时、额外命。';
 Kit.init({id:'bubble',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start,stop:()=>{ended=true;},pause:()=>{},
-  note:()=>'瞄准发射，同色三连消除，悬空泡掉落',
+  note:()=>BAYS[Math.min(2,Math.floor((Kit.lv||0)/5))].name+' · 瞄准发射，同色三连消除，悬空泡掉落',
   tut:[['瞄准','拖动决定发射角度。','🫧'],
        ['三消','同色连成 3 个以上消除。','💥'],
        ['掉落','悬空泡泡会掉落加分。','⬇️'],

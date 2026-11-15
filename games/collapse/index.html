@@ -462,13 +462,13 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
 <div class="wrap">
   <div class="topbar">
     <span class="stat"><span>💥<b id="lvT">1</b></span><span>❤️<b id="lifeT">3</b></span><span>分 <b id="hitT">0</b></span><span>得分 <b id="score">0</b></span></span>
-    <span class="tools"><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
+    <span class="tools"><button class="iconbtn" id="spdBtn" aria-label="倍速">1×</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button><button class="iconbtn" id="pauseBtn" aria-label="暂停游戏">⏸</button></span>
   </div>
   <div class="subbar"><span id="goalLbl">目标</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">点相连同色块消除 · 至少 2 块连消</div>
 </div>
-<div class="overlay" id="startScr"><h1>💥 方块消消</h1><p>15 关连块消除：目标分升、限时、板更大。<br>第 5/10/15 关障碍块 Boss！可升级加时、重排、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始消除</button></div>
+<div class="overlay" id="startScr"><h1>💥 方块消消</h1><p>v10（Gemini 优化：3大霓虹棋盘主题、连消震波与得分飘字、1×/2×倍速）<br>15 关连块消除：目标分升、限时、板更大。<br>第 5/10/15 关障碍块 Boss！可升级加时、重排、额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始消除</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -593,9 +593,15 @@ const LV=[
  {rows:9,cols:9,colors:5,need:1100,time:42,obs:4},{rows:9,cols:9,colors:6,need:1200,time:40,obs:5},{rows:10,cols:9,colors:6,need:1300,time:40,obs:5},{rows:10,cols:9,colors:6,need:1400,time:38,obs:6},
  {boss:{name:'终极崩塌',rows:10,cols:9,colors:6,need:1600,time:80,obs:16}}
 ];
-let L,grid,rows,cols,need,score,ended,raf=0,last=0,fast=1,timeLeft,lives,cell,ox,oy,sparks,boss,nColors;
+const STAGES=[
+  {name:'靛蓝星盘',t:'#1a237e',b:'#0d1333'},
+  {name:'翡翠幻境',t:'#00695c',b:'#042925'},
+  {name:'绯红矩阵',t:'#880e4f',b:'#290418'}
+];
+let L,grid,rows,cols,need,score,ended,raf=0,last=0,fast=1,timeLeft,lives,cell,ox,oy,sparks,waves,pops,boss,nColors;
+$('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
 function start(i){L=LV[i];const b=L.boss||L;rows=b.rows;cols=b.cols;nColors=b.colors;need=b.need;timeLeft=(b.time||60)+Kit.up('time')*8;
-  score=0;ended=false;sparks=[];lives=3+Kit.up('life');boss=L.boss?{name:L.boss.name}:null;
+  score=0;ended=false;sparks=[];waves=[];pops=[];lives=3+Kit.up('life');boss=L.boss?{name:L.boss.name}:null;
   cell=Math.min(40,Math.floor(Math.min(W-20,H-20)/Math.max(rows,cols)));ox=(W-cols*cell)/2;oy=(H-rows*cell)/2;
   grid=[];for(let r=0;r<rows;r++){grid[r]=[];for(let c=0;c<cols;c++)grid[r][c]={c:(Math.random()*nColors)|0,obs:false};}
   let obs=b.obs||0;while(obs--){const r=(Math.random()*rows)|0,c=(Math.random()*cols)|0;grid[r][c].obs=true;grid[r][c].c=-1;}
@@ -611,9 +617,15 @@ cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||
   const vis=Array.from({length:rows},()=>Array(cols).fill(0));const grp=flood(r,c,grid[r][c].c,vis);
   if(grp.length<2){Kit.sfx('bad');return;}
   for(const [rr,cc] of grp){if(FX)FX.burst(sparks,ox+cc*cell+cell/2,oy+rr*cell+cell/2,COLORS[grid[rr][cc].c],6);grid[rr][cc]=null;}
-  const gain=grp.length*grp.length*10;score+=gain;Kit.sfx(grp.length>=5?'combo':'good');gravity();
+  const gain=grp.length*grp.length*10;score+=gain;Kit.sfx(grp.length>=5?'combo':'good');
+  waves.push({x:ox+c*cell+cell/2,y:oy+r*cell+cell/2,r:cell*.4,maxR:cell*2.2,a:1,c:'#ffeb3b'});
+  pops.push({x:ox+c*cell+cell/2,y:oy+r*cell,t:(grp.length>=5?'大消 ':'')+'+'+gain,c:'#ffeb3b',a:1.2});
+  gravity();
   if(score>=need)return endLv(true);hud();});
-function upd(dt){if(ended)return;timeLeft-=dt;if(timeLeft<=0)return endLv(false,'时间到');hud();}
+function upd(dt){if(ended)return;timeLeft-=dt;if(timeLeft<=0)return endLv(false,'时间到');
+  for(let i=waves.length-1;i>=0;i--){const w=waves[i];w.r+=(w.maxR-w.r)*Math.min(1,dt*10)+24*dt;w.a-=dt*3.2;if(w.a<=0)waves.splice(i,1);}
+  for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.y-=26*dt;p.a-=dt*1.4;if(p.a<=0)pops.splice(i,1);}
+  hud();}
 function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('hitT').textContent=score+'/'+need;$('score').textContent=score;
   $('goalLbl').textContent=boss?'👑 '+boss.name:'目标 '+need;$('progI').style.width=Math.min(100,score/need*100)+'%';
   $('infoT').textContent=Math.ceil(timeLeft)+'s';}
@@ -622,7 +634,7 @@ function endLv(won,why){if(ended)return;ended=true;
   else setTimeout(()=>Kit.lose(why,score),250);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 /* ART T2-5 */var coBg=null,coBgKey='';
-function ensureCoBg(){var k=W+'x'+H;if(coBg&&coBgKey===k)return coBg;coBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,'#1a237e','#0d1333');else{g.fillStyle='#0d1333';g.fillRect(0,0,W,H);}coBg=c;return coBg;}
+function ensureCoBg(){var si=Math.min(2,Math.floor((Kit.lv||0)/5)),st=STAGES[si],k=W+'x'+H+'_'+si;if(coBg&&coBgKey===k)return coBg;coBgKey=k;var c=document.createElement('canvas');c.width=W;c.height=H;var g=c.getContext('2d');if(FX)FX.stage(g,W,H,st.t,st.b);else{g.fillStyle=st.b;g.fillRect(0,0,W,H);}coBg=c;return coBg;}
 function draw(){
   ctx.drawImage(ensureCoBg(),0,0);
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const x=ox+c*cell,y=oy+r*cell;const g=grid[r][c];if(!g)continue;
@@ -630,12 +642,15 @@ function draw(){
     else{const col=COLORS[g.c];if(FX){FX.shadow(ctx,x+cell/2,y+cell/2+4,cell*.3,4,.25);FX.tile(ctx,x+3,y+3,cell-6,cell-6,col,8);}
       else{ctx.fillStyle=col;ctx.fillRect(x+3,y+3,cell-6,cell-6);}}
   }
+  for(const w of waves){ctx.strokeStyle=w.c;ctx.globalAlpha=Math.max(0,w.a);ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,7);ctx.stroke();}
+  for(const p of pops){ctx.globalAlpha=Math.max(0,Math.min(1,p.a));ctx.fillStyle=p.c;ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);}
+  ctx.globalAlpha=1;
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
 Kit.init({id:'collapse',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},pause:()=>{},
-  note:()=>'点相连同色块消除，达到目标分',
+  note:()=>STAGES[Math.min(2,Math.floor((Kit.lv||0)/5))].name+' · 点相连同色块消除，达到目标分',
   tut:[['连消','点至少 2 块相连同色。','💥'],
        ['下落','消除后上方下落补新块。','⬇️'],
        ['目标','在时限内达到目标分。','🎯'],
