@@ -99,7 +99,7 @@ async function main() {
     await checkPage(origin + '/', 'GET /', report);
     await checkPage(origin + '/preview/index.html', 'GET /preview/index.html', report);
 
-    var required = ['/src/sudoku-app.js', '/preview/platform-preview.js', '/preview/boot.js'];
+    var required = ['/src/sudoku-app.js', '/src/levels-data.js', '/src/app.js', '/preview/platform-preview.js', '/preview/boot.js'];
     var i;
     for (i = 0; i < required.length; i++) {
       var res = await request(origin + required[i]);

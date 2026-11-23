@@ -72,7 +72,7 @@ if (require.main === module) {
     }
     var addr = server.address();
     var host = addr.address === '0.0.0.0' || addr.address === '::' ? '127.0.0.1' : addr.address;
-    console.log('sudoku preview listening on http://' + host + ':' + addr.port + '/');
+    console.log('logic-puzzles preview listening on http://' + host + ':' + addr.port + '/');
     console.log('This is a local Canvas preview, not WeChat DevTools or a device.');
   });
 }
