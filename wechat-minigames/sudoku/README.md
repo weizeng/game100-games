@@ -19,13 +19,16 @@
 
 ## 本地预览（不是微信真机）
 
-仓库根目录之外，在本目录启动：
+在本目录 `wechat-minigames/sudoku` 启动（不要把工作目录设到 `preview/` 再找别的入口）：
 
 ```bash
+cd wechat-minigames/sudoku
 node preview/server.js
 ```
 
-默认地址：<http://127.0.0.1:8765/>（可用环境变量 `PORT` 修改）。
+然后打开 **http://127.0.0.1:8765/** （可用环境变量 `PORT` 修改）。
+
+服务会把 `/` 直接返回预览页，但浏览器地址栏仍是 `/`，所以页面里的脚本使用站点根绝对路径：`/src/sudoku-app.js`、`/preview/platform-preview.js`、`/preview/boot.js`。不要改回 `./boot.js` 这类相对路径，否则会请求 `/boot.js` 得到 404，Canvas 只剩黑色底板。`http://127.0.0.1:8765/preview/index.html` 同样可用。
 
 浏览器里能玩，只说明共用的核心逻辑和 Canvas 布局可以在普通 Canvas 上跑。**不能**把它当成微信开发者工具或真机已经通过。页面顶部有明确提示。
 
@@ -50,7 +53,7 @@ node preview/server.js
 
 ```bash
 # 需要本机已安装 @napi-rs/canvas（测试脚本默认从 /tmp/napi-canvas/node_modules 加载）
-node test/run-tests.js
+node test/run-tests.js   # 含 preview HTTP 回归：用 / 解析脚本地址，全部须 200
 ```
 
 这是 Node 里的逻辑测试和程序化 Canvas 截图，**不是**浏览器自动化，也**不是**微信真机测试。覆盖：首关通关、错误输入、清除、提示、暂停后续玩、计时在暂停时冻结、坐标映射。

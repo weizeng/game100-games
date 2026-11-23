@@ -319,5 +319,11 @@ console.log('\nwechat pack files: ' + (wxBytes / 1024).toFixed(1) + ' KB');
 sizeReport.forEach(function (f) {
   console.log('  ' + (f.bytes + '   ').padStart(8) + f.path);
 });
-console.log('\n' + report.passed + ' passed, ' + report.failed + ' failed');
-process.exit(failed.length ? 1 : 0);
+console.log('\nlogic tests: ' + report.passed + ' passed, ' + report.failed + ' failed');
+var httpTest = require('./preview-http.js');
+httpTest.main().then(function () {
+  process.exit(failed.length ? 1 : 0);
+}).catch(function (err) {
+  console.error(err);
+  process.exit(1);
+});
