@@ -465,7 +465,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">点方向发射彩球 · 同色三连消除</div>
 </div>
-<div class="overlay" id="startScr"><h1>🐸 祖玛</h1><p>15 关射球消链：颜色更多、链更快。<br>第 5/10/15 关铁球潮/彩虹灾/祖玛魔！可升级换球、慢速、额外命。<br><small style="opacity:.85">v8（Gemini 优化：3大丛林神庙主题、1×/2×倍速、瞄准虚线与消链波纹）</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始消除</button></div>
+<div class="overlay" id="startScr"><h1>🐸 祖玛</h1><p>15 关射球消链：颜色更多、链更快。<br>第 5/10/15 关铁球潮/彩虹灾/祖玛魔！可升级换球、慢速、额外命。<br><small style="opacity:.85">v9：按住拖动瞄准、松手发射；飞行中也可继续瞄准。</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始消除</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -589,7 +589,7 @@ const LV=[
  {need:24,colors:5,spd:55,len:22},{need:26,colors:5,spd:58,len:24},{need:28,colors:5,spd:62,len:24},{need:28,colors:5,spd:66,len:26},
  {boss:{name:'祖玛魔王',need:24,colors:5,spd:72,len:28,hp:1}}
 ];
-let L,chain,ball,next,angle,shot,lives,score,ended,raf=0,last=0,fast=1,need,cleared,boss,path,sparks,slowF,waves=[],pops=[];
+let L,chain,ball,next,angle,shot,lives,score,ended,raf=0,last=0,fast=1,need,cleared,boss,path,sparks,slowF,waves=[],pops=[],aiming=false,queued=false;
 const TEMPLES=[{a:'#1b5e20',b:'#0d2818',n:'🌿翡翠神庙'},{a:'#8a5a19',b:'#361f08',n:'🏜️黄金沙殿'},{a:'#6b1d45',b:'#260a1b',n:'🌋黑曜魔窟'}];
 function addWave(x,y,c){waves.push({x,y,r:8,life:1,c});}
 function addPop(x,y,t,c){pops.push({x,y,t,life:1,c});}
@@ -599,16 +599,22 @@ function pathAt(t){// U-shaped path
   if(t<0.35){const u=t/0.35;return{x:x0,y:y0+u*(y1-y0)};}
   if(t<0.65){const u=(t-0.35)/0.3;return{x:x0+u*(x1-x0),y:y1};}
   const u=(t-0.65)/0.35;return{x:x1,y:y1-u*(y1-y0)};}
-function start(i){L=LV[i];score=0;ended=false;shot=null;angle=-Math.PI/2;sparks=[];waves=[];pops=[];lives=3+Kit.up('life');cleared=0;
+function start(i){L=LV[i];score=0;ended=false;shot=null;aiming=false;queued=false;angle=-Math.PI/2;sparks=[];waves=[];pops=[];lives=3+Kit.up('life');cleared=0;
   const b=L.boss||L;need=b.need;slowF=1-Kit.up('slow')*.12;
   chain=[];let t=0.05;for(let k=0;k<b.len;k++){chain.push({t,c:Math.random()*b.colors|0});t+=0.028;}
   ball=Math.random()*b.colors|0;next=Math.random()*b.colors|0;
   boss=L.boss?{name:L.boss.name}:null;
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
 function pos(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};}
-cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||ended||shot)return;
-  const p=pos(e);angle=Math.atan2(p.y-(H-30),p.x-W/2);shot={x:W/2,y:H-30,vx:Math.cos(angle)*420,vy:Math.sin(angle)*420,c:ball};ball=next;next=Math.random()*(L.boss||L).colors|0;Kit.sfx('tap');});
-cv.addEventListener('pointermove',e=>{if(Kit.state!=='play')return;const p=pos(e);angle=Math.atan2(p.y-(H-30),p.x-W/2);});
+function frog(){return{x:W/2,y:H-30};}
+function aimAt(p){const f=frog();angle=Math.atan2(p.y-f.y,p.x-f.x);}
+function fire(){if(Kit.state!=='play'||ended||shot)return false;const f=frog();const spd=460;shot={x:f.x,y:f.y,vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd,c:ball};ball=next;next=Math.random()*(L.boss||L).colors|0;Kit.sfx('tap');return true;}
+function trySwap(p){const d=Math.hypot(p.x-(W/2+48),p.y-(H-30));if(d>24)return false;if(!Kit.up('swap')){Kit.toast&&Kit.toast('商店可解锁换球');return true;}const t=ball;ball=next;next=t;Kit.sfx('tap');return true;}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();if(Kit.state!=='play'||ended)return;const p=pos(e);if(trySwap(p))return;aimAt(p);aiming=true;if(cv.setPointerCapture)cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',e=>{if(Kit.state!=='play'||ended)return;const p=pos(e);aimAt(p);});
+function endAim(e){if(!aiming)return;aiming=false;if(e)aimAt(pos(e));if(!fire())queued=true;}
+cv.addEventListener('pointerup',endAim);
+cv.addEventListener('pointercancel',endAim);
 function matchClear(idx){const c=chain[idx].c,pt=pathAt(chain[idx].t);let l=idx,r=idx;while(l>0&&chain[l-1].c===c)l--;while(r<chain.length-1&&chain[r+1].c===c)r++;
   if(r-l+1>=3){const n=r-l+1;chain.splice(l,n);cleared+=n;score+=n*15;Kit.sfx('good');addWave(pt.x,pt.y,COLS[c]);addPop(pt.x,pt.y-12,'+'+(n*15),'#ffd34d');if(FX)FX.burst(sparks,pt.x,pt.y,COLS[c],12);return true;}return false;}
 function upd(dt){
@@ -623,7 +629,8 @@ function upd(dt){
       // cascade simple
       for(let k=0;k<5;k++){let any=false;for(let i=0;i<chain.length;i++){if(matchClear(i)){any=true;break;}}if(!any)break;}
       if(cleared>=need||chain.length===0)return endLv(true);}
-    else if(shot.x<-20||shot.x>W+20||shot.y<-20||shot.y>H+20)shot=null;}
+    else if(shot.x<-20||shot.x>W+20||shot.y<-20||shot.y>H+20)shot=null;
+    if(!shot&&queued){queued=false;fire();}}
   hud();}
 function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('hitT').textContent=cleared+'/'+need;$('score').textContent=score;
   $('goalLbl').textContent=boss?'👑 '+boss.name:'消除 '+cleared+'/'+need;$('progI').style.width=Math.min(100,cleared/need*100)+'%';
@@ -639,11 +646,16 @@ function draw(){
   ctx.strokeStyle='rgba(255,255,255,.15)';ctx.lineWidth=18;ctx.beginPath();
   for(let i=0;i<=40;i++){const p=pathAt(i/40);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);}ctx.stroke();
   for(const q of chain){const p=pathAt(q.t);if(FX)FX.orb(ctx,p.x|0,p.y|0,12,COLS[q.c]);else{ctx.fillStyle=COLS[q.c];ctx.beginPath();ctx.arc(p.x,p.y,12,0,7);ctx.fill();}}
-  // aim line & shooter
-  ctx.save();ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=2;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(W/2,H-30);ctx.lineTo(W/2+Math.cos(angle)*180,H-30+Math.sin(angle)*180);ctx.stroke();ctx.restore();
-  ctx.save();ctx.translate(W/2,H-30);ctx.rotate(angle);ctx.fillStyle='#fff';ctx.fillRect(0,-4,28,8);ctx.restore();
-  if(FX)FX.orb(ctx,W/2,H-30,14,COLS[ball]);else{ctx.fillStyle=COLS[ball];ctx.beginPath();ctx.arc(W/2,H-30,14,0,7);ctx.fill();}
-  if(FX)FX.orb(ctx,W/2+40,H-30,8,COLS[next]);
+  // aim line & frog shooter
+  const fr=frog();
+  ctx.save();ctx.strokeStyle=aiming?'rgba(255,236,150,.9)':'rgba(255,255,255,.5)';ctx.lineWidth=aiming?3.4:2.2;ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(fr.x,fr.y);ctx.lineTo(fr.x+Math.cos(angle)*200,fr.y+Math.sin(angle)*200);ctx.stroke();ctx.setLineDash([]);
+  ctx.globalAlpha=.4;if(FX)FX.orb(ctx,fr.x+Math.cos(angle)*72,fr.y+Math.sin(angle)*72,9,COLS[ball]);ctx.restore();
+  ctx.save();ctx.translate(fr.x,fr.y+8);ctx.fillStyle='#43a047';ctx.beginPath();ctx.ellipse(0,0,24,16,0,0,7);ctx.fill();ctx.fillStyle='#a5d6a7';ctx.beginPath();ctx.ellipse(-8,-6,5,6,0,0,7);ctx.ellipse(8,-6,5,6,0,0,7);ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(fr.x,fr.y);ctx.rotate(angle);ctx.fillStyle='#c8e6c9';ctx.fillRect(8,-7,26,14);ctx.restore();
+  if(FX)FX.orb(ctx,fr.x,fr.y,14,COLS[ball]);else{ctx.fillStyle=COLS[ball];ctx.beginPath();ctx.arc(fr.x,fr.y,14,0,7);ctx.fill();}
+  if(FX)FX.orb(ctx,fr.x+48,fr.y,10,COLS[next]);else{ctx.fillStyle=COLS[next];ctx.beginPath();ctx.arc(fr.x+48,fr.y,10,0,7);ctx.fill();}
+  ctx.fillStyle='#fff';ctx.font='bold 9px sans-serif';ctx.textAlign='center';ctx.fillText(Kit.up('swap')?'点此换球':'下一球',fr.x+48,fr.y+20);
+  ctx.fillStyle='rgba(255,255,255,.9)';ctx.font='bold 11px sans-serif';ctx.fillText(aiming?'松手发射':'拖动瞄准，松手发射',fr.x,18);
   if(shot){if(FX)FX.orb(ctx,shot.x|0,shot.y|0,12,COLS[shot.c]);else{ctx.fillStyle=COLS[shot.c];ctx.beginPath();ctx.arc(shot.x,shot.y,12,0,7);ctx.fill();}}
   for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.life);ctx.strokeStyle=w.c;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
   for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.c;ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText(p.t,p.x,p.y);ctx.restore();}
@@ -652,9 +664,9 @@ function draw(){
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
 Kit.init({id:'zuma',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;shot=null;},pause:()=>{},
-  note:()=>'瞄准发射同色球，三连消除阻止球链',
-  tut:[['瞄准','滑动/点按瞄准方向。','🐸'],
-       ['发射','射出彩球插入链中。','🎯'],
+  note:()=>'拖动瞄准、松手发射同色球，三连消除阻止球链',
+  tut:[['瞄准','按住并拖动瞄准方向。','🐸'],
+       ['发射','松手射出彩球，插入链中。','🎯'],
        ['三消','同色三颗以上消除得分。','💥'],
        ['Boss','链更快颜色更多，可升级慢速。','👑']],
   ups:[{k:'slow',ic:'🐢',name:'慢速',desc:'球链更慢',max:2,cost:l=>28+l*30},

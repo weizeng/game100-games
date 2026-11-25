@@ -455,7 +455,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">画至少 3 颗同色相邻球消除</p>
 </div>
-<div class="overlay" id="startScr"><h1>🍬 彩途爆消</h1><p>按住并从一颗彩球拖到相邻同色球，连成至少 3 颗即可消除。<br>完成后上方彩球落下补空，完成收集目标过关。<br>首领关有冰冻球，需要连消两次。<br><small style="opacity:.85">v2（Gemini 优化：3大糖果秘境、连线流光与消除波纹飘分）</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🍬 彩途爆消</h1><p>按住并从一颗彩球拖到相邻同色球，连成至少 3 颗即可消除。<br>完成后上方彩球落下补空，完成收集目标过关。<br>首领关有冰冻球，需要连消两次。<br><small style="opacity:.85">v3：连消会沿路径爆开并显示连击，彩球带落珠动画。</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -507,7 +507,7 @@ const SHOP=[
 ];
 const COLS=[{c:'#fb7185',n:'红'},{c:'#38bdf8',n:'蓝'},{c:'#fbbf24',n:'黄'},{c:'#34d399',n:'绿'},{c:'#c084fc',n:'紫'}];
 const REALMS=[{a:'#ff8ac6',b:'#8d58ff',n:'🍓莓果秘境'},{a:'#38bdf8',b:'#1e3a8a',n:'🌌星海糖域'},{a:'#fb923c',b:'#7c2d12',n:'🔥炽糖熔殿'}];
-let grid=[], R=6, C=6, path=[], moves=0, moveMax=20, goal=[], ice=[], bombs=0, hintP=null, waves=[], pops=[];
+let grid=[], R=6, C=6, path=[], moves=0, moveMax=20, goal=[], ice=[], bombs=0, hintP=null, waves=[], pops=[], falls=[], comboN=0, comboT=0, comboX=0, comboY=0;
 function addWave(x,y,c){waves.push({x,y,r:8,life:1,c});}
 function addPop(x,y,t,c){pops.push({x,y,t,life:1,c});}
 function startLevel(n){
@@ -519,12 +519,13 @@ function startLevel(n){
   const need=8+lvl*2+(boss?4:0);
   goal=new Array(colors).fill(0); for(let i=0;i<need;i++) goal[Math.floor(rng()*colors)]++;
   moveMax=Math.max(8, 22-Math.floor(lvl/2)+(prog.moveLv|0)*3+(lvl<=2?4:0));
-  moves=moveMax; path=[]; bombs=prog.bombLv|0; hintP=null;
+  moves=moveMax; path=[]; bombs=prog.bombLv|0; hintP=null; falls=[]; comboT=0; comboN=0;
   diff=lvl*10+need+(boss?24:0)+Math.max(0,24-moveMax);
   score=0; sparks=[]; waves=[]; pops=[]; show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);
   state='play'; last=performance.now(); beep(660,.1); $('score').textContent=0;
   $('hint').textContent=boss?'冰冻球要连消两次，步数更紧':'画至少 3 颗同色相邻球消除';
 }
+function cellXY(r,c){const x0=24,y0=86,s=52;return{x:x0+c*s+s/2,y:y0+r*s+s/2,s,x0,y0};}
 function cellOf(p){
   const x0=24,y0=86,s=52;
   const c=Math.floor((p.x-x0)/s), r=Math.floor((p.y-y0)/s);
@@ -533,7 +534,7 @@ function cellOf(p){
 }
 function adj(a,b){return Math.abs(a.r-b.r)+Math.abs(a.c-b.c)===1;}
 function onDown(p){
-  if(inHit(p)) return;
+  if(falls.length||inHit(p)) return;
   const q=cellOf(p); if(!q) return; path=[q];
 }
 function onMove(p){
@@ -545,16 +546,28 @@ function onMove(p){
   if(adj(last,q) && grid[q.r][q.c]===grid[path[0].r][path[0].c]) path.push(q);
 }
 function gravity(){
+  falls=[];
   for(let c=0;c<C;c++){
-    let w=R-1;
+    const pieces=[];
     for(let r=R-1;r>=0;r--){
       if(grid[r][c]<0) continue;
-      if(w!==r){ grid[w][c]=grid[r][c]; ice[w][c]=ice[r][c]; grid[r][c]=-1; ice[r][c]=0; }
-      w--;
+      pieces.push({col:grid[r][c],ice:ice[r][c],from:r});
     }
-    const rng=mulberry32(lvl*77+c*13+moves*9+w+3);
+    for(let r=0;r<R;r++){grid[r][c]=-1;ice[r][c]=0;}
+    for(let i=0;i<pieces.length;i++){
+      const to=R-1-i,p=pieces[i];
+      grid[to][c]=p.col;ice[to][c]=p.ice;
+      if(p.from!==to) falls.push({c,col:p.col,ice:p.ice,fromY:cellXY(p.from,c).y,toR:to,t:0,dur:0.22});
+    }
+    const rng=mulberry32(lvl*77+c*13+moves*9+3);
     const colors=goal.length;
-    while(w>=0){ grid[w][c]=Math.floor(rng()*colors); ice[w][c]=0; w--; }
+    let write=R-1-pieces.length, spawn=-1;
+    while(write>=0){
+      const col=Math.floor(rng()*colors);
+      grid[write][c]=col;ice[write][c]=0;
+      falls.push({c,col,ice:0,fromY:cellXY(spawn,c).y,toR:write,t:0,dur:0.2+(-spawn)*0.03});
+      write--;spawn--;
+    }
   }
 }
 function onUp(){
@@ -565,11 +578,11 @@ function onUp(){
       if(ice[q.r][q.c]>0){ ice[q.r][q.c]--; }
       else { grid[q.r][q.c]=-1; cleared++; if(goal[col]>0) goal[col]--; score+=10; }
     }
-    gravity(); moves--; $('score').textContent=score; beep(840,.08);
-    const cx=24+path.reduce((s,q)=>s+q.c,0)/path.length*52+26, cy=86+path.reduce((s,q)=>s+q.r,0)/path.length*52+26;
-    addWave(cx,cy,COLS[col].c);
-    if(cleared>0) addPop(cx,cy-10,'+'+(cleared*10),'#ffd34d');
-    if(FX) FX.burst(sparks,cx,cy,COLS[col].c,16);
+    for(const q of path){const p=cellXY(q.r,q.c);addWave(p.x,p.y,COLS[col].c);if(FX)FX.burst(sparks,p.x,p.y,COLS[col].c,8+Math.min(8,path.length));}
+    gravity(); moves--; $('score').textContent=score; beep(640+Math.min(400,path.length*36),.09);
+    const mid=cellXY(path.reduce((s,q)=>s+q.r,0)/path.length, path.reduce((s,q)=>s+q.c,0)/path.length);
+    comboN=path.length;comboT=0.9;comboX=mid.x;comboY=mid.y-18;
+    if(cleared>0) addPop(mid.x,mid.y-10, (path.length>=5?('连消×'+path.length+' '):'')+'+'+(cleared*10),'#ffd34d');
     if(goal.every(v=>v<=0)) win();
     else if(moves<=0) lose('步数用尽');
   }
@@ -604,20 +617,39 @@ function draw(){
   const now=performance.now(), dt=Math.min(0.05,(now-(draw._t||now))/1000); draw._t=now;
   for(let i=waves.length-1;i>=0;i--){waves[i].r+=120*dt;waves[i].life-=dt*2.2;if(waves[i].life<=0)waves.splice(i,1);}
   for(let i=pops.length-1;i>=0;i--){pops[i].y-=26*dt;pops[i].life-=dt*1.5;if(pops[i].life<=0)pops.splice(i,1);}
+  if(comboT>0)comboT=Math.max(0,comboT-dt);
+  for(let i=falls.length-1;i>=0;i--){falls[i].t+=dt;if(falls[i].t>=falls[i].dur)falls.splice(i,1);}
   const rlm=REALMS[Math.min(2,((lvl-1)/5)|0)];
   hits=[]; stage(rlm.a,rlm.b);
   if(state!=='play'&&state!=='pause') return;
   label((boss?'👑 ':'')+'步数 '+moves+'/'+moveMax+' · '+rlm.n,14,20,'#fff',13,'left');
   label(goal.map((v,i)=>COLS[i].n+v).join('  '),14,40,'#ffe4f5',12,'left');
   const x0=24,y0=86,s=52;
+  const falling=new Set(falls.map(f=>f.toR+','+f.c));
   for(let r=0;r<R;r++) for(let c=0;c<C;c++){
     const x=x0+c*s,y=y0+r*s, on=path.some(q=>q.r===r&&q.c===c);
-    tile(x+3,y+3,s-6,s-6,on?'#fff7ed':COLS[grid[r][c]].c,12);
+    tile(x+3,y+3,s-6,s-6,on?'#fff7ed':'rgba(255,255,255,.10)',12);
+    if(falling.has(r+','+c)||grid[r][c]<0) continue;
+    orb(x+s/2,y+s/2,(s-16)/2,COLS[grid[r][c]].c);
     if(ice[r][c]) label('❄',x+s/2,y+s/2,'#fff',16,'center');
   }
+  for(const f of falls){
+    const p=cellXY(f.toR,f.c), k=Math.min(1,f.t/f.dur), e=1-Math.pow(1-k,3);
+    const y=f.fromY+(p.y-f.fromY)*e;
+    orb(p.x,y,(s-16)/2,COLS[f.col].c);
+    if(f.ice) label('❄',p.x,y,'#fff',16,'center');
+  }
   if(path.length>=2){
-    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=4; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.beginPath();
-    path.forEach((q,i)=>{const x=x0+q.c*s+s/2,y=y0+q.r*s+s/2; i?ctx.lineTo(x,y):ctx.moveTo(x,y);}); ctx.stroke(); ctx.restore();
+    const pulse=3.5+Math.sin(performance.now()/120)*1.2+Math.min(4,path.length*0.35);
+    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=pulse+6; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.shadowColor='#fff'; ctx.shadowBlur=12; ctx.beginPath();
+    path.forEach((q,i)=>{const x=x0+q.c*s+s/2,y=y0+q.r*s+s/2; i?ctx.lineTo(x,y):ctx.moveTo(x,y);}); ctx.stroke();
+    ctx.shadowBlur=0; ctx.strokeStyle='rgba(255,252,220,.95)'; ctx.lineWidth=pulse; ctx.stroke(); ctx.restore();
+  }
+  if(comboT>0){
+    const sc=1.15+(comboT>0.6?(0.9-comboT)*2:comboT*0.2);
+    ctx.save();ctx.translate(comboX,comboY);ctx.scale(sc,sc);ctx.globalAlpha=Math.min(1,comboT*2);
+    ctx.fillStyle='#fff7ed';ctx.font='bold 22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('连消 ×'+comboN,0,0);ctx.restore();
   }
   if(hintP){
     ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath();
