@@ -607,11 +607,11 @@ cv.addEventListener('pointermove',e=>{if(aiming)setAim(e);});
 addEventListener('pointerup',e=>{if(!aiming)return;aiming=false;shoot();});
 function setAim(e){const r=cv.getBoundingClientRect();const x=(e.clientX-r.left)*W/r.width,y=(e.clientY-r.top)*H/r.height;
   aimAng=Math.atan2(y-cue.y,x-cue.x);power=Math.min(1,Math.hypot(x-cue.x,y-cue.y)/140);}
-function shoot(){if(!allStopped())return;const b=L.boss||L;const p=(0.35+power*0.65)*(180+Kit.up('hint')*40)*b.pow;
+function shoot(){if(!allStopped())return;const b=L.boss||L;const p=(0.42+power*0.58)*(920+Kit.up('hint')*180)*b.pow;
   cue.vx=Math.cos(aimAng)*p;cue.vy=Math.sin(aimAng)*p;shots++;power=0;Kit.sfx('hit');}
 $('btnHint').onclick=()=>{Kit.toast('拖动瞄准蓄力，松手击球进袋');Kit.sfx('coin');};
 function step(dt){
-  const fr=0.988;const objs=[cue,...balls.filter(b=>b.alive)];
+  const fr=0.991;const objs=[cue,...balls.filter(b=>b.alive)];
   for(const o of objs){o.x+=o.vx*dt;o.y+=o.vy*dt;o.vx*=fr;o.vy*=fr;
     if(o.x<28+o.r){o.x=28+o.r;o.vx*=-0.9;}if(o.x>W-28-o.r){o.x=W-28-o.r;o.vx*=-0.9;}
     if(o.y<28+o.r){o.y=28+o.r;o.vy*=-0.9;}if(o.y>H-28-o.r){o.y=H-28-o.r;o.vy*=-0.9;}
@@ -643,14 +643,27 @@ function draw(){
   for(const [px,py] of pockets){ctx.fillStyle='#000';ctx.beginPath();ctx.arc(px,py,16,0,7);ctx.fill();}
   for(const b of balls){if(!b.alive)continue;if(FX)FX.orb(ctx,b.x,b.y,b.r,b.col,'#222');else{ctx.fillStyle=b.col;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();}}
   if(FX)FX.orb(ctx,cue.x,cue.y,cue.r,'#fff','#bbb');else{ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(cue.x,cue.y,cue.r,0,7);ctx.fill();}
-  if(aiming&&allStopped()){ctx.strokeStyle='#fff8';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cue.x,cue.y);
-    ctx.lineTo(cue.x+Math.cos(aimAng)*80*power,cue.y+Math.sin(aimAng)*80*power);ctx.stroke();}
+  if(aiming&&allStopped()){
+    const ang=aimAng,c=Math.cos(ang),s=Math.sin(ang);
+    ctx.setLineDash([7,6]);ctx.strokeStyle='rgba(255,253,231,.9)';ctx.lineWidth=2.4;
+    ctx.beginPath();ctx.moveTo(cue.x+c*16,cue.y+s*16);ctx.lineTo(cue.x+c*210,cue.y+s*210);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,255,255,.35)';ctx.beginPath();ctx.arc(cue.x+c*26,cue.y+s*26,5,0,7);ctx.fill();
+    const pull=26+power*64,bx=cue.x-c*pull,by=cue.y-s*pull;
+    ctx.lineCap='round';
+    ctx.strokeStyle='#4e342e';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx-c*158,by-s*158);ctx.stroke();
+    ctx.strokeStyle='#d7a86e';ctx.lineWidth=5.5;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx-c*150,by-s*150);ctx.stroke();
+    ctx.strokeStyle='#efebe9';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx-c*14,by-s*14);ctx.stroke();
+    ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(24,H-36,W-48,14);
+    ctx.fillStyle=power>0.75?'#ff8a65':'#ffd54f';ctx.fillRect(24,H-36,(W-48)*power,14);
+    ctx.strokeStyle='#fff8e1';ctx.lineWidth=1;ctx.strokeRect(24,H-36,W-48,14);
+    ctx.fillStyle='#fffde7';ctx.font='bold 11px sans-serif';ctx.textAlign='left';ctx.fillText('蓄力 '+(power*100|0)+'%',24,H-42);
+  }
   if(FX)FX.drawBurst(ctx,sparks);
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
 $('startH').textContent='🎱 桌球';
-$('startP').innerHTML='15 关击球进袋：目标更多、球更挤、偶有滚动。<br>第 5/10/15 关台面首领！可升级杆力、加时、额外命。';
+$('startP').innerHTML='15 关击球进袋：拖动瞄准方向并拉开球杆蓄力，松手击球。<br>第 5/10/15 关台面首领！可升级杆力、加时、额外命。';
 Kit.init({id:'billiards',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start,stop:()=>{ended=true;},pause:()=>{},
   note:()=>'拖动瞄准蓄力，把彩球打进袋',
   tut:[['瞄准','按住拖动决定方向与力度。','🎱'],

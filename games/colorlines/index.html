@@ -470,7 +470,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="hint" id="hint">点彩珠再点可达空格滑移 · 连成指定颗数同色珠即可消除！</div>
 </div>
 <div class="overlay" id="startScr"><h1 id="startH">🟣 彩色连珠</h1><p id="startP"></p><p id="bestLine"></p><button class="btn" id="startBtn">开始连珠</button></div>
-<div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
+<div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn" id="endlessBtn" type="button">♾ 无尽模式</button><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="overScr"><h2 id="overH">过关</h2><div id="overStars"></div><div class="score" id="finalScore">0</div><p id="overText"></p><div class="rowbtns"><button class="btn" id="nextBtn">下一关</button><button class="btn ghost" id="againBtn">再来一次</button><button class="btn ghost" id="menu2Btn">选择关卡</button></div></div>
@@ -615,6 +615,7 @@ const LV=[
 ];
 
 let L,N,board,selected,reachMap,nextOrbs,cleared,score,lives,hammers,hammerMode,ended,moves;
+let endless=false,endlessWanted=false,wave=1,endBest=+((window.GameUI&&GameUI.storageGet&&GameUI.storageGet('g100_colorlines_endhs'))||0)||0;
 let slideAnim=null,sparks=[],floats=[],raf=0,last=0,fast=1,tAnim=0;
 
 function cellGeom(){
@@ -745,7 +746,16 @@ function clearMatches(){
   floats.push({x:mid.x,y:mid.y-10,txt:'+'+cnt+'颗!',c:'#ffcf33',life:1});
   Kit.sfx(cnt>=6?'combo':'good',cnt);
   hud();
-  if(cleared>=L.goal){
+  if(endless){
+    const need=12+wave*8;
+    if(cleared>=need){
+      wave++;
+      L=endlessCfg(wave);
+      if(L.ice>0)spawnNext(1,true);
+      Kit.toast('♾ 第'+wave+'波：珠色'+L.cols+' · 出珠'+L.spawn+' · '+L.line+'连',1400);
+      Kit.sfx('combo',wave);
+    }
+  }else if(cleared>=L.goal){
     winLevel();
   }
   return cnt;
@@ -790,8 +800,19 @@ function checkFullRescue(){
   }
 }
 
-function start(i){
-  L=LV[i];
+function endlessCfg(w){
+  return {n:7,cols:Math.min(6,4+Math.floor((w-1)/2)),line:w>=4?5:4,goal:1e9,ice:Math.min(3,Math.floor(w/3)),spawn:Math.min(5,3+Math.floor((w-1)/3)),name:'无尽 · 第'+w+'波'};
+}
+function startEndless(){
+  endlessWanted=true;
+  ['startScr','overScr','pauseOv','lvlScr','tutScr'].forEach(x=>show(x,false));
+  Kit.state='play';
+  start(0,{endless:true});
+  Kit.toast('♾ 无尽模式：消除越多，出珠越快、颜色越多',1600);
+}
+function start(i,opt){
+  endless=!!(opt&&opt.endless);
+  if(endless){wave=1;L=endlessCfg(1);}else{endlessWanted=false;L=LV[i];}
   N=L.n;
   board=Array(N*N).fill(0);
   selected=-1;reachMap=new Map();
@@ -915,7 +936,7 @@ $('btnHint').addEventListener('click',()=>{
       Kit.sfx('good');
       Kit.toast('💡 妙手连珠：净化消除 '+clearN+' 颗彩珠！',1100);
       hud();
-      if(cleared>=L.goal)winLevel();
+      if(!endless&&cleared>=L.goal)winLevel();
     }else if(bm){
       executeMove(bm.from,bm.to,bm.path);
     }
@@ -944,7 +965,7 @@ cv.addEventListener('pointerdown',e=>{
     score+=20;
     Kit.sfx('hit');Kit.vibrate(35);
     hud();
-    if(cleared>=L.goal)winLevel();
+    if(!endless&&cleared>=L.goal)winLevel();
     return;
   }
 
@@ -970,7 +991,7 @@ cv.addEventListener('pointerdown',e=>{
 });
 
 function winLevel(){
-  if(ended)return;
+  if(ended||endless)return;
   score+=120+lives*30+hammers*20;
   hud();
   endLv(true,L.boss?'成功击败 '+L.boss+'！':'彩珠消除目标完美达成！');
@@ -978,6 +999,11 @@ function winLevel(){
 
 function endLv(won,why){
   if(ended)return;ended=true;
+  if(endless){
+    if(score>endBest){endBest=score;try{UI.storageSet('g100_colorlines_endhs',String(endBest));}catch(e){}}
+    setTimeout(()=>Kit.lose((why||'无尽结束')+'\n第'+wave+'波 · 最佳 '+endBest,score),220);
+    return;
+  }
   if(won){
     const st=lives>=3?3:lives>=2?2:1;
     setTimeout(()=>Kit.win(st,score,why),240);
@@ -987,12 +1013,22 @@ function endLv(won,why){
 }
 
 function hud(){
+  if(endless){
+    const need=12+wave*8,prev=12+(wave-1)*8;
+    $('iconT').innerHTML='♾<b id="lvT">'+wave+'</b>';
+    $('lifeT').textContent=lives;
+    $('hitLbl').innerHTML='消除 <b id="hitT">'+cleared+'</b>';
+    $('score').textContent=score;
+    $('goalLbl').textContent='无尽 · 第'+wave+'波 · '+L.line+'连';
+    $('progI').style.width=Math.min(100,(cleared-prev)/Math.max(1,need-prev)*100)+'%';
+  }else{
   $('iconT').innerHTML='🟣<b id="lvT">'+(Kit.lv+1)+'</b>';
   $('lifeT').textContent=lives;
   $('hitLbl').innerHTML='消除 <b id="hitT">'+Math.min(cleared,L.goal)+'/'+L.goal+'</b>';
   $('score').textContent=score;
   $('goalLbl').textContent=(L.boss?'👑 '+L.boss:L.name)+' · '+L.line+'连消';
   $('progI').style.width=Math.min(100,cleared/L.goal*100)+'%';
+  }
   $('infoT').textContent='🔨'+hammers;
   $('btnHammer').textContent=hammerMode?'🔨 点棋盘击碎':'🔨 碎珠锤('+hammers+')';
   $('hint').textContent=hammerMode?'🔨 点击任意阻碍彩珠或🧊冰障立即击碎！':(selected>=0?'✨ 绿点为可达空格，点击即可沿路径滑移彩珠':'点彩珠再点可达空格 · 🌈百搭任意色 · 💣连消爆3×3');
@@ -1135,7 +1171,7 @@ function layout(){
 addEventListener('resize',layout);layout();
 
 $('startH').textContent='🟣 彩色连珠';
-$('startP').innerHTML='15 关经典五子彩珠解谜：沿无阻挡空格滑移彩珠，横竖斜连线消除！<br>善用 🌈彩虹百搭珠、💣爆破珠与 🔨碎珠锤，挑战三大封盘首领！';
+$('startP').innerHTML='15 关经典五子彩珠解谜：沿无阻挡空格滑移彩珠，横竖斜连线消除！<br>善用 🌈彩虹百搭珠、💣爆破珠与 🔨碎珠锤，挑战三大封盘首领！<br>想一直玩下去？选关页可进入 ♾ 无尽模式，难度会自动递增。';
 
 Kit.init({
   id:'colorlines',
@@ -1145,7 +1181,7 @@ Kit.init({
   start,
   stop:()=>{ended=true;},
   pause:()=>{},
-  note:()=>'点击彩珠再点绿点空格滑移，连成 4/5 颗同色即可消除过关',
+  note:()=>'点击彩珠再点绿点空格滑移，连成 4/5 颗同色即可消除过关；也可点「♾ 无尽模式」持续挑战',
   tut:[
     ['寻路滑移','点击一颗彩珠，棋盘会用绿点标出所有沿上下左右空格可到达的位置，点击即可滑移过去。','🟣'],
     ['横竖斜连消','将 4 颗（前5关）或 5 颗（6关起）同色彩珠排成横、竖或斜线即可消除得分！未消除则会新增彩珠。','✨'],
@@ -1159,7 +1195,11 @@ Kit.init({
   ]
 });
 
-window.__T.state=()=>({cleared,goal:L?L.goal:0,score,lives,hammers,moves,ended});
+window.__T.state=()=>({cleared,goal:L?L.goal:0,score,lives,hammers,moves,ended,endless,wave});
+$('endlessBtn').addEventListener('click',()=>{Kit.sfx('tap');startEndless();});
+['againBtn','restartBtn'].forEach(id=>{
+  $(id).addEventListener('click',e=>{if(!endlessWanted)return;e.stopImmediatePropagation();startEndless();},true);
+});
 window.__T.fast=k=>{fast=k;};
 window.__T.cheatWin=()=>{cleared=L.goal;winLevel();};
 window.__T.solve=()=>{
@@ -1174,7 +1214,7 @@ window.__T.solve=()=>{
   }else{
     cleared+=4;score+=80;
     hud();
-    if(cleared>=L.goal)winLevel();
+    if(!endless&&cleared>=L.goal)winLevel();
   }
 };
 </script>

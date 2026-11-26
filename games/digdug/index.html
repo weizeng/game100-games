@@ -29,6 +29,12 @@ body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-
 .aids{width:100%;display:flex;gap:5px;justify-content:center;flex:none}
 .aids button.dbtn{min-height:46px;min-width:46px;padding:4px!important;font-size:17px!important;font-weight:900}
 .aids button.pump{min-height:46px;min-width:96px;flex:1;font-size:14px!important;padding:4px 8px!important;font-weight:900}
+.aids.dig-ctrl{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:2px 4px 6px;touch-action:none}
+.aids.dig-ctrl .dpad{display:grid;grid-template-areas:". up ." "left mid right" ". down .";grid-template-columns:58px 58px 58px;grid-template-rows:58px 58px 58px;gap:3px;flex:none}
+.aids.dig-ctrl .dbtn{min-width:58px;min-height:58px;font-size:22px!important;border-radius:16px}
+.aids.dig-ctrl .dbtn#btnUp{grid-area:up}.aids.dig-ctrl .dbtn#btnLeft{grid-area:left}
+.aids.dig-ctrl .dbtn#btnRight{grid-area:right}.aids.dig-ctrl .dbtn#btnDown{grid-area:down}
+.aids.dig-ctrl .pump{flex:none;min-width:112px;min-height:112px;border-radius:50%!important;font-size:16px!important;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;padding:8px!important}
 #tutStep{font-size:12px;opacity:.75}
 #tutPic{font-size:44px;line-height:1.1}
 #overStars{font-size:30px;letter-spacing:4px;min-height:34px}
@@ -469,12 +475,14 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   </div>
   <div class="subbar"><span id="goalLbl">地底肃清</span><div class="prog"><i id="progI"></i></div><span id="infoT"></span></div>
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
-  <div class="aids">
-    <button class="dbtn" id="btnLeft" data-d="left" aria-label="左移">◀</button>
-    <button class="dbtn" id="btnUp" data-d="up" aria-label="上移">▲</button>
-    <button class="dbtn" id="btnDown" data-d="down" aria-label="下移">▼</button>
-    <button class="dbtn" id="btnRight" data-d="right" aria-label="右移">▶</button>
-    <button class="btn pump" id="btnPump">💨 充气泵击</button>
+  <div class="aids dig-ctrl">
+    <div class="dpad">
+      <button class="dbtn" id="btnUp" data-d="up" aria-label="上移">▲</button>
+      <button class="dbtn" id="btnLeft" data-d="left" aria-label="左移">◀</button>
+      <button class="dbtn" id="btnRight" data-d="right" aria-label="右移">▶</button>
+      <button class="dbtn" id="btnDown" data-d="down" aria-label="下移">▼</button>
+    </div>
+    <button class="btn pump" id="btnPump">💨<br>充气泵击</button>
   </div>
   <div class="hint" id="hint">点按/拖动泥土格子掘进，对准怪物连按「💨充气泵击」3阶撑爆，挖空🪨下方可砸扁怪物！</div>
 </div>
@@ -820,7 +828,7 @@ function stepPlayer(dir){
   const nc=player.c+dx,nr=player.r+dy;
   if(!inB(nc,nr)||hasRockAt(nc,nr))return;
   player.c=nc;player.r=nr;
-  const baseCd=Math.max(0.08,0.14-Kit.up('drill')*0.025);
+  const baseCd=Math.max(0.06,0.11-Kit.up('drill')*0.025);
   if(dirt[nr][nc]){
     dirt[nr][nc]=false;
     player.dugCount++;
@@ -848,6 +856,8 @@ function upd(dt){
   if(shakeT>0)shakeT=Math.max(0,shakeT-dt);
   if(hoseT>0)hoseT=Math.max(0,hoseT-dt);
   if(player.invuln>0)player.invuln=Math.max(0,player.invuln-dt);
+
+  if(pumpHold){pumpAcc+=dt;if(pumpAcc>=0.16){pumpAcc=0;pumpAction();}}
 
   // 玩家移动控制
   if(player.alive){
@@ -1240,18 +1250,25 @@ function frame(t){
 }
 
 // 绑定输入（仅用 Pointer Events，支持画布点击寻路/充气 与 底部按键）
+let pumpHold=0,pumpAcc=0;
 document.querySelectorAll('.dbtn').forEach(b=>{
   const d=b.dataset.d;
   b.addEventListener('pointerdown',e=>{
-    e.preventDefault();targetCell=null;keys[d]=true;
+    e.preventDefault();try{b.setPointerCapture(e.pointerId);}catch(err){}
+    targetCell=null;keys[d]=true;
     if(Kit.state==='play'&&!ended&&player&&player.alive&&player.moveT<=0)stepPlayer(d);
   });
   const off=()=>{keys[d]=false;};
   b.addEventListener('pointerup',off);
   b.addEventListener('pointercancel',off);
-  b.addEventListener('pointerleave',off);
 });
-$('btnPump').addEventListener('pointerdown',e=>{e.preventDefault();pumpAction();});
+$('btnPump').addEventListener('pointerdown',e=>{
+  e.preventDefault();try{e.currentTarget.setPointerCapture(e.pointerId);}catch(err){}
+  pumpAction();pumpHold=1;pumpAcc=0;
+});
+const pumpOff=()=>{pumpHold=0;pumpAcc=0;};
+$('btnPump').addEventListener('pointerup',pumpOff);
+$('btnPump').addEventListener('pointercancel',pumpOff);
 
 let ptrDown=false;
 function onCanvasPointer(e,isClick){
