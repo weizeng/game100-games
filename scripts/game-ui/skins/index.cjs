@@ -13,20 +13,20 @@ const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y
 // Darken (or lighten) fg step by step until it reaches the ratio against every background.
 const ensure = (fg, bgs, ratio, toward = '#000000') => { let c = fg; for (let t = 0; t <= 1.0001; t += .05) { c = mix(fg, toward, t); if (bgs.every(b => contrast(c, b) >= ratio)) return c; } return c; };
 
-// Direction B uses its own bold per-theme palette: [bgTop,bgBottom,panel,panelEdge,ink,muted,button,buttonEdge,glow]
+// Refined Boutique Arcade palettes: [bgTop,bgBottom,panel,panelEdge,ink,muted,button,buttonEdge,glow]
 const B = {
-  wood:    ['#ffcf6b','#f0803c','#fff7e6','#f1a54f','#4a2a12','#86603d','#3fc163','#22863d','#ffe08a'],
-  paper:   ['#72cbff','#3b62ef','#ffffff','#9cc2ff','#1d2d5a','#5a6b93','#ffb21e','#d97a00','#bfe6ff'],
-  garden:  ['#93e46c','#16a37a','#f6fff0','#7fd06b','#1b4a2c','#4f7a5b','#ffcc29','#d48a00','#d8ffb0'],
-  candy:   ['#ff8ac6','#8d58ff','#fff4fb','#ff9fd0','#5a1f55','#91517f','#ffcf33','#e08600','#ffd6f0'],
-  ice:     ['#8fe6ff','#4c86ff','#f4fdff','#9fe1ff','#123c63','#4f7193','#ff9f2e','#d8650a','#d6f7ff'],
-  sky:     ['#86d8ff','#5875ff','#ffffff','#a7c8ff','#1f2f66','#56679a','#ffd02e','#d98b00','#e0f2ff'],
-  kitchen: ['#ffb58a','#ff5f6d','#fff6ee','#ffad8a','#5a2318','#8e5446','#ffd34d','#d98a00','#ffe2c4'],
-  space:   ['#2a1166','#05051a','#1a1446','#7a5cff','#f2f0ff','#b6b0e6','#00d9ff','#0077b8','#7a5cff'],
-  arcade:  ['#3a0d5e','#0b0620','#211040','#ff3d9a','#fff3fb','#d4b6dd','#ff3d9a','#a3124f','#00e5ff'],
-  ocean:   ['#0b4a6e','#03121f','#0c2a40','#2ee6d6','#e8fbff','#a6cfd8','#2ee6d6','#0c8a8a','#7af5ff'],
-  magic:   ['#4a1a7a','#0d0620','#22113f','#b26bff','#f6eeff','#c9b6e6','#b26bff','#5a22a8','#ff8af0'],
-  lab:     ['#0f3256','#03101f','#0f2742','#33e1a0','#eafffb','#a6c7cf','#33e1a0','#0f8a5a','#4fc3f7'],
+  wood:    ['#f5ead6','#e4d0b2','#fffdf9','#cbb18c','#2d2014','#6c5842','#2c9c5c','#1a6b3c','#f2d49b'],
+  paper:   ['#eef3fc','#dbe5f6','#ffffff','#b7cae6','#17243d','#526482','#2b6ef2','#184bb8','#c7ddff'],
+  garden:  ['#e4f4eb','#c4e6d4','#fafefc','#8fc6aa','#143625','#456b58','#1e9e64','#116b42','#b9f0d2'],
+  candy:   ['#fae9f3','#ead8f6','#fffbfd','#d7b5e3','#3a1c42','#73527c','#e54887','#b0265e','#f8c6e0'],
+  ice:     ['#e7f5fd','#c9e4f7','#fafdff','#9cc8e6','#102e47','#486a85','#0e89e3','#085ca0','#bfe8ff'],
+  sky:     ['#e5f2ff','#c7dffb','#ffffff','#9fc1ec','#182b4d','#506587','#2472f2','#144eb5','#c5e2ff'],
+  kitchen: ['#fdf0e5','#f4d6c0','#fffcf8','#deb290','#422114','#7d5240','#e3642d','#ae4114','#ffd7b8'],
+  space:   ['#131a3a','#070b1a','#141c38','#4b66bd','#eef3ff','#9ba9cf','#22c4ed','#0e7da1','#6ecbff'],
+  arcade:  ['#1b1433','#0b0817','#19132e','#7252cc','#f5f2ff','#a99fcb','#f54988','#b5245a','#5ce1e6'],
+  ocean:   ['#0b2c3e','#05131e','#0d2536','#2b84a1','#e8f9fc','#8db8c7','#1bd1c2','#0d827c','#6ff2eb'],
+  magic:   ['#21143e','#0d071e','#1c1234','#7f59cc','#f5f0ff','#b2a3d4','#9a6bff','#6238bd','#e0aaff'],
+  lab:     ['#0f2438','#07111d','#102235','#2e7291','#eaf7ff','#8fb3c9','#1fd496','#0d875e','#56c8f5'],
 };
 
 function vars(skin, theme, palette) {
@@ -42,25 +42,30 @@ function vars(skin, theme, palette) {
     };
   }
   const [b1, b2, panel, pedge, bink, bmuted, btn, bedge, glow] = B[theme];
-  const btnHi = mix(btn, '#ffffff', .35);
+  const btnHi = mix(btn, '#ffffff', dark ? .22 : .24);
   // 主按钮：白字在按钮最亮处（渐变顶部）也要 ≥3:1（19px 粗体属大字），否则改用深色字。
   const whiteOk = contrast('#ffffff', btnHi) >= 3 && contrast('#ffffff', btn) >= 3;
   const btnInk = whiteOk ? '#ffffff' : ensure(mix(bedge, '#000000', .45), [btn, btnHi], 4.5);
   // 分数徽章字更小（≤16px），按 4.5:1 计算
   const coinInk = contrast('#ffffff', btnHi) >= 4.5 && contrast('#ffffff', btn) >= 4.5 ? '#ffffff' : ensure(mix(bedge, '#000000', .45), [btn, btnHi], 4.5);
-  const keySurface = dark ? panel : '#ffffff', keyLow = dark ? panel : mix(panel, pedge, .25);
-  const bAccent = dark ? btn : ensure(mix(btn, '#000000', .18), [panel, keyLow], 4.5);
+  const keySurface = dark ? mix(panel, '#ffffff', .06) : '#ffffff';
+  const keyLow = dark ? panel : mix(panel, pedge, .14);
+  const bAccent = dark ? btn : ensure(mix(btn, '#000000', .14), [panel, keyLow], 4.5);
+  const hintInk = dark ? ensure(mix(bink, '#ffffff', .15), [b1, b2], 4.5, '#ffffff') : ensure(bink, [b1, b2], 4.5, '#000000');
   return {
-    // Remap the base palette so every base.css rule follows the new look.
-    page: b2, surface: panel, soft: dark ? mix(panel, '#ffffff', .08) : keyLow, ink: bink, muted: ensure(bmuted, [panel, keyLow], 4.5, dark ? '#ffffff' : '#000000'),
-    accent: bAccent, 'on-accent': dark ? '#0b0620' : '#ffffff', line: pedge,
+    // Remap the base palette so every base.css rule follows the refined modern look.
+    page: b2, surface: panel, soft: dark ? mix(panel, '#ffffff', .07) : keyLow, ink: bink,
+    muted: ensure(bmuted, [panel, keyLow], 4.5, dark ? '#ffffff' : '#000000'),
+    accent: bAccent, 'on-accent': btnInk, line: pedge,
     'b-bg1': b1, 'b-bg2': b2, 'b-btn': btn, 'b-btn-hi': btnHi, 'b-edge': bedge,
-    'b-glow': glow, 'b-glow-rgb': rgb(glow), 'b-pedge-rgb': rgb(pedge),
+    'b-glow': glow, 'b-glow-rgb': rgb(glow), 'b-pedge-rgb': rgb(pedge), 'b-btn-rgb': rgb(btn),
+    'b-bg2-rgb': rgb(b2), 'b-surf-rgb': rgb(panel),
     'b-btn-ink': btnInk,
-    'b-btn-tsh': btnInk === '#ffffff' ? `0 2px 0 ${bedge},1px 0 0 ${bedge},-1px 0 0 ${bedge},0 -1px 0 ${bedge}` : '0 1px 0 rgba(255,255,255,.45)',
-    'b-coin-ink': coinInk, 'b-coin-tsh': coinInk === '#ffffff' ? `0 1px 0 ${bedge}` : 'none',
-    'b-key-ink': dark ? ensure(glow, [panel], 4.5, '#ffffff') : ensure(bAccent, [keySurface, keyLow], 4.5),
-    'b-title': dark ? '#ffffff' : ensure(mix(bedge, '#000000', .15), [panel, keyLow], 4.5),
+    'b-btn-tsh': btnInk === '#ffffff' ? '0 1px 2px rgba(0,0,0,.22)' : '0 1px 0 rgba(255,255,255,.35)',
+    'b-coin-ink': coinInk, 'b-coin-tsh': coinInk === '#ffffff' ? '0 1px 1px rgba(0,0,0,.2)' : 'none',
+    'b-key-ink': dark ? ensure(bink, [keySurface, panel], 4.5, '#ffffff') : ensure(bink, [keySurface, keyLow], 4.5, '#000000'),
+    'b-title': dark ? '#ffffff' : ensure(bink, [panel, keyLow], 4.5, '#000000'),
+    'b-hint-ink': hintInk,
   };
 }
 const css = skin => fs.readFileSync(path.join(__dirname, `skin-${skin}.css`), 'utf8');

@@ -49,6 +49,37 @@
   root.dataset.mode = mode;
   if (config.skin) root.dataset.skin = config.skin;
   var gesture = new WeakMap();
+  var wantLevels = false;
+  function isVis(el) {
+    if (!el || el.hidden || el.classList.contains('hidden')) return false;
+    var cs = getComputedStyle(el);
+    return cs.display !== 'none' && cs.visibility !== 'hidden' && el.getBoundingClientRect().width > 0;
+  }
+  function cleanCopy(scope) {
+    // Strip internal changelog / AI batch version strings from player-facing descriptions.
+    scope.querySelectorAll('p,.howto,.sub,.rule').forEach(function (p) {
+      if (p.classList.contains('ui-mode-note')) return;
+      if (p.id === 'bestLine' && /首次游玩会有简短教程/.test(p.textContent)) { p.textContent = ''; p.style.display = 'none'; return; }
+      var html = p.innerHTML;
+      if (!/v\d+\s*[（(]|Gemini|批量优化/.test(html)) return;
+      var cleaned = html
+        .replace(/(?:<br\s*\/?>\s*)*v\d+\s*[（(][^）)]*[）)][。.\s]*(?:<br\s*\/?>)*/gi, '<br>')
+        .replace(/^(?:\s*<br\s*\/?>)+|(?:\s*<br\s*\/?>)+$/gi, '')
+        .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>');
+      if (cleaned !== html) p.innerHTML = cleaned;
+    });
+  }
+  function showPlayTip(text) {
+    if (!text) return;
+    var el = document.getElementById('ui-play-tip');
+    if (!el) { el = document.createElement('div'); el.id = 'ui-play-tip'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(showPlayTip.t);
+    var hide = function () { el.hidden = true; };
+    showPlayTip.t = setTimeout(hide, 2800);
+    document.addEventListener('pointerdown', hide, { once: true, capture: true });
+  }
   function labelButtons(scope) {
     scope.querySelectorAll('button').forEach(function (button) {
       if (button.getAttribute('aria-label')) return;
@@ -56,6 +87,62 @@
       var name = /mute|sound|snd/.test(id) ? '切换音效' : /pause/.test(id) ? '暂停游戏' : /hint/.test(id) && !/close|ok/.test(id) ? '查看提示' : '';
       if (!name && /^[⏸🔊🔇💡Ⅱ]+$/u.test(text)) name = { '⏸': '暂停游戏', '🔊': '切换音效', '🔇': '切换音效', '💡': '查看提示' }[text];
       if (name) button.setAttribute('aria-label', name);
+    });
+  }
+  function wireInstantPlay(panel, primary) {
+    if (!primary || primary.dataset.uiInstant || !document.getElementById('lvlScr')) return;
+    primary.dataset.uiInstant = '1';
+    // Provide direct access to level select & upgrades without forcing it on every tap of Start.
+    if (!panel.querySelector('.ui-quick-lvl')) {
+      var lvlBtn = document.createElement('button');
+      lvlBtn.type = 'button';
+      lvlBtn.className = 'ghost ui-quick-lvl';
+      lvlBtn.textContent = '关卡与升级';
+      lvlBtn.addEventListener('click', function () {
+        wantLevels = true;
+        primary.click();
+        setTimeout(function () {
+          var skip = document.getElementById('tutSkip');
+          if (isVis(document.getElementById('tutScr')) && isVis(skip)) skip.click();
+          wantLevels = false;
+        }, 0);
+      });
+      primary.insertAdjacentElement('afterend', lvlBtn);
+    }
+    primary.addEventListener('click', function () {
+      if (wantLevels) return;
+      // After the game's own start listener runs, skip blocking tutorial & level-select walls on Play.
+      setTimeout(function () {
+        var tipText = '';
+        var tutScr = document.getElementById('tutScr');
+        var tutSkip = document.getElementById('tutSkip');
+        if (isVis(tutScr) && isVis(tutSkip)) {
+          var tp = document.getElementById('tutP');
+          if (tp && tp.textContent.trim()) tipText = tp.textContent.trim();
+          tutSkip.click();
+        }
+        var lvlScr = document.getElementById('lvlScr');
+        if (isVis(lvlScr)) {
+          var unlocked = Array.prototype.slice.call(lvlScr.querySelectorAll('button.lvl:not(:disabled):not(.locked)')).filter(isVis);
+          if (unlocked.length) {
+            // Jump straight into the latest unlocked level (level 1 for new players).
+            unlocked[unlocked.length - 1].click();
+            setTimeout(function () {
+              if (isVis(tutScr) && isVis(tutSkip)) {
+                var tp2 = document.getElementById('tutP');
+                if (!tipText && tp2 && tp2.textContent.trim()) tipText = tp2.textContent.trim();
+                tutSkip.click();
+              }
+              if (!tipText) {
+                var h = document.querySelector('.hint,#hint');
+                if (h && h.textContent.trim()) tipText = h.textContent.trim();
+              }
+              if (tipText) showPlayTip(tipText.slice(0, 42));
+              window.dispatchEvent(new Event('resize'));
+            }, 0);
+          }
+        }
+      }, 0);
     });
   }
   function decorate(container) {
@@ -77,6 +164,9 @@
       emblem.className = 'ui-emblem'; emblem.textContent = config.icon; emblem.setAttribute('aria-hidden', 'true');
       panel.insertBefore(emblem, panel.firstChild);
       heading.textContent = config.name;
+      cleanCopy(panel);
+      var primary = panel.querySelector('#startBtn,#btnStart,.startbtn,button');
+      wireInstantPlay(panel, primary);
       if (!config.challenge) { labelButtons(panel); return; }
       var switcher = document.createElement('div'); switcher.className = 'ui-mode'; switcher.setAttribute('role', 'group'); switcher.setAttribute('aria-label', '选择玩法模式');
       [['classic','经典模式'],['expert','进阶挑战']].forEach(function (item) {
@@ -88,20 +178,21 @@
         });
         switcher.appendChild(b);
       });
-      var primary = panel.querySelector('#startBtn,#btnStart,.startbtn,button');
       var anchor = primary;
       while (anchor && anchor.parentNode !== panel && !anchor.parentNode.matches('.card,.panel,.pausecard,.ovcard')) anchor = anchor.parentNode;
       var target = anchor ? anchor.parentNode : panel;
       target.insertBefore(switcher, anchor || null);
-      var note = document.createElement('p'); note.className = 'ui-mode-note';
-      note.textContent = expert ? config.challenge + '。进阶纪录单独保存。' : '按原规则轻松开局，也可切换进阶挑战。';
-      target.insertBefore(note, anchor || null);
+      if (expert) {
+        var note = document.createElement('p'); note.className = 'ui-mode-note';
+        note.textContent = config.challenge + ' · 进阶纪录独立保存';
+        target.insertBefore(note, anchor || null);
+      }
     }
     labelButtons(panel);
   }
   function notify(text) {
     var el = document.getElementById('ui-assist-toast');
-    if (!el) { el = document.createElement('div'); el.id = 'ui-assist-toast'; el.className = 'ui-mode-status'; el.setAttribute('role', 'status'); el.style.cssText = 'position:fixed;bottom:18px;left:16px;right:16px;z-index:200;padding:14px'; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'ui-assist-toast'; el.className = 'ui-mode-status'; el.setAttribute('role', 'status'); el.style.cssText = 'position:fixed;bottom:18px;left:16px;right:16px;z-index:200;padding:12px 16px'; document.body.appendChild(el); }
     el.textContent = text; el.hidden = false;
     clearTimeout(notify.timer); notify.timer = setTimeout(function () { el.hidden = true; }, 2000);
   }
@@ -134,10 +225,12 @@
     document.querySelectorAll(selector).forEach(function (container) {
       decorate(container);
       // Only dynamic overlay children are observed; animated scores never trigger this work.
-      new MutationObserver(function () { decorate(container); }).observe(container, { childList: true });
+      new MutationObserver(function () { decorate(container); cleanCopy(container); }).observe(container, { childList: true });
     });
+    cleanCopy(document);
     labelButtons(document);
     if (config.skin) watchScores();
+    setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 0);
   });
   // Score pop: only discrete jumps animate. Counters that tick every frame (distance, timers)
   // change faster than the 300ms gate and therefore never trigger, so there is no per-frame cost.

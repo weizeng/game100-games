@@ -1,10 +1,15 @@
-// GameUI.fx: tiny canvas depth helpers (bevelled tiles, glossy orbs, contact shadows).
+// GameUI.fx: studio-lit canvas depth helpers (ceramic tiles, luminous orbs, atmospheric stages, sparkles).
 // Shapes are pre-rendered into cached sprites so a frame costs one drawImage per piece,
-// which keeps low-end Android WebView at 60fps. Games call them only when GameUI.fx.on.
+// keeping low-end Android WebView at 60fps. Games call them only when GameUI.fx.on.
 (function () {
   var root = document.documentElement, skin = root.dataset.skin || '';
   var cache = {}, size = 0;
-  function rgb(h) { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join(''); return [0, 2, 4].map(function (i) { return parseInt(h.slice(i, i + 2), 16); }); }
+  function rgb(h) {
+    if (h.charAt(0) !== '#') return [120, 140, 170];
+    h = h.replace('#', '');
+    if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+    return [0, 2, 4].map(function (i) { return parseInt(h.slice(i, i + 2), 16); });
+  }
   function shade(h, t) { // t>0 lightens towards white, t<0 darkens towards black
     if (h.charAt(0) !== '#') return h;
     var c = rgb(h), e = t > 0 ? 255 : 0, a = Math.abs(t);
@@ -23,81 +28,128 @@
     }
     return c;
   }
-  function rr(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); }
+  function rr(g, x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w * .5, h * .5));
+    g.beginPath();
+    if (g.roundRect) g.roundRect(x, y, w, h, r);
+    else g.rect(x, y, w, h);
+  }
   function tileArt(g, w, h, color, r) {
-    if (skin === 'b') { // candy bevel: dark rim, light top-left facet, glossy face
-      rr(g, 0, 2, w, h, r); g.fillStyle = 'rgba(0,0,0,.35)'; g.fill();
-      rr(g, 0, 0, w, h, r); g.fillStyle = shade(color, -.42); g.fill();
-      var bev = g.createLinearGradient(0, 0, w, h); bev.addColorStop(0, shade(color, .55)); bev.addColorStop(.5, color); bev.addColorStop(1, shade(color, -.3));
-      rr(g, 1, 1, w - 2, h - 2, r * .9); g.fillStyle = bev; g.fill();
-      var i = Math.max(2, w * .14), face = g.createLinearGradient(0, i, 0, h - i);
-      face.addColorStop(0, shade(color, .22)); face.addColorStop(1, shade(color, -.08));
-      rr(g, i, i, w - i * 2, h - i * 2, r * .6); g.fillStyle = face; g.fill();
-      g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.ellipse(w * .3, h * .27, w * .13, h * .07, -.5, 0, 7); g.fill();
-    } else { // soft 3D: drop shadow, vertical light falloff, top gloss band
-      g.shadowColor = 'rgba(0,0,0,.32)'; g.shadowBlur = Math.max(2, w * .18); g.shadowOffsetY = Math.max(1, h * .08);
-      var body = g.createLinearGradient(0, 0, 0, h); body.addColorStop(0, shade(color, .28)); body.addColorStop(.55, color); body.addColorStop(1, shade(color, -.22));
-      rr(g, 0, 0, w, h, r); g.fillStyle = body; g.fill(); g.shadowColor = 'transparent';
-      var gloss = g.createLinearGradient(0, 0, 0, h * .5); gloss.addColorStop(0, 'rgba(255,255,255,.45)'); gloss.addColorStop(1, 'rgba(255,255,255,0)');
-      rr(g, w * .08, h * .06, w * .84, h * .42, r * .7); g.fillStyle = gloss; g.fill();
-      rr(g, .5, .5, w - 1, h - 1, r); g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 1; g.stroke();
+    if (color.charAt(0) !== '#') {
+      rr(g, 0, 0, w, h, r); g.fillStyle = color; g.fill();
+      rr(g, .5, .5, w - 1, h - 1, r); g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 1; g.stroke();
+      return;
+    }
+    // Refined ceramic/gem bevel: soft ambient lift, smooth face gradient, delicate specular rim
+    g.save();
+    g.shadowColor = 'rgba(8,14,28,.28)'; g.shadowBlur = Math.max(3, Math.min(8, w * .18)); g.shadowOffsetY = Math.max(1.5, Math.min(3, h * .08));
+    var body = g.createLinearGradient(0, 0, 0, h);
+    body.addColorStop(0, shade(color, .28));
+    body.addColorStop(.52, color);
+    body.addColorStop(1, shade(color, -.24));
+    rr(g, 0, 0, w, h, r); g.fillStyle = body; g.fill();
+    g.restore();
+    // Subtle inner depth & crisp upper sheen
+    var gloss = g.createLinearGradient(0, 0, 0, h * .48);
+    gloss.addColorStop(0, 'rgba(255,255,255,.36)');
+    gloss.addColorStop(1, 'rgba(255,255,255,0)');
+    rr(g, 1.2, 1.2, Math.max(0, w - 2.4), Math.max(0, h * .46), Math.max(0, r - 1));
+    g.fillStyle = gloss; g.fill();
+    // Delicate bottom anchor edge + luminous hairline rim
+    rr(g, .6, .6, Math.max(0, w - 1.2), Math.max(0, h - 1.2), Math.max(0, r - .4));
+    g.strokeStyle = 'rgba(255,255,255,.26)'; g.lineWidth = 1; g.stroke();
+    if (h >= 10) {
+      g.fillStyle = 'rgba(0,0,0,.16)';
+      rr(g, 1.5, h - 2.5, Math.max(0, w - 3), 2, 1); g.fill();
     }
   }
-  function orbArt(g, r, color, pad) {
+  function orbArt(g, r, color) {
     var cx = r, cy = r;
-    g.fillStyle = 'rgba(0,0,0,' + (skin === 'b' ? .34 : .26) + ')'; g.beginPath(); g.ellipse(cx + r * .12, cy + r * .78, r * .82, r * .32, 0, 0, 7); g.fill();
-    var body = g.createRadialGradient(cx - r * .38, cy - r * .42, r * .08, cx, cy, r);
-    body.addColorStop(0, shade(color, .75)); body.addColorStop(.28, shade(color, .18)); body.addColorStop(.75, color); body.addColorStop(1, shade(color, -.45));
+    // Soft grounded contact shadow
+    g.fillStyle = 'rgba(8,14,28,.22)';
+    g.beginPath(); g.ellipse(cx, cy + r * .86, r * .76, r * .24, 0, 0, 7); g.fill();
+    // Luminous studio-lit sphere
+    var body = g.createRadialGradient(cx - r * .34, cy - r * .36, r * .06, cx, cy, r);
+    body.addColorStop(0, shade(color, .72));
+    body.addColorStop(.26, shade(color, .24));
+    body.addColorStop(.74, color);
+    body.addColorStop(1, shade(color, -.36));
     g.fillStyle = body; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
-    if (skin === 'b') { // rim light + crisp specular for the candy look
-      g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = Math.max(1, r * .1); g.beginPath(); g.arc(cx, cy, r * .82, .35 * Math.PI, .75 * Math.PI); g.stroke();
-      g.strokeStyle = shade(color, -.55); g.lineWidth = Math.max(1, r * .08); g.beginPath(); g.arc(cx, cy, r - g.lineWidth / 2, 0, 7); g.stroke();
-    }
-    g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(cx - r * .35, cy - r * .42, r * .22, r * .14, -.6, 0, 7); g.fill();
+    // Warm reflected bounce rim along bottom-right
+    g.strokeStyle = 'rgba(255,255,255,.38)'; g.lineWidth = Math.max(1, r * .09);
+    g.beginPath(); g.arc(cx, cy, r * .84, .18 * Math.PI, .72 * Math.PI); g.stroke();
+    // Crisp specular pinpoint + soft glow dot
+    g.fillStyle = 'rgba(255,255,255,.82)';
+    g.beginPath(); g.ellipse(cx - r * .33, cy - r * .37, r * .2, r * .12, -.62, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.45)';
+    g.beginPath(); g.arc(cx - r * .12, cy - r * .52, Math.max(.8, r * .07), 0, 7); g.fill();
   }
   var fx = {
     on: !!skin, skin: skin, shade: shade, rgba: rgba,
     tile: function (ctx, x, y, w, h, color, r) {
-      r = r == null ? Math.min(w, h) * (skin === 'b' ? .24 : .2) : r;
-      var pad = Math.ceil(w * .25) + 2, s = scaleOf(ctx);
-      ctx.drawImage(sprite('t' + color + w + 'x' + h + 'r' + r, w, h, pad, s, function (g) { tileArt(g, w, h, color, r); }), x - pad, y - pad, w + pad * 2, h + pad * 2);
+      if (w <= 0 || h <= 0) return;
+      r = r == null ? Math.min(w, h) * .22 : r;
+      var pad = Math.ceil(Math.min(10, w * .22)) + 2, s = scaleOf(ctx);
+      ctx.drawImage(sprite('t' + color + (w | 0) + 'x' + (h | 0) + 'r' + (r | 0), w, h, pad, s, function (g) { tileArt(g, w, h, color, r); }), x - pad, y - pad, w + pad * 2, h + pad * 2);
     },
     orb: function (ctx, x, y, r, color) {
-      var pad = Math.ceil(r * .5) + 2, s = scaleOf(ctx);
-      ctx.drawImage(sprite('o' + color + r, r * 2, r * 2, pad, s, function (g) { orbArt(g, r, color, pad); }), x - r - pad, y - r - pad, r * 2 + pad * 2, r * 2 + pad * 2);
+      if (r <= 0) return;
+      var pad = Math.ceil(r * .38) + 2, s = scaleOf(ctx);
+      ctx.drawImage(sprite('o' + color + (r | 0), r * 2, r * 2, pad, s, function (g) { orbArt(g, r, color); }), x - r - pad, y - r - pad, r * 2 + pad * 2, r * 2 + pad * 2);
     },
-    // Soft elliptical contact shadow under any sprite (emoji, characters, pieces).
+    // Soft elliptical contact shadow under any sprite (characters, pieces).
     shadow: function (ctx, x, y, rx, ry, a) {
-      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,' + (a == null ? .28 : a) + ')'; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.fillStyle = 'rgba(8,14,28,' + (a == null ? .24 : a) + ')'; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill(); ctx.restore();
     },
-    // Lit stage background: vertical gradient plus a vignette. Cached per size/colours.
+    // Atmospheric lit stage backdrop: rich vertical gradient + upper soft key-light + gentle depth vignette.
     stage: function (ctx, w, h, top, bottom) {
       var s = scaleOf(ctx);
-      ctx.drawImage(sprite('s' + w + 'x' + h + top + bottom, w, h, 0, s, function (g) {
-        var lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, top); lg.addColorStop(1, bottom); g.fillStyle = lg; g.fillRect(0, 0, w, h);
-        var v = g.createRadialGradient(w / 2, h * .35, Math.min(w, h) * .2, w / 2, h / 2, Math.max(w, h) * .75);
-        v.addColorStop(0, 'rgba(255,255,255,' + (skin === 'b' ? .10 : .07) + ')'); v.addColorStop(1, 'rgba(0,0,0,.35)'); g.fillStyle = v; g.fillRect(0, 0, w, h);
+      ctx.drawImage(sprite('s' + (w | 0) + 'x' + (h | 0) + top + bottom, w, h, 0, s, function (g) {
+        var lg = g.createLinearGradient(0, 0, 0, h);
+        lg.addColorStop(0, top); lg.addColorStop(1, bottom);
+        g.fillStyle = lg; g.fillRect(0, 0, w, h);
+        var key = g.createRadialGradient(w * .5, h * .22, 0, w * .5, h * .28, Math.max(w, h) * .72);
+        key.addColorStop(0, 'rgba(255,255,255,.12)');
+        key.addColorStop(.55, 'rgba(255,255,255,.02)');
+        key.addColorStop(1, 'rgba(4,8,18,.24)');
+        g.fillStyle = key; g.fillRect(0, 0, w, h);
       }), 0, 0, w, h);
     },
     // Glow is shadowBlur: cheap for a handful of shapes, never use it on every tile.
     glow: function (ctx, color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0; },
     noGlow: function (ctx) { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; },
     // Crisp rendering on high-DPI phones without changing game coordinates.
-    // Only safe where input code converts with getBoundingClientRect + logical W/H, not cv.width.
     hidpi: function (cv, ctx, w, h) {
       var d = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
-      cv.width = Math.round(w * d); cv.height = Math.round(h * d); // intrinsic ratio stays w:h, so CSS sizing is unchanged
+      cv.width = Math.round(w * d); cv.height = Math.round(h * d);
       ctx.setTransform(d, 0, 0, d, 0, 0); return d;
     },
-    // Lightweight particle bursts (pooled array, no allocations per frame beyond the burst).
+    // Crisp sparkly particle bursts (glint diamonds + glowing sparks).
     burst: function (list, x, y, color, n) {
-      for (var i = 0; i < (n || 12); i++) { var a = Math.random() * 6.283, v = 1 + Math.random() * 2.6; list.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1, life: 1, c: color, r: 1.5 + Math.random() * 2.5 }); }
+      for (var i = 0; i < (n || 12); i++) {
+        var a = Math.random() * 6.283, v = 1.2 + Math.random() * 2.8;
+        list.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.1, life: 1, c: color, r: 1.6 + Math.random() * 2.4, star: i % 3 === 0 });
+      }
     },
     drawBurst: function (ctx, list) {
       for (var i = list.length - 1; i >= 0; i--) {
-        var p = list[i]; p.x += p.vx; p.y += p.vy; p.vy += .12; p.life -= .035;
+        var p = list[i]; p.x += p.vx; p.y += p.vy; p.vx *= .97; p.vy += .11; p.life -= .034;
         if (p.life <= 0) { list.splice(i, 1); continue; }
-        ctx.globalAlpha = p.life; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (skin === 'b' ? 1.2 : 1), 0, 7); ctx.fill();
+        var r = p.r * (.45 + p.life * .75);
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.c;
+        if (p.star) {
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y - r * 1.6); ctx.lineTo(p.x + r * .55, p.y - r * .55);
+          ctx.lineTo(p.x + r * 1.6, p.y); ctx.lineTo(p.x + r * .55, p.y + r * .55);
+          ctx.lineTo(p.x, p.y + r * 1.6); ctx.lineTo(p.x - r * .55, p.y + r * .55);
+          ctx.lineTo(p.x - r * 1.6, p.y); ctx.lineTo(p.x - r * .55, p.y - r * .55);
+          ctx.closePath(); ctx.fill();
+        } else {
+          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill();
+          ctx.globalAlpha = p.life * .7; ctx.fillStyle = '#fff';
+          ctx.beginPath(); ctx.arc(p.x, p.y, r * .42, 0, 7); ctx.fill();
+        }
       }
       ctx.globalAlpha = 1;
     }
