@@ -45,6 +45,7 @@
   var root = document.documentElement;
   root.classList.add('game-ui');
   root.dataset.theme = config.theme;
+  if (config.archetype) root.dataset.archetype = config.archetype;
   root.dataset.game = config.id;
   root.dataset.mode = mode;
   if (config.skin) root.dataset.skin = config.skin;
@@ -163,6 +164,12 @@
       var emblem = document.createElement('div');
       emblem.className = 'ui-emblem'; emblem.textContent = config.icon; emblem.setAttribute('aria-hidden', 'true');
       panel.insertBefore(emblem, panel.firstChild);
+      if (config.category && !panel.querySelector('.ui-cat-tag')) {
+        var catTag = document.createElement('span');
+        catTag.className = 'ui-cat-tag';
+        catTag.textContent = config.category;
+        emblem.insertAdjacentElement('afterend', catTag);
+      }
       heading.textContent = config.name;
       cleanCopy(panel);
       var primary = panel.querySelector('#startBtn,#btnStart,.startbtn,button');
@@ -230,6 +237,15 @@
     cleanCopy(document);
     labelButtons(document);
     if (config.skin) watchScores();
+    // 玩家首次触摸画布后柔和隐藏底部纯文字提示，释放竖屏视野（不影响任何交互按钮）
+    var cv = document.querySelector('body>.wrap canvas:not(#fx)');
+    if (cv) {
+      cv.addEventListener('pointerdown', function () {
+        document.querySelectorAll('body>.wrap>.hint,body>.wrap>.hintline').forEach(function (h) {
+          if (!h.querySelector('button,input,select,a')) h.classList.add('ui-hint-quiet');
+        });
+      }, { once: true, passive: true });
+    }
     setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 0);
   });
   // Score pop: only discrete jumps animate. Counters that tick every frame (distance, timers)

@@ -104,4 +104,35 @@ class HomeRecommendTest {
         val out = HomeRecommend.pickContinue(items, listOf("c", "missing", "a", "b"), limit = 2)
         assertEquals(listOf("c", "a"), out.map { it.id })
     }
+
+    @Test
+    fun pickRandomPrefersFreshInstalledAndExcludesCurrent() {
+        val items = listOf(
+            item("cur", "射击", installed = 1),
+            item("seen", "射击", installed = 1),
+            item("fresh", "益智解谜", installed = 1),
+        )
+        val picked = HomeRecommend.pickRandomGame(
+            items = items,
+            excludeId = "cur",
+            recentIds = listOf("seen"),
+            rng = java.util.Random(42)
+        )
+        assertEquals("fresh", picked?.id)
+    }
+
+    @Test
+    fun pickSimilarPrefersSameCategoryThenBackfills() {
+        val items = listOf(
+            item("target", "射击", studio = "Muse"),
+            item("s1", "射击", studio = "Grok", isPremium = true),
+            item("s2", "射击", studio = "Muse", remoteVersion = 5),
+            item("o1", "益智解谜", studio = "Muse", isPremium = true),
+            item("o2", "跑酷跳跃", studio = "Grok"),
+        )
+        val out = HomeRecommend.pickSimilar("target", "射击", "Muse", items, limit = 3)
+        assertEquals(3, out.size)
+        assertTrue(out.none { it.id == "target" })
+        assertEquals(listOf("s1", "s2", "o1"), out.map { it.id })
+    }
 }

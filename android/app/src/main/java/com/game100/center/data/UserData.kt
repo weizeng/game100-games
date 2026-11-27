@@ -11,10 +11,33 @@ class UserData(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("game100_user", Context.MODE_PRIVATE)
 
-    // ===== 评分 (1-5星) =====
+    // ===== 评分 (1-5星) & 本地评价缓存 =====
     fun getRating(gameId: String): Int = prefs.getInt("rating_$gameId", 0)
     fun setRating(gameId: String, stars: Int) {
         prefs.edit().putInt("rating_$gameId", stars.coerceIn(1, 5)).apply()
+    }
+
+    fun getReviewTags(gameId: String): List<String> {
+        val raw = prefs.getString("review_tags_$gameId", null).orEmpty()
+        return raw.split('|').map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun getReviewComment(gameId: String): String =
+        prefs.getString("review_comment_$gameId", null).orEmpty()
+
+    fun setReviewDraft(gameId: String, tags: List<String>, comment: String) {
+        prefs.edit()
+            .putString("review_tags_$gameId", tags.distinct().take(3).joinToString("|"))
+            .putString("review_comment_$gameId", comment.trim().take(200))
+            .apply()
+    }
+
+    /** 每款游戏退局后最多温和提示一次评分，不反复打扰。 */
+    fun hasPromptedRating(gameId: String): Boolean =
+        prefs.getBoolean("rate_prompted_$gameId", false)
+
+    fun markPromptedRating(gameId: String) {
+        prefs.edit().putBoolean("rate_prompted_$gameId", true).apply()
     }
 
     // ===== 收藏 =====

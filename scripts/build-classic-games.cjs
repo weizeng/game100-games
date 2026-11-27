@@ -24,7 +24,7 @@ for (const id of ['connectfour','colorlines','yahtzee','columns','pyramid']) {
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${g.meta.name}</title><style>${css}\n${g.css || ''}
 @media(max-height:700px){.columns-frame #cv{height:42svh}.pyramid-stage canvas{max-height:33svh}}
-</style>${uiBlock(id, g.meta)}</head><body>
+</style>${uiBlock(id, {...g.meta, category:'经典重温'})}</head><body>
 <main class="wrap">
 <header class="topbar"><div><span class="edition">经典游乐场</span><h1>${g.meta.name}</h1></div><div class="tools"><button id="soundBtn" class="iconbtn" aria-label="切换音效">♪</button><button id="pauseBtn" class="iconbtn" aria-label="暂停游戏" disabled>Ⅱ</button></div></header>
 <div class="stats"><div><span>得分</span><b id="scoreV">0</b></div><div><span>最佳纪录</span><b id="bestV">0</b></div><div><span id="extraLabel">${g.extraLabel}</span><b id="extraV">—</b></div></div>

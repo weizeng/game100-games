@@ -56,13 +56,18 @@ class GameRowAdapter(
         }
         h.sub.text = subText
 
-        // 星级评分显示
+        // 优先展示全服均分（如 ★4.8），无全服数据时回退本机个人评分
+        val community = com.game100.center.net.ReviewSync.cachedSummaryOf(item.id)
         val userData = com.game100.center.data.UserData(ctx)
-        val rating = userData.getRating(item.id)
-        if (rating > 0) {
+        val localRating = userData.getRating(item.id)
+        if (community != null && community.count > 0) {
             h.rating.visibility = View.VISIBLE
-            h.rating.text = "★".repeat(rating) + "☆".repeat(5 - rating)
-            h.rating.contentDescription = "你的评分：$rating 星"
+            h.rating.text = String.format("★ %.1f (%d)", community.avgRating, community.count)
+            h.rating.contentDescription = "全服评分 ${community.avgRating} 分，${community.count} 人评价"
+        } else if (localRating > 0) {
+            h.rating.visibility = View.VISIBLE
+            h.rating.text = "★".repeat(localRating) + "☆".repeat(5 - localRating)
+            h.rating.contentDescription = "你的评分：$localRating 星"
         } else {
             h.rating.visibility = View.GONE
         }

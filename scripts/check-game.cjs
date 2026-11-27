@@ -24,6 +24,7 @@ const SEL = START;
     if (meta.id !== id) problems.push('meta.id 与目录名不一致');
     // 出品方必填：Muse 做的写 "Muse"，Grok 做的写 "Grok"（新增出品方时把名字加进 STUDIOS）
     if (!STUDIOS.includes(meta.studio)) problems.push(`meta.studio 必填，且只能是 ${STUDIOS.join(' / ')}（当前：${JSON.stringify(meta.studio)}）`);
+    if (/Gemini|(?<![a-zA-Z])v\d+\s*[（(]|【\s*v\d+/.test(meta.desc || '')) problems.push('meta.desc 不得包含内部版本号或开发优化日志');
     const html = fs.readFileSync(path.join(root, 'games', id, 'index.html'), 'utf8');
     if (!html.includes('<!-- GAME UI BEGIN -->')) problems.push('未注入共用界面：先 node scripts/sync-game-ui.cjs --only=' + id);
     if (/(src|href)=["']https?:\/\//.test(html)) problems.push('有外链资源（需离线可用）');

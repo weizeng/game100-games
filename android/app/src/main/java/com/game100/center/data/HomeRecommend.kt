@@ -147,4 +147,55 @@ object HomeRecommend {
         val byId = items.associateBy { it.id }
         return recentIds.mapNotNull { byId[it] }.take(limit)
     }
+
+    /**
+     * 「手气不错 / 随机下一款」：优先挑未玩过且已安装（或高分/精品）的游戏，
+     * 排除当前正在玩的游戏，保证 500 款连刷不重复、不枯燥。
+     */
+    fun pickRandomGame(
+        items: List<GameItem>,
+        excludeId: String? = null,
+        recentIds: List<String> = emptyList(),
+        rng: java.util.Random = java.util.Random(),
+    ): GameItem? {
+        val candidates = items.filter { it.id != excludeId }
+        if (candidates.isEmpty()) return null
+        val recentSet = recentIds.toSet()
+        val freshInstalled = candidates.filter { it.installed && it.id !in recentSet }
+        val pool = when {
+            freshInstalled.isNotEmpty() -> freshInstalled
+            candidates.any { it.installed } -> candidates.filter { it.installed }
+            else -> candidates
+        }
+        return pool[rng.nextInt(pool.size)]
+    }
+
+    /** 详情页底部「同类推荐」：优先同分类，再兼顾精品/版本/出品方多样性。 */
+    fun pickSimilar(
+        targetId: String,
+        targetCategory: String,
+        targetStudio: String,
+        items: List<GameItem>,
+        limit: Int = 6,
+    ): List<GameItem> {
+        if (items.isEmpty() || limit <= 0) return emptyList()
+        val others = items.filter { it.id != targetId }
+        if (others.isEmpty()) return emptyList()
+        val sameCat = others.filter { it.category == targetCategory }
+            .sortedWith(
+                compareByDescending<GameItem> { it.isPremium }
+                    .thenByDescending { it.displayVersion }
+                    .thenBy { it.id }
+            )
+        if (sameCat.size >= limit) return sameCat.take(limit)
+        val pickedIds = sameCat.map { it.id }.toMutableSet()
+        val rest = others.filter { it.id !in pickedIds }
+            .sortedWith(
+                compareByDescending<GameItem> { it.studio == targetStudio }
+                    .thenByDescending { it.isPremium }
+                    .thenByDescending { it.displayVersion }
+                    .thenBy { it.id }
+            )
+        return (sameCat + rest).take(limit)
+    }
 }
