@@ -8,7 +8,8 @@ const custom = require('./custom.cjs');
 const skins = require('./skins/index.cjs');
 const css = fs.readFileSync(path.join(__dirname, 'base.css'), 'utf8');
 const runtime = fs.readFileSync(path.join(__dirname, 'runtime.js'), 'utf8');
-// 默认皮肤：B「霓虹糖果」（2026-10-20 起）。传 'none' 可生成无皮肤版本做对比。
+const engine = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8');
+// 默认皮肤：B「精工流光 Crafted Arcade」。传 'none' 可生成无皮肤版本做对比。
 const DEFAULT_SKIN = 'b';
 function uiBlock(id, meta, skinArg) {
   const skin = skinArg === 'none' ? '' : (skinArg || DEFAULT_SKIN);
@@ -18,7 +19,7 @@ function uiBlock(id, meta, skinArg) {
   // 没有进阶规则的游戏（如科学实验）也接入皮肤，只是不显示模式切换。
   const config = { id, name: meta.name, theme, icon: meta.icon, challenge: challenges[id] ? challenges[id].text : null };
   if (skin) config.skin = skin;
-  const script = runtime.replace('__GAME_UI_CONFIG__', () => JSON.stringify(config)) + (skin ? '\n' + skins.fx() : '');
+  const script = runtime.replace('__GAME_UI_CONFIG__', () => JSON.stringify(config)) + (skin ? '\n' + skins.fx() + '\n' + engine : '');
   return `\n<!-- GAME UI BEGIN -->\n<style>\n:root{${vars}}\n${css}\n${custom[id] || ''}\n${skin ? skins.css(skin) + '\n' : ''}</style>\n<script>\n${script}\n</script>\n<!-- GAME UI END -->\n`.replace(/\r\n/g, '\n');
 }
 module.exports = { uiBlock, DEFAULT_SKIN };
