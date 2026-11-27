@@ -659,7 +659,7 @@ cv.addEventListener('pointermove',e=>{if(!pointer.down||state!=='play')return;co
 function beginPlay(hint){score=0;sparks=[];show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);show('tutScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent=hint;}
 
 
-const TUT=[["准备金","对已发生赔案计提未决准备金，并准备偿付资本。比率=自有资金/资本要求。"],["方法","链梯按进展因子外推；BF 混合先验赔付率；已报案件直接采用个案准备金。"],["冲击","布置完成后承受赔案冲击。准备金不足会跌破下限，过度计提则会越过上限。"],["极端","每 5 关出现巨灾年或监管审计，目标带更窄，冲击也更猛。"]];
+const TUT=[["准备金","对已发生赔案计提未决准备金，并准备偿付资本。比率=自有资金/资本要求。"],["方法","链梯按进展因子外推；BF 混合先验赔付率；已报案件直接采用个案准备金。"],["冲击","布置完成后点「承受冲击」。绿带是监管目标：比率落到带内就过关，掉出红区或越过上限即失败。冲击揭晓会逐条弹出。"],["极端","每 5 关出现巨灾年或监管审计，目标带更窄，冲击也更猛。"]];
 const SHOP=[
   {k:'bandLv',name:'监管弹性',max:3,cost(){return 30+(prog.bandLv|0)*25;},desc(){return '偿付能力目标带略放宽';}},
   {k:'capLv',name:'资本缓冲',max:3,cost(){return 30+(prog.capLv|0)*25;},desc(){return '开局资本更多';}},
@@ -672,7 +672,7 @@ const METH=[
   {id:'bf',n:'BF法',unlock:3,col:'#fde68a'},
   {id:'elr',n:'赔付率',unlock:6,col:'#d8b4fe'}
 ];
-let paid,caseR,prem,elr,ldf,E,SCR,sel,adj,cap,bandLo,bandHi,shocks,mode,pathT;
+let paid,caseR,prem,elr,ldf,E,SCR,sel,adj,cap,bandLo,bandHi,shocks,mode,pathT,revealI=0,flashBand=0,floats=[],lastVerdict=null;
 function unlocked(m){const extra=(prog.methLv|0)*3;return lvl+extra>=m.unlock;}
 function baseRes(id){
   if(id==='cl')return Math.round(paid*(ldf-1));
@@ -685,7 +685,7 @@ function ratio(sh){const unpaid=E+sh-paid;const of=cap+reserve()-unpaid;return o
 function inBand(v){return v>=bandLo-1e-6&&v<=bandHi+1e-6;}
 function worst(){let bad=0,w=0;for(const s of shocks){const v=ratio(s.sh);if(!inBand(v)){bad++;if(Math.abs(v-(bandLo+bandHi)/2)>Math.abs(w-(bandLo+bandHi)/2))w=v;}}return{bad,w};}
 function startLevel(n){
-  lvl=n|0;boss=lvl%5===0;mode='edit';pathT=0;adj=0;sel='cl';
+  lvl=n|0;boss=lvl%5===0;mode='edit';pathT=0;adj=0;sel='cl';revealI=0;flashBand=0;floats=[];lastVerdict=null;
   paid=40+lvl;caseR=30+lvl;prem=120+lvl*4;elr=0.72+lvl*0.005;ldf=2.05-Math.min(.25,lvl*0.01);
   E=Math.round(paid*ldf);
   SCR=Math.max(24,36+lvl*2-(prog.capLv|0)*2);
@@ -700,35 +700,86 @@ function startLevel(n){
   diff=lvl*10+shocks.length*8+(boss?28:0)+Math.round((2.2-bandHi+bandLo)*20)+Math.round(SCR/2);
   beginPlay(boss?(lvl>=10?'巨灾年叠加监管审计，目标带收得很窄':'巨灾年冲击：准备金和资本都要留足余量'):'选用评估方法并配置资本，让所有冲击后的偿付能力留在目标带内');
 }
-function addAdj(d){if(mode!=='edit')return false;adj+=d;addScore(1);beep(700,.05);return true;}
-function addCap(d){if(mode!=='edit')return false;const v=cap+d;if(v<0||v>220){toast('资本越限');return false;}cap=v;addScore(1);beep(640,.05);return true;}
+function addAdj(d){if(mode!=='edit')return false;adj+=d;addScore(1);beep(d>0?760:520,.05);floats.push({x:W*0.35,y:80,txt:(d>0?'+':'')+d+' 准备金',c:d>0?'#86efac':'#fda4af',life:0.8});return true;}
+function addCap(d){if(mode!=='edit')return false;const v=cap+d;if(v<0||v>220){toast('资本越限');return false;}cap=v;addScore(1);beep(d>0?700:500,.05);floats.push({x:W*0.7,y:80,txt:(d>0?'+':'')+d+' 资本',c:'#ffd34d',life:0.8});return true;}
 function pickMeth(id){if(mode!=='edit')return false;const m=METH.find(x=>x.id===id);if(!m||!unlocked(m)){toast('方法尚未解锁');return false;}sel=id;addScore(2);beep(720,.05);return true;}
-function runShock(){if(mode!=='edit')return false;if(reserve()<10){toast('准备金过低');return false;}mode='run';pathT=0;addScore(6);beep(520,.1);return true;}
-function update(dt){if(mode!=='run')return;pathT+=dt;if(pathT>=1.05){const w=worst();if(w.bad)lose('有 '+w.bad+' 个冲击越出偿付带');else win();}}
+function runShock(){if(mode!=='edit')return false;if(reserve()<10){toast('准备金过低，先计提一些');return false;}mode='run';pathT=0;revealI=0;flashBand=0;lastVerdict=null;addScore(6);beep(520,.1);toast('冲击来了！看比率会落在绿带里吗');return true;}
+function update(dt){
+  for(let i=floats.length-1;i>=0;i--){floats[i].y-=22*dt;floats[i].life-=dt;if(floats[i].life<=0)floats.splice(i,1);}
+  if(flashBand>0)flashBand=Math.max(0,flashBand-dt);
+  if(mode!=='run')return;
+  pathT+=dt;
+  const need=0.55*(revealI+1);
+  if(revealI<shocks.length && pathT>=need){
+    const s=shocks[revealI],v=ratio(s.sh),ok=inBand(v);
+    flashBand=ok?0.45:0.7;
+    lastVerdict=ok?'in':'out';
+    floats.push({x:W/2,y:148,txt:s.n+'  '+v.toFixed(2)+(ok?' 达标':' 越带'),c:ok?'#86efac':'#fda4af',life:1.1});
+    if(FX)FX.burst(sparks,W/2,130,ok?'#86efac':'#fda4af',ok?14:22);
+    beep(ok?880:200,ok?0.1:0.16,ok?'sine':'sawtooth');
+    revealI++;
+  }
+  if(revealI>=shocks.length && pathT>=0.55*shocks.length+0.7){
+    const w=worst();if(w.bad)lose('有 '+w.bad+' 个冲击越出偿付带');else win();
+  }
+}
+function drawGauge(){
+  const x=24,y=96,w=312,h=28;
+  ctx.fillStyle='#081522';ctx.fillRect(x,y,w,h);
+  const maxR=3.0,toX=v=>x+Math.max(0,Math.min(1,v/maxR))*w;
+  // out zones
+  ctx.fillStyle='rgba(253,164,175,.35)';ctx.fillRect(x,y,w,h);
+  const bx=toX(bandLo),bw=Math.max(4,toX(bandHi)-toX(bandLo));
+  ctx.fillStyle=flashBand&&lastVerdict==='in'?'#4ade80':'#16a34a';
+  ctx.globalAlpha=0.85+(flashBand?0.15:0);
+  ctx.fillRect(bx,y,bw,h);ctx.globalAlpha=1;
+  ctx.strokeStyle='#86efac';ctx.lineWidth=2;ctx.strokeRect(bx,y,bw,h);
+  ctx.fillStyle='#d1fae5';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('目标带 '+bandLo.toFixed(2)+'–'+bandHi.toFixed(2),bx+bw/2,y-8);
+  // needles: in edit show all faint, in run reveal
+  shocks.forEach((s,i)=>{
+    if(mode==='run'&&i>=revealI)return;
+    const v=ratio(s.sh),ok=inBand(v),nx=toX(v);
+    ctx.fillStyle=ok?'#bbf7d0':'#fda4af';
+    ctx.beginPath();ctx.moveTo(nx,y-2);ctx.lineTo(nx-5,y-11);ctx.lineTo(nx+5,y-11);ctx.fill();
+    ctx.fillRect(nx-1.5,y,3,h);
+  });
+  ctx.fillStyle='#94a3b8';ctx.font='9px sans-serif';ctx.textAlign='left';ctx.fillText('0',x,y+h+12);
+  ctx.textAlign='right';ctx.fillText('3.0',x+w,y+h+12);
+}
 function draw(){
   hits=[];stage('#0f3256','#03101f');
   if(state!=='play'&&state!=='pause')return;
-  label((boss?'👑 ':'')+'第 '+lvl+' 关 · 期望终极 '+E,14,18,'#fff',13,'left');
+  if(flashBand>0&&lastVerdict==='out'){ctx.fillStyle='rgba(220,40,40,'+(flashBand*0.28)+')';ctx.fillRect(0,0,W,H);}
+  if(flashBand>0&&lastVerdict==='in'){ctx.fillStyle='rgba(40,180,80,'+(flashBand*0.16)+')';ctx.fillRect(0,0,W,H);}
+  label((boss?'👑 ':'')+'第 '+lvl+' 关 · 期望终极赔款 '+E,14,18,'#fff',13,'left');
   label('资本 '+cap,346,18,'#ffd34d',12,'right');
-  tile(16,30,328,150,'#0a243c',12);
-  label('准备金 '+reserve()+'  方法 '+(METH.find(m=>m.id===sel)||{}).n,24,48,'#e0f2fe',12,'left');
-  label('目标带 '+bandLo.toFixed(2)+' ~ '+bandHi.toFixed(2)+'  资本要求 '+SCR,24,68,'#86efac',11,'left');
-  shocks.forEach((s,i)=>{const v=ratio(s.sh),ok=inBand(v);label(s.n+'  比率 '+v.toFixed(2)+(ok?' ✓':' ✗'),24,90+i*16,ok?'#86efac':'#fda4af',11,'left');});
-  METH.forEach((m,i)=>{
-    const x=16+i*86,y=192,on=sel===m.id,ok=unlocked(m);
-    tile(x,y,80,54,on?m.col:(ok?'#1d4d6e':'#1a2a38'),10);
-    label(ok?m.n:'锁定',x+40,y+18,on?'#3a2200':'#e0f2fe',12,'center');
-    label(ok?('基 '+baseRes(m.id)):'Lv'+m.unlock,x+40,y+38,on?'#3a2200':'#94a3b8',11,'center');
-    addHit(x,y,80,54,()=>pickMeth(m.id));
+  tile(16,30,328,154,'#0a243c',12);
+  label('准备金 '+reserve()+'　方法 '+(METH.find(m=>m.id===sel)||{}).n+(adj?('　调整 '+((adj>0?'+':'')+adj)):''),24,48,'#e0f2fe',13,'left');
+  label('资本要求 SCR '+SCR+'　当前偿付比 '+(shocks.length?ratio(0).toFixed(2):'—'),24,68,'#93c5fd',11,'left');
+  drawGauge();
+  shocks.forEach((s,i)=>{
+    const shown=mode!=='run'||i<revealI;
+    const v=ratio(s.sh),ok=inBand(v);
+    const txt=shown?(s.n+'  冲击+'+s.sh+'  →  '+v.toFixed(2)+(ok?'  ✓落带':'  ✗越带')):(s.n+'  ……揭晓中');
+    label(txt,24,136+i*12,shown?(ok?'#86efac':'#fda4af'):'#64748b',11,'left');
   });
-  btn(16,258,104,44,'准备金-10','#fda4af',()=>addAdj(-10));
-  btn(128,258,104,44,'准备金+10','#86efac',()=>addAdj(10));
-  btn(240,258,104,44,'清零调整','#93c5fd',()=>{if(mode==='edit'){adj=0;beep(240,.06);}});
-  btn(16,310,104,44,'资本-10','#fda4af',()=>addCap(-10));
-  btn(128,310,104,44,'资本+10','#86efac',()=>addCap(10));
-  btn(240,310,104,44,'资本清零','#93c5fd',()=>{if(mode==='edit'){cap=0;beep(240,.06);}});
-  if(mode==='edit')btn(16,H-62,328,48,'承受冲击','#ffd34d',runShock);
-  else label('冲击演算中…',W/2,H-38,'#ffd34d',16,'center');
+  METH.forEach((m,i)=>{
+    const x=16+i*86,y=198,on=sel===m.id,ok=unlocked(m);
+    tile(x,y,80,50,on?m.col:(ok?'#1d4d6e':'#1a2a38'),10);
+    label(ok?m.n:'锁定',x+40,y+16,on?'#3a2200':'#e0f2fe',12,'center');
+    label(ok?('基提 '+baseRes(m.id)):'Lv'+m.unlock,x+40,y+36,on?'#3a2200':'#94a3b8',11,'center');
+    addHit(x,y,80,50,()=>pickMeth(m.id));
+  });
+  btn(16,258,104,44,'准备金 -10','#fda4af',()=>addAdj(-10));
+  btn(128,258,104,44,'准备金 +10','#86efac',()=>addAdj(10));
+  btn(240,258,104,44,'清零调整','#93c5fd',()=>{if(mode==='edit'){adj=0;beep(240,.06);toast('调整已清零');}});
+  btn(16,310,104,44,'资本 -10','#fda4af',()=>addCap(-10));
+  btn(128,310,104,44,'资本 +10','#86efac',()=>addCap(10));
+  btn(240,310,104,44,'资本清零','#93c5fd',()=>{if(mode==='edit'){cap=0;beep(240,.06);toast('资本已清零');}});
+  if(mode==='edit')btn(16,H-62,328,48,'承受冲击，看能否落在绿带','#ffd34d',runShock);
+  else label(revealI<shocks.length?'冲击揭晓中…':'正在结算…',W/2,H-38,'#ffd34d',16,'center');
+  for(const f of floats){ctx.globalAlpha=Math.max(0,f.life);ctx.fillStyle=f.c;ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.fillText(f.txt,f.x,f.y);}ctx.globalAlpha=1;
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 function win(){if(state!=='play')return;const w=worst();const mid=(bandLo+bandHi)/2;const s=Math.abs(w.w-mid)<0.15?3:Math.abs(w.w-mid)<0.35?2:1;finishWin(s,40+lvl*3+(boss?30:0),'偿付达标');}

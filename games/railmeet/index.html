@@ -693,7 +693,7 @@ function startLevel(n){
     }
   }
   diff=lvl*10+trains.length*8+stations.length*3+(boss?28:0)+(late?12:0)+(outage?12:0);
-  beginPlay(boss?(late&&outage?'货车晚点而且还要绕开封锁的避让线':late?'货车晚点，交会窗口被压缩':'一处避让线封锁，必须改在其他站会车'):'给列车下达通行、停等或进避让线，避免在单线区间对撞');
+  beginPlay(boss?(late&&outage?'货车晚点而且还要绕开封锁的避让线':late?'货车晚点，交会窗口被压缩':'一处避让线封锁，必须改在其他站会车'):'给列车下达通行、停等或进避让线，避免在单线区间对撞。绿灯站可会车，红灯表示封闭。');
 }
 function setAct(i,a){const t=trains[i];if(!t)return false;t.act=a;addScore(1);beep(640,.04);return true;}
 function st(id){return stations.find(s=>s.id===id);}
@@ -769,26 +769,90 @@ function clearRun(){
   if(iss.length){lose(iss[0]);return false;}
   addScore(30+lvl*2);win();return true;
 }
+function drawTrack(x0,x1,y){
+  // ballast
+  ctx.fillStyle='#5a4630';ctx.fillRect(x0-8,y-14,x1-x0+16,28);
+  ctx.fillStyle='#3e2f20';
+  for(let x=x0;x<x1;x+=9){ctx.fillRect(x,y-11,6,4);ctx.fillRect(x+3,y+7,6,4);}
+  // sleepers
+  ctx.fillStyle='#6d4c2c';
+  for(let x=x0;x<=x1;x+=14)ctx.fillRect(x-5,y-9,10,18);
+  // rails
+  ctx.strokeStyle='#c5d0da';ctx.lineWidth=2.4;
+  ctx.beginPath();ctx.moveTo(x0,y-5);ctx.lineTo(x1,y-5);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x0,y+5);ctx.lineTo(x1,y+5);ctx.stroke();
+  ctx.strokeStyle='#8a9aa8';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(x0,y-7);ctx.lineTo(x1,y-7);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x0,y+7);ctx.lineTo(x1,y+7);ctx.stroke();
+}
+function drawStation(x,y,s){
+  const closed=!!s.closed,loop=!!s.loop;
+  // platform
+  ctx.fillStyle=closed?'#6b3030':'#d9c4a0';
+  ctx.fillRect(x-16,y-28,32,16);
+  ctx.fillStyle=closed?'#4a2020':'#8b5a2b';
+  ctx.fillRect(x-14,y-42,28,16);
+  ctx.fillStyle=closed?'#fda4af':loop?'#86efac':'#fde68a';
+  ctx.fillRect(x-10,y-54,20,12);
+  // signal
+  ctx.fillStyle='#2a2118';ctx.fillRect(x+16,y-38,3,26);
+  ctx.beginPath();ctx.arc(x+17.5,y-42,5,0,7);
+  ctx.fillStyle=closed?'#ef4444':(loop?'#22c55e':'#f59e0b');ctx.fill();
+  label(s.id+(loop?(closed?' 封闭':' 避让'):' 站'),x,y+22,closed?'#fda4af':'#fff7e7',10,'center');
+}
+function drawTrainSprite(x,y,t,scale){
+  const dir=t.dir>0?1:-1, passenger=t.typ==='P';
+  ctx.save();ctx.translate(x,y);ctx.scale(dir,1);
+  const body=passenger?'#e8eef8':'#c26a2d', roof=passenger?'#3b6ea8':'#6b3a16', trim=passenger?'#93c5fd':'#fbbf24';
+  // cars
+  ctx.fillStyle=body;ctx.fillRect(-28,-11,22,16);ctx.fillRect(-5,-11,18,16);
+  ctx.fillStyle=roof;ctx.fillRect(-28,-15,22,5);ctx.fillRect(-5,-15,18,5);
+  // engine
+  ctx.fillStyle=body;ctx.fillRect(14,-12,22,18);
+  ctx.fillStyle=roof;ctx.fillRect(14,-16,16,6);
+  ctx.fillStyle='#1f2933';ctx.fillRect(28,-6,10,10);
+  // headlight
+  ctx.fillStyle='#ffe08a';ctx.beginPath();ctx.arc(38,-1,3,0,7);ctx.fill();
+  // windows
+  ctx.fillStyle=trim;
+  ctx.fillRect(-24,-8,5,5);ctx.fillRect(-16,-8,5,5);ctx.fillRect(0,-8,5,5);ctx.fillRect(18,-8,6,6);
+  // wheels
+  ctx.fillStyle='#1a1a1a';
+  [-22,-10,2,18,30].forEach(wx=>{ctx.beginPath();ctx.arc(wx,8,3.2,0,7);ctx.fill();});
+  ctx.restore();
+}
+function actLabel(a){return a==='run'?'通行中':a==='hold'?'站内停等':'进入避让线';}
+function actCol(a){return a==='run'?'#86efac':a==='hold'?'#fde68a':'#93c5fd';}
 function draw(){
-  hits=[];stage('#3f2a14','#2a1c10');
+  hits=[];stage('#4a321c','#24180f');
   if(state!=='play'&&state!=='pause')return;
   const iss=simulateOk();
-  label((boss?'👑 ':'')+'第 '+lvl+' 关 · '+trains.length+' 列',14,18,'#fff7e7',13,'left');
-  label(iss.length?'有冲突':'可交会',346,18,iss.length?'#fda4af':'#86efac',12,'right');
-  tile(16,32,328,80,'#4a3420',10);
-  const minX=0,maxX=10,x0=36,x1=324;
+  label((boss?'👑 ':'')+'第 '+lvl+' 关 · '+trains.length+' 列会车',14,18,'#fff7e7',13,'left');
+  label(iss.length?'⚠ 有冲突':'✔ 可安全交会',346,18,iss.length?'#fda4af':'#86efac',12,'right');
+  const minX=0,maxX=10,x0=28,x1=332,ry=78;
   function X(x){return x0+(x-minX)/(maxX-minX)*(x1-x0);}
-  ctx.strokeStyle='#bea77a';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x0,70);ctx.lineTo(x1,70);ctx.stroke();
+  // siding ghost tracks
   stations.forEach(s=>{
-    orb(X(s.x),70,7,s.closed?'#fda4af':s.loop?'#86efac':'#e5d1ab');
-    label(s.id+(s.loop?(s.closed?' 封':' 避'):''),X(s.x),92,'#fff7e7',10,'center');
+    if(!s.loop)return;
+    const sx=X(s.x);
+    ctx.strokeStyle=s.closed?'rgba(253,164,175,.5)':'rgba(134,239,172,.7)';
+    ctx.lineWidth=3;ctx.beginPath();ctx.arc(sx,ry-2,18,Math.PI*1.05,Math.PI*1.95);ctx.stroke();
+  });
+  drawTrack(x0,x1,ry);
+  stations.forEach(s=>drawStation(X(s.x),ry,s));
+  trains.forEach((t,i)=>{
+    const st=stations.find(s=>s.id===t.pos)||stations[0];
+    const yOff=t.act==='sid'?-20:(t.act==='hold'?8:0);
+    drawTrainSprite(X(st.x)+(i-sel)*4,ry-2+yOff,t,1);
   });
   trains.forEach((t,i)=>{
-    const y=124+i*72,on=sel===i;
-    tile(16,y,328,66,on?'#5a4030':'#4a3420',10);
-    label(t.n+' '+(t.typ==='P'?'客':'货')+' '+(t.dir>0?'→':'←')+'  '+t.pos+'→'+t.dest,24,y+18,'#fff7e7',13,'left');
-    label('指令：'+(t.act==='run'?'通行':t.act==='hold'?'停等':'进避让线')+(late&&t.typ==='F'?'  晚点':''),24,y+42,'#fde68a',11,'left');
-    addHit(16,y,328,66,()=>{sel=i;});
+    const y=148+i*68,on=sel===i;
+    tile(16,y,328,62,on?'#6a4a30':'#3e2c1c',10);
+    if(on){ctx.strokeStyle='#ffd34d';ctx.lineWidth=2;ctx.strokeRect(16,y,328,62);}
+    drawTrainSprite(52,y+32,t,1);
+    label(t.n+' · '+(t.typ==='P'?'旅客列车':'货运列车')+'  '+(t.dir>0?'东行 →':'← 西行'),86,y+20,'#fff7e7',13,'left');
+    label(t.pos+'站 → '+t.dest+'站   '+actLabel(t.act)+(late&&t.typ==='F'?' · 晚点':''),86,y+42,actCol(t.act),11,'left');
+    addHit(16,y,328,62,()=>{sel=i;});
   });
   const yb=H-116;
   btn(16,yb,104,44,'通行','#86efac',()=>setAct(sel,'run'));

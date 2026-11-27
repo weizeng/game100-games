@@ -650,7 +650,7 @@ cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault(
 cv.addEventListener('pointermove',e=>{if(!pointer.down||state!=='play')return;const p=posOf(e);pointer.x=p.x;pointer.y=p.y;if(typeof onMove==='function')onMove(p,e);});
 ['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,e=>{if(!pointer.down)return;pointer.down=false;const p=posOf(e);if(typeof onUp==='function')onUp(p,e);}));
 
-const TUT=[["出牌","每回合有能量，点手牌即可打出。斩击造成伤害，护盾抵挡敌攻。"],["回响","带「回」字的牌打出后会留下回响，下回合自动再打一次。"],["节奏","先铺回响再打爆发能打出更高伤害。点「结束回合」让敌人行动。"],["首领","每 5 层首领会削弱回响，需要更多直接伤害。"]];
+const TUT=[["出牌","每回合有能量，点手牌即可打出。斩击造成伤害，护盾抵挡敌攻。"],["回响是核心","带紫色「回」标记的牌，打出后会在屏幕中央留下回响。点「结束回合」后，这些牌会自动再打一次。"],["怎么连","先打「回响斩 / 回响盾」把回响埋下，再打其他牌。下回合回响先触发，等于白嫖一轮。"],["前轻后重","前几层敌人更弱、能量更宽裕，熟悉回响后再挑战首领（首领会抑制回响）。"]];
 const SHOP=[
   {k:'hpLv',name:'生命成长',max:3,cost(){return 35+(prog.hpLv|0)*25;},desc(){return '初始生命 +8';}},
   {k:'echoLv',name:'回响强化',max:2,cost(){return 40+(prog.echoLv|0)*30;},desc(){return '回响效果提升';}},
@@ -670,8 +670,10 @@ function shuffle(a,rng){for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()* 
 function drawN(n){while(n--&& (deck.length||discard.length)){ if(!deck.length){const rng=mulberry32(lvl*99+turn*17+deck.length); deck=shuffle(discard,rng); discard=[];} hand.push(deck.pop());}}
 function startLevel(n){
   lvl=n|0; boss=lvl%5===0;
-  emax=18+lvl*6+(boss?16:0); ehp=emax; eatk=3+Math.floor((lvl-1)/3)+(boss?2:0);
-  pmax=36+(prog.hpLv|0)*8; php=pmax; emaxE=3+(prog.enLv|0); energy=emaxE;
+  const early=lvl<=3;
+  emax=(early?12:18)+lvl*(early?3:6)+(boss?16:0); ehp=emax;
+  eatk=(early?2:3)+Math.floor((lvl-1)/3)+(boss?2:0);
+  pmax=36+(prog.hpLv|0)*8; php=pmax; emaxE=3+(prog.enLv|0)+(lvl<=2?1:0); energy=emaxE;
   damp=boss?0.45:1; turn=1; block=0; echoes=[]; hand=[]; discard=[];
   deck=['strike','strike','strike','strike','guard','guard','echo','echog'];
   if(lvl>=6) deck.push('burst'); if(lvl>=10) deck.push('heal');
@@ -680,7 +682,7 @@ function startLevel(n){
   diff=lvl*10+eatk*6+Math.floor(emax/2)+(boss?22:0);
   score=0; sparks=[]; show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);
   state='play'; last=performance.now(); beep(660,.1); $('score').textContent=0;
-  $('hint').textContent=boss?'首领削弱回响，多用直接伤害':'打出回响牌，下回合会再打一次';
+  $('hint').textContent=boss?'首领抑制回响（效果减弱），请多用直接伤害':'打出带「回」的牌，结束回合后会自动再打一次';
 }
 function echoMul(){return damp*(0.7+(prog.echoLv|0)*0.25);}
 function applyCard(c,fromEcho){
@@ -696,7 +698,7 @@ function playCard(i){
   if(energy<c.cost){toast('能量不足');return;}
   energy-=c.cost; hand.splice(i,1); discard.push(id);
   applyCard(c,false); if(state!=='play') return;
-  if(c.echo) echoes.push(id);
+  if(c.echo){echoes.push(id);toast('回响已埋下：下回合将再打出「'+c.name+'」');}
   beep(c.echo?920:760,.07);
 }
 function endTurn(){
@@ -705,31 +707,64 @@ function endTurn(){
   if(php<=0){php=0; lose('被击倒'); return;}
   turn++; energy=emaxE;
   const queued=echoes.slice(); echoes=[];
+  if(queued.length)toast('回响触发！'+queued.map(id=>cardBy(id).name).join('、'));
   for(const id of queued){applyCard(cardBy(id),true); if(state!=='play') return; discard.push(id);}
   drawN(Math.max(0,4-hand.length));
-  beep(420,.08,'triangle');
+  beep(queued.length?920:420,.08,'triangle');
 }
 function onDown(p){inHit(p);}
 function update(){}
+function bar(x,y,w,h,r,col,back){
+  ctx.fillStyle=back||'rgba(0,0,0,.45)';ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=col;ctx.fillRect(x,y,Math.max(0,r)*w,h);
+}
+function drawEnemy(x,y){
+  ctx.save();ctx.translate(x,y);
+  ctx.fillStyle='#2a0a40';ctx.beginPath();ctx.ellipse(0,28,36,12,0,0,7);ctx.fill();
+  if(FX)FX.orb(ctx,0,0,boss?32:26,boss?'#fb7185':'#c084fc');
+  else{ctx.fillStyle=boss?'#fb7185':'#c084fc';ctx.beginPath();ctx.arc(0,0,boss?32:26,0,7);ctx.fill();}
+  ctx.font=(boss?36:28)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(boss?'👑':'👾',0,2);
+  ctx.restore();
+}
+function drawCard(c,x,y,w,h,can){
+  const bg=can?(c.echo?'#f5e9ff':'#fff7ff'):'#b9a7cc';
+  tile(x,y,w,h,bg,12);
+  if(c.echo){ctx.save();if(FX)FX.glow(ctx,'#e879f9',12);ctx.strokeStyle='#e879f9';ctx.lineWidth=3;ctx.strokeRect(x+2,y+2,w-4,h-4);if(FX)FX.noGlow(ctx);ctx.restore();}
+  label(c.name,x+w/2,y+20,'#3b0764',14,'center');
+  label((c.echo?'🔮 ':'')+(c.dmg?('伤'+c.dmg+' '):'')+(c.blk?('盾'+c.blk+' '):'')+(c.heal?('血'+c.heal):''),x+w/2,y+42,'#6d28d9',12,'center');
+  label(c.cost+' 能',x+w/2,y+h-18,can?'#7c3aed':'#6b7280',12,'center');
+  if(c.echo){ctx.fillStyle='#a21caf';ctx.beginPath();ctx.arc(x+w-14,y+14,11,0,7);ctx.fill();label('回',x+w-14,y+14,'#fff',11,'center');}
+}
 function draw(){
   hits=[]; stage('#4a1a7a','#0d0620');
   if(state!=='play'&&state!=='pause') return;
-  label((boss?'👑 ':'')+'第 '+lvl+' 层 · 回合一 '+turn,14,20,'#fff',13,'left');
-  tile(20,40,320,56,'#3b1768',12);
-  label('敌  '+Math.max(0,ehp)+'/'+emax+'   攻击 '+eatk+(boss?'  · 回响抑制':''),30,68,'#ffe4fe',14,'left');
-  tile(20,108,320,50,'#2a1148',12);
-  label('你  '+php+'/'+pmax+'   盾 '+block+'   能 '+energy+'/'+emaxE,30,133,'#e9d5ff',14,'left');
-  if(echoes.length) label('待回响：'+echoes.map(id=>cardBy(id).name).join('、'),20,176,'#f0abfc',12,'left');
-  const cols=['#fda4af','#7dd3fc','#f0abfc','#86efac','#ffd34d','#fde68a'];
+  label((boss?'👑 ':'')+'第 '+lvl+' 层 · 回合 '+turn,14,18,'#fff',13,'left');
+  drawEnemy(W*0.72,78);
+  tile(16,36,200,86,'#3b1768',12);
+  label('敌  '+Math.max(0,ehp)+'/'+emax,26,54,'#ffe4fe',14,'left');
+  bar(26,66,180,10,ehp/emax,'#fb7185');
+  label('攻击 '+eatk+(boss?'  · 回响抑制':'') ,26,92,'#fda4af',12,'left');
+  tile(16,130,328,48,'#2a1148',12);
+  label('你  '+php+'/'+pmax,26,146,'#e9d5ff',13,'left');
+  bar(110,140,120,10,php/pmax,'#34d399');
+  label('盾 '+block+'   能量 '+energy+'/'+emaxE,26,164,'#fde68a',12,'left');
+  // echo queue highlight
+  const ey=186;
+  if(echoes.length){
+    tile(16,ey,328,40,'#6b21a8',12);
+    if(FX){FX.glow(ctx,'#e879f9',10);}
+    label('⏳ 待回响（结束回合后自动再打）：'+echoes.map(id=>cardBy(id).name).join('、'),26,ey+20,'#f5d0fe',12,'left');
+    if(FX)FX.noGlow(ctx);
+  }else{
+    label('还没有回响。打出带「回」的牌，下回合会再触发一次。',20,ey+18,'#c4b5fd',11,'left');
+  }
   hand.forEach((id,i)=>{
-    const c=cardBy(id), x=16+(i%4)*84, y=200+Math.floor(i/4)*92;
-    tile(x,y,78,84, energy>=c.cost?'#fff7ff':'#c4b5d6',10);
-    label(c.name,x+39,y+22,'#3b0764',13,'center');
-    label(c.cost+'能',x+39,y+42,'#7c3aed',11,'center');
-    label((c.dmg?('伤'+c.dmg):'')+(c.blk?('盾'+c.blk):'')+(c.heal?('血'+c.heal):'')+(c.echo?' 回':''),x+39,y+62,'#4c1d95',11,'center');
-    addHit(x,y,78,84,()=>playCard(i));
+    const c=cardBy(id), x=16+(i%4)*84, y=234+Math.floor(i/4)*96, can=energy>=c.cost;
+    drawCard(c,x,y,78,88,can);
+    addHit(x,y,78,88,()=>playCard(i));
   });
-  btn(16,H-58,328,46,'结束回合','#ffb21e',endTurn);
+  btn(16,H-58,328,48,'结束回合（触发回响）','#ffb21e',endTurn);
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
 }
 function win(){if(state!=='play')return; const stars=php>pmax*0.6?3:php>pmax*0.3?2:1; finishWin(stars, 42+lvl*3+(boss?32:0)+php, '层主倒下！');}

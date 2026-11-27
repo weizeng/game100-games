@@ -619,7 +619,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     <button class="btn ghost" id="btnSym" type="button">🔄 6/8折对称</button>
     <button class="btn" id="btnAuto" type="button">✨ 霜花连结</button>
   </div>
-  <div class="hint" id="hint">在窗格滑动手指刻画万花筒对称冰枝 · 点亮所有❄️晶核，避开🔥暖风口！</div>
+  <div class="hint" id="hint">滑动刻画对称冰枝，点亮❄️晶核。绕开🔥暖风口，用「🧊冰封热口」才能暂时冻结！</div>
 </div>
 <div class="overlay" id="startScr"><h1 id="startH">🪟 冰窗花</h1><p id="startP"></p><p id="bestLine"></p><button class="btn" id="startBtn">开始雕霜</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -737,7 +737,7 @@ if(FX)FX.hidpi(cv,ctx,W,H);else{cv.width=W;cv.height=H;}
 // 15 关对称冰窗花设计
 // folds: 6 或 8 折万花筒对称; rings: 每一圈目标晶核 [半径r, 角度偏移deg]; vents: 暖风口 [半径r, 初始角deg, 旋转速度rad/s]
 const LV=[
-  {name:'初冬六出雪',folds:6,rings:[[55,0],[95,0],[130,30]],vents:[]},
+  {name:'初冬六出雪',folds:6,rings:[[55,0],[95,0],[130,30]],vents:[[118,25,0.22]]},
   {name:'双环冰凌花',folds:6,rings:[[50,15],[88,0],[122,15],[145,0]],vents:[[105,45,0.4]]},
   {name:'八角琉璃窗',folds:8,rings:[[52,0],[92,22],[128,0],[148,22]],vents:[[110,10,-0.45]]},
   {name:'寒梅映雪窗',folds:6,rings:[[48,0],[82,30],[114,0],[142,30]],vents:[[72,15,0.5],[128,45,-0.4]]},
@@ -756,7 +756,7 @@ const LV=[
 
 let L,folds,rings,vents,segments;
 let score=0,lives=3,timeLeft=60,chillTimer=0,ended=false,tAnim=0,raf=0,last=0,fast=1;
-let drawing=false,lastPt=null,sparks=[],floats=[],hitCooldown=0;
+let drawing=false,lastPt=null,sparks=[],floats=[],hitCooldown=0,flashT=0,shakeT=0;
 
 function penRadius(){
   return 18+Kit.up('pen')*6;
@@ -787,7 +787,7 @@ function start(i){
   timeLeft=baseT+Kit.up('chill')*8;
   chillTimer=0;
   ended=false;
-  drawing=false;lastPt=null;hitCooldown=0;
+  drawing=false;lastPt=null;hitCooldown=0;flashT=0;shakeT=0;
   sparks=[];floats=[];
   hud();
   last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);
@@ -828,23 +828,37 @@ function checkPointAt(x,y){
     }
   }
 
-  // 2. 检查是否误触暖风口（若未处于冰封状态且无冷却）
+  // 2. 划过暖风口会灼伤（仅「🧊冰封热口」可冻结，点按不能白嫖）
   if(chillTimer<=0&&hitCooldown<=0){
     for(const vt of vents){
       const vx=CX+Math.cos(vt.ang)*vt.r;
       const vy=CY+Math.sin(vt.ang)*vt.r;
-      if(Math.hypot(x-vx,y-vy)<=18){
-        hitCooldown=1.0;
-        lives--;
-        if(FX)FX.burst(sparks,vx,vy,'#ff7043',14);
-        addFloat(vx,vy,'🔥暖风融霜 -1❤️','#ff7043');
-        Kit.sfx('bad');Kit.vibrate(55);
-        hud();
-        if(lives<=0)endLv(false,'暖风融化了整扇冰窗花');
+      if(Math.hypot(x-vx,y-vy)<=28){
+        hurtVent(vt,vx,vy);
         return;
       }
     }
   }
+}
+function meltNear(vx,vy,rad){
+  segments=segments.filter(seg=>{
+    const x1=CX+Math.cos(seg.a1)*seg.r1,y1=CY+Math.sin(seg.a1)*seg.r1;
+    const x2=CX+Math.cos(seg.a2)*seg.r2,y2=CY+Math.sin(seg.a2)*seg.r2;
+    return Math.hypot(x1-vx,y1-vy)>rad&&Math.hypot(x2-vx,y2-vy)>rad;
+  });
+}
+function hurtVent(vt,vx,vy){
+  hitCooldown=1.15;
+  flashT=0.55;
+  shakeT=0.35;
+  lives--;
+  meltNear(vx,vy,52);
+  if(FX)FX.burst(sparks,vx,vy,'#ff7043',22);
+  addFloat(vx,vy-8,'🔥暖风灼伤 -1❤️','#ff7043');
+  Kit.sfx('bad');Kit.vibrate(70);
+  Kit.toast('🔥 暖风融化了附近的冰枝！-1❤️',1300);
+  hud();
+  if(lives<=0)endLv(false,'暖风融化了整扇冰窗花');
 }
 
 function lightUpRing(rg){
@@ -928,19 +942,6 @@ cv.addEventListener('pointerdown',e=>{
   const p=ptLogical(e);
   drawing=true;
   lastPt=p;
-  // 若点击暖风口本身，可直接将其短暂冰封 4 秒
-  for(const vt of vents){
-    const vx=CX+Math.cos(vt.ang)*vt.r;
-    const vy=CY+Math.sin(vt.ang)*vt.r;
-    if(Math.hypot(p.x-vx,p.y-vy)<=26){
-      chillTimer=Math.max(chillTimer,4+Kit.up('chill')*2);
-      if(FX)FX.burst(sparks,vx,vy,'#80deea',12);
-      addFloat(vx,vy,'🧊 冰封暖风口！','#80deea');
-      Kit.sfx('hit');
-      hud();
-      return;
-    }
-  }
   addSymmetricSegment(p.x,p.y,p.x+1,p.y+1,'#e0f7fa');
   checkPointAt(p.x,p.y);
 });
@@ -966,6 +967,8 @@ function upd(dt){
 
   if(chillTimer>0)chillTimer=Math.max(0,chillTimer-dt);
   if(hitCooldown>0)hitCooldown=Math.max(0,hitCooldown-dt);
+  if(flashT>0)flashT=Math.max(0,flashT-dt);
+  if(shakeT>0)shakeT=Math.max(0,shakeT-dt);
 
   // 暖风口旋转（冰封时暂停旋转）
   if(chillTimer<=0){
@@ -1122,34 +1125,52 @@ function drawNodesAndVents(){
     ctx.beginPath();ctx.arc(CX,CY,12,0,Math.PI*2);ctx.fill();
   }
 
-  // 绘制暖风口 🔥（若处于冰封状态则显示蓝色冰封圈）
+  // 绘制暖风口 🔥：更大火焰、光晕与灼伤范围示意
   const frozen=chillTimer>0;
   for(const vt of vents){
     const vx=CX+Math.cos(vt.ang)*vt.r;
     const vy=CY+Math.sin(vt.ang)*vt.r;
-    const col=frozen?'#4fc3f7':'#ff7043';
+    const col=frozen?'#4fc3f7':'#ff5722';
+    const pulse=frozen?0:0.6+Math.sin(tAnim*8+vt.r)*0.4;
+    const aura=22+pulse*8;
+    ctx.save();
+    const heat=ctx.createRadialGradient(vx,vy,4,vx,vy,aura+10);
+    heat.addColorStop(0,frozen?'rgba(79,195,247,.45)':'rgba(255,87,34,'+(0.42+pulse*0.25)+')');
+    heat.addColorStop(0.55,frozen?'rgba(79,195,247,.12)':'rgba(255,193,7,.18)');
+    heat.addColorStop(1,'rgba(255,87,34,0)');
+    ctx.fillStyle=heat;
+    ctx.beginPath();ctx.arc(vx,vy,aura+10,0,Math.PI*2);ctx.fill();
+    ctx.setLineDash([4,4]);
+    ctx.strokeStyle=frozen?'rgba(79,195,247,.65)':'rgba(255,138,80,.85)';
+    ctx.lineWidth=1.6;
+    ctx.beginPath();ctx.arc(vx,vy,28,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);
     if(FX){
-      FX.glow(ctx,col,10);
-      FX.orb(ctx,vx|0,vy|0,13,col);
+      FX.glow(ctx,col,16+pulse*8);
+      FX.orb(ctx,vx|0,vy|0,frozen?15:18+pulse*3,col);
       FX.noGlow(ctx);
     }else{
       ctx.fillStyle=col;
-      ctx.beginPath();ctx.arc(vx,vy,13,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(vx,vy,frozen?15:18+pulse*3,0,Math.PI*2);ctx.fill();
     }
-    ctx.font='12px sans-serif';
+    ctx.font='18px sans-serif';
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(frozen?'🧊':'🔥',vx,vy+1);
+    ctx.restore();
   }
 }
 
 function draw(){
+  ctx.save();
+  if(shakeT>0)ctx.translate((Math.random()-.5)*8,(Math.random()-.5)*8);
   if(FX)FX.stage(ctx,W,H,'#12365c','#061529');
   else{ctx.fillStyle='#061529';ctx.fillRect(0,0,W,H);}
 
-  if(!L)return;
+  if(!L){ctx.restore();return;}
   drawWindowFrame();
   drawSymmetricBranches();
   drawNodesAndVents();
+  if(flashT>0){ctx.fillStyle='rgba(255,40,20,'+(flashT*0.5)+')';ctx.fillRect(0,0,W,H);}
 
   if(FX)FX.drawBurst(ctx,sparks);
   for(const f of floats){
@@ -1160,6 +1181,7 @@ function draw(){
     ctx.fillText(f.txt,f.x,f.y);
   }
   ctx.globalAlpha=1;
+  ctx.restore();
 }
 
 function frame(t){
@@ -1185,7 +1207,7 @@ function layout(){
 addEventListener('resize',layout);layout();
 
 $('startH').textContent='🪟 冰窗花';
-$('startP').innerHTML='15 关万花筒对称冰晶雕琢：在冬夜窗格上滑动手指，生长 6 折/8 折对称冰窗花！<br>点亮所有金色晶核节点，冰封并避开旋转暖风口！';
+$('startP').innerHTML='15 关万花筒对称冰晶雕琢：在冬夜窗格上滑动手指，生长 6 折/8 折对称冰窗花！<br>点亮所有金色晶核。红色🔥暖风口会灼伤并融霜，请用「🧊冰封热口」再靠近。';
 
 Kit.init({
   id:'frost',
@@ -1195,11 +1217,11 @@ Kit.init({
   start,
   stop:()=>{ended=true;},
   pause:()=>{},
-  note:()=>'滑动手指绘制对称冰枝点亮金色晶核，点击🔥暖风口或🧊冰封热口防止融化',
+  note:()=>'滑动绘制对称冰枝点亮金色晶核，绕开🔥暖风口；用🧊冰封热口才能暂时冻结',
   tut:[
     ['万花筒对称雕霜','在窗格上滑动手指（或点击下方「❄️冰晶绽放」），笔触会自动按 6 折或 8 折镜像对称生长出璀璨冰晶枝！','❄️'],
     ['点亮晶核共鸣','让冰晶枝触碰任意一颗金色晶核，同一环上的所有对称晶核都会瞬间共鸣点亮！点亮全部晶核环即可过关。','✨'],
-    ['冰封旋转暖风','小心窗格上的红色「🔥暖风口」！直接点击暖风口或下方「🧊冰封热口」按钮，可将其冻结成冰块安全通过。','🧊'],
+    ['避开旋转暖风','红色「🔥暖风口」会灼伤并融化附近冰枝！请绕开它的光圈；只有点下方「🧊冰封热口」才能暂时冻结，点按风口本身无法消除危险。','🧊'],
     ['三大寒冬首领','第 5/10/15 关迎战暖潮漩涡窗、双生赤焰风口与万古寒晶王座！','👑']
   ],
   ups:[

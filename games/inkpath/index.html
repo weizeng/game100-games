@@ -603,9 +603,9 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     </span>
   </div>
   <div class="stagebox"><canvas id="cv"></canvas></div>
-  <p class="hint" id="hint">依次点墨点连线勿交叉</p>
+  <p class="hint" id="hint">按 1→N 连线，规划路线避开交叉；交叉会溅墨扣命</p>
 </div>
-<div class="overlay" id="startScr"><h1>🖋️ 墨迹寻踪</h1><p>按序连接墨点成径。<br>路径不可交叉，清障通关。<br>Boss：墨渍剪断后会再生。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🖋️ 墨迹寻踪</h1><p>按编号 1→N 连成一条墨径，线条不能交叉。<br>墨点星座打乱，直线穿过已有墨迹会被溅墨拒绝。<br>Boss：墨渍剪断后会再生。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -637,24 +637,112 @@ let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textCont
 const TOTAL=15;
 let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 
-const TUT=[["墨点","画布上散布编号墨点。"],["连线","按 1→N 依次点连。"],["交叉","路径不可交叉。"],["Boss","Boss关墨渍会再生。"]];
+const TUT=[["星座墨点","纸上散落编号墨点，位置像星座一样交错，不要按圆周顺序想当然去连。"],["按号规划","必须按 1→2→3… 依次点连，但要先看清会不会穿过已有墨线。"],["交叉溅墨","若这一笔会与已有墨迹交叉，会溅墨拒绝并扣一命。"],["Boss","首领关被点掉的墨渍会再生，更要预留空间。"]];
 const SHOP=[{k:'lifeLv',name:'容错生命',max:3,cost(){return 40+(prog.lifeLv|0)*30;},desc(){return '额外生命'}},{k:'hintLv',name:'提示次数',max:3,cost(){return 45+(prog.hintLv|0)*30;},desc(){return '高亮下一点'}},{k:'scoreLv',name:'得分加成',max:3,cost(){return 50+(prog.scoreLv|0)*35;},desc(){return '得分乘数+'}}];
-let dots=[],next=1,lives=0,linked=0,goal=0,rng,regenT=0,hints=0,segs=[];
+let dots=[],next=1,lives=0,linked=0,goal=0,rng,regenT=0,hints=0,segs=[],splashes=[];
 function cross(a,b,c,d){function orient(p,q,r){return(q.y-p.y)*(r.x-q.x)-(q.x-p.x)*(r.y-q.y);}function onSeg(p,q,r){return Math.min(p.x,r.x)<=q.x&&q.x<=Math.max(p.x,r.x)&&Math.min(p.y,r.y)<=q.y&&q.y<=Math.max(p.y,r.y);}const o1=orient(a,b,c),o2=orient(a,b,d),o3=orient(c,d,a),o4=orient(c,d,b);if(o1*o2<0&&o3*o4<0)return true;return false;}
-function layout(n){dots=[];segs=[];const cnt=5+Math.min(6,((n+1)/2)|0)+(boss?2:0);goal=cnt;for(let i=0;i<cnt;i++){const ang=(i/cnt)*Math.PI*2+rng()*0.2;const rad=70+i%3*22;dots.push({id:i+1,x:W/2+Math.cos(ang)*rad,y:H*0.42+Math.sin(ang)*rad,r:14,alive:true});}}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*5573+3);next=1;linked=0;lives=3+(prog.lifeLv|0);hints=prog.hintLv|0;regenT=0;layout(lvl);show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='依次点墨点连线勿交叉';}
+function segsCross(path){for(let i=0;i<path.length-1;i++)for(let j=i+2;j<path.length-1;j++){if(i===0&&j===path.length-2)continue;if(cross(path[i],path[i+1],path[j],path[j+1]))return true;}return false;}
+function layout(n){
+  dots=[];segs=[];splashes=[];
+  const cnt=5+Math.min(6,((n+1)/2)|0)+(boss?2:0);goal=cnt;
+  const cx=W/2,cy=H*0.42;
+  // mixed-radius constellation, then assign IDs along an x-monotone (non-crossing) path
+  const pts=[];
+  for(let k=0;k<80 && pts.length<cnt;k++){
+    const ang=rng()*Math.PI*2;
+    const rad=52+rng()*86+(k%2?8:0);
+    const p={x:cx+Math.cos(ang)*rad,y:cy+Math.sin(ang)*rad*0.86};
+    if(p.x<28||p.x>W-28||p.y<48||p.y>H-120)continue;
+    if(pts.some(q=>Math.hypot(q.x-p.x,q.y-p.y)<36))continue;
+    pts.push(p);
+  }
+  while(pts.length<cnt){
+    const ang=pts.length*(Math.PI*2/cnt)+0.35;
+    pts.push({x:cx+Math.cos(ang)*90,y:cy+Math.sin(ang)*70});
+  }
+  pts.sort((a,b)=>a.x-b.x||a.y-b.y);
+  // slight y-jitter zigzag still x-monotone => non-crossing Hamiltonian path
+  dots=pts.map((p,i)=>({id:i+1,x:p.x,y:p.y,r:16,alive:true}));
+}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];rng=mulberry32(n*5573+3);next=1;linked=0;lives=3+(prog.lifeLv|0);hints=prog.hintLv|0;regenT=0;layout(lvl);show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='按 1→N 连线，避开交叉；交叉会溅墨';}
 function win(){if(state!=='play')return;const stars=lives>=3?3:lives>=2?2:1;const gain=40+stars*15+(boss?50:0);finishWin(stars,gain,'墨径贯通！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function update(dt){if(!boss)return;regenT+=dt;if(regenT>5){regenT=0;const dead=dots.filter(d=>!d.alive);if(dead.length&&linked<goal){const d=dead[rng()*dead.length|0];d.alive=true;d.id=next+((rng()*2)|0);if(d.id<next)d.id=next;toast('墨渍再生！');beep(200,.1,'triangle');}}}
+function update(dt){
+  for(let i=splashes.length-1;i>=0;i--){const s=splashes[i];s.x+=s.vx*dt*8;s.y+=s.vy*dt*8;s.vx*=0.9;s.vy*=0.9;s.life-=dt*1.4;if(s.life<=0)splashes.splice(i,1);}
+  segs.forEach(s=>{if(s.wet>0)s.wet=Math.max(0,s.wet-dt*0.6);});
+  if(!boss)return;regenT+=dt;if(regenT>5){regenT=0;const dead=dots.filter(d=>!d.alive);if(dead.length&&linked<goal){const d=dead[rng()*dead.length|0];d.alive=true;d.id=next+((rng()*2)|0);if(d.id<next)d.id=next;toast('墨渍再生！');beep(200,.1,'triangle');}}
+}
+function inkSplash(x,y,msg){
+  lives--;beep(160,.14,'triangle');toast(msg||'墨线交叉！');
+  for(let i=0;i<10;i++){
+    const a=rng()*6.28,sp=8+rng()*18;
+    splashes.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:3+rng()*5,life:1});
+  }
+  if(FX)FX.burst(sparks,x,y,'#1a1a2e',16);
+  if(lives<=0)lose('墨迹紊乱');
+}
+function wouldCross(a,b){for(const s of segs){if(cross(a,b,s.a,s.b))return true;}return false;}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);
-  if(p.y>H-56&&hints>0){hints--;const t=dots.find(d=>d.alive&&d.id===next);if(t){t.glow=1;toast('下一点 #'+next);beep(900,.08);}return;}
-  for(const d of dots){if(!d.alive)continue;if(Math.hypot(p.x-d.x,p.y-d.y)<=d.r+8){if(d.id===next){const prev=dots.find(x=>x.id===next-1);if(prev){const seg={a:{x:prev.x,y:prev.y},b:{x:d.x,y:d.y}};let bad=false;for(const s of segs){if(cross(seg.a,seg.b,s.a,s.b)){bad=true;break;}}if(bad){lives--;beep(160,.12,'triangle');toast('路径交叉');if(lives<=0)lose('墨迹紊乱');return;}segs.push(seg);}d.alive=false;linked++;next++;const mul=1+(prog.scoreLv|0)*0.2;score+=Math.round(12*mul);$('score').textContent=score;beep(720,.06);if(FX)FX.burst(sparks,d.x,d.y,'#72cbff',8);if(linked>=goal||dots.every(x=>!x.alive))win();}else{lives--;beep(160,.12,'triangle');toast('顺序错误');if(lives<=0)lose('墨迹紊乱');}return;}}
+  if(p.y>H-56&&hints>0){hints--;const t=dots.find(d=>d.alive&&d.id===next);if(t){t.glow=1.6;toast('下一点 #'+next);beep(900,.08);}return;}
+  for(const d of dots){if(!d.alive)continue;if(Math.hypot(p.x-d.x,p.y-d.y)<=d.r+10){
+    const prev=dots.find(x=>x.id===next-1);
+    if(d.id===next){
+      if(prev&&wouldCross({x:prev.x,y:prev.y},{x:d.x,y:d.y})){inkSplash((prev.x+d.x)/2,(prev.y+d.y)/2,'路径交叉，溅墨拒绝');return;}
+      if(prev)segs.push({a:{x:prev.x,y:prev.y},b:{x:d.x,y:d.y},wet:1});
+      d.alive=false;linked++;next++;
+      const mul=1+(prog.scoreLv|0)*0.2;score+=Math.round(12*mul);$('score').textContent=score;beep(720,.06);
+      if(FX)FX.burst(sparks,d.x,d.y,'#3b62ef',10);
+      if(linked>=goal||dots.every(x=>!x.alive))win();
+    }else{
+      if(prev&&wouldCross({x:prev.x,y:prev.y},{x:d.x,y:d.y}))inkSplash((prev.x+d.x)/2,(prev.y+d.y)/2,'这样会交叉！请按编号规划');
+      else{lives--;beep(160,.12,'triangle');toast('顺序错误，应点 #'+next);if(lives<=0)lose('墨迹紊乱');}
+    }
+    return;
+  }}
 });
-function draw(){if(FX)FX.stage(ctx,W,H,'#dce5ef','#e7edf4');else{ctx.fillStyle='#e7edf4';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
-  ctx.fillStyle='#243952';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('命'+lives+' 下一#'+next+' 连'+linked+'/'+goal+(boss?' 👑':''),10,22);
-  ctx.strokeStyle='#3b62ef';ctx.lineWidth=3;for(const s of segs){ctx.beginPath();ctx.moveTo(s.a.x,s.a.y);ctx.lineTo(s.b.x,s.b.y);ctx.stroke();}
-  for(const d of dots){if(!d.alive)continue;ctx.fillStyle=d.glow?'#ffb21e':'#3b62ef';ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillText(d.id,d.x,d.y+4);d.glow=0;}
-  if(hints>0){ctx.fillStyle='rgba(59,98,239,.45)';ctx.fillRect(W*0.2,H-52,W*0.6,44);ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.textAlign='center';ctx.fillText('提示 ('+hints+')',W/2,H-24);}
+function paperBg(){
+  if(FX)FX.stage(ctx,W,H,'#f4efe4','#e4d7c3');
+  else{ctx.fillStyle='#e8dcc8';ctx.fillRect(0,0,W,H);}
+  // fiber / grain via cheap noise dots (no network texture)
+  ctx.save();ctx.globalAlpha=0.07;ctx.fillStyle='#6a5840';
+  for(let i=0;i<80;i++){const x=((i*73)%W),y=((i*47+i*i)%(H-80))+20;ctx.fillRect(x,y,2,1);}
+  ctx.globalAlpha=0.05;ctx.strokeStyle='#8a7458';ctx.lineWidth=1;
+  for(let y=40;y<H-70;y+=28){ctx.beginPath();ctx.moveTo(10,y+((y*0.2)%3));ctx.lineTo(W-10,y);ctx.stroke();}
+  ctx.restore();
+}
+function strokeInk(s){
+  const w=4.2+(s.wet||0)*2.2;
+  ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.strokeStyle='rgba(20,24,48,'+(0.18)+')';ctx.lineWidth=w+3;
+  ctx.beginPath();ctx.moveTo(s.a.x,s.a.y);ctx.lineTo(s.b.x,s.b.y);ctx.stroke();
+  const g=ctx.createLinearGradient(s.a.x,s.a.y,s.b.x,s.b.y);
+  g.addColorStop(0,'#1e2a6a');g.addColorStop(0.5,'#2c4ad8');g.addColorStop(1,'#1a1f4a');
+  ctx.strokeStyle=g;ctx.lineWidth=w;
+  ctx.beginPath();ctx.moveTo(s.a.x,s.a.y);ctx.lineTo(s.b.x,s.b.y);ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=Math.max(1,w*0.28);
+  ctx.beginPath();ctx.moveTo(s.a.x-1,s.a.y-1);ctx.lineTo(s.b.x-1,s.b.y-1);ctx.stroke();
+}
+function drawDot(d){
+  const glow=d.glow||0, rr=d.r+(glow?3:0);
+  if(FX){if(glow)FX.glow(ctx,'#ffb21e',14);FX.orb(ctx,d.x,d.y,rr,glow?'#ffb21e':'#2b4de0');if(glow)FX.noGlow(ctx);}
+  else{
+    const g=ctx.createRadialGradient(d.x-4,d.y-5,2,d.x,d.y,rr);
+    g.addColorStop(0,glow?'#ffe08a':'#8aa4ff');g.addColorStop(0.55,glow?'#ffb21e':'#3b62ef');g.addColorStop(1,'#1a2460');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(d.x,d.y,rr,0,7);ctx.fill();
+  }
+  ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.ellipse(d.x-4,d.y-5,4,2.4,-0.6,0,7);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(d.id,d.x,d.y+1);
+  if(d.id===next){ctx.setLineDash([3,3]);ctx.strokeStyle='#ffb21e';ctx.lineWidth=2;ctx.beginPath();ctx.arc(d.x,d.y,rr+5,0,7);ctx.stroke();ctx.setLineDash([]);}
+}
+function draw(){paperBg();if(state!=='play'&&state!=='pause')return;
+  ctx.fillStyle='#243952';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillText('命'+lives+'  下一 #'+next+'  连'+linked+'/'+goal+(boss?'  👑':''),10,22);
+  for(const s of segs)strokeInk(s);
+  for(const d of dots){if(!d.alive)continue;drawDot(d);if(d.glow)d.glow=Math.max(0,d.glow-0.04);}
+  for(const s of splashes){ctx.globalAlpha=Math.max(0,s.life);ctx.fillStyle='#1a1a2e';ctx.beginPath();ctx.ellipse(s.x,s.y,s.r,s.r*0.7,s.x,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
+  if(hints>0){if(FX)FX.tile(ctx,W*0.2,H-52,W*0.6,44,'#3b62ef',14);else{ctx.fillStyle='rgba(59,98,239,.55)';ctx.fillRect(W*0.2,H-52,W*0.6,44);}ctx.fillStyle='#fff';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('提示 ('+hints+')',W/2,H-30);}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);linked=goal;dots.forEach(d=>d.alive=false);win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,linked,goal,lives,next}}};
 

@@ -606,9 +606,9 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     </span>
   </div>
   <div class="stagebox"><canvas id="cv"></canvas></div>
-  <p class="hint" id="hint">拖动转向画圈占地</p>
+  <p class="hint" id="hint">从己方色块出发画线，绕回自己领地就圈地；轨迹被敌人切断就出局</p>
 </div>
-<div class="overlay" id="startScr"><h1>🗺️ 圈地争锋</h1><p>从自家领地出发画出轨迹。<br>绕回领地即圈占空白，轨迹被切即出局。<br>15 关对战 AI，Boss 更猛。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>🗺️ 圈地争锋</h1><p>从青色己方领地出发画线，绕一圈回到自己颜色就圈地。<br>露出的黄色轨迹被敌人碰上就会出局。<br>用左下角虚拟摇杆或拖动画布瞄准，跟着箭头前进。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -641,37 +641,104 @@ if(!prog.seenTut)prog.seenTut=0;
 let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
 const TOTAL=15;
 let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
-const TUT=[['出圈','从自家领地出发画出轨迹。'],['圈地','绕回领地即圈占空白。'],['危险','轨迹暴露时被对手切断即出局。'],['Boss','Boss 关对手更猛，还有减速区。']];
+const TUT=[['出发','从左下角青色己方领地走到空白处，身后会拖出一条黄色轨迹。'],['圈地成功','把轨迹绕一圈再走回青色领地，圈住的空白就会变成你的地。下面会演示一次完整圈地。'],['别被切断','黄色轨迹还没收回时，被红色敌人碰上就出局。盯紧自己的箭头方向。'],['操作','用左下角大摇杆转向，或在屏幕上拖动瞄准。点顶部可消耗冲刺。']];
 const SHOP=[
   {k:'spdLv',name:'移速',max:3,cost(){return 45+(prog.spdLv|0)*30;},desc(){return '移速 +'+((prog.spdLv|0)*8)+'%';}},
   {k:'dashLv',name:'冲刺',max:2,cost(){return 55+(prog.dashLv|0)*40;},desc(){return '冲刺次数 '+(1+(prog.dashLv|0));}},
   {k:'safeLv',name:'安全岛',max:2,cost(){return 50+(prog.safeLv|0)*40;},desc(){return '中立岛 '+(prog.safeLv|0);}}
 ];
-const GS=20,GW=18,GH=22;let grid=[],px=0,py=0,trail=[],alive=true,ai=[],timer=0,dashes=0,angle=0,holding=false,tx=0,ty=0;
+const GS=20,GW=18,GH=22;const STICK={x:62,y:500,r:36};let grid=[],px=0,py=0,trail=[],alive=true,ai=[],timer=0,dashes=0,angle=0,holding=false,tx=0,ty=0,usingStick=false,demo=null;
 function idx(x,y){return y*GW+x;}
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];alive=true;trail=[];timer=90+lvl;$('score').textContent=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);grid=Array(GW*GH).fill(0);dashes=1+(prog.dashLv|0);const home=3;for(let y=GH-home;y<GH;y++)for(let x=0;x<home;x++)grid[idx(x,y)]=1;px=1;py=GH-2;angle=-Math.PI/2;ai=[];const nAi=1+Math.min(2,(lvl/5|0))+(boss?1:0);for(let i=0;i<nAi;i++){const ax=GW-3-i,ay=2+i;for(let yy=ay;yy<ay+2;yy++)for(let xx=ax;xx<ax+2;xx++)if(xx>=0&&xx<GW&&yy>=0&&yy<GH)grid[idx(xx,yy)]=2+i;ai.push({x:ax,y:ay,a:Math.random()*6,trail:[],id:2+i,spd:1.4+lvl*0.05+(boss?0.3:0)});}if(prog.safeLv){for(let k=0;k<(prog.safeLv|0);k++){const sx=4+k*5,sy=10;for(let yy=sy;yy<sy+2;yy++)for(let xx=sx;xx<sx+2;xx++)grid[idx(xx,yy)]=9;}}state='play';last=performance.now();beep(660,.1);$('hint').textContent='拖动转向圈地 · 冲刺'+dashes;}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];alive=true;trail=[];timer=90+lvl;$('score').textContent=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);grid=Array(GW*GH).fill(0);dashes=1+(prog.dashLv|0);const home=3;for(let y=GH-home;y<GH;y++)for(let x=0;x<home;x++)grid[idx(x,y)]=1;px=1;py=GH-2;angle=-Math.PI/2;ai=[];const nAi=1+Math.min(2,(lvl/5|0))+(boss?1:0);for(let i=0;i<nAi;i++){const ax=GW-3-i,ay=2+i;for(let yy=ay;yy<ay+2;yy++)for(let xx=ax;xx<ax+2;xx++)if(xx>=0&&xx<GW&&yy>=0&&yy<GH)grid[idx(xx,yy)]=2+i;ai.push({x:ax,y:ay,a:Math.random()*6,trail:[],id:2+i,spd:1.4+lvl*0.05+(boss?0.3:0)});}if(prog.safeLv){for(let k=0;k<(prog.safeLv|0);k++){const sx=4+k*5,sy=10;for(let yy=sy;yy<sy+2;yy++)for(let xx=sx;xx<sx+2;xx++)grid[idx(xx,yy)]=9;}}state='play';last=performance.now();beep(660,.1);$('hint').textContent='从己方色块出发画线，绕回领地就圈地；轨迹被切断就出局 · 冲刺'+dashes;}
 function fillPoly(owner){if(trail.length<3){trail=[];return;}const visited=new Set();const qx=[0],qy=[0];const outside=new Uint8Array(GW*GH);// flood outside from border cells not on trail
 const onTrail=new Set(trail.map(p=>idx(p.x,p.y)));
 const q=[];for(let x=0;x<GW;x++){q.push(idx(x,0));q.push(idx(x,GH-1));}for(let y=0;y<GH;y++){q.push(idx(0,y));q.push(idx(GW-1,y));}while(q.length){const i=q.pop();if(outside[i]||onTrail.has(i))continue;outside[i]=1;const x=i%GW,y=(i/GW)|0;[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{const nx=x+dx,ny=y+dy;if(nx>=0&&nx<GW&&ny>=0&&ny<GH)q.push(idx(nx,ny));});}let gained=0;for(let i=0;i<grid.length;i++){if(!outside[i]&&grid[i]===0){grid[i]=owner;gained++;}}trail=[];score+=gained*2;$('score').textContent=score;beep(900,.1);if(FX)FX.burst(sparks,px*GS,py*GS,'#5ad0ff',12);const own=grid.filter(v=>v===1).length;if(own/(GW*GH)>0.55+lvl*0.01)win();}
 function killPlayer(){alive=false;lose('轨迹被切断');}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();holding=true;const p=posOf(e);tx=p.x;ty=p.y;if(dashes>0&&p.y<60){dashes--;toast('冲刺!');beep(1000,.08);}cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);});
-cv.addEventListener('pointermove',e=>{if(!holding)return;const p=posOf(e);tx=p.x;ty=p.y;});
-['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,()=>{holding=false;}));
+function inStick(p){return Math.hypot(p.x-STICK.x,p.y-STICK.y)<=STICK.r+18;}
+cv.addEventListener('pointerdown',e=>{if(state!=='play'&&state!=='demo')return;e.preventDefault();const p=posOf(e);tx=p.x;ty=p.y;holding=true;usingStick=inStick(p);if(state==='play'&&dashes>0&&p.y<48&&!usingStick){dashes--;toast('冲刺!');beep(1000,.08);}cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',e=>{if(!holding)return;const p=posOf(e);tx=p.x;ty=p.y;if(usingStick||inStick(p))usingStick=true;});
+['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,()=>{holding=false;usingStick=false;}));
 function win(){if(state!=='play')return;state='over';const own=grid.filter(v=>v===1).length;const stars=own>GW*GH*0.7?3:own>GW*GH*0.55?2:1;const prev=prog.stars[lvl]|0;if(stars>prev)prog.stars[lvl]=stars;const gain=30+stars*15+(boss?55:0)+Math.floor(score/10);prog.coins+=gain;if(lvl>=prog.unlock&&lvl<TOTAL)prog.unlock=lvl+1;saveProg(prog);if(score>best){best=score;UI.storageSet(HK,best);$('best').textContent=best;}$('overH').textContent='领地扩张！';$('finalScore').textContent='★'.repeat(stars);$('overText').textContent='关卡 '+lvl+' · +'+gain+'币';show('overScr',true);beep(880,.2);}
 function lose(msg){if(state!=='play')return;state='over';$('overH').textContent='出局';$('finalScore').textContent='💀';$('overText').textContent=(msg||'')+' · 得分 '+score;show('overScr',true);beep(160,.35,'triangle');}
-let moveAcc=0;function update(dt){if(!alive)return;timer-=dt;if(timer<=0){const own=grid.filter(v=>v===1).length;if(own>grid.filter(v=>v>=2&&v<9).length)win();else lose('时间到');return;}const spd=(2.6+(prog.spdLv|0)*0.25)*(dashes>=0?1:1);if(holding){const cx=px*GS+GS/2,cy=py*GS+GS/2+40;angle=Math.atan2(ty-(cy),tx-cx);}moveAcc+=dt*spd;while(moveAcc>0.35){moveAcc-=0.35;const nx=Math.round(px+Math.cos(angle)),ny=Math.round(py+Math.sin(angle));if(nx<0||ny<0||nx>=GW||ny>=GH){angle+=Math.PI;continue;}const cell=grid[idx(nx,ny)];const wasHome=grid[idx(px,py)]===1||grid[idx(px,py)]===9;if(cell!==1&&cell!==9){if(trail.some(t=>t.x===nx&&t.y===ny)){killPlayer();return;}trail.push({x:nx,y:ny});}else if(trail.length){fillPoly(1);}px=nx;py=ny;}
+let moveAcc=0;function update(dt){if(!alive)return;timer-=dt;if(timer<=0){const own=grid.filter(v=>v===1).length;if(own>grid.filter(v=>v>=2&&v<9).length)win();else lose('时间到');return;}const spd=(2.6+(prog.spdLv|0)*0.25)*(dashes>=0?1:1);if(holding){if(usingStick){const dx=tx-STICK.x,dy=ty-STICK.y;if(dx*dx+dy*dy>16)angle=Math.atan2(dy,dx);}else{const ox=(W-GW*GS)/2,oy=36;angle=Math.atan2(ty-(oy+py*GS+GS/2),tx-(ox+px*GS+GS/2));}}moveAcc+=dt*spd;while(moveAcc>0.35){moveAcc-=0.35;const nx=Math.round(px+Math.cos(angle)),ny=Math.round(py+Math.sin(angle));if(nx<0||ny<0||nx>=GW||ny>=GH){angle+=Math.PI;continue;}const cell=grid[idx(nx,ny)];const wasHome=grid[idx(px,py)]===1||grid[idx(px,py)]===9;if(cell!==1&&cell!==9){if(trail.some(t=>t.x===nx&&t.y===ny)){killPlayer();return;}trail.push({x:nx,y:ny});}else if(trail.length){fillPoly(1);}px=nx;py=ny;}
 // AI
 ai.forEach(a=>{a.a+= (Math.random()-0.5)*0.4;const ax=Math.round(a.x+Math.cos(a.a)*a.spd*dt*3),ay=Math.round(a.y+Math.sin(a.a)*a.spd*dt*3);if(ax<0||ay<0||ax>=GW||ay>=GH){a.a+=Math.PI;return;}const c=grid[idx(ax,ay)];if(c!==a.id){if(trail.some(t=>t.x===ax&&t.y===ay)){killPlayer();return;}a.trail.push({x:ax,y:ay});if(a.trail.length>8){a.trail.forEach(t=>{if(grid[idx(t.x,t.y)]===0)grid[idx(t.x,t.y)]=a.id;});a.trail=[];}}a.x=ax;a.y=ay;});}
-function draw(){if(FX)FX.stage(ctx,W,H,'#72cbff','#3b62ef');else{ctx.fillStyle='#3b62ef';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;const ox=(W-GW*GS)/2,oy=40;const cols={0:'rgba(255,255,255,.08)',1:'#5ad0ff',9:'#aaf',2:'#ff6b9d',3:'#ffcf33',4:'#7dff9a'};for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){const v=grid[idx(x,y)];ctx.fillStyle=cols[v]||'#f6a';ctx.fillRect(ox+x*GS+1,oy+y*GS+1,GS-2,GS-2);}trail.forEach(t=>{ctx.fillStyle='#fff';ctx.fillRect(ox+t.x*GS+4,oy+t.y*GS+4,GS-8,GS-8);});if(FX)FX.orb(ctx,ox+px*GS+GS/2,oy+py*GS+GS/2,8,'#fff');else{ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(ox+px*GS+GS/2,oy+py*GS+GS/2,8,0,7);ctx.fill();}ai.forEach(a=>{ctx.fillStyle=cols[a.id]||'#f6a';ctx.beginPath();ctx.arc(ox+a.x*GS+GS/2,oy+a.y*GS+GS/2,7,0,7);ctx.fill();});ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.textAlign='left';ctx.fillText('⏱'+Math.ceil(timer)+' 冲'+dashes+(boss?' 👑':''),10,22);if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
+function drawStick(){
+  const s=STICK;
+  ctx.save();
+  ctx.fillStyle='rgba(8,16,32,.45)';ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=3;ctx.stroke();
+  let kx=s.x,ky=s.y;
+  if(holding&&usingStick){const dx=tx-s.x,dy=ty-s.y,m=Math.hypot(dx,dy)||1,cl=Math.min(s.r-16,m);kx=s.x+dx/m*cl;ky=s.y+dy/m*cl;}
+  if(FX)FX.orb(ctx,kx,ky,16,'#19e0ff');else{ctx.fillStyle='#19e0ff';ctx.beginPath();ctx.arc(kx,ky,16,0,7);ctx.fill();}
+  ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('摇杆',s.x,s.y+s.r+12);
+  ctx.restore();
+}
+function draw(){if(FX)FX.stage(ctx,W,H,'#14233a','#0b1424');else{ctx.fillStyle='#0b1424';ctx.fillRect(0,0,W,H);}
+  if(state!=='play'&&state!=='pause'&&state!=='demo')return;
+  const ox=(W-GW*GS)/2,oy=36;
+  const cols={0:'#1c2c48',1:'#19e0ff',9:'#c9b6ff',2:'#ff2d6a',3:'#ff8a00',4:'#b8ff3a'};
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const v=(demo&&demo.grid)?demo.grid[idx(x,y)]:grid[idx(x,y)];
+    ctx.fillStyle=cols[v]||'#f6a';ctx.fillRect(ox+x*GS+1,oy+y*GS+1,GS-2,GS-2);
+  }
+  const tr=demo?demo.trail:trail, qx=demo?demo.px:px, qy=demo?demo.py:py, qang=demo?demo.angle:angle;
+  tr.forEach((t,i)=>{ctx.fillStyle=i===tr.length-1?'#fff8a0':'#ffe14d';ctx.fillRect(ox+t.x*GS+5,oy+t.y*GS+5,GS-10,GS-10);});
+  const hx=ox+qx*GS+GS/2,hy=oy+qy*GS+GS/2;
+  if(FX)FX.shadow(ctx,hx,hy+8,14,6);
+  if(FX)FX.orb(ctx,hx,hy,11,'#ffffff');else{ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(hx,hy,11,0,7);ctx.fill();}
+  ctx.fillStyle='#19e0ff';ctx.beginPath();ctx.arc(hx,hy,5,0,7);ctx.fill();
+  // direction arrow
+  ctx.save();ctx.translate(hx,hy);ctx.rotate(qang);
+  ctx.fillStyle='#fff36a';ctx.beginPath();ctx.moveTo(20,0);ctx.lineTo(8,-7);ctx.lineTo(8,7);ctx.closePath();ctx.fill();
+  ctx.restore();
+  (demo?demo.ai:ai).forEach(a=>{const col=cols[a.id]||'#ff2d6a';ctx.fillStyle=col;ctx.beginPath();ctx.arc(ox+a.x*GS+GS/2,oy+a.y*GS+GS/2,8,0,7);ctx.fill();ctx.fillStyle='#fff';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.fillText('敌',ox+a.x*GS+GS/2,oy+a.y*GS+GS/2+3);});
+  ctx.fillStyle='#e8f4ff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';
+  if(state!=='demo')ctx.fillText('⏱'+Math.ceil(timer)+'  冲刺'+dashes+(boss?'  👑':'')+'   青=我  黄=轨迹  红/橙=敌',10,22);
+  else {ctx.textAlign='center';ctx.fillStyle='#fff36a';ctx.font='bold 15px sans-serif';ctx.fillText(demo.cap||'演示：绕回领地即可圈地',W/2,22);}
+  if(state==='play'||state==='pause')drawStick();
+  if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}
 window.__T={go(n){prog.seenTut=1;saveProg(prog);startLevel(n|0||1);},win(){if(state!=='play')startLevel(lvl||1);for(let i=0;i<grid.length;i++)if(grid[i]===0)grid[i]=1;win();},lose(){if(state!=='play')startLevel(lvl||1);lose('测试失败');},state(){return{state,lvl,score,boss,timer};}};
 
 
 function tutorial(steps,done){
   let i=0;show('tutScr',true);
-  const paint=()=>{$('tutH').textContent=steps[i][0];$('tutP').textContent=steps[i][1];$('tutStep').textContent=(i+1)+'/'+steps.length;};
+  const paint=()=>{$('tutH').textContent=steps[i][0];$('tutP').textContent=steps[i][1];$('tutStep').textContent=(i+1)+'/'+steps.length;$('tutNext').textContent=i===steps.length-1?'观看圈地演示':'下一步';};
   paint();
-  $('tutNext').onclick=()=>{i++;if(i>=steps.length){show('tutScr',false);done();}else paint();};
+  $('tutNext').onclick=()=>{i++;if(i>=steps.length){show('tutScr',false);playLoopDemo(done);}else paint();};
   $('tutSkip').onclick=()=>{show('tutScr',false);done();};
+}
+function playLoopDemo(done){
+  // animated successful loop: leave home, rectangle, return, fill
+  show('startScr',false);show('lvlScr',false);show('overScr',false);show('pauseOv',false);
+  const g=Array(GW*GH).fill(0);
+  for(let y=GH-3;y<GH;y++)for(let x=0;x<3;x++)g[idx(x,y)]=1;
+  const path=[];
+  for(let y=GH-2;y>=8;y--)path.push({x:1,y});
+  for(let x=1;x<=8;x++)path.push({x,y:8});
+  for(let y=8;y<=GH-2;y++)path.push({x:8,y});
+  for(let x=8;x>=1;x--)path.push({x,y:GH-2});
+  demo={grid:g,trail:[],ai:[],px:1,py:GH-2,angle:-Math.PI/2,i:0,path,cap:'看：从青色领地出发绕一圈……',phase:'run'};
+  state='demo';last=performance.now();
+  const iv=setInterval(()=>{
+    if(!demo||state!=='demo'){clearInterval(iv);return;}
+    if(demo.phase==='run'){
+      const p=demo.path[demo.i];
+      if(!p){demo.phase='fill';return;}
+      demo.angle=demo.i?Math.atan2(p.y-demo.py,p.x-demo.px):-Math.PI/2;
+      demo.px=p.x;demo.py=p.y;
+      if(g[idx(p.x,p.y)]!==1)demo.trail.push({x:p.x,y:p.y});
+      demo.i++;
+      if(demo.i===5)demo.cap='黄色是未收回的轨迹，要保护它';
+      if(demo.i===path.length-1)demo.cap='回到青色领地——圈地成功！';
+    }else if(demo.phase==='fill'){
+      for(let y=9;y<=GH-3;y++)for(let x=2;x<=7;x++)if(g[idx(x,y)]===0)g[idx(x,y)]=1;
+      demo.trail=[];demo.cap='空白被圈成你的领地。点击继续开始游戏';demo.phase='done';
+      beep(900,.12);if(FX)FX.burst(sparks,W/2,200,'#19e0ff',16);
+      setTimeout(()=>{if(state==='demo'){demo=null;state='menu';done();}},1600);
+    }
+  },90);
+  cv.addEventListener('pointerdown',function skipDemo(){if(state==='demo'){clearInterval(iv);demo=null;state='menu';done();}},{once:true});
 }
 function openLevels(){
   state='menu';show('startScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('tutScr',false);show('lvlScr',true);

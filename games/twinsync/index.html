@@ -604,7 +604,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
     </span>
   </div>
   <div class="stagebox"><canvas id="cv"></canvas></div>
-  <p class="hint" id="hint">左点左跳、右点右跳，遇金门必须一起跳</p>
+  <p class="hint" id="hint">左蓝右粉分别起跳；金色同步门必须两人同时跃过。受伤会闪红、飘字、短暂无敌。</p>
 </div>
 <div class="overlay" id="startScr"><h1>👯 双身协同</h1><p>左右分身自动向前，点左半边或右半边分别起跳。<br>金色同步门必须两人在同一窗口跃过。<br>首领关窗口更短，还要配合踩开关。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
@@ -664,14 +664,14 @@ const SHOP=[
   {k:'jumpLv',name:'弹力',max:2,cost(){return 35+(prog.jumpLv|0)*25;},desc(){return '跳跃更高更稳';}},
   {k:'slowLv',name:'缓步',max:2,cost(){return 35+(prog.slowLv|0)*25;},desc(){return '关卡滚动稍慢';}}
 ];
-let A,B,obs=[],t=0,spd=0,lives=0,need=0,cleared=0,syncWin=0;
-function makeChar(x){return {x,y:0,vy:0,alive:1,on:1};}
+let A,B,obs=[],t=0,spd=0,lives=0,need=0,cleared=0,syncWin=0,invul=0,flashT=0,shake=0,slowT=0,floats=[],trails=[];
+function makeChar(x,side){return {x,y:0,vy:0,alive:1,on:1,side,squash:1,trailCol:side?'#f9a8d4':'#7dd3fc'};}
 function startLevel(n){
   lvl=n|0;boss=lvl%5===0;t=0;cleared=0;
   lives=2+(prog.lifeLv|0)+(lvl<=2?1:0);
   spd=90+lvl*7+(boss?16:0)-(prog.slowLv|0)*10;
   syncWin=0.42+(prog.winLv|0)*0.1-(lvl*0.012)+(lvl<=2?0.15:0);
-  A=makeChar(90);B=makeChar(250);
+  A=makeChar(90,0);B=makeChar(250,1);invul=0;flashT=0;shake=0;slowT=0;floats=[];trails=[];
   const nObs=6+Math.floor(lvl*0.8)+(boss?3:0);
   obs=[];
   const rng=mulberry32(lvl*221+1);
@@ -687,10 +687,31 @@ function startLevel(n){
   beginPlay(boss?'同步门更窄，终点要两人同时跃过':'左点左跳、右点右跳，遇到金门必须一起跳');
 }
 function jump(ch){
-  if(ch.y<=0){ch.vy=250+(prog.jumpLv|0)*30;beep(700,.05);}
+  if(ch.y<=0){
+    // 左右跳跃手感略有不同：左跳更脆，右跳稍滞空
+    ch.vy=(ch.side?268:246)+(prog.jumpLv|0)*30;
+    ch.squash=0.7;
+    beep(ch.side?640:760,.05);
+    for(let i=0;i<5;i++)trails.push({x:ch.x+(Math.random()-0.5)*8,y:0,c:ch.trailCol,life:0.45,side:ch.side});
+  }
+}
+function hurt(ch,msg){
+  if(invul>0)return false;
+  lives--;invul=1.05;flashT=0.4;shake=0.4;slowT=0.28;
+  floats.push({x:ch.x,y:400-ch.y,txt:'-1',c:'#ff6b8a',life:1});
+  beep(160,.12,'sawtooth');
+  if(lives<=0){lose(msg);return true;}
+  toast('受伤！短暂无敌');
+  return true;
 }
 function onDown(p){if(p.x<W/2)jump(A);else jump(B);}
-function stepChar(ch,dt){ch.vy-=560*dt;ch.y+=ch.vy*dt;if(ch.y<0){ch.y=0;ch.vy=0;}}
+function stepChar(ch,dt){
+  const g=ch.side?520:580;
+  ch.vy-=g*dt;ch.y+=ch.vy*dt;
+  if(ch.y<0){ch.y=0;ch.vy=0;ch.squash=Math.min(1.25,ch.squash+dt*4);}
+  else {ch.squash+=( (ch.vy>0?1.15:0.85) - ch.squash)*Math.min(1,dt*10);}
+  if(ch.y>4)trails.push({x:ch.x+(Math.random()-0.5)*6,y:ch.y,c:ch.trailCol,life:0.35,side:ch.side});
+}
 function hitObs(o,ch,who){
   if(o.typ==='jump'&&(o.side===who||o.side===2)){
     if(ch.y<o.h-2){return true;}
@@ -705,7 +726,13 @@ function hitObs(o,ch,who){
   return false;
 }
 function update(dt){
+  if(slowT>0){slowT=Math.max(0,slowT-dt);dt*=0.45;}
+  if(invul>0)invul=Math.max(0,invul-dt);
+  if(flashT>0)flashT=Math.max(0,flashT-dt);
+  if(shake>0)shake=Math.max(0,shake-dt*2.4);
   t+=dt;stepChar(A,dt);stepChar(B,dt);
+  for(let i=trails.length-1;i>=0;i--){trails[i].life-=dt*2.2;if(trails[i].life<=0)trails.splice(i,1);}
+  for(let i=floats.length-1;i>=0;i--){floats[i].y-=40*dt;floats[i].life-=dt*1.2;if(floats[i].life<=0)floats.splice(i,1);}
   const world=t*spd;
   for(const o of obs){
     const x=o.x-world;
@@ -715,29 +742,63 @@ function update(dt){
     if(o.typ==='sync'){
       if(nearA&&A.y>=o.h-2)o.okA=1;
       if(nearB&&B.y>=o.h-2)o.okB=1;
-      if(nearA&&A.y<o.h-2&&!o.okA){lives--;o.done=1;beep(160,.12,'sawtooth');if(lives<=0)return lose('同步失败');}
-      else if(nearB&&B.y<o.h-2&&!o.okB){lives--;o.done=1;beep(160,.12,'sawtooth');if(lives<=0)return lose('同步失败');}
+      if(nearA&&A.y<o.h-2&&!o.okA){o.done=1;if(hurt(A,'同步失败'))return;}
+      else if(nearB&&B.y<o.h-2&&!o.okB){o.done=1;if(hurt(B,'同步失败'))return;}
       else if(o.okA&&o.okB){o.done=1;cleared++;addScore(16);beep(900,.08);if(FX)FX.burst(sparks,x,200,'#ffd34d',10);}
     } else {
       if(nearA&&(o.side===0||o.side===2||o.typ==='switch')){
         if(A.y>=o.h-2)o.okA=1;
-        else if(!o.okA&&hitObs(o,A,0)){lives--;o.done=1;beep(160,.1,'sawtooth');if(lives<=0)return lose('左分身倒下');}
+        else if(!o.okA&&hitObs(o,A,0)){o.done=1;if(hurt(A,'左分身倒下'))return;}
       }
       if(nearB&&(o.side===1||o.side===2||o.typ==='switch')){
         if(B.y>=o.h-2)o.okB=1;
-        else if(!o.okB&&hitObs(o,B,1)){lives--;o.done=1;beep(160,.1,'sawtooth');if(lives<=0)return lose('右分身倒下');}
+        else if(!o.okB&&hitObs(o,B,1)){o.done=1;if(hurt(B,'右分身倒下'))return;}
       }
     }
   }
   if(obs.every(o=>o.done||o.x-world<0))win();
 }
+function drawChar(ch,kind){
+  const ground=430,x=ch.x,y=ground-ch.y;
+  const blink=invul>0&&Math.floor(invul*12)%2===0;
+  if(blink)ctx.globalAlpha=0.45;
+  const sq=ch.squash||1,w=18* (kind===0?1:0.95),h=28/sq;
+  ctx.save();ctx.translate(x,y);
+  if(FX)FX.shadow(ctx,0,2,14,5);
+  // body / clothes
+  if(kind===0){
+    ctx.fillStyle='#0ea5e9';ctx.fillRect(-w*0.42,-h*0.72,w*0.84,h*0.5);
+    ctx.fillStyle='#075985';ctx.fillRect(-w*0.4,-h*0.28,w*0.32,h*0.4);ctx.fillRect(w*0.08,-h*0.28,w*0.32,h*0.4);
+    ctx.fillStyle='#fef3c7';ctx.beginPath();ctx.arc(0,-h*0.88,8.2,0,7);ctx.fill();
+    ctx.fillStyle='#0f172a';ctx.beginPath();ctx.arc(-3.2,-h*0.9,1.5,0,7);ctx.arc(3.2,-h*0.9,1.5,0,7);ctx.fill();
+    ctx.fillStyle='#36d6ff';ctx.beginPath();ctx.moveTo(-8,-h*0.95);ctx.lineTo(-2,-h*1.22);ctx.lineTo(2,-h*0.95);ctx.lineTo(8,-h*1.18);ctx.lineTo(8,-h*0.82);ctx.lineTo(-8,-h*0.82);ctx.fill();
+    ctx.fillStyle='#f43f5e';ctx.fillRect(-w*0.5,-h*0.55,w,4);
+  }else{
+    ctx.fillStyle='#f472b6';ctx.fillRect(-w*0.4,-h*0.72,w*0.8,h*0.5);
+    ctx.fillStyle='#9d174d';ctx.fillRect(-w*0.38,-h*0.28,w*0.3,h*0.4);ctx.fillRect(w*0.08,-h*0.28,w*0.3,h*0.4);
+    ctx.fillStyle='#ffe4e6';ctx.beginPath();ctx.arc(0,-h*0.88,8.2,0,7);ctx.fill();
+    ctx.fillStyle='#0f172a';ctx.beginPath();ctx.arc(-3.2,-h*0.9,1.5,0,7);ctx.arc(3.2,-h*0.9,1.5,0,7);ctx.fill();
+    ctx.fillStyle='#db2777';ctx.beginPath();ctx.ellipse(7,-h*1.02,5,9,0.4,0,7);ctx.fill();
+    ctx.fillStyle='#fce7f3';ctx.fillRect(-w*0.46,-h*0.58,w*0.92,5);
+  }
+  ctx.restore();ctx.globalAlpha=1;
+}
 function draw(){
-  hits=[];stage('#12355a','#071422');
-  if(state!=='play'&&state!=='pause')return;
-  label((boss?'👑 ':'')+'第 '+lvl+' 关  生命 '+'❤'.repeat(Math.max(0,lives)),14,18,'#fff',13,'left');
+  hits=[];
+  ctx.save();if(shake>0)ctx.translate((Math.random()-.5)*8,(Math.random()-.5)*8);
+  stage('#12355a','#071422');
+  if(state!=='play'&&state!=='pause'){ctx.restore();return;}
+  // two visually distinct lanes
+  ctx.fillStyle='rgba(56,189,248,.10)';ctx.fillRect(0,40,180,390);
+  ctx.fillStyle='rgba(249,168,212,.10)';ctx.fillRect(180,40,180,390);
+  ctx.strokeStyle='rgba(255,255,255,.12)';ctx.setLineDash([6,8]);ctx.beginPath();ctx.moveTo(180,44);ctx.lineTo(180,428);ctx.stroke();ctx.setLineDash([]);
+  label('左 · 青锋',90,58,'#7dd3fc',11,'center');label('右 · 绯羽',270,58,'#f9a8d4',11,'center');
+  label((boss?'👑 ':'')+'第 '+lvl+' 关   '+'❤'.repeat(Math.max(0,lives))+'♡'.repeat(Math.max(0,2+(prog.lifeLv|0)+(lvl<=2?1:0)-Math.max(0,lives))),14,18,'#fff',13,'left');
   const ground=430;
   tile(0,ground,360,8,'#38bdf8',4);
   const world=t*spd;
+  for(const tr of trails){ctx.globalAlpha=Math.max(0,tr.life);ctx.fillStyle=tr.c;ctx.beginPath();ctx.arc(tr.x,ground-6-tr.y,3.2,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
   for(const o of obs){
     const x=o.x-world;
     if(x<-40||x>400)continue;
@@ -749,15 +810,13 @@ function draw(){
       tile(x-16,ground-70,32,70,col,6);
     }
   }
-  function guy(ch,col){
-    const y=ground-16-ch.y;
-    if(FX)FX.shadow(ctx,ch.x,ground-2,14,5);
-    orb(ch.x,y,14,col);
-  }
-  guy(A,'#7dd3fc');guy(B,'#f9a8d4');
+  drawChar(A,0);drawChar(B,1);
+  for(const f of floats){ctx.globalAlpha=Math.max(0,f.life);ctx.fillStyle=f.c;ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.fillText(f.txt,f.x,f.y-20);}ctx.globalAlpha=1;
   tile(0,H-70,176,54,'#7dd3fc',12);label('左跳',88,H-43,'#083344',16,'center');addHit(0,H-70,176,54,()=>jump(A));
   tile(184,H-70,176,54,'#f9a8d4',12);label('右跳',272,H-43,'#3b0764',16,'center');addHit(184,H-70,176,54,()=>jump(B));
+  if(flashT>0){ctx.fillStyle='rgba(255,40,60,'+(flashT*0.45)+')';ctx.fillRect(0,0,W,H);}
   if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);
+  ctx.restore();
 }
 function win(){if(state!=='play')return;const s=lives>=3?3:lives>=2?2:1;finishWin(s,40+lvl*3+(boss?30:0)+lives*8+cleared*2,'同步过关');}
 function lose(msg){if(state!=='play')return;finishLose(msg||'配合失败');}

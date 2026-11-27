@@ -617,7 +617,7 @@ html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-ind
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   
   <div class="aids"><button class="btn ghost" id="aidUndo">↩撤销</button><button class="btn ghost" id="aidHint">💡提示</button><button class="btn ghost" id="aidStep">➕加步</button></div>
-  <div class="hint">拖动棋子 · 把曹操（大方块）移到下方出口</div>
+  <div class="hint">拖动棋子，把红色大方块「曹操」移到下方金色出口 · 可点提示看具体方向</div>
 </div>
 <div class="overlay" id="startScr"><h1>🏯 华容道</h1><p>15 关推块救曹操：布局更难、步数更紧。<br>第 5/10/15 关搅局首领！可升级撤销、提示、加步。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -759,7 +759,7 @@ const LV=[
  {moves:38},{moves:35},{moves:32},{moves:30},
  {boss:{name:'终末华容',moves:28,jam:1}}
 ];
-let L,pieces,sel,moves,left,score,ended,lives,hist,sparks,boss,drag,dragP,bossJamT=0,raf=0,last=0,fast=1;
+let L,pieces,sel,moves,left,score,ended,lives,hist,sparks,boss,drag,dragP,bossJamT=0,raf=0,last=0,fast=1,hintLeft=2,hintMark=null;
 function cloneP(ps){return ps.map(p=>({...p}));}
 function occ(){const g=Array.from({length:ROWS},()=>Array(COLS).fill(null));pieces.forEach((p,i)=>{for(let dr=0;dr<p.h;dr++)for(let dc=0;dc<p.w;dc++)g[p.r+dr][p.c+dc]=i;});return g;}
 function canMove(pi,dr,dc){const p=pieces[pi],g=occ();
@@ -767,13 +767,13 @@ function canMove(pi,dr,dc){const p=pieces[pi],g=occ();
     if(nr<0||nr>=ROWS||nc<0||nc>=COLS)return false;const o=g[nr][nc];if(o!==null&&o!==pi)return false;}
   return true;}
 function start(i){L=LV[i];const b=L.boss||L;ended=false;score=0;sel=null;moves=0;hist=[];sparks=[];lives=3+Kit.up('life');
-  pieces=layout(i);left=b.moves+Kit.up('steps')*5;boss=L.boss?{name:L.boss.name}:null;bossJamT=0;drag=false;
+  pieces=layout(i);left=b.moves+Kit.up('steps')*5;boss=L.boss?{name:L.boss.name}:null;bossJamT=0;drag=false;hintLeft=2+Kit.up('hint');hintMark=null;
   hud();cancelAnimationFrame(raf);last=performance.now();raf=requestAnimationFrame(frame);}
 function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('hitT').textContent=left;$('score').textContent=score;
   $('hitLbl').innerHTML='步 <b id="hitT">'+left+'</b>';
   $('goalLbl').textContent=boss?'👑 '+boss.name:'曹操→出口';
   const cc=pieces[0];$('progI').style.width=Math.min(100,(cc.r/3)*100)+'%';
-  $('infoT').textContent='已走'+moves;}
+  $('infoT').textContent='已走'+moves+' · 提示'+hintLeft;$('aidHint').textContent='💡提示×'+hintLeft;}
 function endLv(won,why){if(ended)return;ended=true;
   if(won){const st=left>=20?3:left>=8?2:1;setTimeout(()=>Kit.win(st,score,boss?'击败 '+boss.name:'步余 '+left),280);}
   else setTimeout(()=>Kit.lose(why||'步数用尽',score),250);}
@@ -792,9 +792,40 @@ cv.addEventListener('pointermove',e=>{if(!drag||sel===null)return;const p=pos(e)
     if(movePiece(sel,dr,dc))dragP=p;}});
 cv.addEventListener('pointerup',()=>{drag=false;});
 $('aidUndo').onclick=()=>{if(Kit.state!=='play'||ended||!hist.length)return;if(!Kit.up('undo')){Kit.toast('先升级撤销');return;}pieces=hist.pop();left++;moves=Math.max(0,moves-1);Kit.sfx('tap');hud();draw();};
-$('aidHint').onclick=()=>{if(Kit.state!=='play'||ended)return;if(!Kit.up('hint')){Kit.toast('先升级提示');return;}
-  const cc=pieces[0];const dirs=[[1,0],[0,1],[0,-1],[-1,0]];for(const [dr,dc] of dirs)if(canMove(0,dr,dc)){sel=0;Kit.toast(dr===1?'下移曹操':'移动曹操');Kit.sfx('good');draw();return;}
-  Kit.toast('先挪开挡路棋子');};
+function dirName(dr,dc){return dr===1?'下':dr===-1?'上':dc===1?'右':'左';}
+function findHintMove(){
+  const dirs=[[1,0],[ -1,0],[0,-1],[0,1]];
+  const cao=pieces[0];
+  const prefer=[];
+  if(cao.r<3)prefer.push([0,1,0]);
+  if(cao.c>1)prefer.push([0,0,-1]);
+  if(cao.c<1)prefer.push([0,0,1]);
+  if(cao.r>0)prefer.push([0,-1,0]);
+  for(const [pi,dr,dc] of prefer)if(canMove(pi,dr,dc))return{pi,dr,dc,txt:dirName(dr,dc)+'移曹操'};
+  const g=occ();
+  const want=new Set();
+  for(let r=cao.r;r<ROWS;r++)for(let c=cao.c;c<cao.c+2;c++)want.add(r+','+c);
+  want.add('3,1');want.add('3,2');want.add('4,1');want.add('4,2');
+  const blockers=new Set();
+  for(const key of want){
+    const [r,c]=key.split(',').map(Number);
+    if(r>=0&&r<ROWS&&c>=0&&c<COLS&&g[r][c]!==null&&g[r][c]!==0)blockers.add(g[r][c]);
+  }
+  for(const pi of blockers){
+    for(const [dr,dc] of dirs)if(canMove(pi,dr,dc))return{pi,dr,dc,txt:dirName(dr,dc)+'移'+pieces[pi].n};
+  }
+  for(let pi=1;pi<pieces.length;pi++){
+    for(const [dr,dc] of dirs)if(canMove(pi,dr,dc))return{pi,dr,dc,txt:dirName(dr,dc)+'移'+pieces[pi].n};
+  }
+  return null;
+}
+$('aidHint').onclick=()=>{if(Kit.state!=='play'||ended)return;
+  if(hintLeft<=0){Kit.toast('本关提示已用完，商店可升级增加次数');Kit.sfx('bad');return;}
+  const h=findHintMove();
+  if(!h){Kit.toast('暂无合适走法，试试撤销或加步');return;}
+  hintLeft--;sel=h.pi;hintMark={pi:h.pi,dr:h.dr,dc:h.dc,t:3.2};
+  Kit.toast('💡 '+h.txt+'（剩'+hintLeft+'次）',1600);Kit.sfx('good');hud();draw();
+};
 $('aidStep').onclick=()=>{if(Kit.state!=='play'||ended)return;if(!Kit.up('steps')){Kit.toast('先升级加步');return;}left+=8;Kit.toast('+8 步');Kit.sfx('coin');hud();};
 function draw(){
   if(FX)FX.stage(ctx,W,H,'#4e342e','#3e2723');else{ctx.fillStyle='#3e2723';ctx.fillRect(0,0,W,H);}
@@ -802,23 +833,41 @@ function draw(){
   ctx.fillStyle='rgba(255,213,79,.35)';ctx.fillRect(PAD+CS,PAD+4*CS,CS*2,CS);
   ctx.strokeStyle='#ffd54f';ctx.strokeRect(PAD+CS,PAD+4*CS,CS*2,CS);
   pieces.forEach((p,i)=>{const x=PAD+p.c*CS+3,y=PAD+p.r*CS+3,w=p.w*CS-6,h=p.h*CS-6;
-    ctx.fillStyle=p.col;if(FX){FX.glow(ctx,p.col,6);ctx.fillRect(x,y,w,h);FX.noGlow(ctx);}else ctx.fillRect(x,y,w,h);
-    if(sel===i){ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.strokeRect(x,y,w,h);}
+    const marked=hintMark&&hintMark.pi===i;
+    ctx.fillStyle=p.col;if(FX){FX.glow(ctx,marked?'#ffd54f':p.col,marked?16:6);ctx.fillRect(x,y,w,h);FX.noGlow(ctx);}else ctx.fillRect(x,y,w,h);
+    if(sel===i||marked){ctx.strokeStyle=marked?'#ffd54f':'#fff';ctx.lineWidth=marked?4:3;ctx.strokeRect(x,y,w,h);}
     ctx.fillStyle='#fff';ctx.font='bold 18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.n,x+w/2,y+h/2);
+    if(marked){
+      const cx=x+w/2,cy=y+h/2,len=26;
+      const ax=cx+hintMark.dc*(w/2+18),ay=cy+hintMark.dr*(h/2+18);
+      ctx.save();
+      if(FX)FX.glow(ctx,'#ffd54f',12);
+      ctx.strokeStyle='#ffd54f';ctx.fillStyle='#ffd54f';ctx.lineWidth=5;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ax,ay);ctx.stroke();
+      const ang=Math.atan2(hintMark.dr,hintMark.dc);
+      ctx.beginPath();ctx.moveTo(ax,ay);
+      ctx.lineTo(ax-Math.cos(ang-0.5)*14,ay-Math.sin(ang-0.5)*14);
+      ctx.lineTo(ax-Math.cos(ang+0.5)*14,ay-Math.sin(ang+0.5)*14);
+      ctx.closePath();ctx.fill();
+      if(FX)FX.noGlow(ctx);
+      ctx.font='bold 13px sans-serif';ctx.fillStyle='#fff8e1';
+      ctx.fillText(dirName(hintMark.dr,hintMark.dc),ax+hintMark.dc*12,ay+hintMark.dr*12);
+      ctx.restore();
+    }
   });
   if(FX)FX.drawBurst(ctx,sparks);
 }
-function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;draw();raf=requestAnimationFrame(frame);}
+function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(hintMark){hintMark.t-=dt;if(hintMark.t<=0)hintMark=null;}draw();raf=requestAnimationFrame(frame);}
 function layoutFit(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layoutFit);layoutFit();
 Kit.init({id:'klotski',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start,stop:()=>{ended=true;drag=false;},pause:()=>{drag=false;},
   note:()=>'横刀立马：把曹操推到下方出口',
-  tut:[['推块','拖动棋子上下左右平移，不能重叠。','🏯'],
-       ['曹操','红色 2×2 是曹操，移到最底出口中间。','🔴'],
-       ['步数','步数有限，规划路线。','👣'],
-       ['Boss','搅局会微移挡路，可升级撤销提示加步。','👑']],
+  tut:[['拖动棋子','用手指按住棋子，上下左右拖动平移，不能重叠或推出棋盘。','👆'],
+       ['救出曹操','红色 2×2 大方块是曹操。把他一路推到棋盘最下方正中的金色出口。','🔴'],
+       ['免费提示','点「💡提示」会高亮建议移动的棋子并画出方向箭头。每关有 2 次免费提示，商店升级可增加次数。','💡'],
+       ['步数与搅局','步数有限请规划路线。首领关会微移挡路，可升级撤销和加步。','👑']],
   ups:[{k:'undo',ic:'↩',name:'撤销',desc:'撤回一步',max:2,cost:l=>24+l*26},
-       {k:'hint',ic:'💡',name:'提示',desc:'提示曹操方向',max:2,cost:l=>28+l*28},
+       {k:'hint',ic:'💡',name:'提示',desc:'每关额外 +1 次提示（默认已有 2 次免费）',max:2,cost:l=>28+l*28},
        {k:'steps',ic:'➕',name:'加步',desc:'开局+5步',max:2,cost:l=>30+l*32,stars:5},
        {k:'life',ic:'❤️',name:'额外命',desc:'+1 命',max:1,cost:l=>36,stars:8}]});
 window.__T.state=()=>({left,moves,caoR:pieces&&pieces[0].r,caoC:pieces&&pieces[0].c,ended});
