@@ -193,9 +193,13 @@ html[data-skin="b"][data-game="pendulum"] input[type=range]{accent-color:var(--b
 html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-index:1000;margin:0;background:var(--bg);background-color:var(--b-bg2)}
 /* Short screens (360x640 class): tighter HUD so stages fit without page scroll */
 @media(max-height:700px){html.game-ui[data-skin="b"] :is(.topbar,#topbar){min-height:0;padding-top:5px;padding-bottom:5px}html.game-ui[data-skin="b"] body>.wrap{gap:6px}}
-/* Category badge on start panel + quiet hint collapse after first canvas interaction */
+/* Category badge on start panel + quiet hint collapse + stage tactile recoil */
 html.game-ui[data-skin="b"] .ui-cat-tag{display:inline-flex;align-items:center;padding:3px 11px;border-radius:999px;font-size:11.5px;font-weight:800;letter-spacing:.6px;color:var(--accent);background:rgba(var(--b-btn-rgb),.12);border:1px solid rgba(var(--b-btn-rgb),.28);margin-top:-4px}
 html.game-ui[data-skin="b"] .ui-hint-quiet{opacity:.38;font-size:11px;transition:opacity .45s var(--ease)}
+html.game-ui[data-skin="b"] .ui-hit{animation:uiB-hit .16s var(--ease)}
+html.game-ui[data-skin="b"] .ui-win-glow{animation:uiB-wglow .36s var(--ease)}
+@keyframes uiB-hit{0%{transform:translate3d(0,0,0)}25%{transform:translate3d(-3px,2px,0)}55%{transform:translate3d(3px,-1.5px,0)}100%{transform:translate3d(0,0,0)}}
+@keyframes uiB-wglow{0%{filter:brightness(1)}40%{filter:brightness(1.14) saturate(1.18)}100%{filter:brightness(1)}}
 
 /* ===== 5 大品类视觉原型（打破全库同质化框架） ===== */
 /* 1) 街机/太空霓虹流 (arcade / space)：冷峻机台切角、扫描线底纹、等宽数码管计分、发光霓虹边框 */
@@ -307,6 +311,7 @@ html.game-ui[data-skin="b"][data-archetype="grimoire"] :is(body canvas:is(#cv,#g
       var html = p.innerHTML;
       if (!/v\d+\s*[（(]|Gemini|批量优化/.test(html)) return;
       var cleaned = html
+        .replace(/(?:<br\s*\/?>\s*)*<(?:small|b|span)[^>]*>\s*v\d+\s*[（(][^）)]*[）)][^<]*<\/(?:small|b|span)>(?:\s*<br\s*\/?>)*/gi, '<br>')
         .replace(/(?:<br\s*\/?>\s*)*v\d+\s*[（(][^）)]*[）)][。.\s]*(?:<br\s*\/?>)*/gi, '<br>')
         .replace(/^(?:\s*<br\s*\/?>)+|(?:\s*<br\s*\/?>)+$/gi, '')
         .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>');
@@ -732,49 +737,85 @@ html.game-ui[data-skin="b"][data-archetype="grimoire"] :is(body canvas:is(#cv,#g
     } catch (_) {}
   }
   var PENTA = [523, 587, 659, 784, 880, 1046, 1175, 1319, 1568];
+  // 5 大品类差异化音色：让街机、棋牌、实验、奇幻、糖果听感各有辨识度
+  function archTone() {
+    var a = (document.documentElement && document.documentElement.dataset.archetype) || 'candy';
+    if (a === 'arcade') return { w: 1, h: 0, pitch: 1.06, dec: .88, fifth: 0 };
+    if (a === 'tabletop') return { w: 2, h: 0, pitch: .76, dec: .62, fifth: 0 };
+    if (a === 'lab') return { w: 0, h: 1, pitch: 1.18, dec: .92, fifth: 0 };
+    if (a === 'grimoire') return { w: 0, h: 1, pitch: .92, dec: 1.32, fifth: 1 };
+    return { w: 2, h: 1, pitch: 1.0, dec: 1.0, fifth: 0 };
+  }
+  function pulseStage(kind) {
+    try {
+      var el = document.querySelector('body>.wrap canvas:not(#fx),.stagebox,#grid,#board');
+      if (!el) return;
+      var cls = kind === 'win' ? 'ui-win-glow' : 'ui-hit';
+      el.classList.remove('ui-hit', 'ui-win-glow');
+      void el.offsetWidth;
+      el.classList.add(cls);
+    } catch (_) {}
+  }
   var sfx = {
     synth: synth,
     play: function (name, n) {
       if (isMuted()) return;
+      var t = archTone();
       switch (name) {
         case 'ui': case 'tap':
-          synth({ f: 620, sl: 180, a: .003, s: .012, r: .045, w: 2, v: .11 }); break;
+          if (t.pitch < .85) {
+            // 桌游/棋牌木质落子声
+            synth({ f: 340, sl: -280, a: .002, s: .006, r: .035, w: 2, n: .16, lp: .3, v: .13 });
+          } else {
+            synth({ f: 620 * t.pitch, sl: 180 * t.pitch, a: .003, s: .012 * t.dec, r: .045 * t.dec, w: t.w, h: t.h, v: .11 });
+          }
+          break;
         case 'jump':
-          synth({ f: 280, sl: 920, a: .004, s: .035, r: .09, w: 0, h: 1, v: .16 }); break;
+          synth({ f: 280 * t.pitch, sl: 920, a: .004, s: .035, r: .09 * t.dec, w: t.w === 1 ? 1 : 0, h: t.h, v: .15 }); break;
         case 'coin':
-          var cf = 988 + Math.min(6, (n || 0)) * 55;
-          synth({ f: cf, a: .003, s: .02, r: .09, w: 0, h: 1, v: .15 });
-          synth({ f: cf * 1.334, a: .003, s: .03, r: .14, w: 0, h: 1, v: .14, d: .055 }); break;
+          var cf = (988 + Math.min(6, (n || 0)) * 55) * t.pitch;
+          synth({ f: cf, a: .003, s: .02, r: .09 * t.dec, w: 0, h: 1, v: .14 });
+          synth({ f: cf * (t.fifth ? 1.498 : 1.334), a: .003, s: .03, r: .14 * t.dec, w: 0, h: 1, v: .13, d: .052 }); break;
         case 'good':
-          synth({ f: 659, a: .004, s: .02, r: .09, w: 2, h: 1, v: .14 });
-          synth({ f: 988, a: .004, s: .03, r: .12, w: 0, h: 1, v: .14, d: .055 }); break;
+          synth({ f: 659 * t.pitch, a: .004, s: .02 * t.dec, r: .09 * t.dec, w: t.w, h: t.h, v: .13 });
+          synth({ f: (t.fifth ? 988 : 880) * t.pitch, a: .004, s: .03 * t.dec, r: .12 * t.dec, w: 0, h: 1, v: .13, d: .052 }); break;
         case 'combo':
-          var f0 = PENTA[Math.min(PENTA.length - 1, Math.max(0, (n || 1) - 1))];
-          synth({ f: f0, sl: 80, a: .004, s: .025, r: .12, w: 2, h: 1, v: .16 });
-          synth({ f: f0 * 1.5, a: .004, s: .02, r: .13, w: 0, v: .11, d: .045 }); break;
+          var f0 = PENTA[Math.min(PENTA.length - 1, Math.max(0, (n || 1) - 1))] * t.pitch;
+          synth({ f: f0, sl: 80, a: .004, s: .025, r: .12 * t.dec, w: t.w, h: t.h, v: .15 });
+          synth({ f: f0 * 1.498, a: .004, s: .02, r: .13 * t.dec, w: 0, v: .11, d: .045 });
+          if ((n || 0) >= 3) pulseStage('win');
+          break;
         case 'shoot': case 'laser':
-          synth({ f: 920, sl: -1800, a: .002, s: .02, r: .065, w: 2, n: .15, v: .13 }); break;
+          synth({ f: 920 * t.pitch, sl: -1800, a: .002, s: .02, r: .065, w: t.w === 1 ? 1 : 2, n: .15, v: .12 }); break;
         case 'hit': case 'smash':
-          synth({ f: 210, sl: -480, a: .002, s: .018, r: .08, w: 3, n: .48, lp: .28, v: .18 }); break;
+          synth({ f: 210, sl: -480, a: .002, s: .018, r: .08, w: 3, n: .48, lp: .28, v: .17 }); break;
         case 'boom':
-          synth({ f: 135, sl: -190, a: .004, s: .06, r: .28, w: 0, n: .68, lp: .18, v: .22 }); break;
+          synth({ f: 135, sl: -190, a: .004, s: .06, r: .28, w: 0, n: .68, lp: .18, v: .21 });
+          pulseStage('hit');
+          break;
         case 'shield':
-          synth({ f: 520, sl: 540, a: .005, s: .04, r: .15, w: 0, h: 1, v: .15 }); break;
+          synth({ f: 520 * t.pitch, sl: 540, a: .005, s: .04, r: .15 * t.dec, w: 0, h: 1, v: .14 }); break;
         case 'bad': case 'hurt':
-          synth({ f: 250, sl: -360, a: .004, s: .04, r: .18, w: 2, n: .22, lp: .25, v: .17 }); break;
+          synth({ f: 250, sl: -360, a: .004, s: .04, r: .18, w: 2, n: .22, lp: .25, v: .16 });
+          pulseStage('hit');
+          break;
         case 'boss':
-          synth({ f: 130, sl: -40, a: .02, s: .16, r: .28, w: 3, h: 1, v: .16 });
-          synth({ f: 196, sl: -55, a: .02, s: .14, r: .26, w: 2, v: .12, d: .12 }); break;
+          synth({ f: 130, sl: -40, a: .02, s: .16, r: .28, w: 3, h: 1, v: .15 });
+          synth({ f: 196, sl: -55, a: .02, s: .14, r: .26, w: 2, v: .12, d: .12 });
+          pulseStage('hit');
+          break;
         case 'win':
           [523, 659, 784, 1046].forEach(function (fr, i) {
-            synth({ f: fr, a: .005, s: .04, r: .18, w: 2, h: 1, v: .15, d: i * .09 });
-          }); break;
+            synth({ f: fr * t.pitch, a: .005, s: .04, r: .18 * t.dec, w: t.w === 1 ? 2 : t.w, h: 1, v: .14, d: i * .085 });
+          });
+          pulseStage('win');
+          break;
         case 'lose':
           [392, 349, 311, 261].forEach(function (fr, i) {
             synth({ f: fr, sl: -30, a: .006, s: .05, r: .18, w: 2, v: .13, d: i * .11 });
           }); break;
         default:
-          synth({ f: 520, sl: 120, a: .004, s: .02, r: .06, w: 0, v: .12 });
+          synth({ f: 520 * t.pitch, sl: 120, a: .004, s: .02, r: .06 * t.dec, w: t.w, v: .11 });
       }
     },
     note: function (freq, dur, type, vol) {
@@ -1934,7 +1975,7 @@ html.game-ui[data-skin="b"][data-archetype="grimoire"] :is(body canvas:is(#cv,#g
   <div class="stagebox" id="box"><canvas id="cv"></canvas></div>
   <div class="hint">滑屏转向 · 吃到目标长度 · 别撞墙和自己</div>
 </div>
-<div class="overlay" id="startScr"><h1>🐍 贪吃蛇</h1><p>经典贪吃蛇升级成 15 关：吃到目标长度，障碍与加速递增。<br>第 5/10/15 关敌蛇对撞 Boss！可升级慢速、穿墙、额外命。<br><small style="opacity:.85">v8（Gemini 优化）：新增林地/沙海/遗迹三大棋盘、限时金果与动态蛇头造型</small></p><p id="bestLine"></p><button class="btn" id="startBtn">开始贪吃</button></div>
+<div class="overlay" id="startScr"><h1>🐍 贪吃蛇</h1><p>经典贪吃蛇 15 关挑战：林地、沙海、遗迹三大棋盘，快速连吃触发连击加分与限时金果。<br>第 5/10/15 关迎战敌蛇首领！可升级慢速、穿墙与额外命。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始贪吃</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -2063,7 +2104,8 @@ const ARENAS=[
   {name:'炽热沙海',top:'#ffcc80',bot:'#e65100',grid:'rgba(255,255,255,.09)',obs:'#5d4037',head:'#fff176',body:'#ff9100'},
   {name:'暗影遗迹',top:'#311b92',bot:'#120524',grid:'rgba(179,136,255,.09)',obs:'#ab47bc',head:'#69f0ae',body:'#00bcd4'}
 ];
-let L,snake,dir,nextDir,food,bonus,obs,enemy,lives,score,ended,raf=0,last=0,fast=1,acc,phase,boss,bossT,ghost,slowMul,sparks,rings,arena,animT=0;
+let L,snake,dir,nextDir,food,bonus,obs,enemy,lives,score,ended,raf=0,last=0,fast=1,acc,phase,boss,bossT,ghost,slowMul,sparks,rings,arena,animT=0,streak=0,streakT=0;
+const J=UI.juice&&UI.juice.create?UI.juice.create():null;
 function placeFood(){for(let t=0;t<200;t++){const x=1+Math.floor(Math.random()*(N-2)),y=1+Math.floor(Math.random()*(N-2));
   if(snake.some(s=>s.x===x&&s.y===y))continue;if(obs.some(o=>o.x===x&&o.y===y))continue;if(enemy&&enemy.some(e=>e.x===x&&e.y===y))continue;
   food={x,y};return;}food={x:8,y:8};}
@@ -2071,7 +2113,7 @@ function placeBonus(){for(let t=0;t<120;t++){const x=1+Math.floor(Math.random()*
   if(snake.some(s=>s.x===x&&s.y===y)||obs.some(o=>o.x===x&&o.y===y)||(food&&food.x===x&&food.y===y))continue;
   bonus={x,y,t:7};return;}}
 function mkObs(n){obs=[];for(let i=0;i<n;i++){let x,y;do{x=Math.floor(Math.random()*N);y=Math.floor(Math.random()*N);}while((x===8&&y>=6&&y<=10)||obs.some(o=>o.x===x&&o.y===y));obs.push({x,y});}}
-function start(i){L=LV[i];score=0;ended=false;lives=1+Kit.up('life');snake=[{x:8,y:8},{x:7,y:8},{x:6,y:8}];dir={x:1,y:0};nextDir={x:1,y:0};acc=0;phase='play';sparks=[];rings=[];bonus=null;
+function start(i){L=LV[i];score=0;ended=false;lives=1+Kit.up('life');snake=[{x:8,y:8},{x:7,y:8},{x:6,y:8}];dir={x:1,y:0};nextDir={x:1,y:0};acc=0;phase='play';sparks=[];rings=[];bonus=null;streak=0;streakT=0;if(J)J.clear();
   arena=ARENAS[Math.min(2,Math.floor(i/5))];
   ghost=Kit.up('ghost');slowMul=1-Kit.up('slow')*.15;
   mkObs((L.boss?L.boss.obs:(L.obs||0))+UI.pick(0,8));enemy=null;
@@ -2087,19 +2129,18 @@ let sx0,sy0;cv.addEventListener('pointerdown',e=>{sx0=e.clientX;sy0=e.clientY;},
 cv.addEventListener('pointerup',e=>{if(sx0==null)return;const dx=e.clientX-sx0,dy=e.clientY-sy0;sx0=null;if(Math.hypot(dx,dy)<20)return;
   if(Math.abs(dx)>Math.abs(dy))setDir(dx>0?1:-1,0);else setDir(0,dy>0?1:-1);});
 addEventListener('keydown',e=>{const m={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};if(m[e.key]){e.preventDefault();setDir(...m[e.key]);}});
-function die(why){if(ghost>0){ghost--;Kit.toast('穿墙一次！',700);Kit.sfx('hit');
-  // pull head back inside
+function die(why){if(ghost>0){ghost--;Kit.toast('穿墙一次！',700);Kit.sfx('hit');if(J){J.shake(5);J.flash('#67e8f9',.22);}
   const h=snake[0];h.x=(h.x+N)%N;h.y=(h.y+N)%N;return;}
-  lives--;Kit.sfx('bad');if(lives<=0)return endLv(false,why||'撞毁');
+  lives--;streak=0;Kit.sfx('bad');if(J){J.shake(9);J.flash('#f43f5e',.28);J.freeze(.04);}if(lives<=0)return endLv(false,why||'撞毁');
   snake=[{x:8,y:8},{x:7,y:8},{x:6,y:8}];dir={x:1,y:0};nextDir=dir;Kit.toast('再来！',600);hud();}
 function step(){dir=nextDir;const h=snake[0];let nx=h.x+dir.x,ny=h.y+dir.y;
   if(nx<0||ny<0||nx>=N||ny>=N){die('撞墙');return;}
   if(obs.some(o=>o.x===nx&&o.y===ny)){die('撞障碍');return;}
   if(snake.some(s=>s.x===nx&&s.y===ny)){die('咬到自己');return;}
   snake.unshift({x:nx,y:ny});
-  if(bonus&&nx===bonus.x&&ny===bonus.y){score+=30;Kit.sfx('coin');Kit.toast('🌟 金果 +30！',900);rings.push({x:nx*CELL+11,y:ny*CELL+11,r:6,a:1,col:'#ffd54f'});if(FX)FX.burst(sparks,nx*CELL+11,ny*CELL+11,'#ffd54f',14);bonus=null;}
-  if(food&&nx===food.x&&ny===food.y){score+=10;Kit.sfx('good');rings.push({x:nx*CELL+11,y:ny*CELL+11,r:6,a:1,col:'#ff5252'});if(FX)FX.burst(sparks,nx*CELL+11,ny*CELL+11,'#ff3d6e',10);
-    if(boss){boss.hp--;if(boss.hp<=0){score+=200;return endLv(true);}}
+  if(bonus&&nx===bonus.x&&ny===bonus.y){score+=30;Kit.sfx('coin');Kit.toast('🌟 金果 +30！',900);rings.push({x:nx*CELL+11,y:ny*CELL+11,r:6,a:1,col:'#ffd54f'});if(J){J.pop(nx*CELL+11,ny*CELL,'+30 ★','#fde047',15);J.flash('#fde047',.16);J.shake(3.5);}if(FX)FX.burst(sparks,nx*CELL+11,ny*CELL+11,'#ffd54f',14);bonus=null;}
+  if(food&&nx===food.x&&ny===food.y){streak=streakT>0?Math.min(8,streak+1):1;streakT=4.2;const pts=10+(streak>1?streak*5:0);score+=pts;Kit.sfx(streak>=3?'combo':'good',streak);rings.push({x:nx*CELL+11,y:ny*CELL+11,r:6,a:1,col:'#ff5252'});if(J){J.pop(nx*CELL+11,ny*CELL,(streak>1?'×'+streak+' ':'')+'+'+pts,streak>=3?'#fde047':'#86efac',streak>=3?14:12);J.ring(nx*CELL+11,ny*CELL+11,'#4ade80',24);}if(FX)FX.burst(sparks,nx*CELL+11,ny*CELL+11,'#ff3d6e',10);
+    if(boss){boss.hp--;if(J)J.shake(4);if(boss.hp<=0){score+=200;if(J){J.shake(10);J.flash('#fde047',.3);}return endLv(true);}}
     else if(snake.length>=(L.need||8))return endLv(true);
     placeFood();if(!bonus&&Math.random()<.3)placeBonus();}
   else snake.pop();
@@ -2111,19 +2152,20 @@ function step(){dir=nextDir;const h=snake[0];let nx=h.x+dir.x,ny=h.y+dir.y;
     if(ex>=0&&ey>=0&&ex<N&&ey<N){enemy.unshift({x:ex,y:ey});if(enemy.length>4)enemy.pop();
       if(snake.some(s=>s.x===ex&&s.y===ey))die('被敌蛇撞');}}
   hud();}
-function upd(dt){if(ended)return;animT+=dt;if(bonus){bonus.t-=dt;if(bonus.t<=0)bonus=null;}
+function upd(dt){if(ended)return;if(J){dt=J.step(dt);if(!dt)return;}animT+=dt;if(streakT>0){streakT-=dt;if(streakT<=0)streak=0;}if(bonus){bonus.t-=dt;if(bonus.t<=0)bonus=null;}
   for(let i=rings.length-1;i>=0;i--){rings[i].r+=68*dt;rings[i].a-=2*dt;if(rings[i].a<=0)rings.splice(i,1);}
   if(boss){bossT-=dt;if(bossT<=0)return endLv(false,'影蛇逃走');}
   const spd=(L.boss?L.boss.spd:L.spd)*slowMul;acc+=dt;while(acc>=spd){acc-=spd;step();if(ended)break;}}
 function hud(){$('lvT').textContent=Kit.lv+1;$('lifeT').textContent=lives;$('lenT').textContent=snake.length;$('score').textContent=score;
   $('goalLbl').textContent=boss?'👑 '+boss.name:'长度 '+snake.length+'/'+(L.need||8);
   $('progI').style.width=(boss?100-boss.hp/boss.max*100:Math.min(100,snake.length/(L.need||8)*100))+'%';
-  $('infoT').textContent=(ghost?'👻'+ghost:'')+(boss?' ⏱'+Math.ceil(bossT):'');}
+  $('infoT').textContent=(streak>1?'🔥×'+streak+' ':'')+(ghost?'👻'+ghost:'')+(boss?' ⏱'+Math.ceil(bossT):'');}
 function endLv(won,why){if(ended)return;ended=true;if(won){const st=lives>=2||snake.length>(L.need||8)+2?3:2;setTimeout(()=>Kit.win(st,score,boss?'击败 '+boss.name:'长到 '+snake.length),350);}
   else setTimeout(()=>Kit.lose(why,score),300);}
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended){for(let k=0;k<Math.min(fast,8);k++){if(!ended)upd(dt);}}draw();raf=requestAnimationFrame(frame);}
 function draw(){
   const ar=arena||ARENAS[0];
+  if(J)J.begin(ctx);
   if(FX)FX.stage(ctx,W,H,ar.top,ar.bot);else{ctx.fillStyle=ar.bot;ctx.fillRect(0,0,W,H);}
   ctx.fillStyle=ar.grid;for(let y=0;y<N;y++)for(let x=0;x<N;x++)if((x+y)&1)ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
   for(const o of obs){if(FX)FX.tile(ctx,o.x*CELL+1,o.y*CELL+1,CELL-2,CELL-2,ar.obs,5);else{ctx.fillStyle='#555';ctx.fillRect(o.x*CELL,o.y*CELL,CELL,CELL);}}
@@ -2176,6 +2218,7 @@ function draw(){
   }
   if(boss){ctx.fillStyle='#ff5fa2';ctx.fillRect(W/2-40,4,80*(boss.hp/boss.max),6);}
   if(FX)FX.drawBurst(ctx,sparks);
+  if(J){J.draw(ctx,W,H);J.end(ctx);}
 }
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();

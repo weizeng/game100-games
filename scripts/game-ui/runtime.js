@@ -64,6 +64,7 @@
       var html = p.innerHTML;
       if (!/v\d+\s*[（(]|Gemini|批量优化/.test(html)) return;
       var cleaned = html
+        .replace(/(?:<br\s*\/?>\s*)*<(?:small|b|span)[^>]*>\s*v\d+\s*[（(][^）)]*[）)][^<]*<\/(?:small|b|span)>(?:\s*<br\s*\/?>)*/gi, '<br>')
         .replace(/(?:<br\s*\/?>\s*)*v\d+\s*[（(][^）)]*[）)][。.\s]*(?:<br\s*\/?>)*/gi, '<br>')
         .replace(/^(?:\s*<br\s*\/?>)+|(?:\s*<br\s*\/?>)+$/gi, '')
         .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>');

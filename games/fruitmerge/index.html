@@ -195,9 +195,13 @@ html[data-skin="b"][data-game="pendulum"] input[type=range]{accent-color:var(--b
 html.game-ui[data-skin="b"] .screen:has(>.ui-panel){position:fixed;inset:0;z-index:1000;margin:0;background:var(--bg);background-color:var(--b-bg2)}
 /* Short screens (360x640 class): tighter HUD so stages fit without page scroll */
 @media(max-height:700px){html.game-ui[data-skin="b"] :is(.topbar,#topbar){min-height:0;padding-top:5px;padding-bottom:5px}html.game-ui[data-skin="b"] body>.wrap{gap:6px}}
-/* Category badge on start panel + quiet hint collapse after first canvas interaction */
+/* Category badge on start panel + quiet hint collapse + stage tactile recoil */
 html.game-ui[data-skin="b"] .ui-cat-tag{display:inline-flex;align-items:center;padding:3px 11px;border-radius:999px;font-size:11.5px;font-weight:800;letter-spacing:.6px;color:var(--accent);background:rgba(var(--b-btn-rgb),.12);border:1px solid rgba(var(--b-btn-rgb),.28);margin-top:-4px}
 html.game-ui[data-skin="b"] .ui-hint-quiet{opacity:.38;font-size:11px;transition:opacity .45s var(--ease)}
+html.game-ui[data-skin="b"] .ui-hit{animation:uiB-hit .16s var(--ease)}
+html.game-ui[data-skin="b"] .ui-win-glow{animation:uiB-wglow .36s var(--ease)}
+@keyframes uiB-hit{0%{transform:translate3d(0,0,0)}25%{transform:translate3d(-3px,2px,0)}55%{transform:translate3d(3px,-1.5px,0)}100%{transform:translate3d(0,0,0)}}
+@keyframes uiB-wglow{0%{filter:brightness(1)}40%{filter:brightness(1.14) saturate(1.18)}100%{filter:brightness(1)}}
 
 /* ===== 5 大品类视觉原型（打破全库同质化框架） ===== */
 /* 1) 街机/太空霓虹流 (arcade / space)：冷峻机台切角、扫描线底纹、等宽数码管计分、发光霓虹边框 */
@@ -309,6 +313,7 @@ html.game-ui[data-skin="b"][data-archetype="grimoire"] :is(body canvas:is(#cv,#g
       var html = p.innerHTML;
       if (!/v\d+\s*[（(]|Gemini|批量优化/.test(html)) return;
       var cleaned = html
+        .replace(/(?:<br\s*\/?>\s*)*<(?:small|b|span)[^>]*>\s*v\d+\s*[（(][^）)]*[）)][^<]*<\/(?:small|b|span)>(?:\s*<br\s*\/?>)*/gi, '<br>')
         .replace(/(?:<br\s*\/?>\s*)*v\d+\s*[（(][^）)]*[）)][。.\s]*(?:<br\s*\/?>)*/gi, '<br>')
         .replace(/^(?:\s*<br\s*\/?>)+|(?:\s*<br\s*\/?>)+$/gi, '')
         .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>');
@@ -734,49 +739,85 @@ html.game-ui[data-skin="b"][data-archetype="grimoire"] :is(body canvas:is(#cv,#g
     } catch (_) {}
   }
   var PENTA = [523, 587, 659, 784, 880, 1046, 1175, 1319, 1568];
+  // 5 大品类差异化音色：让街机、棋牌、实验、奇幻、糖果听感各有辨识度
+  function archTone() {
+    var a = (document.documentElement && document.documentElement.dataset.archetype) || 'candy';
+    if (a === 'arcade') return { w: 1, h: 0, pitch: 1.06, dec: .88, fifth: 0 };
+    if (a === 'tabletop') return { w: 2, h: 0, pitch: .76, dec: .62, fifth: 0 };
+    if (a === 'lab') return { w: 0, h: 1, pitch: 1.18, dec: .92, fifth: 0 };
+    if (a === 'grimoire') return { w: 0, h: 1, pitch: .92, dec: 1.32, fifth: 1 };
+    return { w: 2, h: 1, pitch: 1.0, dec: 1.0, fifth: 0 };
+  }
+  function pulseStage(kind) {
+    try {
+      var el = document.querySelector('body>.wrap canvas:not(#fx),.stagebox,#grid,#board');
+      if (!el) return;
+      var cls = kind === 'win' ? 'ui-win-glow' : 'ui-hit';
+      el.classList.remove('ui-hit', 'ui-win-glow');
+      void el.offsetWidth;
+      el.classList.add(cls);
+    } catch (_) {}
+  }
   var sfx = {
     synth: synth,
     play: function (name, n) {
       if (isMuted()) return;
+      var t = archTone();
       switch (name) {
         case 'ui': case 'tap':
-          synth({ f: 620, sl: 180, a: .003, s: .012, r: .045, w: 2, v: .11 }); break;
+          if (t.pitch < .85) {
+            // 桌游/棋牌木质落子声
+            synth({ f: 340, sl: -280, a: .002, s: .006, r: .035, w: 2, n: .16, lp: .3, v: .13 });
+          } else {
+            synth({ f: 620 * t.pitch, sl: 180 * t.pitch, a: .003, s: .012 * t.dec, r: .045 * t.dec, w: t.w, h: t.h, v: .11 });
+          }
+          break;
         case 'jump':
-          synth({ f: 280, sl: 920, a: .004, s: .035, r: .09, w: 0, h: 1, v: .16 }); break;
+          synth({ f: 280 * t.pitch, sl: 920, a: .004, s: .035, r: .09 * t.dec, w: t.w === 1 ? 1 : 0, h: t.h, v: .15 }); break;
         case 'coin':
-          var cf = 988 + Math.min(6, (n || 0)) * 55;
-          synth({ f: cf, a: .003, s: .02, r: .09, w: 0, h: 1, v: .15 });
-          synth({ f: cf * 1.334, a: .003, s: .03, r: .14, w: 0, h: 1, v: .14, d: .055 }); break;
+          var cf = (988 + Math.min(6, (n || 0)) * 55) * t.pitch;
+          synth({ f: cf, a: .003, s: .02, r: .09 * t.dec, w: 0, h: 1, v: .14 });
+          synth({ f: cf * (t.fifth ? 1.498 : 1.334), a: .003, s: .03, r: .14 * t.dec, w: 0, h: 1, v: .13, d: .052 }); break;
         case 'good':
-          synth({ f: 659, a: .004, s: .02, r: .09, w: 2, h: 1, v: .14 });
-          synth({ f: 988, a: .004, s: .03, r: .12, w: 0, h: 1, v: .14, d: .055 }); break;
+          synth({ f: 659 * t.pitch, a: .004, s: .02 * t.dec, r: .09 * t.dec, w: t.w, h: t.h, v: .13 });
+          synth({ f: (t.fifth ? 988 : 880) * t.pitch, a: .004, s: .03 * t.dec, r: .12 * t.dec, w: 0, h: 1, v: .13, d: .052 }); break;
         case 'combo':
-          var f0 = PENTA[Math.min(PENTA.length - 1, Math.max(0, (n || 1) - 1))];
-          synth({ f: f0, sl: 80, a: .004, s: .025, r: .12, w: 2, h: 1, v: .16 });
-          synth({ f: f0 * 1.5, a: .004, s: .02, r: .13, w: 0, v: .11, d: .045 }); break;
+          var f0 = PENTA[Math.min(PENTA.length - 1, Math.max(0, (n || 1) - 1))] * t.pitch;
+          synth({ f: f0, sl: 80, a: .004, s: .025, r: .12 * t.dec, w: t.w, h: t.h, v: .15 });
+          synth({ f: f0 * 1.498, a: .004, s: .02, r: .13 * t.dec, w: 0, v: .11, d: .045 });
+          if ((n || 0) >= 3) pulseStage('win');
+          break;
         case 'shoot': case 'laser':
-          synth({ f: 920, sl: -1800, a: .002, s: .02, r: .065, w: 2, n: .15, v: .13 }); break;
+          synth({ f: 920 * t.pitch, sl: -1800, a: .002, s: .02, r: .065, w: t.w === 1 ? 1 : 2, n: .15, v: .12 }); break;
         case 'hit': case 'smash':
-          synth({ f: 210, sl: -480, a: .002, s: .018, r: .08, w: 3, n: .48, lp: .28, v: .18 }); break;
+          synth({ f: 210, sl: -480, a: .002, s: .018, r: .08, w: 3, n: .48, lp: .28, v: .17 }); break;
         case 'boom':
-          synth({ f: 135, sl: -190, a: .004, s: .06, r: .28, w: 0, n: .68, lp: .18, v: .22 }); break;
+          synth({ f: 135, sl: -190, a: .004, s: .06, r: .28, w: 0, n: .68, lp: .18, v: .21 });
+          pulseStage('hit');
+          break;
         case 'shield':
-          synth({ f: 520, sl: 540, a: .005, s: .04, r: .15, w: 0, h: 1, v: .15 }); break;
+          synth({ f: 520 * t.pitch, sl: 540, a: .005, s: .04, r: .15 * t.dec, w: 0, h: 1, v: .14 }); break;
         case 'bad': case 'hurt':
-          synth({ f: 250, sl: -360, a: .004, s: .04, r: .18, w: 2, n: .22, lp: .25, v: .17 }); break;
+          synth({ f: 250, sl: -360, a: .004, s: .04, r: .18, w: 2, n: .22, lp: .25, v: .16 });
+          pulseStage('hit');
+          break;
         case 'boss':
-          synth({ f: 130, sl: -40, a: .02, s: .16, r: .28, w: 3, h: 1, v: .16 });
-          synth({ f: 196, sl: -55, a: .02, s: .14, r: .26, w: 2, v: .12, d: .12 }); break;
+          synth({ f: 130, sl: -40, a: .02, s: .16, r: .28, w: 3, h: 1, v: .15 });
+          synth({ f: 196, sl: -55, a: .02, s: .14, r: .26, w: 2, v: .12, d: .12 });
+          pulseStage('hit');
+          break;
         case 'win':
           [523, 659, 784, 1046].forEach(function (fr, i) {
-            synth({ f: fr, a: .005, s: .04, r: .18, w: 2, h: 1, v: .15, d: i * .09 });
-          }); break;
+            synth({ f: fr * t.pitch, a: .005, s: .04, r: .18 * t.dec, w: t.w === 1 ? 2 : t.w, h: 1, v: .14, d: i * .085 });
+          });
+          pulseStage('win');
+          break;
         case 'lose':
           [392, 349, 311, 261].forEach(function (fr, i) {
             synth({ f: fr, sl: -30, a: .006, s: .05, r: .18, w: 2, v: .13, d: i * .11 });
           }); break;
         default:
-          synth({ f: 520, sl: 120, a: .004, s: .02, r: .06, w: 0, v: .12 });
+          synth({ f: 520 * t.pitch, sl: 120, a: .004, s: .02, r: .06 * t.dec, w: t.w, v: .11 });
       }
     },
     note: function (freq, dur, type, vol) {
@@ -1938,7 +1979,7 @@ html.game-ui[data-skin="b"][data-archetype="grimoire"] :is(body canvas:is(#cv,#g
   <div class="hint">左右拖动瞄准，松手落下 · 两颗相同合成更大</div>
 </div>
 
-<div class="overlay" id="startScr"><h1>🍉 水果合成</h1><p id="startP">合成西瓜升级成 15 关挑战：在有限掉落次数内合成出目标水果。<br>箱子会变窄、重力变大，还有会捣乱的炸弹果。<br>第 5/10/15 关迎战「水果鬼王」——合成指定连锁才能击败！<br><b>v8（Gemini 优化：3大果园主题、1×/2×倍速、满溢警戒线与合成冲击波/飘分）</b></p><p id="bestLine"></p><button class="btn" id="startBtn">开始合成</button></div>
+<div class="overlay" id="startScr"><h1>🍉 水果合成</h1><p id="startP">15 关果园合成挑战：左右瞄准松手落下，两颗相同水果连锁合成更大水果，小心满溢警戒线与炸弹果。<br>第 5/10/15 关迎战水果鬼王！</p><p id="bestLine"></p><button class="btn" id="startBtn">开始合成</button></div>
 <div class="overlay hidden" id="lvlScr"><h2 id="lvlTitle">选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><p class="lvTag" id="lvlNote"></p><div class="shop" id="shop"></div><div class="rowbtns"><button class="btn ghost" id="howBtn">玩法教程</button><button class="btn ghost" id="homeBtn">返回</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH">教程</h2><div id="tutPic"></div><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
 <div class="overlay hidden" id="pauseOv"><h2>⏸ 已暂停</h2><p id="pauseInfo"></p><div class="rowbtns"><button class="btn" id="resumeBtn">继续</button><button class="btn ghost" id="restartBtn">重新开始</button><button class="btn ghost" id="menuBtn">选择关卡</button><button class="iconbtn muteBtn" aria-label="切换音效">🔊</button></div></div>
@@ -2065,10 +2106,11 @@ const LV=[
  {boss:{hp:8,name:'西瓜鬼帝',goal:7,t:110}}];
 const ORCHARDS=[['#4a1830','#1a0810','莓果果园'],['#3d2412','#180d05','热带阳光'],['#1d2b44','#0a101d','星夜榨汁屋']];
 let L,fruits,nextT,holdX,dropping,dropsLeft,lives,score,ended,raf=0,last=0,fast=1,sparks,boss,bossT,maxReach,boxL,boxR,miss,combo,waves=[],pops=[];
+const J=UI.juice&&UI.juice.create?UI.juice.create():null;
 $('spdBtn').onclick=()=>{fast=fast===1?2:1;$('spdBtn').textContent=fast+'×';Kit.sfx('tap');};
 function addWave(x,y,col,maxR){waves.push({x,y,r:10,maxR:maxR||54,col,a:1});}
 function addPop(x,y,txt,col){pops.push({x,y,txt,col:col||'#ffd34d',vy:-38,a:1});}
-function start(i){L=LV[i];score=0;ended=false;fruits=[];dropsLeft=L.boss?99:(L.drops+Kit.up('drop')*3);lives=3+Kit.up('life');dropping=null;holdX=W/2;sparks=[];waves=[];pops=[];maxReach=0;miss=0;combo=0;
+function start(i){L=LV[i];score=0;ended=false;fruits=[];dropsLeft=L.boss?99:(L.drops+Kit.up('drop')*3);lives=3+Kit.up('life');dropping=null;holdX=W/2;sparks=[];waves=[];pops=[];maxReach=0;miss=0;combo=0;if(J)J.clear();
   const bw=L.boss?280:(L.w-Kit.up('wide')*15);boxL=(W-bw)/2;boxR=(W+bw)/2;
   boss=L.boss?{hp:L.boss.hp,max:L.boss.hp,name:L.boss.name,goal:L.boss.goal,flash:0}:null;bossT=boss?L.boss.t+Kit.up('time')*10:0;
   nextT=Math.min(2+((Math.random()*3)|0),boss?boss.goal-1:L.goal-1);hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);
@@ -2080,7 +2122,7 @@ cv.addEventListener('pointermove',e=>{if(!aiming)return;holdX=Math.max(boxL+20,M
 cv.addEventListener('pointerup',e=>{if(!aiming)return;aiming=false;drop();});
 function drop(){if(Kit.state!=='play'||ended||dropping)return;if(dropsLeft<=0)return endLv(false,'掉落次数用完');dropsLeft--;const t=nextT;const bomb=!boss&&Math.random()<(L.bomb||0);
   dropping={x:holdX,y:50,vx:0,vy:0,t:bomb?-1:t,r:bomb?16:RAD[t],settled:0};nextT=Math.min((Math.random()*(Math.min(4,(boss?boss.goal:L.goal)-1)+1))|0,(boss?boss.goal:L.goal)-1);Kit.sfx('tap');hud();}
-function upd(dt){if(boss){bossT-=dt;if(boss.flash>0)boss.flash-=dt;if(bossT<=0)return endLv(false,'时间到');}
+function upd(dt){if(J){dt=J.step(dt);if(!dt)return;}if(boss){bossT-=dt;if(boss.flash>0)boss.flash-=dt;if(bossT<=0)return endLv(false,'时间到');}
   const g=(L.g||1000)*(1-Kit.up('soft')*.08);const list=fruits.slice();if(dropping)list.push(dropping);
   for(const f of list){if(f.settled>30)continue;f.vy+=g*dt;f.x+=f.vx*dt;f.y+=f.vy*dt;f.vx*=Math.pow(.15,dt);
     if(f.x-f.r<boxL){f.x=boxL+f.r;f.vx=Math.abs(f.vx)*.4;}if(f.x+f.r>boxR){f.x=boxR-f.r;f.vx=-Math.abs(f.vx)*.4;}
@@ -2091,12 +2133,13 @@ function upd(dt){if(boss){bossT-=dt;if(boss.flash>0)boss.flash-=dt;if(bossT<=0)r
     if(d<min){const nx=dx/d,ny=dy/d,ov=min-d;a.x-=nx*ov/2;a.y-=ny*ov/2;b.x+=nx*ov/2;b.y+=ny*ov/2;const dv= (b.vx-a.vx)*nx+(b.vy-a.vy)*ny;if(dv<0){a.vx+=dv*nx;a.vy+=dv*ny;b.vx-=dv*nx;b.vy-=dv*ny;}
       if(a.t>=0&&a.t===b.t&&a.t<9&&Math.abs(a.vy)+Math.abs(b.vy)<500){const nt=a.t+1;const nx_=(a.x+b.x)/2,ny_=(a.y+b.y)/2;const dead=new Set([a,b]);fruits=fruits.filter(f=>!dead.has(f));if(dropping&&dead.has(dropping))dropping=null;
         fruits.push({x:nx_,y:ny_,vx:0,vy:-80,t:nt,r:RAD[nt],settled:0});combo++;const pts=(nt+1)*20*Math.min(combo,8);score+=pts;maxReach=Math.max(maxReach,nt);Kit.sfx('combo',combo);if(FX)FX.burst(sparks,nx_,ny_,'#ff5fa2',12+nt);
+        if(J){J.shake(Math.min(9,2+nt*.85));if(nt>=5){J.flash('#fde047',.16);J.freeze(.035);}}
         addWave(nx_,ny_,'#ff5fa2',34+nt*4);addPop(nx_,ny_-10,(combo>1?'×'+combo+' ':'')+'+'+pts,'#ffd34d');
-        if(boss&&nt>=boss.goal){boss.hp--;boss.flash=.4;Kit.sfx('boom');score+=200;addPop(W/2,52,'👑 鬼王 -1!','#ff5fa2');if(boss.hp<=0){score+=Math.round(bossT)*10;return endLv(true);}}
+        if(boss&&nt>=boss.goal){boss.hp--;boss.flash=.4;Kit.sfx('boom');score+=200;if(J){J.shake(8);J.flash('#ff5fa2',.24);}addPop(W/2,52,'👑 鬼王 -1!','#ff5fa2');if(boss.hp<=0){score+=Math.round(bossT)*10;return endLv(true);}}
         else if(!boss&&nt>=L.goal){score+=300;return endLv(true);}
         return;}}}
   if(dropping&&dropping.settled>20){if(dropping.t<0){// bomb
-      const bx=dropping.x,by=dropping.y;fruits=fruits.filter(f=>{if(Math.hypot(f.x-bx,f.y-by)<70){if(FX)FX.burst(sparks,f.x,f.y,'#ff4d6d',8);return false;}return true;});dropping=null;miss++;lives--;Kit.sfx('boom');Kit.toast('💣 炸弹果炸了！',900);if(lives<=0)return endLv(false,'被炸出局');}
+      const bx=dropping.x,by=dropping.y;fruits=fruits.filter(f=>{if(Math.hypot(f.x-bx,f.y-by)<70){if(FX)FX.burst(sparks,f.x,f.y,'#ff4d6d',8);return false;}return true;});dropping=null;miss++;lives--;Kit.sfx('boom');if(J){J.shake(10);J.flash('#ef4444',.3);J.freeze(.045);}Kit.toast('💣 炸弹果炸了！',900);if(lives<=0)return endLv(false,'被炸出局');}
     else{fruits.push(dropping);dropping=null;}combo=Math.max(0,combo-1);}
   // lose if stacked too high
   for(const f of fruits){if(f.y-f.r<70&&f.settled>10){miss++;lives--;fruits=fruits.filter(x=>x!==f);Kit.sfx('bad');Kit.toast('堆太高了！',800);if(lives<=0)return endLv(false,'箱子装不下');}}
@@ -2112,6 +2155,7 @@ function endLv(won,why){if(ended)return;ended=true;if(won){const st=miss===0?3:m
 function frame(t){const dt=Math.min(.033,(t-last)/1000);last=t;if(Kit.state==='play'&&!ended)for(let k=0;k<fast;k++){if(!ended)upd(dt);}draw();raf=requestAnimationFrame(frame);}
 function draw(){
   const ch=ORCHARDS[Math.min(2,Math.floor(Kit.lv/5))];
+  if(J)J.begin(ctx);
   FX?FX.stage(ctx,W,H,ch[0],ch[1]):(ctx.fillStyle=ch[1],ctx.fillRect(0,0,W,H));
   ctx.fillStyle='rgba(255,255,255,.45)';ctx.font='bold 11px sans-serif';ctx.textAlign='left';ctx.fillText(ch[2],10,16);
   ctx.fillStyle='rgba(0,0,0,.22)';ctx.fillRect(boxL,60,boxR-boxL,H-80);
@@ -2128,7 +2172,8 @@ function draw(){
   for(const w of waves){ctx.save();ctx.globalAlpha=Math.max(0,w.a);ctx.strokeStyle=w.col;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,Math.PI*2);ctx.stroke();ctx.restore();}
   for(const p of pops){ctx.save();ctx.globalAlpha=Math.max(0,p.a);ctx.fillStyle=p.col;ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(p.txt,p.x,p.y);ctx.restore();}
   if(boss){ctx.fillStyle=boss.flash>0?'#fff':'#ffd34d';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText('👑 '+boss.name+' 需要合成 '+FRUITS[boss.goal],W/2,30);}
-  if(FX)FX.drawBurst(ctx,sparks);}
+  if(FX)FX.drawBurst(ctx,sparks);
+  if(J){J.draw(ctx,W,H);J.end(ctx);}}
 function layout(){const b=$('box').getBoundingClientRect();const s=Math.min(b.width/W,b.height/H);cv.style.width=Math.floor(W*s)+'px';cv.style.height=Math.floor(H*s)+'px';}
 addEventListener('resize',layout);layout();
 Kit.init({id:'fruitmerge',levels:15,boss:[5,10,15],bossName:i=>LV[i].boss.name,start:start,stop:()=>{ended=true;},pause:()=>{aiming=false;},label:i=>String(i+1),
