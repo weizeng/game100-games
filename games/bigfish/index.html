@@ -2063,9 +2063,11 @@ const LV=[
 ];
 let L,me,fish,tx,ty,lives,score,ended,raf=0,last=0,fast=1,need,eaten,boss,shield,sparks,sizeStage;
 function mkFish(size){const fromL=Math.random()<.5;return{x:fromL?-20:W+20,y:30+Math.random()*(H-60),vx:(fromL?1:-1)*(40+Math.random()*60),size,r:8+size*5};}
+function pickFishSize(){const roll=Math.random();if(roll<.62)return Math.max(0,me.size-1);if(roll<.82)return me.size;return me.size+1+((Math.random()*2)|0);}
+function canEat(f){return f.size<me.size||f.r<me.r-1;}
 function start(i){L=LV[i];score=0;ended=false;fish=[];eaten=0;sparks=[];lives=3+Kit.up('life');shield=Kit.up('shield');sizeStage=1;
   const b=L.boss||L;need=b.need;me={x:W/2,y:H/2,r:12,size:1};tx=me.x;ty=me.y;
-  for(let k=0;k<6;k++)fish.push(mkFish(1));
+  for(let k=0;k<6;k++)fish.push(mkFish(0));
   for(let k=0;k<b.big;k++)fish.push(mkFish(2+Math.random()*2|0));
   boss=L.boss?{name:L.boss.name}:null;
   hud();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
@@ -2075,10 +2077,11 @@ cv.addEventListener('pointermove',e=>{if(Kit.state!=='play'||ended)return;if(e.b
 function upd(dt){if(ended)return;const b=L.boss||L;const spd=(b.spd+Kit.up('spd')*20);
   const dx=tx-me.x,dy=ty-me.y,d=Math.hypot(dx,dy)||1;me.x+=dx/d*Math.min(d,spd*dt);me.y+=dy/d*Math.min(d,spd*dt);
   me.x=Math.max(me.r,Math.min(W-me.r,me.x));me.y=Math.max(me.r,Math.min(H-me.r,me.y));
-  if(fish.length<8+b.big){const roll=Math.random();fish.push(mkFish(roll<.55?1:roll<.8?Math.min(me.size,2):me.size+1+Math.random()*2|0));}
+  if(fish.length<8+b.big)fish.push(mkFish(pickFishSize()));
+  if(!fish.some(f=>!f.dead&&canEat(f)))fish.push(mkFish(Math.max(0,me.size-1)));
   for(const f of fish){f.x+=f.vx*dt;if(f.x<-40||f.x>W+40)f.dead=true;
     const dist=Math.hypot(f.x-me.x,f.y-me.y);
-    if(dist<me.r+f.r-2){if(f.size<me.size||(f.size===me.size&&f.r<me.r*.9)){f.dead=true;eaten++;score+=10*f.size;me.r=Math.min(40,me.r+1.2);me.size=1+((me.r-12)/6|0);Kit.sfx('good');
+    if(dist<me.r+f.r-2){if(canEat(f)){f.dead=true;eaten++;score+=10*Math.max(1,f.size);me.r=Math.min(40,me.r+1.2);me.size=1+((me.r-12)/6|0);Kit.sfx('good');
         if(FX)FX.burst(sparks,f.x,f.y,'#4fc3f7',6);if(eaten>=need&&me.size>=b.goalSize)return endLv(true);}
       else if(f.size>me.size){if(shield>0){shield--;f.dead=true;Kit.toast('护盾！');Kit.sfx('bad');}
         else{lives--;f.dead=true;Kit.sfx('bad');if(lives<=0)return endLv(false,'被大鱼吃了');}}}}

@@ -1926,7 +1926,7 @@ html.game-ui[data-skin="b"][data-archetype="grimoire"] :is(body canvas:is(#cv,#g
   <div class="stagebox"><canvas id="cv"></canvas></div>
   <p class="hint" id="hint">拖炮台发射 · 穿闸门算术</p>
 </div>
-<div class="overlay" id="startScr"><h1>👥 人潮闸门</h1><p>左右拖动炮台按住连续发射。<br>穿过 ×2/+N 变强，与敌军对撞抵消。<br>15 关攻破敌基，Boss 有移动闸门。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
+<div class="overlay" id="startScr"><h1>👥 人潮闸门</h1><p>左右拖动炮台按住连续发射。<br>穿过 ×2/+N 变强，与敌军对撞抵消。<br>20 关攻破敌基，后期闸门会移动或翻转，Boss 更猛。</p><p id="bestLine"></p><button class="btn" id="startBtn">开始游戏</button></div>
 <div class="overlay hidden" id="lvlScr"><h2>选择关卡</h2><p id="lvlInfo"></p><div class="lvgrid" id="lvgrid"></div><div class="rowbtns"><button class="btn ghost" id="shopBtn">成长商店</button><button class="btn ghost" id="backStart">返回</button></div></div>
 <div class="overlay hidden" id="shopScr"><h2>成长商店</h2><p id="coinLine"></p><div class="shop" id="shopList"></div><button class="btn" id="shopBack">返回选关</button></div>
 <div class="overlay hidden" id="tutScr"><h2 id="tutH"></h2><p id="tutP"></p><span id="tutStep"></span><div class="rowbtns"><button class="btn ghost" id="tutSkip">跳过</button><button class="btn" id="tutNext">下一步</button></div></div>
@@ -1956,8 +1956,9 @@ function saveProg(p){UI.storageSet(PK,JSON.stringify(p));}
 let prog=loadProg();
 if(!prog.stars)prog.stars={};if(prog.coins==null)prog.coins=0;if(prog.unlock==null)prog.unlock=1;
 if(!prog.seenTut)prog.seenTut=0;
-let best=+UI.storageGet(HK)||0;$('best').textContent=best;$('bestLine').textContent='解锁 '+prog.unlock+'/15 · 币 '+prog.coins;
-const TOTAL=15;
+let best=+UI.storageGet(HK)||0;$('best').textContent=best;const TOTAL=20;
+if(prog.unlock===15&&(prog.stars[15]|0)>0)prog.unlock=16;
+$('bestLine').textContent='解锁 '+prog.unlock+'/'+TOTAL+' · 币 '+prog.coins;
 let state='menu',lvl=1,score=0,sparks=[],last=performance.now(),boss=false;
 const TUT=[['发射','左右拖动炮台，按住连续发射小人。'],['闸门','穿过 ×2/+N 变强，÷/− 变弱。'],['对撞','与敌军 1 对1 抵消，人多一方推进。'],['Boss','Boss 关有移动闸门与巨型敌军。']];
 const SHOP=[
@@ -1966,7 +1967,7 @@ const SHOP=[
   {k:'champLv',name:'冠军',max:2,cost(){return 60+(prog.champLv|0)*45;},desc(){return '蓄力冠军 '+(prog.champLv|0);}}
 ];
 let gunX=W/2,firing=false,mobs=[],enemies=[],gates=[],baseHp=3,enemyBase=20,spawnT=0,charge=0;
-function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];mobs=[];enemies=[];gunX=W/2;firing=false;charge=0;baseHp=3+(prog.hpLv|0);enemyBase=18+lvl*4+(boss?20:0);$('score').textContent=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);gates=[];const rows=2+Math.min(3,(lvl/4|0));const ops=['×2','×3','+5','+8','÷2','-4','×2','+10'];const rng=mulberry32(lvl*555);for(let r=0;r<rows;r++){const y=120+r*70;const left=ops[rng()*4|0],right=ops[4+(rng()*4|0)];gates.push({y,left,right,x:W/2,move:boss&&r===1,t:0});}state='play';last=performance.now();beep(660,.1);$('hint').textContent='拖炮台发射 · 选好闸门算术';}
+function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];mobs=[];enemies=[];gunX=W/2;firing=false;charge=0;baseHp=3+(prog.hpLv|0);enemyBase=18+lvl*4+(boss?20:0);$('score').textContent=0;show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);gates=[];const high=lvl>=16;const rows=2+Math.min(3,(lvl/4|0));const ops=high?['×2','×3','×4','+10','÷2','÷3','-6','+12']:['×2','×3','+5','+8','÷2','-4','×2','+10'];const rng=mulberry32(lvl*555);for(let r=0;r<rows;r++){const y=120+r*70;const left=ops[rng()*4|0],right=ops[4+(rng()*4|0)];gates.push({y,left,right,x:W/2,move:(boss&&r===1)||(high&&r===0),flip:high&&r===rows-1,t:0,ft:0});}state='play';last=performance.now();beep(660,.1);$('hint').textContent=high?'后期闸门会移动/翻转，看清再穿':'拖炮台发射 · 选好闸门算术';}
 function parseOp(op,n){if(op[0]==='×')return n*parseInt(op.slice(1),10);if(op[0]==='÷')return Math.max(1,Math.floor(n/parseInt(op.slice(1),10)));if(op[0]==='+')return n+parseInt(op.slice(1),10);if(op[0]==='-')return Math.max(0,n-parseInt(op.slice(1),10));return n;}
 cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();firing=true;gunX=posOf(e).x;cv.setPointerCapture&&cv.setPointerCapture(e.pointerId);});
 cv.addEventListener('pointermove',e=>{if(!firing)return;gunX=Math.max(30,Math.min(W-30,posOf(e).x));});
@@ -1975,7 +1976,7 @@ function win(){if(state!=='play')return;state='over';const stars=baseHp>=3?3:bas
 function lose(msg){if(state!=='play')return;state='over';$('overH').textContent='失守';$('finalScore').textContent='💀';$('overText').textContent=(msg||'')+' · 得分 '+score;show('overScr',true);beep(160,.35,'triangle');}
 let fireT=0,enT=0;function update(dt){if(firing){charge+=dt;fireT-=dt;if(fireT<=0){fireT=Math.max(0.08,0.22-(prog.rateLv|0)*0.04);mobs.push({x:gunX,y:H-80,n:1,v:-140-(prog.rateLv|0)*10});beep(700,.02);}}
 enT-=dt;if(enT<=0){enT=Math.max(0.4,1.2-lvl*0.04);enemies.push({x:40+Math.random()*(W-80),y:50,n:2+((lvl/2)|0)+(boss?3:0),v:40+lvl*2});}
-gates.forEach(g=>{if(g.move){g.t+=dt;g.x=W/2+Math.sin(g.t*1.5)*60;}});
+gates.forEach(g=>{if(g.move){g.t+=dt;g.x=W/2+Math.sin(g.t*1.5)*60;}if(g.flip){g.ft+=dt;if(g.ft>2.2){g.ft=0;const tmp=g.left;g.left=g.right;g.right=tmp;}}});
 for(let i=mobs.length-1;i>=0;i--){const m=mobs[i];m.y+=m.v*dt;gates.forEach(g=>{if(Math.abs(m.y-g.y)<12&&!m._g){m._g=1;const op=m.x<g.x?g.left:g.right;m.n=parseOp(op,m.n);beep(820,.05);}});if(m.y<40){enemyBase-=m.n;score+=m.n;$('score').textContent=score;mobs.splice(i,1);if(FX)FX.burst(sparks,m.x,40,'#ffcf33',10);if(enemyBase<=0)return win();}}
 for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];e.y+=e.v*dt;for(let j=mobs.length-1;j>=0;j--){const m=mobs[j];if(Math.abs(m.x-e.x)<20&&Math.abs(m.y-e.y)<20){const d=Math.min(m.n,e.n);m.n-=d;e.n-=d;score+=d;$('score').textContent=score;if(m.n<=0)mobs.splice(j,1);if(e.n<=0){enemies.splice(i,1);beep(600,.06);break;}}}if(e.n>0&&e.y>H-60){baseHp--;enemies.splice(i,1);beep(160,.2,'sawtooth');if(baseHp<=0)return lose('基地被攻破');}}}
 function draw(){if(FX)FX.stage(ctx,W,H,'#ff8ac6','#8d58ff');else{ctx.fillStyle='#8d58ff';ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;gates.forEach(g=>{ctx.fillStyle='#2ee6a0';ctx.fillRect(20,g.y-16,g.x-28,32);ctx.fillStyle='#ff5f6d';ctx.fillRect(g.x+8,g.y-16,W-20-(g.x+8),32);ctx.fillStyle='#124620';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(g.left,(20+g.x-28)/2+10,g.y+5);ctx.fillStyle='#510927';ctx.fillText(g.right,(g.x+8+W-20)/2,g.y+5);});mobs.forEach(m=>{if(FX)FX.orb(ctx,m.x,m.y,m.champ?12:8,m.champ?'#ffd34d':'#5ad0ff');else{ctx.fillStyle='#5ad0ff';ctx.beginPath();ctx.arc(m.x,m.y,8,0,7);ctx.fill();}ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText(m.n,m.x,m.y-12);});enemies.forEach(e=>{if(FX)FX.orb(ctx,e.x,e.y,10,'#ff3d6e');else{ctx.fillStyle='#ff3d6e';ctx.beginPath();ctx.arc(e.x,e.y,10,0,7);ctx.fill();}ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText(e.n,e.x,e.y-14);});if(FX)FX.tile(ctx,gunX-28,H-50,56,24,'#ffcf33',8);else{ctx.fillStyle='#ffcf33';ctx.fillRect(gunX-28,H-50,56,24);}ctx.fillStyle='#fff';ctx.font='13px sans-serif';ctx.textAlign='left';ctx.fillText('❤'+baseHp+' 敌基'+Math.max(0,enemyBase|0)+(boss?' 👑':''),10,22);if(FX&&FX.drawBurst)FX.drawBurst(ctx,sparks);}

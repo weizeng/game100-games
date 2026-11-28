@@ -1961,20 +1961,20 @@ const SHOP=[{k:'jmpLv',name:'弹力鞋',max:3,cost(){return 40+(prog.jmpLv|0)*30
 const CLOUDS=[['#86d8ff','#5875ff'],['#ffbe76','#c44569'],['#546de5','#192a56']];
 let plats=[],stars=[],waves=[],pops=[],spdMul=1,px=0,py=0,vx=0,vy=0,ground=false,dist=0,goal=0,lives=0,rng,cam=0;
 function startLevel(n){lvl=n|0;boss=lvl%5===0;score=0;sparks=[];plats=[];stars=[];waves=[];pops=[];rng=mulberry32(n*2207+5);px=W/2;py=H-120;vx=0;vy=0;ground=true;dist=0;cam=0;goal=900+lvl*80+(boss?300:0);lives=1+(prog.shieldLv|0);buildWorld();show('lvlScr',false);show('shopScr',false);show('overScr',false);show('pauseOv',false);show('startScr',false);state='play';last=performance.now();beep(660,.1);$('score').textContent=0;$('hint').textContent='点跳跃 · 踩云前进';}
-function buildWorld(){plats=[{x:W/2-40,y:H-80,w:80}];let y=H-160;while(y>-goal-200){const gap=70+rng()*40+(boss?20:0);const w=50+rng()*40;const x=30+rng()*(W-60-w);plats.push({x,y,w});if(rng()<.5)stars.push({x:x+w/2,y:y-30,got:false});y-=gap;}}
+function buildWorld(){plats=[{x:W/2-40,y:H-80,w:80}];let y=H-160;while(y>-goal-200){const gap=56+rng()*28+Math.min(16,lvl)+(boss?10:0);const w=56+rng()*34;const prev=plats[plats.length-1];const maxShift=80;const xMin=Math.max(16,prev.x-maxShift);const xMax=Math.min(W-16-w,prev.x+prev.w-w+maxShift);const x=xMin+rng()*Math.max(8,xMax-xMin);plats.push({x,y,w});if(rng()<.5)stars.push({x:x+w/2,y:y-30,got:false});y-=gap;}}
 function win(){if(state!=='play')return;const starsN=lives>1?3:lives>0?2:1;finishWin(starsN,40+starsN*15+(boss?50:0),'云栈登顶！');}
 function lose(msg){if(state!=='play')return;finishLose(msg);}
-function jump(){if(!ground)return;const pwr=320+(prog.jmpLv|0)*40;vy=-pwr;ground=false;beep(720,.06);}
-function update(dt){if(dist>=goal)return win();vy+=980*dt;px+=vx*dt;py+=vy*dt;if(px<10)px=10;if(px>W-10)px=W-10;
+function jump(){if(!ground)return;const pwr=560+(prog.jmpLv|0)*45;vy=-pwr;ground=false;beep(720,.06);}
+function update(dt){if(dist>=goal)return win();vy+=980*dt;px+=vx*dt;py+=vy*dt;if(boss)px+=Math.sin(performance.now()/400)*70*dt;if(px<10)px=10;if(px>W-10)px=W-10;
   ground=false;const mag=20+(prog.magnetLv|0)*18;
-  for(const p of plats){const sy=p.y-cam;if(vy>=0&&px>p.x&&px<p.x+p.w&&py>=sy-8&&py<=sy+16){if(!ground&&vy>60)waves.push({x:px,y:p.y,r:8,c:'#fff',a:.8});py=sy;vy=0;ground=true;}}
+  for(const p of plats){const sy=p.y-cam;if(vy>=0&&px>p.x-2&&px<p.x+p.w+2&&py>=sy-10&&py<=sy+18){if(!ground&&vy>60)waves.push({x:px,y:p.y,r:8,c:'#fff',a:.8});py=sy;vy=0;ground=true;}}
   for(const s of stars){if(s.got)continue;const sy=s.y-cam;if(Math.hypot(s.x-px,sy-py)<mag){s.got=true;score+=20;$('score').textContent=score;beep(990,.05);waves.push({x:s.x,y:s.y,r:6,c:'#ffd34d',a:1});pops.push({x:s.x,y:s.y-12,t:'+20⭐',c:'#ffd34d',a:1});if(FX)FX.burst(sparks,s.x,sy,'#ffd34d',8);}}
   waves=waves.filter(w=>{w.r+=dt*90;w.a-=dt*2.4;return w.a>0;});
   pops=pops.filter(p=>{p.y-=dt*28;p.a-=dt*1.5;return p.a>0;});
   const targetCam=Math.max(0, (H-120)-py);if(targetCam>cam)cam=targetCam;dist=cam;
   if(py-cam>H+40){lives--;if(lives<0)return lose('坠落');py=plats[0].y-10;px=plats[0].x+40;vx=0;vy=0;cam=Math.max(0,cam-80);beep(200,.2,'triangle');}
-  if(boss)vx=Math.sin(performance.now()/400)*60;}
-cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(p.x<W/2)vx=-120;else vx=120;jump();});
+}
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();const p=posOf(e);if(p.x<W/2)vx=-150;else vx=150;jump();});
 cv.addEventListener('pointerup',()=>{vx*=.3;});
 function draw(){const cl=CLOUDS[Math.min(2,((lvl-1)/5)|0)];if(FX)FX.stage(ctx,W,H,cl[0],cl[1]);else{ctx.fillStyle=cl[1];ctx.fillRect(0,0,W,H);}if(state!=='play'&&state!=='pause')return;
   ctx.fillStyle='#fff';ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillText('高'+Math.floor(dist)+'/'+goal+' 命'+(lives+1)+(boss?' 🌪👑':''),10,22);
